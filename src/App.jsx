@@ -157,6 +157,18 @@ function App() {
 
   const update = (k, v) => setChar((c) => ({ ...c, [k]: v }));
 
+  async function readApiJson(res, label) {
+    const text = await res.text();
+    if (!text.trim()) {
+      throw new Error(`${label} 응답이 비어 있습니다. HTTP ${res.status}. 로컬 개발 서버에서 /api/generate 연결이 끊겼을 수 있습니다.`);
+    }
+    try {
+      return JSON.parse(text);
+    } catch (e) {
+      throw new Error(`${label}가 JSON이 아닌 응답을 보냈습니다. HTTP ${res.status}. 응답 앞부분: ${text.slice(0, 120)}`);
+    }
+  }
+
   // ── 화자/방 모델 ──
   // 화자(speakAs): "char"=내자캐 | "owner"=나(오너) | "p:<id>"=유저 페르소나
   const ownerLabel = "나";
@@ -223,17 +235,34 @@ function App() {
     return TONE_PRESETS.find((t) => t.id === id)?.label || "";
   }
 
-  const parseDump = async (textRaw) => {
+  const parseDump = async () => {
+    const textRaw = [
+      dump.trim() ? `[캐릭터 설명]\n${dump.trim()}` : "",
+      rpLog.trim() ? `[역극/대사 로그]\n${rpLog.trim()}` : "",
+    ].filter(Boolean).join("\n\n");
+
+    if (!textRaw) return;
+
+    setParsing(true);
     setLoading(true);
     setParseFailed(false);
-    const sys = `다음 텍스트를 읽고, 아래 항목을 갖춘 JSON 객체로만 답해. 절대 마크다운 백틱(\`\`\`)을 쓰지 마라.
+    const sys = `다음 텍스트는 사용자의 "오너 페르소나"가 아니라, SNS 계정으로 깨울 "자캐/캐릭터" 설정이다.
+아래 항목을 갖춘 JSON 객체로만 답해. 절대 마크다운 백틱(\`\`\`)을 쓰지 마라.
     {
-      "name": "이름 (1~6자)",
-      "age": "나이 (알 수 없으면 '?')",
-      "isPersona": false,
-      "persona": "한 줄 요약 성격 (15자 이내)",
-      "rules": ["말투나 행동 특징 1", "특징 2", "특징 3"],
-      "avatar": "가장 잘 어울리는 이모지 1개"
+      "name": "캐릭터 이름",
+      "handle": "영문/한글 아이디 후보. @ 없이",
+      "age": "나이 또는 한 줄 설정. 알 수 없으면 빈 문자열",
+      "persona": "캐릭터의 성격/정체성 요약",
+      "world": "세계관/배경. 알 수 없으면 빈 문자열",
+      "speech": "말투, 어미, 자주 쓰는 표현",
+      "catchphrase": "캐치프레이즈나 명대사. 없으면 빈 문자열",
+      "surface": "겉모습/첫인상",
+      "inner": "겉과 다른 속마음/숨은 면",
+      "situational": "상황별 반응",
+      "triggers": "무너지거나 발끈하는 점",
+      "interests": "좋아하는 것/관심사",
+      "relations": "관계망. 예: 이름 — 관계, 이름 — 관계. 없으면 빈 문자열",
+      "warmth": "slow | normal | fast 중 하나"
     }`;
 
     try {
@@ -247,11 +276,11 @@ function App() {
         }),
       });
       
-      const data = await res.json();
+      const data = await readApiJson(res, "캐릭터 분석 API");
 
       // 🚨 [핵심 방어 코드] 서버에서 에러를 보냈으면 숨기지 말고 알림창(팝업) 띄우기!
-      if (data.error) {
-        const errMsg = data.detail?.error?.message || JSON.stringify(data.detail) || "알 수 없는 에러";
+      if (!res.ok || data.error) {
+        const errMsg = data.message || data.detail?.error?.message || JSON.stringify(data.detail) || "알 수 없는 에러";
         alert(`🚨 [API 통신 실패]\n\n서버에서 다음 에러를 뱉었습니다:\n${errMsg}\n\n(원인: 할당량 초과(429), 모델명 없음(404), 혹은 Vercel 타임아웃)`);
         setLoading(false);
         setParseFailed(true);
@@ -259,7 +288,8 @@ function App() {
       }
 
       // 정상 응답일 경우 파싱 시작
-      let raw = data.content.map(i => i.type === "text" ? i.text : "").join("");
+      let raw = (data.content || []).map(i => i.type === "text" ? i.text : "").join("");
+      if (!raw.trim()) throw new Error("AI 응답에 텍스트가 없습니다.");
       
       // AI가 헛소리를 덧붙여도 JSON만 강제로 도려내서 파싱
       const first = raw.indexOf("{");
@@ -270,24 +300,39 @@ function App() {
 
       const obj = JSON.parse(raw);
       if (!obj.name) throw new Error("이름 필드가 없습니다.");
-      
-      let baseRel = RELATION_BASE.find(r => r.name === obj.name) || { target: OWNER, affinity: 0, state: "none", memo: "" };
-      const id = "char_" + Date.now();
-      const ch = {
-        id, name: obj.name, age: obj.age || "?", isPersona: !!obj.isPersona,
-        persona: obj.persona || "성격 요약 없음", rules: obj.rules || ["특징 없음"],
-        avatar: obj.avatar || "👤", warmth: 1, affinityToOwner: baseRel.affinity, stateWithOwner: baseRel.state
-      };
-      addLog(`[System] ${ch.name} 캐릭터 데이터가 생성되었습니다. (대기 상태)`);
-      setTempChar(ch);
+
+      setChar((prev) => ({
+        ...prev,
+        name: String(obj.name || "").trim(),
+        handle: String(obj.handle || obj.name || "").replace(/^@/, "").trim(),
+        age: String(obj.age || "").trim(),
+        tone: prev.tone || "calm",
+        persona: String(obj.persona || "성격 요약 없음").trim(),
+        world: String(obj.world || "").trim(),
+        speech: String(obj.speech || "").trim(),
+        catchphrase: String(obj.catchphrase || "").trim(),
+        surface: String(obj.surface || "").trim(),
+        inner: String(obj.inner || "").trim(),
+        situational: String(obj.situational || "").trim(),
+        triggers: String(obj.triggers || "").trim(),
+        interests: String(obj.interests || "").trim(),
+        relations: String(obj.relations || "").trim(),
+        warmth: ["slow", "normal", "fast"].includes(obj.warmth) ? obj.warmth : "normal",
+        corrections: prev.corrections || [],
+        directions: prev.directions || "",
+        lorebook: prev.lorebook || [],
+      }));
+      setStep("confirm");
 
     } catch (e) {
       console.error("분석 중 에러:", e);
       // JSON 파싱 실패나 네트워크 단절 등 예기치 못한 에러 팝업
       alert(`🚨 [파싱 실패]\n\nAI가 JSON을 망가뜨렸거나 처리 시간이 너무 길어 Vercel이 강제로 끊었습니다.\n\n에러 원인: ${e.message}`);
       setParseFailed(true);
+      setStep("confirm");
     } finally {
       setLoading(false);
+      setParsing(false);
     }
   };
   

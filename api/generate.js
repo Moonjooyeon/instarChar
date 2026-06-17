@@ -2,7 +2,7 @@
 //  /api/generate  —  Vercel 서버리스 함수 (최종 수정본)
 // ────────────────────────────────────────────────────────────
 
-export const maxDuration = 60; // Vercel 서버 강제 종료 방지 (60초 연장)
+export const maxDuration = 60;
 
 const FAST = process.env.GEMINI_MODEL_FAST || "gemini-3.1-flash-lite";
 const GOOD = process.env.GEMINI_MODEL_GOOD || "gemini-2.5-pro";
@@ -34,14 +34,11 @@ function toGeminiContents(messages) {
 }
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "POST only" });
-  }
+  if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
 
   const key = process.env.GEMINI_API_KEY;
   if (!key) {
-    const err = { name: "API_ERROR", persona: "서버에 API 키가 없습니다.", aff_a_to_b: 0, aff_b_to_a: 0, mem_a: [], mem_b: [] };
-    return res.status(200).json({ content: [{ type: "text", text: JSON.stringify(err) }] });
+    return res.status(500).json({ error: "API_KEY_MISSING", message: "서버에 API 키가 설정되지 않았습니다." });
   }
 
   try {
@@ -59,7 +56,6 @@ export default async function handler(req, res) {
 
     if (wantsJson) {
       body.generationConfig.responseMimeType = "application/json";
-      // 🚨 주의: thinkingConfig는 지원하지 않는 모델에서 400 에러를 유발하므로 완전히 삭제했습니다.
     }
 
     if (system) {
@@ -75,38 +71,22 @@ export default async function handler(req, res) {
 
     const data = await r.json();
 
-    // 🚨 쌍따옴표 충돌 없이 완벽한 객체로 만들어 안전하게 에러 반환
+    // 🚨 여기서 200 OK인 척 하지 않고 확실하게 500 에러를 던지도록 수정했습니다.
     if (!r.ok) {
-      console.error("Gemini API Error:", data);
-      const errObj = {
-        name: "API_에러발생",
-        persona: `상태코드 ${r.status}: ${data.error?.message || "알 수 없는 에러"}`,
-        aff_a_to_b: 0, aff_b_to_a: 0, mem_a: [], mem_b: []
-      };
-      return res.status(200).json({ content: [{ type: "text", text: JSON.stringify(errObj) }] });
+      console.error("Gemini API 통신 실패:", data);
+      return res.status(500).json({ error: "API_ERROR", status: r.status, detail: data });
     }
 
     const cand = data?.candidates?.[0];
     let text = cand?.content?.parts?.map((p) => p.text || "").join("") || "";
 
     if (!text) {
-      const emptyObj = {
-        name: "응답_없음",
-        persona: `Gemini 빈 응답. 사유: ${cand?.finishReason || "unknown"}`,
-        aff_a_to_b: 0, aff_b_to_a: 0, mem_a: [], mem_b: []
-      };
-      return res.status(200).json({ content: [{ type: "text", text: JSON.stringify(emptyObj) }] });
+      return res.status(500).json({ error: "EMPTY_RESPONSE", finishReason: cand?.finishReason });
     }
 
-    return res.status(200).json({
-      content: [{ type: "text", text }],
-    });
+    return res.status(200).json({ content: [{ type: "text", text }] });
   } catch (e) {
-    const fatalObj = {
-      name: "서버_오류",
-      persona: `서버 내부 오류: ${e.message}`,
-      aff_a_to_b: 0, aff_b_to_a: 0, mem_a: [], mem_b: []
-    };
-    return res.status(200).json({ content: [{ type: "text", text: JSON.stringify(fatalObj) }] });
+    console.error("서버 내부 에러:", e);
+    return res.status(500).json({ error: "SERVER_CRASH", message: String(e) });
   }
 }
