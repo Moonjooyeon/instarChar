@@ -51,13 +51,14 @@ export default async function handler(req, res) {
     const { model, system, messages, max_tokens } = req.body || {};
     const geminiModel = pickGeminiModel(model);
 
-    // JSON 응답 요구 감지
+    // JSON 응답 요구 감지 (분석, 요약 등)
     const wantsJson = /JSON|json 객체|json으로|JSON으로|반드시 JSON/.test(system || "");
 
     const body = {
       contents: toGeminiContents(messages),
       generationConfig: {
-        maxOutputTokens: max_tokens || 800,
+        // 요약(기억통합) 시 토큰이 짤려서 JSON이 깨지는 현상 방지를 위해 기본값 2048로 상향
+        maxOutputTokens: max_tokens || 2048,
         temperature: wantsJson ? 0.3 : 0.9,
       },
     };
@@ -66,7 +67,7 @@ export default async function handler(req, res) {
       body.generationConfig.responseMimeType = "application/json";
     }
 
-    // 핵심 수정 1: system_instruction(X) -> systemInstruction(O)
+    // 핵심: 대문자 I (systemInstruction) 사용
     if (system) {
       body.systemInstruction = { parts: [{ text: system }] };
     }
@@ -95,6 +96,15 @@ export default async function handler(req, res) {
       });
     }
 
-    // 핵심 수정 2: JSON 모드일 경우 프론트 파서를 망가뜨리는 마크다운 백틱 찌꺼기 제거
+    // 마크다운 백틱 찌꺼기 완벽 제거
     if (wantsJson) {
-      text = text.replace(/^\s*
+      text = text.replace(/^\s*```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
+    }
+
+    return res.status(200).json({
+      content: [{ type: "text", text }],
+    });
+  } catch (e) {
+    return res.status(500).json({ error: "server_error", detail: String(e) });
+  }
+}
