@@ -2,7 +2,7 @@
 //  /api/generate  —  Vercel 서버리스 함수 (최종 수정본)
 // ────────────────────────────────────────────────────────────
 
-export const maxDuration = 80; // Vercel 서버 강제 종료 방지
+export const maxDuration = 60; // Vercel 서버 강제 종료 방지 (60초 연장)
 
 const FAST = process.env.GEMINI_MODEL_FAST || "gemini-3.1-flash-lite";
 const GOOD = process.env.GEMINI_MODEL_GOOD || "gemini-2.5-pro";
@@ -40,7 +40,8 @@ export default async function handler(req, res) {
 
   const key = process.env.GEMINI_API_KEY;
   if (!key) {
-    return res.status(200).json({ content: [{ type: "text", text: '{"name": "API_ERROR", "persona": "서버에 API 키가 없습니다."}' }] });
+    const err = { name: "API_ERROR", persona: "서버에 API 키가 없습니다.", aff_a_to_b: 0, aff_b_to_a: 0, mem_a: [], mem_b: [] };
+    return res.status(200).json({ content: [{ type: "text", text: JSON.stringify(err) }] });
   }
 
   try {
@@ -58,8 +59,7 @@ export default async function handler(req, res) {
 
     if (wantsJson) {
       body.generationConfig.responseMimeType = "application/json";
-      // 🔑 2.5 Pro/Flash 계열은 thinking 모델 — JSON 추출 땐 thinking 끄고 본문 토큰 확보
-      body.generationConfig.thinkingConfig = { thinkingBudget: 0 };
+      // 🚨 주의: thinkingConfig는 지원하지 않는 모델에서 400 에러를 유발하므로 완전히 삭제했습니다.
     }
 
     if (system) {
@@ -75,33 +75,38 @@ export default async function handler(req, res) {
 
     const data = await r.json();
 
+    // 🚨 쌍따옴표 충돌 없이 완벽한 객체로 만들어 안전하게 에러 반환
     if (!r.ok) {
       console.error("Gemini API Error:", data);
-      const errMsg = `{"name": "API_에러발생", "persona": "상태코드: ${r.status}. 상세: ${JSON.stringify(data.error?.message || data)}", "aff_a_to_b": 0, "aff_b_to_a": 0, "mem_a": [], "mem_b": []}`;
-      return res.status(200).json({ content: [{ type: "text", text: errMsg }] });
+      const errObj = {
+        name: "API_에러발생",
+        persona: `상태코드 ${r.status}: ${data.error?.message || "알 수 없는 에러"}`,
+        aff_a_to_b: 0, aff_b_to_a: 0, mem_a: [], mem_b: []
+      };
+      return res.status(200).json({ content: [{ type: "text", text: JSON.stringify(errObj) }] });
     }
 
     const cand = data?.candidates?.[0];
     let text = cand?.content?.parts?.map((p) => p.text || "").join("") || "";
 
     if (!text) {
-      const emptyMsg = `{"name": "응답_없음", "persona": "Gemini가 빈 응답을 줬습니다. 사유: ${cand?.finishReason}", "aff_a_to_b": 0, "aff_b_to_a": 0, "mem_a": [], "mem_b": []}`;
-      return res.status(200).json({ content: [{ type: "text", text: emptyMsg }] });
-    }
-
-    if (wantsJson) {
-      body.generationConfig.responseMimeType = "application/json";
-      // 🔑 flash 계열만 thinking 끌 수 있음. 2.5 Pro는 thinking 못 꺼서 0 주면 400 에러남.
-      if (geminiModel !== GOOD) {
-        body.generationConfig.thinkingConfig = { thinkingBudget: 0 };
-      }
+      const emptyObj = {
+        name: "응답_없음",
+        persona: `Gemini 빈 응답. 사유: ${cand?.finishReason || "unknown"}`,
+        aff_a_to_b: 0, aff_b_to_a: 0, mem_a: [], mem_b: []
+      };
+      return res.status(200).json({ content: [{ type: "text", text: JSON.stringify(emptyObj) }] });
     }
 
     return res.status(200).json({
       content: [{ type: "text", text }],
     });
   } catch (e) {
-    const fatalMsg = `{"name": "서버_오류", "persona": "Vercel 서버 내부 오류: ${e.message}", "aff_a_to_b": 0, "aff_b_to_a": 0, "mem_a": [], "mem_b": []}`;
-    return res.status(200).json({ content: [{ type: "text", text: fatalMsg }] });
+    const fatalObj = {
+      name: "서버_오류",
+      persona: `서버 내부 오류: ${e.message}`,
+      aff_a_to_b: 0, aff_b_to_a: 0, mem_a: [], mem_b: []
+    };
+    return res.status(200).json({ content: [{ type: "text", text: JSON.stringify(fatalObj) }] });
   }
 }
