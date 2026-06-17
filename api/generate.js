@@ -11,8 +11,8 @@
 //  GEMINI_MODEL_FAST : 자동 생성용 모델 (기본 gemini-2.5-flash)
 //  GEMINI_MODEL_GOOD : 직접 대화용 모델 (기본 gemini-2.5-flash, 품질 올리려면 pro 계열로)
 
-const FAST = process.env.GEMINI_MODEL_FAST || "gemini-2.5-flash";
-const GOOD = process.env.GEMINI_MODEL_GOOD || "gemini-2.5-flash";
+const FAST = process.env.GEMINI_MODEL_FAST || "gemini-3.1-flash-lite";
+const GOOD = process.env.GEMINI_MODEL_GOOD || "gemini-2.5-pro";
 
 // 프론트가 보내는 model 문자열을 Gemini 모델로 매핑.
 //  기존 코드가 "claude-sonnet-*"(직접) / "claude-haiku-*"(자동)로 구분해 보내므로 그걸 그대로 활용.
