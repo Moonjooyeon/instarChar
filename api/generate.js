@@ -2,13 +2,11 @@
 //  /api/generate  —  Vercel 서버리스 함수 (최종 수정본)
 // ────────────────────────────────────────────────────────────
 
-export const maxDuration = 80; // 🚨 핵심 추가: Vercel 서버 10초 강제 종료 방지 (60초 연장)
+export const maxDuration = 80; // Vercel 서버 강제 종료 방지
 
-// 환경변수: Vercel 대시보드에 설정된 값을 우선 사용하고, 없으면 기본값 사용
 const FAST = process.env.GEMINI_MODEL_FAST || "gemini-3.1-flash-lite";
 const GOOD = process.env.GEMINI_MODEL_GOOD || "gemini-2.5-pro";
 
-// 프론트가 보내는 model 문자열을 Gemini 모델로 매핑.
 function pickGeminiModel(model) {
   const m = String(model || "");
   if (m.includes("sonnet") || m.includes("opus")) return GOOD;
@@ -18,7 +16,6 @@ function pickGeminiModel(model) {
 function toGeminiContents(messages) {
   return (messages || []).map((m) => {
     let extractedText = "";
-
     if (typeof m.content === "string") {
       extractedText = m.content;
     } else if (Array.isArray(m.content)) {
@@ -29,7 +26,6 @@ function toGeminiContents(messages) {
     } else {
       extractedText = JSON.stringify(m.content);
     }
-
     return {
       role: m.role === "assistant" ? "model" : "user",
       parts: [{ text: extractedText }],
@@ -62,6 +58,8 @@ export default async function handler(req, res) {
 
     if (wantsJson) {
       body.generationConfig.responseMimeType = "application/json";
+      // 🔑 2.5 Pro/Flash 계열은 thinking 모델 — JSON 추출 땐 thinking 끄고 본문 토큰 확보
+      body.generationConfig.thinkingConfig = { thinkingBudget: 0 };
     }
 
     if (system) {
@@ -77,7 +75,6 @@ export default async function handler(req, res) {
 
     const data = await r.json();
 
-    // 🚨 404, 429 등 통신 에러 발생 시 프론트가 터지지 않게 방어하고 화면에 에러를 보여줌
     if (!r.ok) {
       console.error("Gemini API Error:", data);
       const errMsg = `{"name": "API_에러발생", "persona": "상태코드: ${r.status}. 상세: ${JSON.stringify(data.error?.message || data)}", "aff_a_to_b": 0, "aff_b_to_a": 0, "mem_a": [], "mem_b": []}`;
