@@ -1,0 +1,3138 @@
+import React, { useState, useRef, useEffect } from "react";
+
+// ─────────────────────────────────────────────
+//  ALIVE — 내 자캐가 자기 SNS를 운영한다
+//  설정 입력 → 그 보이스로 피드에 글이 올라옴
+//  (Claude API로 실제 생성)
+// ─────────────────────────────────────────────
+
+// 모델 선택 — 한 곳에서 관리. 실배포 시 백엔드에서 다른 제공자(Gemini Pro/Flash 등)로 교체 가능.
+//  DIRECT = 사용자가 직접 치는 DM (품질 최우선, 빈도 낮음 → Sonnet / 배포 시 Pro)
+//  AUTO   = 자동 생성: 자동대화·피드 글·댓글 (빈도 높아 비용 큼 → Haiku / 배포 시 Flash)
+//  UTIL   = 호감도 판정·기억 추출 같은 분류/요약 (저렴한 Haiku로 충분)
+const MODEL_DIRECT = "claude-sonnet-4-6";
+const MODEL_AUTO = "claude-haiku-4-5-20251001";
+const MODEL_CHAT = MODEL_DIRECT; // 캐릭터 파싱 등 품질 필요한 곳 기본
+const MODEL_UTIL = "claude-haiku-4-5-20251001";
+
+const TONE_PRESETS = [
+  { id: "calm", label: "차분/시크", hint: "말수 적고 담담함" },
+  { id: "bright", label: "밝음/수다", hint: "감탄사 많고 활기참" },
+  { id: "soft", label: "다정/여림", hint: "따뜻하고 조심스러움" },
+  { id: "edgy", label: "까칠/도도", hint: "툭툭 던지고 자존심 셈" },
+  { id: "chaos", label: "4차원/엉뚱", hint: "예측불가 드립" },
+];
+
+const POST_MOODS = [
+  "일상 / 방금 있었던 일",
+  "혼잣말 / 생각",
+  "셀카 찍은 척 (사진 묘사)",
+  "푸념 / 투정",
+  "지금 기분",
+  "랜덤 / 알아서",
+];
+
+const EXAMPLES = [
+  {
+    name: "리안", short: "시크·까칠 / 마법사",
+    text: "이름은 리안. 21살, 마법학교 다님. 겉으론 시크하고 까칠한데 단 거 앞에선 무너짐. 고양이 키우고 밤에 글 쓰는 거 좋아함. 반말 쓰고 문장 끝에 '…' 자주 붙임. 현대 판타지 세계관.",
+  },
+  {
+    name: "하루", short: "밝음·수다 / 대학생",
+    text: "하루! 20살 평범한 대학생인데 텐션이 미쳤음. 아무한테나 말 검. 감탄사 폭발하고 이모지 많이 씀. 먹는 거랑 강아지 좋아하고 시험기간만 되면 세상 무너진 것처럼 굶. 캐치프레이즈는 '오늘도 일단 출발~!'",
+  },
+];
+
+// 캐해 교정 빠른 선택
+const QUICK_FIXES = ["말투가 아님", "성격이 아님", "이런 말 안 함", "너무 오버함", "관계 반영 안 됨", "이모지 안 씀"];
+
+// 공개 캐릭터 풀 — "다른 사람이 올린 자캐"를 흉내내는 샘플. (실서비스에선 유저 공유 DB)
+const DISCOVER_POOL = [
+  { id: "d1", name: "세인", handle: "sein_", owner: "@morgse", age: "23", persona: "냉정한 검사. 말이 짧고 핵심만. 속은 의외로 정 많음.",
+    speech: "건조한 반말, 군더더기 없음", surface: "무표정, 검은 코트", inner: "지킬 사람 앞에선 약해짐",
+    interests: "검술, 비 오는 날", catchphrase: "…쓸데없는 소리.", tags: ["냉미남", "검사", "느와르"] },
+  { id: "d2", name: "포아", handle: "poaa", owner: "@cloudfish", age: "19", persona: "장난기 폭발하는 인어. 호기심 천국, 인간 세상에 환장함.",
+    speech: "물결치는 밝은 말투, 어미 늘임~", surface: "청록 머리, 진주 장식", inner: "외로움을 장난으로 숨김",
+    interests: "반짝이는 것, 인간 음식", catchphrase: "오와~ 이건 또 뭐야~?", tags: ["인어", "발랄", "판타지"] },
+  { id: "d3", name: "리체르카", handle: "ricerca", owner: "@inkwell", age: "27", persona: "고서를 모으는 마도서가. 우아하고 비밀이 많음.",
+    speech: "정중한 존댓말, 고풍스러움", surface: "은테 안경, 깃펜", inner: "금지된 지식에 끌림",
+    interests: "고문서, 홍차", catchphrase: "그 페이지는… 아직 이르군요.", tags: ["마법사", "지적", "미스터리"] },
+  { id: "d4", name: "둔타", handle: "dunta_z", owner: "@333zzz", age: "21", persona: "헬스 중독 대형견 같은 청년. 단순하고 직진. 정 많음.",
+    speech: "우렁찬 반말, 느낌표 남발", surface: "구릿빛 피부, 큰 덩치", inner: "섬세한 면을 들키기 싫어함",
+    interests: "운동, 고기, 강아지", catchphrase: "일단 해보자!! 어?!", tags: ["대형견", "햇살", "근육"] },
+  { id: "d5", name: "야린", handle: "yarin.x", owner: "@velvetnoir", age: "25", persona: "퇴폐적인 바텐더. 나른하고 위험한 분위기. 속내를 안 보임.",
+    speech: "낮고 느린 말투, 농담 섞음", surface: "흐트러진 셔츠, 담배 향", inner: "누구도 곁에 안 둠",
+    interests: "칵테일, 재즈, 밤", catchphrase: "한 잔 더? …위험한데.", tags: ["퇴폐", "어른", "느와르"] },
+  { id: "d6", name: "솜", handle: "ssom_o", owner: "@bunnybun", age: "18", persona: "수줍은 토끼 수인. 말 더듬고 잘 놀람. 용기 내려 애씀.",
+    speech: "더듬는 존댓말, 작은 목소리", surface: "큰 귀, 솜뭉치 꼬리", inner: "사실 모험을 동경함",
+    interests: "당근 디저트, 별 보기", catchphrase: "어, 어어… 죄송해요…!", tags: ["수인", "소심", "힐링"] },
+  { id: "d7", name: "카이젠", handle: "kaizen__", owner: "@redgear", age: "29", persona: "오만한 천재 발명가. 자뻑 심하지만 실력은 진짜.",
+    speech: "거만한 반말, 비웃음 섞음", surface: "고글, 기름때 장갑", inner: "인정받고 싶은 욕구",
+    interests: "기계, 폭발물, 커피", catchphrase: "흥, 이 정도는 기본이지.", tags: ["천재", "오만", "스팀펑크"] },
+  { id: "d8", name: "유레", handle: "yure_moon", owner: "@lunalune", age: "22", persona: "조용한 점성술사. 신비롭고 다정. 사람 마음을 잘 읽음.",
+    speech: "잔잔한 존댓말, 시적인 표현", surface: "별무늬 로브, 보랏빛 눈", inner: "자기 미래만은 못 봄",
+    interests: "별자리, 타로, 새벽", catchphrase: "오늘 밤, 당신의 별이 흔들리네요.", tags: ["점성술", "신비", "힐링"] },
+];
+
+// 내 정체성(자캐)이 char의 관계망과 매칭되는지 → 매칭된 관계 문자열 반환 (없으면 "")
+function relationMatched(char, ident) {
+  const myName = (ident.name || "").trim();
+  if (!myName) return ident.relation ? `${myName} — ${ident.relation}` : "";
+  const norm = (s) => s.replace(/\s/g, "");
+  const myNorm = norm(myName);
+  if (char.relations) {
+    const rels = char.relations.split(/[,，]/).map((r) => r.trim()).filter(Boolean);
+    const hit = rels.find((r) => norm(r).includes(myNorm) && myNorm.length >= 1);
+    if (hit) return hit;
+  }
+  if (ident.relation) return `${myName} — ${ident.relation}`;
+  return "";
+}
+
+function App() {
+  const [step, setStep] = useState("home"); // home | dump | confirm | feed | dm
+  const [accounts, setAccounts] = useState([]); // 저장된 자캐들 [{id, char, gallery, posts}]
+  const [activeId, setActiveId] = useState(null);
+  const [dump, setDump] = useState("");
+  const [rpLog, setRpLog] = useState("");
+  const [parsing, setParsing] = useState(false);
+  const [parseFailed, setParseFailed] = useState(false);
+  const [char, setChar] = useState({
+    name: "", handle: "", age: "", tone: "calm",
+    persona: "", world: "", speech: "", catchphrase: "",
+    surface: "", inner: "", situational: "", triggers: "", interests: "",
+    relations: "", corrections: [], directions: "", lorebook: [],
+  });
+  const [gallery, setGallery] = useState([]); // 업로드한 자캐 그림 (dataURL 배열)
+  const [posts, setPosts] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [moodOpen, setMoodOpen] = useState(false);
+  const [writeOpen, setWriteOpen] = useState(false);
+  const [writeText, setWriteText] = useState("");
+  const [fixTarget, setFixTarget] = useState(null); // {type:'post'|'dm', id/index, text}
+  const [fixText, setFixText] = useState("");
+  const [autoChatting, setAutoChatting] = useState(false);
+  const autoChatRef = useRef(false);
+  const [auto, setAuto] = useState(true); // 자율 포스팅 on/off
+  const [fast, setFast] = useState(false); // 데모용 빠른 주기
+  const [nextIn, setNextIn] = useState(0); // 다음 글까지 남은 초
+  // DM — 대화는 두 참여자(자캐/나) 사이. 키는 이름 정렬로 양방향 공유.
+  const [dmThreads, setDmThreads] = useState({}); // { "이름A|이름B": [{from, text}] }
+  const [peer, setPeer] = useState(null); // 현재 대화 상대 {name, isUser, persona, relation}
+  const [dmInput, setDmInput] = useState("");
+  const [dmSending, setDmSending] = useState(false);
+  const [ownerPersona, setOwnerPersona] = useState(""); // 오너(나) 페르소나
+  const [speakAs, setSpeakAs] = useState("char"); // 화자: "char"(자캐) | "owner"(나) | "p:<id>"(유저 페르소나)
+  // 유저 페르소나 — 케이브덕식. 캐릭터처럼 이름·나이·성격·말투를 갖고, 호감도·진도질문 시스템을 동일하게 탐.
+  const [personas, setPersonas] = useState([]); // [{id, name, age, persona, speech}]
+  const [personaDraft, setPersonaDraft] = useState(null); // 편집 중 {id?, name, age, persona, speech}
+  const [showMemory, setShowMemory] = useState(false); // 피드에서 쌓인 기억 펼침
+  const [showRelations, setShowRelations] = useState(false); // 프로필 관계 펼침
+  const [memFilter, setMemFilter] = useState(null); // 기억 상대 필터 (null=전체)
+  const [showPeerMem, setShowPeerMem] = useState(false); // DM 안 상대기억 토글 (피드와 분리)
+  const [newChatSpeaker, setNewChatSpeaker] = useState("char"); // 새 대화 시작 시 화자: char | p:<id>
+  const [newChatMode, setNewChatMode] = useState(null); // null | "char"(자캐로) | "persona"(페르소나로)
+  const [commentOn, setCommentOn] = useState(null); // 댓글 작성 중인 글 id
+  const [commentAs, setCommentAs] = useState("char"); // 댓글 화자: char | p:<id>
+  const [commentText, setCommentText] = useState(""); // 댓글 입력 내용
+  const [chatMode, setChatMode] = useState("talk"); // talk(대화) | novel(소설)
+  // 팔로우한 외부 캐릭터(다른 사람 자캐) — char 객체 배열
+  const [following, setFollowing] = useState([]);
+  const [discoverQuery, setDiscoverQuery] = useState("");
+  // 호감도: 쌍 키("이름A|이름B" 정렬) → 0~100
+  const [affinity, setAffinity] = useState({});
+  // 진도질문 모달: null | {meName, peerName, line, pairKey, stage}
+  const [proposal, setProposal] = useState(null);
+  const [relationResult, setRelationResult] = useState(null); // {asker, other, accepted}
+  const proposalRef = useRef(null);
+  // 진도질문 띄운 쌍 — 거절/처리 후 당분간 다시 안 물어봄 (쌍키 → true)
+  const proposalCooldownRef = useRef({});
+  const proposingRef = useRef(false); // 진도질문 생성 중복 방지
+  const dmEndRef = useRef(null);
+  const loadingRef = useRef(false);
+  const feedTopRef = useRef(null);
+  const feedInitRef = useRef(false);
+
+  const update = (k, v) => setChar((c) => ({ ...c, [k]: v }));
+
+  // ── 화자/방 모델 ──
+  // 화자(speakAs): "char"=내자캐 | "owner"=나(오너) | "p:<id>"=유저 페르소나
+  const ownerLabel = "나";
+  const activePersona = speakAs.startsWith("p:") ? personas.find((p) => `p:${p.id}` === speakAs) : null;
+  const ownerSpeaking = speakAs === "owner";
+  // meName = 지금 누가 보내는가 (말풍선·호감도 주체)
+  const meName = peer
+    ? (peer.asOwner ? ownerLabel
+        : activePersona ? activePersona.name
+        : ownerSpeaking ? ownerLabel
+        : (char.name || "나"))
+    : (char.name || "나");
+  // 방의 "내 쪽 주체" = 현재 화자(자캐/페르소나). 오너로 말할 땐 자캐 방에 묻어감.
+  //  → 하루↔세인 / 유진↔세인 방이 각각 분리됨. 오너 끼어들기는 자캐 방에 남음.
+  const roomMe = activePersona ? activePersona.name : (char.name || "나");
+  const dmKey = peer
+    ? (peer.asOwner
+        ? `${ownerLabel}|${char.name}`
+        : [roomMe, peer.name].sort().join("|"))
+    : "";
+  const dm = (peer && dmThreads[dmKey]) || [];
+  const setDmThread = (updater) => setDmThreads((prev) => {
+    const cur = prev[dmKey] || [];
+    const next = typeof updater === "function" ? updater(cur) : updater;
+    return { ...prev, [dmKey]: next };
+  });
+  // 현재 계정(char)이 참여한 대화 목록 (자캐 방 + 내 페르소나 방 + 오너 방)
+  function myConversations() {
+    const me = char.name || "나";
+    const myNames = new Set([me, ...personas.map((p) => p.name)]);
+    return Object.entries(dmThreads)
+      .filter(([k]) => {
+        const parts = k.split("|");
+        // 오너→내자캐 방
+        if (parts[0] === ownerLabel && parts[1] === me) return true;
+        // 내 쪽(자캐 또는 내 페르소나)이 참여한 방
+        return parts.some((n) => myNames.has(n));
+      })
+      .map(([k, msgs]) => {
+        const parts = k.split("|");
+        const isOwnerThread = parts[0] === ownerLabel && parts[1] === me;
+        const personaSide = isOwnerThread ? null : parts.find((n) => isPersonaName(n));
+        let mineSide, other, asPersona;
+        if (isOwnerThread) {
+          mineSide = ownerLabel; other = ownerLabel; asPersona = null;
+        } else if (personaSide) {
+          // 페르소나가 낀 방: 페르소나가 화자, 나머지가 상대 (이비↔리안 → 화자 이비 / 상대 리안)
+          mineSide = personaSide;
+          other = parts.find((n) => n !== personaSide) || parts[0];
+          asPersona = personaSide;
+        } else {
+          // 자캐 방: 내 자캐가 화자, 나머지가 상대
+          mineSide = parts.find((n) => n === me) || me;
+          other = parts.find((n) => n !== mineSide) || parts[0];
+          asPersona = null;
+        }
+        const last = msgs[msgs.length - 1];
+        return { key: k, peerName: other, last: last ? last.text : "", count: msgs.length, asOwner: isOwnerThread, asPersona };
+      });
+  }
+
+  function toneText(id) {
+    return TONE_PRESETS.find((t) => t.id === id)?.label || "";
+  }
+
+  // 한 문단 → AI 파싱
+  async function parseDump() {
+    if (!dump.trim() && !rpLog.trim()) return;
+    setParsing(true);
+    setParseFailed(false);
+    const combined = [
+      dump.trim() ? `[캐릭터 설명]\n${dump.trim()}` : "",
+      rpLog.trim() ? `[역극/대사 로그]\n${rpLog.trim()}` : "",
+    ].filter(Boolean).join("\n\n");
+    const sys = `너는 사용자가 던진 캐릭터 설명을 읽고, 그 캐릭터를 깊이 있게 분석해 아래 JSON으로 정리하는 캐릭터 분석가다.
+입력은 설명문일 수도 있고, 역극/대사 로그(예: "리안: 됐어, 그런 건 알아서 할게…")일 수도 있다.
+대사 로그가 있으면 그 말투·어조·자주 쓰는 표현을 적극 반영해라.
+
+중요:
+- 표면적 라벨 하나로 가두지 말고 입체적으로 분석해라.
+- 모든 필드를 최대한 채워라. 입력에 명시 안 됐어도 맥락에서 자연스럽게 추론해 채운다. 빈 칸을 남기지 마라(정말 단서가 전혀 없을 때만 "").
+- 입력이 짧으면 더 적극적으로 상상해서 그럴듯하게 채운다.
+- 출력은 오직 JSON 하나. 앞뒤에 어떤 설명·인사·코드펜스도 붙이지 마라. 첫 글자가 { 여야 한다.
+
+JSON 구조:
+{"name":"","handle":"","age":"","persona":"","world":"","speech":"","catchphrase":"","surface":"","inner":"","situational":"","triggers":"","interests":"","relations":"","warmth":""}
+- name: 캐릭터 이름
+- handle: 아이디용 영문/숫자 (없으면 이름 기반)
+- age: 나이나 한 줄 설정 (예: "19 / 흑표 인수")
+- persona: 한 문단 요약
+- world: 세계관/배경 (단서 없으면 "")
+- speech: 말투·어미·입버릇 (대사에서 뽑으면 좋음)
+- catchphrase: 캐치프레이즈/명대사 (없으면 "")
+- surface: 겉으로 보이는 모습·첫인상 (한 줄)
+- inner: 속마음·숨은 면, 겉과 다른 점 (한 줄)
+- situational: 상황별 반응 차이 (평소 vs 친한 사람 vs 위기, 한두 줄)
+- triggers: 무너지거나 발끈하거나 집착하는 포인트 (한 줄)
+- interests: 좋아하는 것·싫어하는 것·취미 (한 줄)
+- relations: 다른 캐릭터와의 관계. "이름 — 관계" 형식으로. 여러 명이면 쉼표로. (예: "선우 연 — 애인, 카엘 — 라이벌") 입력에 등장하는 상대(예: 대사 속 '연')를 놓치지 마라. 없으면 ""
+- warmth: 이 캐릭터가 남에게 마음을 여는 속도. 무뚝뚝·과묵·냉소·시크·경계심·낯가림·배타적·차가움·방어적 중 하나라도 보이면 "slow"(쉽게 정 안 줌). 다정·친화적·외향적·금방 정 주는 타입이면 "fast". 어느 쪽 신호도 뚜렷이 없을 때만 "normal". 셋 중 하나만. 애매하면 성격 묘사의 분위기를 보고 slow/fast 중 가까운 쪽으로.`;
+
+    try {
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: MODEL_CHAT,
+          max_tokens: 1500,
+          system: sys,
+          messages: [{ role: "user", content: combined }],
+        }),
+      });
+      const data = await res.json();
+      let text = data.content.map((i) => (i.type === "text" ? i.text : "")).join("").trim();
+      // 코드펜스 제거
+      text = text.replace(/```json|```/g, "").trim();
+      // 중괄호 바깥 텍스트 제거: 첫 { 부터 마지막 } 까지만
+      const first = text.indexOf("{");
+      const last = text.lastIndexOf("}");
+      if (first !== -1 && last !== -1 && last > first) {
+        text = text.slice(first, last + 1);
+      }
+      const parsed = JSON.parse(text);
+      setChar({
+        name: parsed.name || "",
+        handle: parsed.handle || "",
+        age: parsed.age || "",
+        tone: "calm",
+        persona: parsed.persona || "",
+        world: parsed.world || "",
+        speech: parsed.speech || "",
+        catchphrase: parsed.catchphrase || "",
+        surface: parsed.surface || "",
+        inner: parsed.inner || "",
+        situational: parsed.situational || "",
+        triggers: parsed.triggers || "",
+        interests: parsed.interests || "",
+        relations: parsed.relations || "",
+        warmth: parsed.warmth || "normal",
+        corrections: [], directions: "", lorebook: [],
+      });
+      setParseFailed(false);
+      setStep("confirm");
+    } catch (e) {
+      // 파싱 실패 시: 태그 제거하고 원문에서 이름만 추출 시도, 나머지는 페르소나로
+      const cleaned = combined
+        .replace(/\[캐릭터 설명\]/g, "")
+        .replace(/\[역극\/?대사 로그\]/g, "")
+        .trim();
+      const nameMatch = cleaned.match(/이름\s*[:：]\s*([^\n,]+)/);
+      const guessedName = nameMatch ? nameMatch[1].trim().replace(/[🥕•·]/g, "").trim() : "";
+      setChar((c) => ({
+        ...c,
+        name: c.name || guessedName,
+        persona: cleaned,
+      }));
+      setParseFailed(true);
+      setStep("confirm");
+    } finally {
+      setParsing(false);
+    }
+  }
+
+  const confirmReady = char.name.trim() && char.persona.trim();
+
+  async function generatePost(mood, isAuto = false) {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
+    setLoading(true);
+    setMoodOpen(false);
+
+    const isSelca = mood.includes("셀카");
+    const isMood = mood.includes("무드");
+
+    let formatRule = "";
+    if (isSelca) {
+      formatRule = `- 이번 글은 "방금 찍은 셀카"에 붙이는 글이다. 사진을 직접 묘사하는 한 줄(예: "창가 역광, 머리 부스스")을 먼저 [PHOTO] 태그 뒤에 쓰고, 줄바꿈 후 캐릭터의 코멘트를 쓴다.
+형식:
+[PHOTO] (사진 장면 묘사 한 줄)
+(캐릭터의 코멘트 한두 줄)`;
+    } else if (isMood) {
+      formatRule = `- 이번 글은 "오늘의 무드" 카드다. [MOOD] 태그 뒤에 BGM/풍경/색감/사물 중 하나를 한 줄로 쓰고, 줄바꿈 후 캐릭터의 코멘트를 쓴다.
+형식:
+[MOOD] (예: 오늘의 BGM — ○○○ / 지금 보는 풍경 — ○○○)
+(캐릭터의 코멘트 한두 줄)`;
+    } else {
+      formatRule = `- 따옴표로 감싸지 말고 본문만 출력.`;
+    }
+
+    const sys = `너는 지금부터 아래 캐릭터 본인이 되어, 그 캐릭터의 SNS(트위터/스레드 같은) 계정에 올릴 짧은 글 하나를 쓴다.
+
+[캐릭터]
+이름: ${char.name}
+${char.age ? `나이/설정: ${char.age}` : ""}
+페르소나: ${char.persona}
+${char.surface ? `겉모습/첫인상: ${char.surface}` : ""}
+${char.inner ? `속마음(겉과 다른 면): ${char.inner}` : ""}
+${char.situational ? `상황별 반응: ${char.situational}` : ""}
+${char.triggers ? `무너지거나 발끈하는 점: ${char.triggers}` : ""}
+${char.interests ? `좋아하는 것/관심사: ${char.interests}` : ""}
+${char.world ? `세계관/배경: ${char.world}` : ""}
+${char.speech ? `말투 특징: ${char.speech}` : ""}
+${char.catchphrase ? `캐치프레이즈/명대사: ${char.catchphrase} (가끔 자연스럽게 녹여도 좋지만 매번 쓰지 말 것)` : ""}
+
+[규칙]
+- 이 캐릭터 본인이 직접 쓴 SNS 게시글처럼 1인칭으로 쓴다. 설명문 아님.
+- **반드시 위 "말투 특징"을 그대로 지켜라. 어미·말버릇·문체가 이 캐릭터답게 일관돼야 한다. 말투가 무너지면 실패다.**
+- 짧게. 한두 문장, 길어야 세 문장. 실제 트윗 길이.
+- 겉모습만이 아니라 속마음·상황을 입체적으로 드러내라. 가끔은 겉과 속의 간극이 보이게.
+- 해시태그는 캐릭터가 쓸 법하면 1개 정도만, 아니면 생략.
+- 이모지는 캐릭터 성격에 맞으면 약간, 아니면 쓰지 않는다.
+- 메타발언 금지("AI로서" 등). 그냥 그 캐릭터로 존재할 것.
+${formatRule}${ANTI_REPEAT_RULES}${recentLinesBlock(posts.slice(0, 6).map((p) => p.text))}${correctionBlock()}`;
+
+    const userMsg =
+      mood === "랜덤 / 알아서"
+        ? "지금 이 순간 떠오른 걸 자유롭게 한 줄 올려줘."
+        : `다음 느낌으로 글을 올려줘: ${mood}`;
+
+    try {
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: MODEL_AUTO,
+          max_tokens: 400,
+          system: sys,
+          messages: [{ role: "user", content: userMsg }],
+        }),
+      });
+      const data = await res.json();
+      let text = data.content.map((i) => (i.type === "text" ? i.text : "")).join("").trim()
+        .replace(/^["'"']|["'"']$/g, "");
+
+      // [PHOTO] / [MOOD] 태그 분리
+      let photoDesc = null, moodDesc = null;
+      const photoMatch = text.match(/\[PHOTO\]\s*(.+)/);
+      const moodMatch = text.match(/\[MOOD\]\s*(.+)/);
+      if (photoMatch) { photoDesc = photoMatch[1].split("\n")[0].trim(); text = text.replace(/\[PHOTO\]\s*.+(\n|$)/, "").trim(); }
+      if (moodMatch) { moodDesc = moodMatch[1].split("\n")[0].trim(); text = text.replace(/\[MOOD\]\s*.+(\n|$)/, "").trim(); }
+
+      // 업로드된 그림 무작위 첨부 (일상/셀카/랜덤일 때 확률적으로)
+      let attachedImg = null;
+      const canAttach = gallery.length > 0 && (isSelca || mood.includes("일상") || mood.includes("랜덤"));
+      if (canAttach && Math.random() < (isSelca ? 0.85 : 0.4)) {
+        attachedImg = gallery[Math.floor(Math.random() * gallery.length)];
+        if (isSelca) photoDesc = null; // 실제 그림 있으면 묘사 대신 그림
+      }
+
+      const now = new Date();
+      const newPostId = Date.now();
+      setPosts((p) => [
+        { id: newPostId, text, mood, time: now, likes: Math.floor(Math.random() * 40) + 3, liked: false,
+          photoDesc, moodDesc, img: attachedImg, isAuto, comments: [] },
+        ...p,
+      ]);
+      // 팔로우 캐들이 잠시 후 댓글로 반응
+      if (following.length > 0) {
+        setTimeout(() => followersReactTo(newPostId, text), 1800 + Math.random() * 2000);
+      }
+    } catch (e) {
+      setPosts((p) => [
+        { id: Date.now(), text: "(연결이 끊겼어… 잠시 후 다시.)", mood, time: new Date(), likes: 0, liked: false },
+        ...p,
+      ]);
+    } finally {
+      setLoading(false);
+      loadingRef.current = false;
+    }
+  }
+
+  function handleUpload(e) {
+    const files = Array.from(e.target.files || []);
+    files.forEach((f) => {
+      const reader = new FileReader();
+      reader.onload = (ev) => setGallery((g) => [...g, ev.target.result]);
+      reader.readAsDataURL(f);
+    });
+    e.target.value = "";
+  }
+
+  // 현재 편집중인 char/gallery/posts를 활성 계정에 동기화 저장
+  function syncActive(next) {
+    if (!activeId) return;
+    setAccounts((accs) => accs.map((a) => a.id === activeId
+      ? { ...a, char, gallery, posts, ...next } : a));
+  }
+
+  // confirm에서 깨우기 → 새 계정으로 저장하고 피드로
+  function wakeCharacter() {
+    const id = "acc_" + Date.now();
+    const acc = { id, char: { ...char }, gallery: [...gallery], posts: [], following: [] };
+    setAccounts((a) => [...a, acc]);
+    setActiveId(id);
+    setPosts([]);
+    setFollowing([]); // 새 자캐는 팔로잉 0에서 시작
+    feedInitRef.current = false;
+    setStep("feed");
+  }
+
+  // 계정 전환 (현재 상태 저장 후 대상 로드)
+  function switchAccount(id) {
+    // 현재 활성 계정 저장 (following도 계정별로)
+    if (activeId) {
+      setAccounts((accs) => accs.map((a) => a.id === activeId ? { ...a, char, gallery, posts, following } : a));
+    }
+    const target = accounts.find((a) => a.id === id);
+    if (!target) return;
+    setChar(target.char);
+    setGallery(target.gallery || []);
+    setPosts(target.posts || []);
+    setFollowing(target.following || []); // 이 자캐의 팔로잉만 로드
+    setActiveId(id);
+    feedInitRef.current = (target.posts && target.posts.length > 0); // 이미 글 있으면 자동 첫글 스킵
+    setStep("feed");
+  }
+
+  // 홈으로 (현재 계정 저장)
+  function goHome() {
+    if (activeId) {
+      setAccounts((accs) => accs.map((a) => a.id === activeId ? { ...a, char, gallery, posts, following } : a));
+    }
+    setStep("home");
+  }
+
+  // 새 자캐 추가 시작
+  function startNewCharacter() {
+    setChar({
+      name: "", handle: "", age: "", tone: "calm",
+      persona: "", world: "", speech: "", catchphrase: "",
+      surface: "", inner: "", situational: "", triggers: "", interests: "", relations: "",
+    });
+    setGallery([]); setPosts([]); setDump(""); setRpLog("");
+    setActiveId(null);
+    setStep("dump");
+  }
+
+  // 내가 직접 포스팅 (활성 자캐 입장에서 손으로 작성)
+  function manualPost(text) {
+    if (!text.trim()) return;
+    setPosts((p) => [
+      { id: Date.now(), text: text.trim(), mood: "내가 작성", time: new Date(),
+        likes: Math.floor(Math.random() * 20) + 1, liked: false, byUser: true },
+      ...p,
+    ]);
+  }
+
+  // 캐해 교정 노트 추가 (모든 생성에 반영됨)
+  function addCorrection(note, targetName) {
+    if (!note.trim()) return;
+    // targetName이 활성 자캐와 다르면(=상대 자캐의 말 교정) 그 계정에 추가
+    if (targetName && targetName !== char.name) {
+      setAccounts((accs) => accs.map((a) => a.char.name === targetName
+        ? { ...a, char: { ...a.char, corrections: [...(a.char.corrections || []), note.trim()] } } : a));
+      return;
+    }
+    setChar((c) => ({ ...c, corrections: [...(c.corrections || []), note.trim()] }));
+  }
+  // 교정 프롬프트 조각 (피드·DM 공용)
+  function correctionBlock() {
+    return correctionBlockFor(char);
+  }
+  function correctionBlockFor(c) {
+    let out = "";
+    if ((c.directions || "").trim()) {
+      out += `\n\n[오너의 지시 — 이 캐릭터를 연기할 때 항상 따라라]\n${c.directions.trim()}`;
+    }
+    const list = c.corrections || [];
+    if (list.length) {
+      out += `\n\n[캐해 교정 — 반드시 지켜라]\n${list.map((x) => `- ${x}`).join("\n")}`;
+    }
+    return out;
+  }
+  // 자동 기억(메모리): 캐릭터 c가 대화에서 쌓아온 핵심 사건/설정을 프롬프트에 동봉.
+  //  withName이 주어지면 그 상대와 관련된 기억을 우선. (까먹음 방지 — 장기기억)
+  function loreBlockFor(c, withName) {
+    const mem = (c && c.lorebook) || [];
+    if (!mem.length) return "";
+    const rel = withName ? mem.filter((e) => e.peer === withName) : [];
+    const gen = mem.filter((e) => !e.peer || e.peer === "*");
+    const picked = [...rel, ...gen].slice(-12).map((e) => (e.content || "").trim()).filter(Boolean);
+    if (!picked.length) return "";
+    return `\n\n[지금까지의 기억 — 이미 일어난 일이다. 일관되게 이어가고 절대 잊지 마라]\n${picked.map((t) => `- ${t}`).join("\n")}`;
+  }
+
+  // ── 다양화: "설정 읽기 금지" + "반복 금지" 공통 규칙 ──
+  const ANTI_REPEAT_RULES = `
+[자연스러움] 설정을 말로 읊거나 자기소개하지 마라. 그냥 그 성격대로 행동·발화하라. 맥락을 최우선으로 이어가되, 직전과 토씨까지 똑같은 복붙만 피해라.
+[AI 티 금지 — 중요] 너는 상담사·치료사가 아니다. 다음을 절대 하지 마라:
+- 상대 말을 받아 "~다는 거, 그거 진짜 맞아" 식으로 되읊으며 의미 부여하기
+- 상대의 구체적인 말을 받아 "별거 아닌 게 제일 무거운 거야" "괜찮은 척이 제일 안 괜찮은 거지" 같은 잠언·격언·일반론으로 승화시키기 (이게 가장 흔한 AI 말투다. 절대 금지)
+- "~잖아" "~인 거잖아"로 동의를 강요하거나 정리해주기
+- 갑자기 "너 그런 적 많아?" "얼마나 됐어?" 식으로 상대 속을 캐묻기
+- 공감→의미부여→되묻기 3단 콤보로 따뜻하게 받아주기
+이건 캐릭터가 아니라 AI 말투다. 캐릭터는 자기 성격대로 무심하게, 퉁명스럽게, 엉뚱하게, 날카롭게 — 뭐든 자기답게 반응한다. 상대를 위로하거나 분석하거나 인생 교훈을 주려 들지 마라. 그냥 지금 이 순간의 대화에 사람처럼 반응하라.`;
+
+  // 최근 발화 N개를 "이미 한 말" 목록으로 (반복 회피용)
+  function recentLinesBlock(lines, n = 6) {
+    const arr = (lines || []).slice(-n).map((t) => `- ${String(t).slice(0, 80)}`);
+    if (!arr.length) return "";
+    return `\n\n[이미 나온 말 — 표현·내용 반복 금지, 새로 말해라]\n${arr.join("\n")}`;
+  }
+
+  // ───────── 호감도 ─────────
+  const PROPOSAL_THRESHOLD = 60;
+  const OWNER = "나";
+  // 이름으로 캐릭터 객체 찾기 — 내 계정 + 팔로우한 외부 캐릭터 모두에서
+  function findPeerChar(name) {
+    const acc = accounts.find((a) => a.char.name === name);
+    if (acc) return acc.char;
+    const fol = following.find((f) => f.name === name);
+    if (fol) return fol;
+    return null;
+  }
+  const isFollowing = (id) => following.some((f) => f.id === id);
+  // 상대가 나를 실제로 연인/사랑으로 두고 있는지 "상대 데이터 기준" 역검증.
+  //  지금은 로컬(내 계정 자캐 or 탐색 풀)에서 상대 relations를 읽음.
+  //  ▶ 실배포: 여기서 서버에 "상대 캐릭터의 relations" 조회로 교체. (남의 유저 자캐도 검증 가능)
+  //  일방적 주장(내가 혼자 연인이라 써둔 것)만으로는 통과 못 함 — 상대 데이터에 내가 있어야 함.
+  function verifyMutualLove(myChar, otherChar) {
+    const isLove = (lbl) => /연인|애인|연애|사랑|부부|배우자|약혼|반려/.test(lbl || "");
+    const myLabel = relLabelFor(myChar, otherChar.name);        // 내가 상대를 연인으로 보는가
+    const theirLabel = relLabelFor(otherChar, myChar.name);     // 상대 데이터에 내가 연인으로 있는가 (역검증)
+    // 둘 다 충족해야 진짜 상호 연인. 상대 데이터에 내가 없으면(theirLabel 없음) 맞팔 불가.
+    return { mutual: isLove(myLabel) && isLove(theirLabel), theirLoves: isLove(theirLabel) };
+  }
+
+  function toggleFollow(poolChar) {
+    const already = following.some((f) => f.id === poolChar.id);
+    setFollowing((prev) => already
+      ? prev.filter((f) => f.id !== poolChar.id)
+      : [...prev, { ...poolChar, corrections: [], directions: "", relations: poolChar.relations || "", external: true }]);
+    // 새로 팔로: 상대 데이터까지 역검증해서 "진짜 상호 연인"일 때만 자동 맞팔
+    if (!already) {
+      const { theirLoves } = verifyMutualLove(char, poolChar);
+      // 상대 데이터에 내가 연인으로 있을 때만 상대→나 호감도 시드 (일방적 주장으론 안 됨)
+      if (theirLoves) {
+        const seed = relationBaseFor(poolChar.name, char.name);
+        setAffinity((prev) => ({ ...prev, [dirKey(poolChar.name, char.name)]: seed == null ? 100 : seed }));
+      }
+    }
+  }
+  // 풀 캐릭터의 기본 팔로워 수 (이름 기반 결정적 — 매번 같게)
+  function baseFollowerCount(name) {
+    let h = 0; for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) % 9000;
+    return 800 + h; // 800~9800
+  }
+  // 방향성 호감도 키: from이 to를 좋아하는 정도. (짝사랑 가능 — 방향마다 따로)
+  function dirKey(from, to) { return `${from}>${to}`; }
+  // 관계 라벨 → 기본 호감도. (저장된 호감도 없을 때 이 값으로 시작)
+  const RELATION_BASE = [
+    [/부부|배우자/, 100], [/연인|애인|연애|사랑하는|사랑함|연심|반려/, 100], [/약혼/, 92],
+    [/짝사랑|흠모|연모/, 65], [/썸|호감/, 65], [/단짝|절친/, 55], [/친구|친한|동료/, 45],
+    [/가족|남매|형제|자매|부모|자식|혈육|소꿉/, 70],
+    [/애착|소중|아끼는|특별/, 80],
+    [/라이벌|앙숙|경쟁|적대/, 30], [/아는|지인/, 20],
+  ];
+  // 이름 매칭: a와 b가 같은 인물을 가리키는지 정밀 판정.
+  //  "선우 연" vs "연" → O (성+이름 중 이름 일치). "연" vs "연희" → X (단순 부분문자열 배제).
+  function nameMatch(a, b) {
+    const na = (a || "").replace(/\s/g, ""), nb = (b || "").replace(/\s/g, "");
+    if (!na || !nb) return false;
+    if (na === nb) return true; // 완전 일치
+    // 공백으로 나눈 토큰(성/이름)이 정확히 겹치면 매칭 ("선우 연"의 "연" == "연")
+    const ta = (a || "").split(/\s+/).filter(Boolean);
+    const tb = (b || "").split(/\s+/).filter(Boolean);
+    // 짧은 쪽이 긴 쪽의 토큰 중 하나와 정확히 일치해야 함 (부분문자열 아님)
+    if (ta.length === 1 && tb.includes(ta[0])) return true;
+    if (tb.length === 1 && ta.includes(tb[0])) return true;
+    return false;
+  }
+  function relationBaseFor(fromName, toName) {
+    const c = (fromName === char.name) ? char : (findPeerChar(fromName) || null);
+    if (!c || !c.relations) return null;
+    const hit = parseRelations(c.relations).find((r) => nameMatch(r.who, toName));
+    if (!hit || !hit.label) return null;
+    for (const [re, val] of RELATION_BASE) if (re.test(hit.label)) return val;
+    return null;
+  }
+  // fromName이 가진 relations에서 toName과의 관계 라벨(텍스트)을 추출. (예: "애인", "라이벌")
+  // 관계 문자열을 [{who, label}] 로 파싱.
+  //  "이름 — 설명" 단위로 끊되, 설명 안에 쉼표가 있어도 한 사람으로 본다.
+  //  규칙: dash(—,-,–,:)가 있는 조각 = 새 사람 시작. dash 없는 조각 = 앞 사람 설명에 이어붙임.
+  function parseRelations(relStr) {
+    if (!relStr) return [];
+    const pieces = relStr.split(/[,，]/).map((s) => s.trim()).filter(Boolean);
+    const out = [];
+    for (const p of pieces) {
+      if (/[—\-–:]/.test(p)) {
+        // 새 사람: 첫 dash 기준으로 이름/설명 분리
+        const m = p.split(/[—\-–:]/);
+        const who = m[0].trim();
+        const label = m.slice(1).join("—").trim();
+        out.push({ who, label });
+      } else if (out.length > 0) {
+        // dash 없음 → 앞 사람 설명의 연속(쉼표로 끊긴 부분)
+        out[out.length - 1].label += (out[out.length - 1].label ? ", " : "") + p;
+      } else {
+        // 맨 앞인데 dash 없으면 이름만 있는 관계
+        out.push({ who: p, label: "" });
+      }
+    }
+    return out;
+  }
+  function relLabelFor(fromChar, toName) {
+    const c = fromChar && fromChar.relations ? fromChar : findPeerChar(fromChar.name || fromChar);
+    if (!c || !c.relations) return "";
+    const hit = parseRelations(c.relations).find((r) => nameMatch(r.who, toName));
+    return hit ? hit.label : "";
+  }
+  // from이 to에게 느끼는 호감도. 저장값 우선, 없으면 관계 기반 기본값, 그것도 없으면 0.
+  function affOf(from, to) {
+    const k = dirKey(from, to);
+    if (k in affinity) return affinity[k];
+    const base = relationBaseFor(from, to);
+    return base == null ? 0 : base;
+  }
+  const FOLLOWBACK_THRESHOLD = 15; // 아는사이→관심 구간이면 맞팔
+  // 내 활성 자캐를 맞팔한 외부 캐 (그 캐가 나를 향한 호감도 15 이상)
+  function myFollowers() {
+    return following.filter((f) => affOf(f.name, char.name) >= FOLLOWBACK_THRESHOLD);
+  }
+  function isOwnerName(n) { return n === OWNER; }
+  // 내가 만든 자캐인지 (내 계정 목록에 있는 캐). 남의 자캐·페르소나·오너는 false.
+  function isMyOwnChar(n) {
+    if (isOwnerName(n) || isPersonaName(n)) return false;
+    return n === char.name || accounts.some((a) => a.char.name === n);
+  }
+  function stageLabelFor(from, v) { return isOwnerName(from) ? attachStage(v) : affinityStage(v); }
+  // 이름이 유저 페르소나인지
+  function isPersonaName(n) { return personas.some((p) => p.name === n); }
+  // from이 to에게 느끼는 호감 증감. 캐릭터(보는 자캐)가 상대에게 60 넘으면 진도질문.
+  // 캐릭터가 마음 여는 속도 계수. 무뚝뚝·배타적이면 호감이 천천히 오른다.
+  //  char.warmth: "slow"(0.4) | "normal"(1) | "fast"(1.5). 없으면 보통.
+  function warmthRate(name) {
+    const c = (name === char.name) ? char : (findPeerChar(name) || null);
+    const w = c && c.warmth;
+    if (w === "slow") return 0.4;  // 무뚝뚝·배타적: 2.5배 느리게 정든다
+    if (w === "fast") return 1.5;  // 다정·친화적: 빨리 친해진다
+    return 1;
+  }
+  function bumpAffinity(from, to, amt, ctxLines) {
+    if (!from || !to || from === to) return;
+    const key = dirKey(from, to);
+    // 진도질문은 "내 자캐"가 상대에게 빠질 때만. 페르소나는 감정을 느끼지 않음(빠지지 않음).
+    const fromIsViewerChar = (from === char.name) && !isOwnerName(to) && !isPersonaName(from);
+    // 호감(양수)일 때만 성격 속도 반영. 무뚝뚝한 애는 천천히 정든다. (미움=음수는 그대로)
+    let adj = amt;
+    if (amt > 0 && !isPersonaName(from) && !isOwnerName(from)) {
+      adj = Math.max(1, Math.round(amt * warmthRate(from))); // 최소 1은 오르게(아예 안 오르면 답답)
+    }
+    // 시작값: 저장값 있으면 그것, 없으면 관계 기반 기본값
+    const seed = relationBaseFor(from, to);
+    setAffinity((prev) => {
+      const before = (key in prev) ? prev[key] : (seed == null ? 0 : seed);
+      const after = Math.max(-100, Math.min(100, before + adj));
+      // 내 자캐가 상대에게 임계 돌파 → 진도질문 (오너·페르소나 발신 제외)
+      if (fromIsViewerChar && before < PROPOSAL_THRESHOLD && after >= PROPOSAL_THRESHOLD
+          && !proposalCooldownRef.current[key] && !proposingRef.current) {
+        proposingRef.current = true;
+        if (from && to && from !== to) triggerProposal(from, to, ctxLines || []);
+        else proposingRef.current = false;
+      }
+      return { ...prev, [key]: after };
+    });
+  }
+  // 양방향 적립 — 단, 한쪽이 유저 페르소나면 "캐→페르소나" 방향만 살린다.
+  //  (페르소나는 가면일 뿐 감정을 느끼지 않음. 캐릭터가 페르소나에게 빠지는 것만 기록)
+  function bumpMutual(a, b, amt, ctx) {
+    const aPersona = isPersonaName(a), bPersona = isPersonaName(b);
+    const jitter = () => amt + Math.floor(Math.random() * 2 - 0.5);
+    if (aPersona && !bPersona) { bumpAffinity(b, a, jitter(), ctx); return; } // b(캐)→a(페르소나)만
+    if (bPersona && !aPersona) { bumpAffinity(a, b, jitter(), ctx); return; } // a(캐)→b(페르소나)만
+    // 둘 다 캐릭터(또는 둘 다 페르소나=비정상)면 기존 양방향
+    bumpAffinity(a, b, jitter(), ctx);
+    bumpAffinity(b, a, jitter(), ctx);
+  }
+  // 캐릭터끼리(연애 라인) 단계
+  function affinityStage(v) {
+    if (v >= 100) return "순애";
+    if (v >= 85) return "특별한 사이";
+    if (v >= 60) return "마음이 기움";
+    if (v >= 35) return "호감";
+    if (v >= 15) return "관심";
+    if (v >= 0) return "아는 사이";
+    if (v >= -20) return "서운함";
+    if (v >= -50) return "미움";
+    if (v >= -80) return "혐오";
+    return "증오";
+  }
+  // 오너↔내자캐(애착·신뢰) 단계
+  function attachStage(v) {
+    if (v >= 100) return "맹목적 애정";
+    if (v >= 85) return "둘도 없음";
+    if (v >= 60) return "각별함";
+    if (v >= 35) return "잘 따름";
+    if (v >= 15) return "익숙함";
+    if (v >= 0) return "서먹함";
+    if (v >= -30) return "서운함";
+    if (v >= -70) return "원망";
+    return "등돌림";
+  }
+  // 하루(asker)가 오너(나)에게 1인칭으로 "○○한테 마음이 가요, 고백해도 돼요?" 묻는 멘트 생성 → 모달
+  async function triggerProposal(askerName, otherName, ctxLines) {
+    const askerPersona = personas.find((p) => p.name === askerName);
+    const askerAcc = accounts.find((a) => a.char.name === askerName);
+    const askerChar = askerPersona || (askerAcc ? askerAcc.char : char);
+    const key = dirKey(askerName, otherName);
+    const curRel = relationMatched(askerChar, { name: otherName });
+    const sys = `너는 "${askerName}"이다. 너를 만든 오너(나)에게 말한다.
+${askerChar.persona ? `너: ${askerChar.persona}` : ""}
+${askerChar.speech ? `말투(반드시 이대로): ${askerChar.speech}` : ""}
+
+[상황]
+너는 "${otherName}"와 대화를 나누며 마음이 점점 기울었다.${curRel ? ` (지금 관계: ${curRel})` : ""}
+지금 그 감정을 오너에게 살짝 털어놓고, "${otherName}에게 한 발 더 다가가도 될지" 허락을 구하려 한다.
+
+[규칙]
+- 1~2문장. 너의 말투 그대로. 수줍거나 솔직하게, 네 성격에 맞게.
+- 오너에게 묻는 말투("~해도 될까요?" "~해도 돼?"). 설명·메타발언 금지.
+- "${otherName}"의 이름을 자연스럽게 넣어라.
+- 본문만 출력.`;
+    let line = `${otherName}한테… 마음이 가는 것 같아. 한 발 더 다가가도 될까?`;
+    try {
+      const res = await fetch("/api/generate", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: MODEL_CHAT, max_tokens: 200, system: sys,
+          messages: [{ role: "user", content: `(${askerName}가 오너에게 ${otherName}에 대한 마음을 털어놓으며 허락을 구한다.)` }] }),
+      });
+      const data = await res.json();
+      const t = data.content.map((i) => (i.type === "text" ? i.text : "")).join("").trim();
+      if (t) line = t.replace(/^["'""']|["'""']$/g, "");
+    } catch (e) { /* 기본 멘트 사용 */ }
+    setProposal({ asker: askerName, other: otherName, line, pairKey: key });
+    proposingRef.current = false;
+  }
+  // 진도질문 응답 처리
+  // 사랑 계열 관계인지 (친모아=상대 허락이 필요한 관계). 우정·라이벌 등은 false.
+  const LOVE_RELATIONS = /썸|연인|애인|약혼|부부|배우자|짝사랑|연애/;
+  function isLoveRelation(label) {
+    return LOVE_RELATIONS.test(label || "");
+  }
+  // asker의 현재 관계에서 한 단계 진전했을 때의 라벨 (사랑 여부 판단용)
+  function nextRelationLabel(askerName, otherName) {
+    const STEP = { "": "썸", "아는 사이": "썸", "친구": "썸", "썸": "연인", "짝사랑": "연인", "연인": "약혼", "약혼": "부부" };
+    const c = findPeerChar(askerName) || char;
+    const cur = relLabelFor(c, otherName);
+    return STEP[cur] || "연인";
+  }
+
+  async function resolveProposal(approve) {
+    if (!proposal) return;
+    const { asker, other, pairKey: key } = proposal;
+    proposalCooldownRef.current[key] = true; // 한동안 다시 안 물어봄
+    setProposal(null);
+    if (!approve) {
+      setAffinity((prev) => ({ ...prev, [key]: 45 })); // 오너가 말림 — 살짝 식음
+      return;
+    }
+    // 오너는 승인. 진전될 관계가 사랑 계열인지 확인
+    const nextLabel = nextRelationLabel(asker, other);
+    if (!isLoveRelation(nextLabel)) {
+      // 우정·그 외 관계 진전 → 상대 허락 없이 바로 양방향 통과
+      setAffinity((prev) => ({
+        ...prev,
+        [dirKey(asker, other)]: Math.max(prev[dirKey(asker, other)] || 0, 70),
+        [dirKey(other, asker)]: Math.max(prev[dirKey(other, asker)] || 0, 55),
+      }));
+      advanceRelation(asker, other);
+      advanceRelation(other, asker);
+      setRelationResult({ asker, other, accepted: true, friendship: true });
+      return;
+    }
+    // 사랑 계열 → 상대 캐(other)가 받아주는지 판정 (친모아). 실배포 시 상대 유저에게 묻는 자리.
+    const accepted = await judgeAcceptance(asker, other);
+    if (accepted) {
+      // 양쪽 다 마음 → 관계 양방향 발전 + 호감도 양쪽 상승
+      setAffinity((prev) => ({
+        ...prev,
+        [dirKey(asker, other)]: Math.max(prev[dirKey(asker, other)] || 0, 88),
+        [dirKey(other, asker)]: Math.max(prev[dirKey(other, asker)] || 0, 80),
+      }));
+      advanceRelation(asker, other);
+      advanceRelation(other, asker); // 상대도 같은 관계로
+      setRelationResult({ asker, other, accepted: true });
+    } else {
+      // 상대가 안 받아줌 → 내 자캐만 짝사랑. 상대는 그대로. 내 호감도 살짝 하락(차임)
+      setAffinity((prev) => ({ ...prev, [key]: Math.max(35, (prev[key] || 60) - 18) }));
+      setRelationToLove(asker, other, "짝사랑"); // asker의 관계만 짝사랑으로
+      setRelationResult({ asker, other, accepted: false });
+    }
+  }
+  // 상대 캐(other)가 asker의 고백을 받아들일지 판정. other→asker 호감도 + 성격 기반.
+  async function judgeAcceptance(askerName, otherName) {
+    const otherChar = findPeerChar(otherName);
+    const back = affOf(otherName, askerName); // 상대가 asker를 향한 호감도
+    // 호감도가 높으면 대체로 수락, 낮으면 거절 — AI로 캐릭터답게 판정
+    const sys = `"${otherName}"가 "${askerName}"에게 고백(또는 관계 진전 제안)을 받았다. 받아들일지 판정하라.
+${otherChar && otherChar.persona ? `${otherName}: ${otherChar.persona}` : ""}
+${otherChar && otherChar.relations ? `${otherName}의 관계망: ${otherChar.relations}` : ""}
+- "${otherName}"가 "${askerName}"에게 느끼는 호감도: ${back} (100=순애, 60+=마음 기움, 30~=관심, 0=무관심, 음수=싫어함)
+- 이 호감도와 성격을 고려해, 받아들이면 ACCEPT, 거절하면 REJECT만 출력.
+- 호감도가 높으면(50+) 대체로 ACCEPT, 애매하면(20~50) 성격에 따라, 낮거나 음수면 REJECT 경향.
+- ACCEPT 또는 REJECT 한 단어만.`;
+    try {
+      const res = await fetch("/api/generate", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: MODEL_UTIL, max_tokens: 10, system: sys,
+          messages: [{ role: "user", content: "판정:" }] }),
+      });
+      const data = await res.json();
+      const raw = data.content.map((i) => (i.type === "text" ? i.text : "")).join("").toUpperCase();
+      return raw.includes("ACCEPT");
+    } catch (e) {
+      return back >= 50; // API 실패 시 호감도로 폴백
+    }
+  }
+  // asker의 관계망에서 other와의 관계를 특정 라벨로 설정 (짝사랑 등)
+  function setRelationToLove(askerName, otherName, label) {
+    const norm = (s) => s.replace(/\s/g, "");
+    const apply = (c) => {
+      const rels = parseRelations(c.relations);
+      let found = false;
+      const next = rels.map((r) => {
+        if (norm(r.who).includes(norm(otherName)) || norm(otherName).includes(norm(r.who))) { found = true; return { who: otherName, label }; }
+        return r;
+      });
+      if (!found) next.push({ who: otherName, label });
+      return { ...c, relations: next.map((r) => `${r.who} — ${r.label}`).join(", ") };
+    };
+    if (char.name === askerName) setChar((c) => apply(c));
+    setAccounts((accs) => accs.map((a) => a.char.name === askerName ? { ...a, char: apply(a.char) } : a));
+  }
+  // asker의 관계망에서 other와의 관계를 한 단계 진전시킴
+  function advanceRelation(askerName, otherName) {
+    const STEP = { "": "썸", "아는 사이": "썸", "친구": "썸", "썸": "연인", "짝사랑": "연인", "연인": "약혼", "약혼": "부부" };
+    const norm = (s) => s.replace(/\s/g, "");
+    const apply = (c) => {
+      const rels = parseRelations(c.relations);
+      let found = false;
+      const next = rels.map((r) => {
+        if (norm(r.who).includes(norm(otherName)) || norm(otherName).includes(norm(r.who))) {
+          found = true;
+          const newRel = STEP[r.label] || "연인";
+          return { who: otherName, label: newRel };
+        }
+        return r;
+      });
+      if (!found) next.push({ who: otherName, label: "썸" });
+      return { ...c, relations: next.map((r) => `${r.who} — ${r.label}`).join(", ") };
+    };
+    if (char.name === askerName) setChar((c) => apply(c));
+    setAccounts((accs) => accs.map((a) => a.char.name === askerName ? { ...a, char: apply(a.char) } : a));
+  }
+
+  // 기억 유사도 판정 헬퍼 (중복 저장 방지용)
+  function memTokens(t) {
+    const cleaned = String(t).replace(/[.,!?'"~()]/g, " ")
+      .replace(/(은|는|이|가|을|를|와|과|에게|에서|으로|로|에|의|도|만|까지|부터|했다|한다|하기로|했음|함|이다|있다|없다)/g, " ");
+    return new Set(cleaned.split(/\s+/).filter((w) => w.length >= 2));
+  }
+  function memSimilar(a, b) {
+    const ta = memTokens(a), tb = memTokens(b);
+    if (!ta.size || !tb.size) return false;
+    let inter = 0; ta.forEach((w) => { if (tb.has(w)) inter++; });
+    return inter / Math.min(ta.size, tb.size) >= 0.6;
+  }
+  // viewer 캐릭터의 lorebook에 새 기억(items) 누적 (페르소나·오너 제외, 유사중복 차단)
+  function saveMemories(viewer, other, items) {
+    if (!items || !items.length || isPersonaName(viewer) || viewer === OWNER) return;
+    const mkEntries = (existing) => {
+      const ex = (existing || []).map((e) => e.content);
+      const fresh = [];
+      for (const t of items) {
+        if (ex.some((h) => memSimilar(h, t)) || fresh.some((f) => memSimilar(f, t))) continue;
+        fresh.push(t);
+      }
+      return [...(existing || []), ...fresh.map((t, i) => ({ id: Date.now() + i, content: t, peer: other }))].slice(-40);
+    };
+    if (char.name === viewer) setChar((c) => ({ ...c, lorebook: mkEntries(c.lorebook) }));
+    else {
+      setAccounts((accs) => accs.map((a) => a.char.name === viewer
+        ? { ...a, char: { ...a.char, lorebook: mkEntries(a.char.lorebook) } } : a));
+      setFollowing((fs) => fs.map((f) => f.name === viewer
+        ? { ...f, lorebook: mkEntries(f.lorebook) } : f));
+    }
+  }
+  // 추출된 텍스트 라인 정리 (빈 응답·메타 제거)
+  function cleanMemItems(raw) {
+    return (raw || "").split("\n")
+      .map((s) => s.replace(/^[-•\d.\s)]+/, "").trim())
+      .filter((s) => s.length > 4)
+      .filter((s) => !/(기억할|내용\s*없|없음|해당\s*없|특별히|없습니다|없다)/.test(s))
+      .slice(0, 2);
+  }
+
+  // 세션 분위기 판정: 방금 나눈 대화를 AI가 보고 호감도를 방향별로 +/- 조정.
+  //  ownerPair면 "내자캐가 오너를 어떻게 느꼈나" 한 방향만.
+  async function judgeSession(aName, bName, lines) {
+    const log = (lines || []).filter((m) => m.text && m.text.length > 1);
+    if (log.length < 2) return; // 너무 짧으면 판정 안 함
+    const transcript = log.slice(-12).map((m) => `${m.who}: ${m.text}`).join("\n");
+    // judgeOne: from이 to를 이 대화로 얼마나 더/덜 좋아하게 됐나
+    const judgeOne = async (from, to) => {
+      const sys = `아래는 "${from}"와(과) "${to}"의 대화다. 이 대화를 거치며 "${from}"가 "${to}"에게 느끼는 호감·친밀감이 어떻게 변했는지 "${from}" 입장에서만 판정하라.
+- ${from}가 ${to}에게 더 끌렸으면 +, 실망·서먹·거리감이 들었으면 -.
+- 한쪽만 좋아하는 짝사랑 상황도 그대로 반영하라(상대 반응이 시큰둥하면 낮게).
+- 보통의 어색함·삐침은 작게(-1~-4). 하지만 ${to}가 ${from}에게 바람·불륜·배신·심한 모욕·일부러 상처주기 같은 과한 행동을 했다면 크게 떨어뜨려라(-12 ~ -30). 그런 게 없으면 작은 범위로.
+- 숫자 하나만 출력. -30 ~ +8 범위 정수. 설명·기호 금지. 예: 5 또는 -20`;
+      try {
+        const res = await fetch("/api/generate", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ model: MODEL_UTIL, max_tokens: 10, system: sys,
+            messages: [{ role: "user", content: transcript }] }),
+        });
+        const data = await res.json();
+        const raw = data.content.map((i) => (i.type === "text" ? i.text : "")).join("").trim();
+        const m = raw.match(/-?\d+/);
+        if (!m) return;
+        const delta = Math.max(-30, Math.min(8, parseInt(m[0], 10)));
+        if (delta !== 0) bumpAffinity(from, to, delta, log.map((x) => `${x.who}: ${x.text}`));
+      } catch (e) { /* skip */ }
+    };
+    if (aName === OWNER || bName === OWNER) {
+      // 오너쌍: 내자캐 → 오너 한 방향만
+      const c = aName === OWNER ? bName : aName;
+      await judgeOne(c, OWNER);
+    } else {
+      const aP = isPersonaName(aName), bP = isPersonaName(bName);
+      if (aP && !bP) { await judgeOne(bName, aName); }       // 캐(b) → 페르소나(a)만
+      else if (bP && !aP) { await judgeOne(aName, bName); }  // 캐(a) → 페르소나(b)만
+      else {
+        // 캐릭터쌍: 양방향 각각 판정 (짝사랑 가능)
+        await judgeOne(aName, bName);
+        await judgeOne(bName, aName);
+      }
+    }
+  }
+
+  // 세션 종합 처리: 호감도 변화 + 양쪽 기억을 "한 번의 API 호출"로 처리 (비용 절감).
+  //  judgeSession(호감도)과 기억추출을 합침. 캐릭터쌍이면 1회로 양방향 다 처리.
+  async function processSession(aName, bName, lines, memOnly) {
+    const log = (lines || []).filter((m) => m.text && m.text.length > 1);
+    if (log.length < 3) return;
+    const transcript = log.slice(-16).map((m) => `${m.who}: ${m.text}`).join("\n");
+    const aPersona = isPersonaName(aName), bPersona = isPersonaName(bName);
+    const aIsOwner = aName === OWNER, bIsOwner = bName === OWNER;
+    // 기억을 쌓는 주체(캐릭터만)
+    const aMem = !aPersona && !aIsOwner, bMem = !bPersona && !bIsOwner;
+
+    const sys = `아래는 "${aName}"와(과) "${bName}"의 DM 대화다. 이 대화를 분석해 JSON으로만 답하라. 설명·코드블록 없이 JSON 객체 하나만.
+
+판정할 것:
+1. 호감도 변화 (각 방향, 이 대화로 상대에게 더 끌렸으면 +, 실망·거리감이면 -):
+   - 보통의 어색함·삐침은 작게(-1~-4). 바람·불륜·배신·심한 모욕·일부러 상처주기 같은 과한 행동엔 크게(-12~-30). 좋았으면 +1~+8.
+   - 짝사랑이면 한쪽만 높게, 상대는 시큰둥하게.
+2. 각자가 "기억할 핵심" (상대를 다시 만났을 때 잊으면 안 되는 것. 약속·사건·새 사실·감정변화·호칭 등. 잡담·인사 제외. 자기 입장에서 직접 보고 들은 것만, 상대 속마음은 금지. 0~2개, 각 한 문장).
+   - 약속·사건·날짜처럼 둘 다 겪은 객관적 사실은 양쪽 기억(mem_a, mem_b)에서 내용이 어긋나면 안 된다(예: 한쪽은 토요일, 한쪽은 일요일 금지). 표현은 각자 관점이어도 사실은 일치시켜라.
+
+출력 형식(정확히 이 키):
+{"aff_a_to_b": 정수(-30~8), "aff_b_to_a": 정수(-30~8), "mem_a": ["${aName}가 기억할 것"], "mem_b": ["${bName}가 기억할 것"]}
+기억할 게 없으면 빈 배열. 숫자만, 따옴표 없이.`;
+
+    try {
+      const res = await fetch("/api/generate", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: MODEL_UTIL, max_tokens: 400, system: sys,
+          messages: [{ role: "user", content: transcript }] }),
+      });
+      const data = await res.json();
+      let raw = data.content.map((i) => (i.type === "text" ? i.text : "")).join("").trim();
+      raw = raw.replace(/```json|```/g, "").trim();
+      const obj = JSON.parse(raw);
+      // 호감도 반영
+      const applyAff = (from, to, val) => {
+        const d = Math.max(-30, Math.min(8, parseInt(val, 10) || 0));
+        if (d !== 0) bumpAffinity(from, to, d, log.map((x) => `${x.who}: ${x.text}`));
+      };
+      // 페르소나/오너 방향 규칙: 페르소나는 안 받음(캐→페르소나만), 오너쌍은 캐→오너만
+      if (!memOnly) {
+        if (aIsOwner || bIsOwner) {
+          const c = aIsOwner ? bName : aName;
+          applyAff(c, OWNER, aIsOwner ? obj.aff_b_to_a : obj.aff_a_to_b);
+        } else if (aPersona && !bPersona) {
+          applyAff(bName, aName, obj.aff_b_to_a); // 캐(b)→페르소나(a)만
+        } else if (bPersona && !aPersona) {
+          applyAff(aName, bName, obj.aff_a_to_b); // 캐(a)→페르소나(b)만
+        } else {
+          applyAff(aName, bName, obj.aff_a_to_b);
+          applyAff(bName, aName, obj.aff_b_to_a);
+        }
+      }
+      // 기억 반영 (캐릭터만)
+      if (aMem) saveMemories(aName, bName, cleanMemItems((obj.mem_a || []).join("\n")));
+      if (bMem) saveMemories(bName, aName, cleanMemItems((obj.mem_b || []).join("\n")));
+    } catch (e) { /* skip */ }
+  }
+
+  // DM 보내기
+  async function sendDM() {
+    const msg = dmInput.trim();
+    if (!msg || dmSending || !peer) return;
+    // 자동대화 중이면 → 끼어들기. 자동을 멈추고 내(하루) 차례로 가져온다.
+    if (autoChatRef.current) { autoChatRef.current = false; setAutoChatting(false); }
+    setDmInput("");
+    const newHist = [...dm, { from: meName, text: msg }];
+    setDmThread(newHist);
+    setDmSending(true);
+
+    // 상대(peer)의 페르소나 — 내 다른 자캐면 그 설정, 사람이면 persona
+    //  · 오너↔내자캐 방이면 상대는 곧 내 활성 자캐(char)
+    const peerChar = peer.asOwner ? char : (findPeerChar(peer.name) || null);
+    const peerName = peer.asOwner ? char.name : peer.name;
+
+    // 보내는 쪽(나)의 정체 — 오너 / 유저 페르소나 / 내 자캐
+    //  · asOwner 방은 항상 오너. 그 외엔 speakAs(끼어들기·페르소나)에 따름.
+    const senderIsOwner = peer.asOwner || speakAs === "owner";
+    const senderChar = senderIsOwner ? null : (activePersona || char);
+    const senderDesc = senderIsOwner
+      ? (ownerPersona.trim() ? `"${meName}"은(는) 이 SNS의 오너(나)이며 ${peerName}를 만든 사람이다. 자기소개: ${ownerPersona.trim()}` : `"${meName}"은(는) 이 SNS의 오너(나)이며 ${peerName}를 만든 사람이다.`)
+      : activePersona
+        ? `"${meName}"은(는) 다음 인물이다 — ${activePersona.age ? `${activePersona.age}, ` : ""}${activePersona.persona || activePersona.name}.${activePersona.speech ? ` 말투: ${activePersona.speech}.` : ""} (오너가 연기하는 페르소나)`
+        : `"${meName}"은(는) 다음 캐릭터다 — ${char.persona || char.name}.${char.speech ? ` 말투: ${char.speech}.` : ""}`;
+
+    // 관계: peer(답하는 쪽) 입장에서 meName과의 관계
+    const relForPeer = peerChar ? relationMatched(peerChar, { name: meName, relation: peer.relation })
+                                : (peer.relation ? `${meName} — ${peer.relation}` : "");
+
+    let identityBlock = "";
+    if (peerChar) {
+      identityBlock = `[너는 "${peerChar.name}"이다]
+페르소나: ${peerChar.persona}
+${peerChar.surface ? `겉: ${peerChar.surface}` : ""}${peerChar.inner ? ` / 속: ${peerChar.inner}` : ""}
+${peerChar.situational ? `상황별: ${peerChar.situational}` : ""}
+${peerChar.speech ? `말투(이게 너의 말투다. 반드시 이대로): ${peerChar.speech}` : ""}
+${peerChar.catchphrase ? `말버릇: ${peerChar.catchphrase}` : ""}
+${peerChar.relations ? `너의 관계망: ${peerChar.relations}` : ""}`;
+    } else {
+      identityBlock = `[너는 "${peerName}"이다]\n${peer.persona ? `설정: ${peer.persona}` : "이 캐릭터에 대한 정보는 제한적이다. 자연스럽게 반응하라."}`;
+    }
+
+    const relNote = peer.asOwner
+      ? `\n\n[관계 — 중요]\n"${meName}"은(는) 너를 만든 오너(창조주)다. 너는 그 사실을 알 수도, 모를 수도 있다(설정대로). 친근하게, 네 성격 그대로 반응하라.`
+      : relForPeer
+        ? `\n\n[관계 — 중요]\n상대 "${meName}"은(는) 너(${peerName})와 "${relForPeer}" 관계다. 이 관계에 맞게 반응하라.`
+        : `\n\n[관계]\n상대 "${meName}"과(와) 특별히 등록된 관계는 없다. 처음 보거나 잘 모르는 상대로 대하되, 네 성격대로 반응하라. 절대 다른 사람으로 착각하지 마라.`;
+
+    const sys = `너는 "${peerName}" 본인이다. 지금 "${meName}"와 DM으로 1:1 대화 중이다.
+절대 ${meName}를 다른 이름으로 부르거나 다른 사람으로 착각하지 마라. 상대는 오직 "${meName}"다.
+
+${identityBlock}
+
+[지금 너에게 말 거는 상대]
+${senderDesc}${relNote}
+
+[규칙]
+- 너는 "${peerName}"로서만 1인칭으로 답한다. ${peerName}의 말투를 지켜라. 메타발언 금지.
+- 상대를 "${meName}"로 인식하고 거기에 맞게 답하라.
+- **반드시 상대의 마지막 말에 직접 이어서 답하라.** 흐름을 무시하고 갑자기 다른 화제로 튀지 마라. 지금까지의 대화 맥락을 기억하고 자연스럽게 이어간다.
+- 받아치고 끝내지 마라. 상대 말에 반응하되 네 생각·감정·되묻는 질문을 얹어 대화가 굴러가게 하라. "...어." "...뭘." 같은 영혼 없는 단답·맞장구만 반복하지 마라. 무뚝뚝한 캐릭터여도 속내나 디테일이 한 줄은 묻어나게.
+- DM 대화체로. 보통 1~3문장. 한두 단어 단답으로 끝내지 말 것. 똑같은 표현 반복은 피하되 맥락은 절대 놓치지 마라.
+- 지문(괄호 안 행동)은 역극에 쓸 법하면 약간만.${ANTI_REPEAT_RULES}${peerChar ? loreBlockFor(peerChar, meName) : ""}${peerChar ? correctionBlockFor(peerChar) : ""}`;
+
+    // user/assistant 교대 보장: 상대=assistant, 나머지(나/페르소나/오너)=user.
+    // 연속된 같은 role은 한 메시지로 병합(이름 접두). API가 맥락을 정확히 잡게.
+    const apiMsgs = [];
+    for (const m of newHist) {
+      const role = m.from === peerName ? "assistant" : "user";
+      const line = role === "user" && m.from && m.from !== meName ? `${m.from}: ${m.text}` : m.text;
+      if (apiMsgs.length && apiMsgs[apiMsgs.length - 1].role === role) {
+        apiMsgs[apiMsgs.length - 1].content += `\n${line}`;
+      } else {
+        apiMsgs.push({ role, content: line });
+      }
+    }
+    // 첫 메시지는 user여야 함 (assistant로 시작하면 제거)
+    if (apiMsgs.length && apiMsgs[0].role === "assistant") apiMsgs.shift();
+
+    try {
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: MODEL_DIRECT, max_tokens: 600, system: sys, messages: apiMsgs }),
+      });
+      const data = await res.json();
+      const text = data.content.map((i) => (i.type === "text" ? i.text : "")).join("").trim();
+      setDmThread((d) => [...d, { from: peerName, text }]);
+      // 호감도 소폭 적립 (큰 변동은 방 나갈 때 세션 판정)
+      const ctx = [...newHist, { from: peerName, text }].slice(-6).map((m) => `${m.from}: ${m.text}`);
+      if (peer.asOwner) {
+        // 오너↔내자캐: "하루(peerName)가 오너(나)를 좋아하는 정도" 한 방향
+        bumpAffinity(peerName, OWNER, 1 + Math.floor(Math.random() * 2), ctx);
+      } else if (!senderIsOwner) {
+        // 화자(내 자캐 또는 유저 페르소나) ↔ 상대 (양방향). meName이 화자 이름.
+        bumpMutual(meName, peerName, 1 + Math.floor(Math.random() * 2), ctx);
+        // 직접 대화 중에도 6턴마다 기억만 추출 (방 안 나가도 쌓이게)
+        const full = [...newHist, { from: peerName, text }];
+        if (full.length >= 6 && full.length % 6 === 0) {
+          processSession(meName, peerName, full.slice(-12).map((m) => ({ who: m.from, text: m.text })), true);
+        }
+      }
+    } catch (e) {
+      setDmThread((d) => [...d, { from: peerName, text: "(…답장이 끊겼어. 잠시 후 다시.)" }]);
+    } finally {
+      setDmSending(false);
+    }
+  }
+
+  // 특정 화자(speaker)가 상대(listener)에게 할 말 1개 생성 — 자동대화용
+  async function genLine(speaker, listener, history, relationHint, mode) {
+    const styleRule = mode === "novel"
+      ? `- 소설 모드: 행동·표정·분위기 묘사를 지문으로 섞어라. (예: "(시선을 피하며) …그런 건 묻지 마.") 2~4문장으로 깊이 있게.`
+      : `- 대화 모드: 순수하게 말로만. 지문·묘사 없이, 실제 카톡하듯 자연스럽게. 보통 1~3문장. 한두 단어 단답으로 끝내지 말 것.`;
+    const sys = `너는 "${speaker.name}" 본인이다. "${listener.name}"와 DM 중. 상대는 오직 "${listener.name}".
+
+[너는 "${speaker.name}"]
+${speaker.persona || ""}
+${speaker.speech ? `말투(반드시 이대로): ${speaker.speech}` : ""}
+${speaker.surface ? `겉: ${speaker.surface}` : ""}${speaker.inner ? ` / 속: ${speaker.inner}` : ""}
+${speaker.catchphrase ? `말버릇: ${speaker.catchphrase}` : ""}
+${relationHint ? `${listener.name}와의 관계: ${relationHint}` : `${listener.name}와 특별한 관계 없음.`}
+
+[규칙]
+- 철저히 ${speaker.name}로서 1인칭, 그 말투로. 메타발언 금지.
+${styleRule}
+- 상대 마지막 말을 받아 이어가되 단답으로 끝내지 마라. 네 생각·감정을 얹어 대화를 굴려라. 무뚝뚝해도 속내가 한 줄 묻어나게.
+- 같은 논점을 계속 주고받으며 맴돌지 마라. 받았으면 새 얘기·다른 화제·행동으로 한 발 진전시켜라.
+- 본문만 출력.${ANTI_REPEAT_RULES}${loreBlockFor(speaker, listener.name)}${correctionBlockFor(speaker)}`;
+    const OPENERS = [
+      "지금 막 떠오른 일상적인 한마디로",
+      "방금 뭔가 보거나 겪은 것처럼",
+      "갑자기 생각난 질문이나 투정으로",
+      "별일 아닌 듯 툭 던지는 말로",
+      "오랜만에 연락하듯",
+    ];
+    const opener = OPENERS[Math.floor(Math.random() * OPENERS.length)];
+    let apiMsgs;
+    if (history.length) {
+      apiMsgs = [];
+      for (const m of history) {
+        const role = m.who === speaker.name ? "assistant" : "user";
+        if (apiMsgs.length && apiMsgs[apiMsgs.length - 1].role === role) {
+          apiMsgs[apiMsgs.length - 1].content += `\n${m.text}`;
+        } else {
+          apiMsgs.push({ role, content: m.text });
+        }
+      }
+      if (apiMsgs.length && apiMsgs[0].role === "assistant") apiMsgs.shift();
+      if (!apiMsgs.length) apiMsgs = [{ role: "user", content: `(${listener.name}에게 자연스럽게 말을 건다.)` }];
+    } else {
+      apiMsgs = [{ role: "user", content: `(${speaker.name}가 ${listener.name}에게 ${opener} 먼저 말을 건다. 관계와 성격에 맞게, 자기소개 없이 자연스럽게 운을 떼라.)` }];
+    }
+    try {
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: MODEL_AUTO, max_tokens: 500, system: sys, messages: apiMsgs }),
+      });
+      const data = await res.json();
+      return data.content.map((i) => (i.type === "text" ? i.text : "")).join("").trim();
+    } catch (e) { return "(…)"; }
+  }
+
+  // 두 자캐 자동 대화 (현재 char ↔ peer)
+  async function startAutoChat() {
+    if (!peer) return;
+    const partner = findPeerChar(peer.name) || { name: peer.name, persona: peer.persona || "" };
+    // 자동대화 주체 = 현재 화자(페르소나면 페르소나, 아니면 내 자캐). 오너는 주체가 못 됨 → 자캐.
+    const meChar = activePersona || char;
+    const relForPartner = relationMatched(partner, { name: meChar.name });
+    const relForMe = relationMatched(meChar, { name: peer.name });
+
+    autoChatRef.current = true;
+    setAutoChatting(true);
+
+    let hist = dm.map((m) => ({ who: m.from, text: m.text }));
+    const sessionStart = hist.length; // 이번 세션에 새로 쌓인 발화 구간
+
+    for (let turn = 0; turn < 6; turn++) {
+      if (!autoChatRef.current) break;
+      // 짝수턴: 내 자캐(meChar)가 말함, 홀수턴: partner가 말함
+      const speaker = turn % 2 === 0 ? meChar : partner;
+      const listener = turn % 2 === 0 ? partner : meChar;
+      const rel = turn % 2 === 0 ? relForMe : relForPartner;
+      const line = await genLine(speaker, listener, hist, rel, chatMode);
+      if (!autoChatRef.current) break;
+      hist = [...hist, { who: speaker.name, text: line }];
+      setDmThread((d) => [...d, { from: speaker.name, text: line, autoChat: true }]);
+      // 턴 보너스 (+1~2, 소폭, 양방향) — 큰 변동은 세션 끝 판정에서
+      bumpMutual(meChar.name, partner.name, 1 + Math.floor(Math.random() * 2),
+        hist.slice(-6).map((m) => `${m.who}: ${m.text}`));
+      // 진도질문이 떴으면 자동대화 멈춤 (하루가 오너에게 묻는 중)
+      if (proposingRef.current || proposalRef.current) break;
+      // 읽는 텀: 길이에 비례해 느리게 (최소 1.8초)
+      const delay = Math.min(1800 + line.length * 45, 5000);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+    autoChatRef.current = false;
+    setAutoChatting(false);
+    // 세션 분위기 판정 + 기억을 1회 호출로 (진도질문 모달 떠있으면 스킵)
+    if (!proposalRef.current) {
+      const sessionLines = hist.slice(sessionStart);
+      processSession(meChar.name, partner.name, sessionLines);
+    }
+  }
+  function stopAutoChat() { autoChatRef.current = false; setAutoChatting(false); }
+
+  // 자율 포스팅: 캐릭터가 알아서 올림
+  const AUTO_MOODS = ["일상 / 방금 있었던 일", "혼잣말 / 생각", "지금 기분", "푸념 / 투정", "셀카 찍은 척 (사진 묘사)", "랜덤 / 알아서"];
+  function autoPost() {
+    if (loadingRef.current) return;
+    // 가끔(30%) 팔로우 캐가 자기 글을 타임라인에 올림, 아니면 내 자캐가 글
+    if (following.length > 0 && Math.random() < 0.3) { followerPost(); return; }
+    const m = AUTO_MOODS[Math.floor(Math.random() * AUTO_MOODS.length)];
+    generatePost(m, true);
+  }
+
+  // 특정 글(postObj)에 한 캐릭터(commenter)가 다는 댓글 1개 생성 → posts에 추가
+  async function addCommentFrom(postId, postText, postAuthorName, commenter, priorComments) {
+    const thread = (priorComments || []).map((c) => `${c.name}: ${c.text}`).join("\n");
+    // commenter ↔ postAuthor 관계·호감도 → 댓글 톤에 반영 (관계성 기반 티키타카)
+    let relBlock = "";
+    if (postAuthorName && commenter.name !== postAuthorName) {
+      const relLabel = relLabelFor(commenter, postAuthorName); // 연인/앙숙 등
+      const aff = affOf(commenter.name, postAuthorName);        // 현재 호감도
+      const stage = affinityStage(aff);
+      relBlock = `\n[${postAuthorName}와의 관계] ${relLabel ? `${relLabel} · ` : ""}${stage}(호감도 ${aff})\n→ 이 관계와 감정에 맞는 톤으로 댓글을 달아라. 연인이면 다정/짓궂게, 앙숙·라이벌이면 까칠/도발적으로, 친구면 편하게, 서먹하면 거리감 있게. 관계가 드러나야 한다.`;
+    }
+    const sys = `너는 "${commenter.name}"이다. SNS 타임라인에서 "${postAuthorName}"의 글에 달린 댓글창에 참여한다.
+${commenter.persona ? `너: ${commenter.persona}` : ""}
+${commenter.speech ? `말투(반드시 이대로): ${commenter.speech}` : ""}
+${commenter.catchphrase ? `말버릇: ${commenter.catchphrase}` : ""}
+
+[원글 — ${postAuthorName}]
+${postText}${relBlock}
+${thread ? `\n[지금까지 달린 댓글]\n${thread}` : ""}
+
+[규칙]
+- 너의 말투로 짧게. 1문장, 길어야 2문장.
+${thread ? `- 위 흐름을 받되 같은 논점을 반복하지 마라. 이미 나온 말("허전하다/아니다" 식 핑퐁)을 또 주고받지 말고, 새 얘기로 넘기거나(딴지·농담·다른 화제·행동 제안) 한마디 툭 던지고 끝내라.
+- "너 ~라고 했잖아" 식으로 상대 말 꼬투리 잡아 따지지 마라. 분석·캐묻기 금지.
+- 대화가 충분히 돌았으면 굳이 길게 끌지 말고 가볍게 마무리해도 된다.` : "- 원글에 즉흥적으로 반응하는 첫 댓글. 한마디 툭."}
+- 자기소개·설정 설명 금지. AI 상담사처럼 위로·분석·되묻기 하지 마라. 진짜 댓글처럼.
+- 본문만 출력.${ANTI_REPEAT_RULES}`;
+    try {
+      const res = await fetch("/api/generate", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: MODEL_AUTO, max_tokens: 150, system: sys,
+          messages: [{ role: "user", content: `(${commenter.name}가 댓글을 단다.)` }] }),
+      });
+      const data = await res.json();
+      const text = data.content.map((i) => (i.type === "text" ? i.text : "")).join("").trim().replace(/^["'""']|["'""']$/g, "");
+      if (!text) return null;
+      setPosts((ps) => ps.map((p) => p.id === postId
+        ? { ...p, comments: [...(p.comments || []), { name: commenter.name, handle: commenter.handle || commenter.name, text }] }
+        : p));
+      return text;
+    } catch (e) { return null; }
+  }
+
+  // 사용자가 직접 다는 댓글 (내 자캐 또는 내 페르소나로)
+  function submitUserComment(postId, postAuthorName) {
+    const txt = commentText.trim();
+    if (!txt) return;
+    const persona = commentAs.startsWith("p:") ? personas.find((p) => `p:${p.id}` === commentAs) : null;
+    const name = persona ? persona.name : char.name;
+    const handle = persona ? name : (char.handle || char.name);
+    // 현재 글과 댓글 목록 확보 (답글 반응에 쓸 thread)
+    const target = posts.find((p) => p.id === postId);
+    const priorComments = [...((target && target.comments) || []), { name, text: txt }];
+    setPosts((ps) => ps.map((p) => p.id === postId
+      ? { ...p, comments: [...(p.comments || []), { name, handle, text: txt, byUser: true }] }
+      : p));
+    if (postAuthorName && postAuthorName !== name) bumpAffinity(postAuthorName, name, 1, []);
+    setCommentText(""); setCommentOn(null);
+
+    // 내가 댓글 달면 → 캐가 답글로 반응 (텀 두고)
+    const postText = target ? target.text : "";
+    // 답할 캐 정하기:
+    //  - 외부 캐 글이면 그 글쓴이가 답
+    //  - 내 자캐 글이면 글쓴이(내 자캐) 본인이 답 (자기 글엔 자기가 주인)
+    //    단 내가 '자캐로' 댓글 단 거면 자문자답이 되니, 그땐 팔로우 캐가 답
+    let responder = null;
+    if (postAuthorName) {
+      responder = findPeerChar(postAuthorName);
+    } else if (name !== char.name) {
+      // 페르소나로 내 자캐 글에 댓글 → 글쓴이 자캐가 답
+      responder = char;
+    } else if (following.length > 0) {
+      // 자캐로 자기 글에 댓글 → 팔로우 캐가 답
+      responder = following[Math.floor(Math.random() * following.length)];
+    }
+    if (responder && responder.name !== name) {
+      const authorForCtx = postAuthorName || char.name;
+      setTimeout(() => addCommentFrom(postId, postText, authorForCtx, responder, priorComments), 1200 + Math.random() * 1500);
+    }
+  }
+
+  // 내 자캐 글이 올라온 직후: 팔로우 캐들이 댓글창에서 티키타카
+  async function followersReactTo(postId, postText) {
+    if (following.length === 0) return;
+    const shuffled = [...following].sort(() => Math.random() - 0.5);
+    const n = Math.random() < 0.35 ? 3 : (Math.random() < 0.6 ? 2 : 1); // 1~3명
+    const reactors = shuffled.slice(0, Math.min(n, shuffled.length));
+    const thread = []; // 이번 댓글창 누적 (앞 댓글을 뒤 사람이 봄)
+    for (let i = 0; i < reactors.length; i++) {
+      const r = reactors[i];
+      if (i > 0 && Math.random() > 0.7) continue; // 뒤로 갈수록 가끔 빠짐
+      const txt = await addCommentFrom(postId, postText, char.name, r, thread);
+      bumpAffinity(r.name, char.name, 1, []);
+      if (txt) thread.push({ name: r.name, text: txt });
+      // 글쓴이(내 자캐)가 자기 글 댓글에 답하는 경우 — 자기 글이니 자주 끼어든다(65%)
+      if (txt && Math.random() < 0.65) {
+        await new Promise((res) => setTimeout(res, 800));
+        const reply = await addCommentFrom(postId, postText, char.name, char, thread);
+        if (reply) thread.push({ name: char.name, text: reply });
+      }
+    }
+  }
+
+  // 팔로우 캐가 자기 글을 타임라인에 올림 → 내 자캐가 거기 댓글
+  async function followerPost() {
+    if (following.length === 0 || loadingRef.current) return;
+    loadingRef.current = true; setLoading(true);
+    const poster = following[Math.floor(Math.random() * following.length)];
+    // 30% 확률로 내 자캐의 최근 글을 인용 (내가 쓴 글 중에서)
+    const myPosts = posts.filter((p) => !p.author); // author 없으면 내 자캐 글
+    const quoteTarget = (myPosts.length > 0 && Math.random() < 0.3) ? myPosts[0] : null;
+    const sys = `너는 "${poster.name}"이다. 네 SNS에 짧은 글 하나를 올린다.
+${poster.persona ? `너: ${poster.persona}` : ""}
+${poster.speech ? `말투(반드시 이대로): ${poster.speech}` : ""}
+${poster.interests ? `관심사: ${poster.interests}` : ""}
+${poster.catchphrase ? `말버릇: ${poster.catchphrase}` : ""}
+${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(보고 반응하며) 네 글을 올린다]\n"${char.name}": ${quoteTarget.text}\n→ 이 글에 대한 네 생각·반응·받아치기를 네 말투로. 인용 리트윗처럼.` : ""}
+
+[규칙]
+- 1인칭 SNS 글. 한두 문장, 트윗 길이. 자기소개·설정 설명 금지. 즉흥적으로.
+- AI 상담사처럼 위로·분석·되묻기 하지 마라. 네 캐릭터답게.
+- 본문만 출력.${ANTI_REPEAT_RULES}`;
+    let text = "";
+    try {
+      const res = await fetch("/api/generate", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: MODEL_AUTO, max_tokens: 200, system: sys,
+          messages: [{ role: "user", content: quoteTarget ? `(${char.name}의 글을 인용하며 글을 올린다.)` : "지금 떠오른 걸 한 줄 올려줘." }] }),
+      });
+      const data = await res.json();
+      text = data.content.map((i) => (i.type === "text" ? i.text : "")).join("").trim().replace(/^["'""']|["'""']$/g, "");
+    } catch (e) { text = ""; }
+    setLoading(false); loadingRef.current = false;
+    if (!text) return;
+    const postId = Date.now();
+    setPosts((p) => [
+      { id: postId, text, mood: "팔로잉", time: new Date(), likes: Math.floor(Math.random() * 30) + 2, liked: false,
+        author: poster.name, authorHandle: poster.handle || poster.name, isAuto: true,
+        quoted: quoteTarget ? { name: char.name, handle: char.handle || char.name, text: quoteTarget.text } : null },
+      ...p,
+    ]);
+    // 인용당하면 내 자캐 호감도 영향 (관심받음)
+    if (quoteTarget) bumpAffinity(poster.name, char.name, 1, []);
+    // 내 자캐가 거기 반응 (확률적)
+    if (Math.random() < 0.7) {
+      setTimeout(() => addCommentFrom(postId, text, poster.name, char), 1500);
+      bumpAffinity(char.name, poster.name, 1, []);
+    }
+  }
+
+  // DM 새 메시지 시 맨 아래로
+  useEffect(() => {
+    if (step === "dm" && dmEndRef.current) {
+      dmEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [dm, step]);
+
+  // 방 바뀌면 오너 끼어들기만 해제 (페르소나/자캐 선택은 보존 — 목록에서 복원되므로)
+  useEffect(() => { setSpeakAs((s) => s === "owner" ? "char" : s); }, [peer && peer.name, peer && peer.asOwner]);
+  // 진도질문 모달 상태를 ref에 미러 (자동대화 루프에서 최신값 참조)
+  useEffect(() => { proposalRef.current = proposal; }, [proposal]);
+
+  // feed 첫 진입 시 첫 글 하나 바로 올림
+  useEffect(() => {
+    if (step === "feed" && !feedInitRef.current && posts.length === 0) {
+      feedInitRef.current = true;
+      const t = setTimeout(() => autoPost(), 600);
+      return () => clearTimeout(t);
+    }
+  }, [step]); // eslint-disable-line
+
+  // 타이머: feed 화면 + auto on일 때 주기마다 자동 포스팅
+  useEffect(() => {
+    if (step !== "feed" || !auto) { setNextIn(0); return; }
+    const period = fast ? 30 : 900; // 빠름 30초 / 평소 15분
+    setNextIn(period);
+    const tick = setInterval(() => {
+      setNextIn((n) => {
+        if (n <= 1) {
+          autoPost();
+          return period;
+        }
+        return n - 1;
+      });
+    }, 1000);
+    return () => clearInterval(tick);
+  }, [step, auto, fast, char]); // eslint-disable-line
+
+  function toggleLike(id) {
+    setPosts((p) => p.map((post) =>
+      post.id === id ? { ...post, liked: !post.liked, likes: post.likes + (post.liked ? -1 : 1) } : post
+    ));
+  }
+
+  function timeAgo(t) {
+    const s = Math.floor((Date.now() - t) / 1000);
+    if (s < 60) return "방금";
+    if (s < 3600) return `${Math.floor(s / 60)}분`;
+    return `${Math.floor(s / 3600)}시간`;
+  }
+
+  const initial = char.name.trim() ? char.name.trim()[0] : "?";
+
+  return (
+    <div className="al-root">
+      <style>{css}</style>
+
+      {step === "home" && (
+        <div className="al-phone">
+          <div className="al-home">
+            <div className="al-home-head">
+              <span className="al-spark">✶</span>
+              <h1>내 자캐들</h1>
+              <p>{accounts.length > 0 ? "계정을 골라 들어가거나, 새로 깨워봐." : "첫 자캐를 깨워보자."}</p>
+            </div>
+
+            <div className="al-acclist">
+              {accounts.map((a) => {
+                const ini = a.char.name.trim() ? a.char.name.trim()[0] : "?";
+                return (
+                  <button key={a.id} className="al-acccard" onClick={() => switchAccount(a.id)}>
+                    <div className="al-acccard-av">{ini}</div>
+                    <div className="al-acccard-info">
+                      <span className="al-acccard-name">{a.char.name}</span>
+                      <span className="al-acccard-handle">@{a.char.handle || a.char.name.replace(/\s/g, "").toLowerCase()}</span>
+                      {a.char.relations && <span className="al-acccard-rel">♥ {a.char.relations}</span>}
+                    </div>
+                    <span className="al-acccard-count">{(a.posts || []).length}글</span>
+                  </button>
+                );
+              })}
+              <button className="al-accadd" onClick={startNewCharacter}>+ 새 자캐 깨우기</button>
+            </div>
+
+            <div className="al-persona-mgr">
+              <div className="al-pm-head">🎭 내 페르소나 <span>{personas.length > 0 && `(${personas.length})`}</span></div>
+              <p className="al-pm-desc">캐릭터에게 다가갈 또 다른 나. DM에서 골라 쓰면 자캐처럼 호감도·관계가 따로 쌓여.</p>
+              <div className="al-pm-list">
+                {personas.map((p) => (
+                  <button key={p.id} className="al-pm-card" onClick={() => setPersonaDraft({ ...p })}>
+                    <span className="al-pm-av">{p.name.trim()[0] || "?"}</span>
+                    <span className="al-pm-info">
+                      <span className="al-pm-name">{p.name}</span>
+                      <span className="al-pm-sub">{p.age || p.persona?.slice(0, 24) || "설정 없음"}</span>
+                    </span>
+                  </button>
+                ))}
+                <button className="al-pm-add" onClick={() => setPersonaDraft({ name: "", age: "", persona: "", speech: "" })}>+ 페르소나 만들기</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {step === "dump" && (
+        <div className="al-phone">
+          {accounts.length > 0 && (
+            <button className="al-dump-back" onClick={() => setStep("home")}>‹ 내 자캐들</button>
+          )}
+          <div className="al-setup">
+            <div className="al-setup-head">
+              <span className="al-spark">✶</span>
+              <h1>내 최애를 깨운다</h1>
+              <p>걔에 대해 적어줘.<br />설명만 있어도 깨울 수 있어.</p>
+            </div>
+
+            {/* 유도 칩 */}
+            <div className="al-guidechips">
+              {["이름", "성격", "말투·입버릇", "좋아하는 거", "세계관", "캐치프레이즈"].map((g) => (
+                <span key={g} className="al-guidechip">{g}</span>
+              ))}
+            </div>
+
+            <textarea className="al-dump" value={dump} onChange={(e) => setDump(e.target.value)}
+              placeholder={"이름은 리안. 21살, 마법학교 다님.\n겉으론 시크·까칠한데 단 거 앞에선 무너짐.\n반말 쓰고 문장 끝에 '…' 자주 붙임.\n고양이 키우고 밤에 글 쓰는 거 좋아함."} />
+
+            {/* 역극 로그 — 옵션 */}
+            <div className="al-rp">
+              <div className="al-rp-head">
+                <span>역극 · 대사 로그</span>
+                <span className="al-rp-opt">선택</span>
+              </div>
+              <p className="al-rp-desc">대사를 넣으면 말투·캐치프레이즈를 훨씬 정확하게 잡아.</p>
+              <textarea className="al-rp-box" value={rpLog} onChange={(e) => setRpLog(e.target.value)}
+                placeholder={"리안: 됐어, 그런 건 알아서 할게…\n리안: …고마워. 딱 한 번만 말한다.\n리안: 시끄러워. 그 얘긴 그만."} />
+            </div>
+
+            {/* 예시 카드 */}
+            <div className="al-examples">
+              <span className="al-examples-lbl">막막하면 예시로 시작해도 돼 →</span>
+              <div className="al-example-cards">
+                {EXAMPLES.map((ex) => (
+                  <button key={ex.name} className="al-example" onClick={() => setDump(ex.text)}>
+                    <span className="al-example-name">{ex.name}</span>
+                    <span className="al-example-desc">{ex.short}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <button className="al-start" disabled={(!dump.trim() && !rpLog.trim()) || parsing} onClick={parseDump}>
+              {parsing ? <span className="al-typing"><i/><i/><i/></span> : "이대로 깨우기"}
+            </button>
+            <p className="al-dump-note">정리는 AI가 해줄게. 다음 화면에서 확인하고 고치면 돼.</p>
+          </div>
+        </div>
+      )}
+
+      {step === "confirm" && (
+        <div className="al-phone">
+          <div className="al-setup">
+            <div className="al-setup-head">
+              <h1 className="al-confirm-title">{parseFailed ? "분석이 잘 안 됐어" : "이렇게 이해했어"}</h1>
+              <p>{parseFailed ? "직접 채워도 되고, 다시 분석을 돌려도 돼." : "틀린 것만 톡 고치면 돼."}</p>
+            </div>
+
+            {parseFailed && (
+              <button className="al-retry" onClick={() => setStep("dump")}>
+                ↻ 다시 분석 돌리기
+              </button>
+            )}
+
+            <label className="al-field">
+              <span>이름 *</span>
+              <input value={char.name} onChange={(e) => update("name", e.target.value)} placeholder="캐릭터 이름" />
+            </label>
+
+            <div className="al-row">
+              <label className="al-field">
+                <span>아이디</span>
+                <input value={char.handle} onChange={(e) => update("handle", e.target.value)} placeholder="@id" />
+              </label>
+              <label className="al-field">
+                <span>나이/설정</span>
+                <input value={char.age} onChange={(e) => update("age", e.target.value)} placeholder="예: 21 / 마법사" />
+              </label>
+            </div>
+
+            <div className="al-analysis">
+              <div className="al-analysis-head">
+                <span className="al-spark-sm">✶</span> AI가 분석한 {char.name || "이 캐릭터"}
+              </div>
+              <label className="al-an-row">
+                <span className="al-an-lbl">겉모습</span>
+                <input value={char.surface} onChange={(e) => update("surface", e.target.value)} placeholder="첫인상·겉으로 보이는 모습" />
+              </label>
+              <label className="al-an-row">
+                <span className="al-an-lbl">속마음</span>
+                <input value={char.inner} onChange={(e) => update("inner", e.target.value)} placeholder="겉과 다른 숨은 면" />
+              </label>
+              <label className="al-an-row">
+                <span className="al-an-lbl">상황별</span>
+                <input value={char.situational} onChange={(e) => update("situational", e.target.value)} placeholder="평소 vs 친한 사람 vs 위기" />
+              </label>
+              <label className="al-an-row">
+                <span className="al-an-lbl">무너지는 점</span>
+                <input value={char.triggers} onChange={(e) => update("triggers", e.target.value)} placeholder="발끈하거나 약해지는 포인트" />
+              </label>
+              <label className="al-an-row">
+                <span className="al-an-lbl">좋아하는 것</span>
+                <input value={char.interests} onChange={(e) => update("interests", e.target.value)} placeholder="취미·관심사" />
+              </label>
+              <div className="al-an-row">
+                <span className="al-an-lbl">정드는 속도</span>
+                <div className="al-warmth-chips">
+                  {[["slow", "느림 🧊"], ["normal", "보통"], ["fast", "빠름 💗"]].map(([v, lbl]) => (
+                    <button key={v} type="button"
+                      className={`al-warmth-chip ${(char.warmth || "normal") === v ? "on" : ""}`}
+                      onClick={() => update("warmth", v)}>{lbl}</button>
+                  ))}
+                  <span className="al-warmth-hint">무뚝뚝·배타적이면 호감도가 천천히 오름</span>
+                </div>
+              </div>
+            </div>
+
+            {/* 관계 시각화 */}
+            <div className="al-relbox">
+              <div className="al-relbox-head">
+                <span>♥ 관계</span>
+                <span className="al-relbox-hint">"이름 — 관계" 쉼표로 여러 명</span>
+              </div>
+              {parseRelations(char.relations).length > 0 && (
+                <div className="al-relviz">
+                  {parseRelations(char.relations).map(({ who, label }, i) => (
+                    <div key={i} className="al-relviz-item">
+                      <div className="al-relviz-line2">
+                        <span className="al-relviz-me">{char.name || "이 자캐"}</span>
+                        <span className="al-relviz-arrow">→</span>
+                        <span className="al-relviz-peer">{who}</span>
+                      </div>
+                      {label && <span className="al-relviz-rel">{label}</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+              <input className="al-relinput" value={char.relations} onChange={(e) => update("relations", e.target.value)}
+                placeholder="예: 선우 연 — 애인, 카엘 — 라이벌" />
+            </div>
+
+            <label className="al-field">
+              <span>페르소나 *</span>
+              <textarea value={char.persona} onChange={(e) => update("persona", e.target.value)} />
+            </label>
+
+            <label className="al-field">
+              <span>세계관/배경</span>
+              <textarea value={char.world} onChange={(e) => update("world", e.target.value)}
+                placeholder="(없으면 비워도 됨)" />
+            </label>
+
+            <label className="al-field">
+              <span>말투 특징</span>
+              <input value={char.speech} onChange={(e) => update("speech", e.target.value)}
+                placeholder="(없으면 비워도 됨)" />
+            </label>
+
+            <div className="al-confirm-actions">
+              <button className="al-reparse" onClick={() => setStep("dump")}>← 다시 쓰기</button>
+              <button className="al-start al-confirm-go" disabled={!confirmReady} onClick={wakeCharacter}>
+                {confirmReady ? `${char.name.trim()} 깨우기` : "이름·페르소나 필수"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {step === "feed" && (
+        <div className="al-phone">
+          {/* 프로필 헤더 */}
+          <div className="al-profile">
+            <button className="al-back" onClick={goHome}>‹</button>
+            <div className="al-banner" />
+            <div className="al-avatar">{initial}</div>
+            <div className="al-profile-info">
+              <div className="al-profile-top">
+                <div>
+                  <h2>{char.name}</h2>
+                  <span className="al-handle">@{char.handle || char.name.replace(/\s/g, "").toLowerCase()}</span>
+                </div>
+                <div className="al-feed-actions">
+                  <button className="al-dmbtn ghost" onClick={() => setStep("discover")}>🔍 탐색</button>
+                  <button className="al-dmbtn" onClick={() => setStep("dmlist")}>✉ DM</button>
+                </div>
+              </div>
+              <p className="al-bio">
+                {char.age && <span className="al-bio-tag">{char.age}</span>}
+                {char.surface && <span className="al-bio-tag">{char.surface}</span>}
+              </p>
+              {char.persona && <p className="al-bio-text">{char.persona}</p>}
+
+              <div className="al-follow-stats">
+                <button className="al-fstat" onClick={() => setStep("discover")}>
+                  <b>{following.length}</b> 팔로잉
+                </button>
+                <span className="al-fstat"><b>{myFollowers().length}</b> 팔로워</span>
+                <button className="al-fstat" onClick={() => setShowMemory((v) => !v)}>
+                  🧠 <b>{(char.lorebook || []).length}</b> 기억 {showMemory ? "▾" : "▸"}
+                </button>
+                {(() => {
+                  const relCount = parseRelations(char.relations).length;
+                  return relCount > 0 ? (
+                    <button className="al-fstat" onClick={() => setShowRelations((v) => !v)}>
+                      💞 <b>{relCount}</b> 관계 {showRelations ? "▾" : "▸"}
+                    </button>
+                  ) : null;
+                })()}
+                {myFollowers().length > 0 && <span className="al-fstat-new">친해진 캐가 맞팔했어!</span>}
+              </div>
+
+              {showRelations && (() => {
+                const rels = parseRelations(char.relations);
+                if (!rels.length) return null;
+                return (
+                  <div className="al-rellist">
+                    {rels.map(({ who, label }, i) => {
+                      const aff = affOf(char.name, who);
+                      const back = affOf(who, char.name); // 상대가 나를 향한 마음
+                      const neg = aff < 0;
+                      const peerExists = !!findPeerChar(who); // 상대가 실제 등록된 캐인지
+                      // 짝사랑: 상대가 존재하고, 내 마음은 깊은데(50+) 상대는 얕을 때. (라벨이 짝사랑이면 무조건)
+                      const oneSided = (relLabelFor(char, who) === "짝사랑")
+                        || (peerExists && aff >= 50 && back < 30 && !/부부|배우자|연인|애인|약혼|사랑/.test(label));
+                      return (
+                        <div className="al-rel" key={i}>
+                          <div className="al-rel-top">
+                            <span className="al-rel-av">{(who.trim()[0]) || "?"}</span>
+                            <span className="al-rel-who">{who}</span>
+                            {oneSided && <span className="al-rel-onesided">💔 짝사랑</span>}
+                            <span className="al-rel-stage">{affinityStage(aff)} · {aff}</span>
+                          </div>
+                          {label && <p className="al-rel-desc">{label}</p>}
+                          <div className="al-rel-bar">
+                            <div className={`al-rel-fill ${neg ? "neg" : ""}`} style={{ width: `${Math.abs(aff)}%` }} />
+                          </div>
+                          {oneSided && <span className="al-rel-onesided-note">{who}의 마음은 아직 {affinityStage(back)}({back}) — 아직 닿지 않았어</span>}
+                        </div>
+                      );
+                    })}
+                    <p className="al-mem-note">{char.name}의 관계와 지금 마음. 대화할수록 호감도가 변해.</p>
+                  </div>
+                );
+              })()}
+
+              {showMemory && (
+                <div className="al-memlist">
+                  {(char.lorebook || []).length === 0 ? (
+                    <p className="al-mem-note">아직 쌓인 기억이 없어. {char.name}가 대화를 나누면 핵심을 자동으로 기억해 — 약속·사건·감정 같은 걸 잊지 않게.</p>
+                  ) : (() => {
+                    const peers = [...new Set((char.lorebook || []).map((e) => e.peer).filter((p) => p && p !== "*"))];
+                    const shown = (char.lorebook || []).filter((e) => !memFilter || e.peer === memFilter).slice(-12).reverse();
+                    return (
+                      <>
+                        {peers.length > 1 && (
+                          <div className="al-mem-filters">
+                            <button className={`al-memchip ${!memFilter ? "on" : ""}`} onClick={() => setMemFilter(null)}>전체</button>
+                            {peers.map((p) => (
+                              <button key={p} className={`al-memchip ${memFilter === p ? "on" : ""}`} onClick={() => setMemFilter(p)}>{p}</button>
+                            ))}
+                          </div>
+                        )}
+                        {shown.map((e) => (
+                          <div className="al-mem" key={e.id}>
+                            <span className="al-mem-dot">·</span>
+                            <span className="al-mem-text">{e.content}{e.peer && e.peer !== "*" ? (
+                              <button className="al-mem-peer" onClick={() => setMemFilter(memFilter === e.peer ? null : e.peer)}> ({e.peer})</button>
+                            ) : null}</span>
+                          </div>
+                        ))}
+                        <p className="al-mem-note">{memFilter ? `${memFilter}와(과)의 기억만 보는 중 · 태그를 다시 누르면 전체` : `대화하면 ${char.name}가 핵심을 자동으로 기억해. 잊지 않게.`}</p>
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
+
+              {/* 자캐 그림 갤러리 */}
+              <div className="al-gallery">
+                <div className="al-gallery-head">
+                  <span>{char.name}의 그림 {gallery.length > 0 && `(${gallery.length})`}</span>
+                  <label className="al-upload">
+                    + 그림 올리기
+                    <input type="file" accept="image/*" multiple onChange={handleUpload} hidden />
+                  </label>
+                </div>
+                {gallery.length > 0 ? (
+                  <div className="al-gallery-strip">
+                    {gallery.map((g, i) => (
+                      <div className="al-thumb" key={i}>
+                        <img src={g} alt="" />
+                        <button className="al-thumb-x" onClick={() => setGallery((arr) => arr.filter((_, idx) => idx !== i))}>×</button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="al-gallery-empty">내 자캐 그림을 올려두면, {char.name}가 글 쓸 때 알아서 골라 붙여.</p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* 자율 포스팅 컨트롤 */}
+          <div className="al-autobar">
+            <button className={`al-autotoggle ${auto ? "on" : ""}`} onClick={() => setAuto((a) => !a)}>
+              <span className="al-autodot" />
+              {auto ? `자율 모드 ON · ${char.name}가 알아서 올리는 중` : "자율 모드 OFF"}
+            </button>
+            {auto && (
+              <div className="al-autometa">
+                <span className="al-nextin">{fast ? "" : "다음 글 "}~{Math.floor(nextIn / 60)}:{String(nextIn % 60).padStart(2, "0")}</span>
+                <button className={`al-fast ${fast ? "on" : ""}`} onClick={() => setFast((f) => !f)}>
+                  {fast ? "빠름(30초)" : "10분"}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* 직접 지시 — 상시 지침 */}
+          <div className="al-directive">
+            <span className="al-directive-lbl">▸ {char.name}에게 지시</span>
+            <input className="al-directive-input" value={char.directions || ""}
+              onChange={(e) => update("directions", e.target.value)}
+              placeholder="예: 요즘 시험기간이라 예민하게 / 연이랑 싸운 상태로" />
+            {(char.directions || "").trim() && <span className="al-directive-on">적용 중</span>}
+          </div>
+
+          {/* 글 쓰게 하기 */}
+          <div className="al-composer">
+            {!moodOpen ? (
+              <div className="al-compose-row">
+                <button className="al-wake" onClick={() => setMoodOpen(true)} disabled={loading}>
+                  {loading ? <span className="al-typing"><i/><i/><i/></span> : `✶ ${char.name}한테 시키기`}
+                </button>
+                <button className="al-writeself" onClick={() => setWriteOpen((w) => !w)}>✎ 내가 쓰기</button>
+              </div>
+            ) : (
+              <div className="al-moods">
+                <p className="al-moods-q">어떤 글을 올릴까?</p>
+                <div className="al-moods-grid">
+                  {POST_MOODS.map((m) => (
+                    <button key={m} className="al-mood" onClick={() => generatePost(m)}>{m}</button>
+                  ))}
+                </div>
+                <button className="al-moods-cancel" onClick={() => setMoodOpen(false)}>닫기</button>
+              </div>
+            )}
+            {writeOpen && (
+              <div className="al-writebox">
+                <p className="al-write-lbl">{char.name}(으)로 직접 작성 — 내가 이 자캐가 되어 올림</p>
+                <textarea value={writeText} onChange={(e) => setWriteText(e.target.value)}
+                  placeholder={`${char.name}의 글을 직접 써봐…`} />
+                <div className="al-write-actions">
+                  <button className="al-write-cancel" onClick={() => { setWriteOpen(false); setWriteText(""); }}>취소</button>
+                  <button className="al-write-post" disabled={!writeText.trim()}
+                    onClick={() => { manualPost(writeText); setWriteText(""); setWriteOpen(false); }}>올리기</button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* 피드 */}
+          <div className="al-feed" ref={feedTopRef}>
+            {posts.length === 0 && !loading && (
+              <div className="al-empty">
+                <span>{char.name}가 곧 첫 글을 올릴 거야…</span>
+                <p>자율 모드가 켜져 있으면 알아서 올라와. 기다리기 싫으면 위에서 직접 시켜도 돼.</p>
+              </div>
+            )}
+            {posts.map((post) => {
+              const isExt = !!post.author; // author 있으면 외부(팔로우) 캐 글, 없으면 내 자캐
+              const pName = isExt ? post.author : char.name;
+              const pHandle = isExt ? (post.authorHandle || post.author) : (char.handle || char.name.replace(/\s/g, "").toLowerCase());
+              const pInitial = pName.trim()[0] || "?";
+              return (
+              <div className="al-post" key={post.id}>
+                <div className={`al-post-av ${isExt ? "ext" : ""}`}>{pInitial}</div>
+                <div className="al-post-body">
+                  <div className="al-post-head">
+                    <span className="al-post-name">{pName}</span>
+                    <span className="al-post-handle">@{pHandle}</span>
+                    {isExt && <span className="al-post-extbadge">팔로잉</span>}
+                    <span className="al-post-time">· {timeAgo(post.time)}</span>
+                  </div>
+                  <p className="al-post-text">{post.text}</p>
+
+                  {post.quoted && (
+                    <div className="al-quoted">
+                      <div className="al-quoted-head">
+                        <span className="al-quoted-av">{post.quoted.name.trim()[0] || "?"}</span>
+                        <span className="al-quoted-name">{post.quoted.name}</span>
+                        <span className="al-quoted-handle">@{post.quoted.handle}</span>
+                      </div>
+                      <p className="al-quoted-text">{post.quoted.text}</p>
+                    </div>
+                  )}
+
+                  {post.img && (
+                    <div className="al-post-img"><img src={post.img} alt="" /></div>
+                  )}
+                  {post.photoDesc && !post.img && (
+                    <div className="al-post-photo">
+                      <span className="al-photo-frame">◹</span>
+                      <span className="al-photo-desc">{post.photoDesc}</span>
+                    </div>
+                  )}
+                  {post.moodDesc && (
+                    <div className="al-post-moodcard">♫ {post.moodDesc}</div>
+                  )}
+
+                  <div className="al-post-actions">
+                    <button className={`al-like ${post.liked ? "on" : ""}`} onClick={() => toggleLike(post.id)}>
+                      {post.liked ? "♥" : "♡"} {post.likes}
+                    </button>
+                    {!post.byUser && (
+                      <button className="al-fixbtn" onClick={() => { setFixTarget({ type: "post", id: post.id, text: post.text }); setFixText(""); }}>
+                        ⚠ 캐해 아님
+                      </button>
+                    )}
+                    <span className="al-post-mood">{post.isAuto && <i className="al-auto-badge">자율</i>}{post.byUser && <i className="al-user-badge">내가</i>}{(post.mood || "").split(" / ")[0]}</span>
+                  </div>
+
+                  {(post.comments || []).length > 0 && (
+                    <div className="al-comments">
+                      {post.comments.map((c, ci) => (
+                        <div className="al-comment" key={ci}>
+                          <div className={`al-comment-av ${c.byUser ? "mine" : ""}`}>{c.name.trim()[0] || "?"}</div>
+                          <div className="al-comment-body">
+                            <span className="al-comment-name">{c.name}{c.byUser && <i className="al-cmt-mine">나</i>}</span>
+                            <span className="al-comment-text">{c.text}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {commentOn === post.id ? (
+                    <div className="al-cmtbox">
+                      <div className="al-cmtbox-who">
+                        <button className={`al-spk-chip ${commentAs === "char" ? "on" : ""}`} onClick={() => setCommentAs("char")}>{char.name}</button>
+                        {personas.map((p) => (
+                          <button key={p.id} className={`al-spk-chip persona ${commentAs === `p:${p.id}` ? "on" : ""}`}
+                            onClick={() => setCommentAs(`p:${p.id}`)}>🎭 {p.name}</button>
+                        ))}
+                        <button className="al-spk-chip add" onClick={() => setPersonaDraft({ name: "", age: "", persona: "", speech: "" })}>+ 페르소나</button>
+                      </div>
+                      <div className="al-cmtbox-row">
+                        <input className="al-cmtbox-input" value={commentText} autoFocus
+                          onChange={(e) => setCommentText(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) submitUserComment(post.id, isExt ? post.author : null); }}
+                          placeholder={`${commentAs === "char" ? char.name : (personas.find((p) => `p:${p.id}` === commentAs)?.name || "")}(으)로 댓글…`} />
+                        <button className="al-cmtbox-send" onClick={() => submitUserComment(post.id, isExt ? post.author : null)}>↑</button>
+                      </div>
+                      <button className="al-cmtbox-cancel" onClick={() => { setCommentOn(null); setCommentText(""); }}>닫기</button>
+                    </div>
+                  ) : (
+                    <button className="al-cmt-open" onClick={() => { setCommentOn(post.id); setCommentText(""); }}>💬 댓글 달기</button>
+                  )}
+                </div>
+              </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {step === "discover" && (() => {
+        const q = discoverQuery.trim().toLowerCase();
+        const list = DISCOVER_POOL.filter((c) => {
+          if (!q) return true;
+          return [c.name, c.persona, c.owner, ...(c.tags || [])].join(" ").toLowerCase().includes(q);
+        });
+        return (
+        <div className="al-phone">
+          <div className="al-dmhead">
+            <button className="al-back-inline" onClick={() => setStep("feed")}>‹</button>
+            <div className="al-dmhead-info">
+              <span className="al-dmhead-name">🔍 캐릭터 탐색</span>
+              <span className="al-dmhead-sub">다른 사람의 자캐를 팔로우해봐</span>
+            </div>
+          </div>
+          <div className="al-disc-search">
+            <input value={discoverQuery} onChange={(e) => setDiscoverQuery(e.target.value)}
+              placeholder="이름·성격·태그로 검색 (예: 냉미남, 인어, 느와르)" />
+          </div>
+          <div className="al-disc-list">
+            {list.length === 0 && <p className="al-disc-none">"{discoverQuery}"에 맞는 캐릭터가 없어.</p>}
+            {list.map((c) => {
+              const followed = isFollowing(c.id);
+              return (
+                <div key={c.id} className={`al-disc-card ${followed ? "on" : ""}`}>
+                  <div className="al-disc-av">{c.name.trim()[0]}</div>
+                  <div className="al-disc-body">
+                    <div className="al-disc-top">
+                      <span className="al-disc-name">{c.name}</span>
+                      <span className="al-disc-owner">{c.owner}</span>
+                      <span className="al-disc-fcount">팔로워 {baseFollowerCount(c.name).toLocaleString()}</span>
+                    </div>
+                    <p className="al-disc-persona">{c.persona}</p>
+                    <div className="al-disc-tags">
+                      {(c.tags || []).map((t) => <span key={t} className="al-disc-tag">#{t}</span>)}
+                    </div>
+                  </div>
+                  <button className={`al-disc-follow ${followed ? "on" : ""}`} onClick={() => toggleFollow(c)}>
+                    {followed ? "팔로잉 ✓" : "+ 팔로우"}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+          {following.length > 0 && (
+            <div className="al-disc-foot">
+              팔로잉 {following.length} · DM에서 {char.name}(으)로 말 걸 수 있어
+            </div>
+          )}
+        </div>
+        );
+      })()}
+
+      {step === "dmlist" && (
+        <div className="al-phone">
+          <div className="al-dmhead">
+            <button className="al-back-inline" onClick={() => setStep("feed")}>‹</button>
+            <div className="al-dmhead-av">{initial}</div>
+            <div className="al-dmhead-info">
+              <span className="al-dmhead-name">{char.name}의 DM</span>
+              <span className="al-dmhead-sub">대화 목록</span>
+            </div>
+          </div>
+
+          <div className="al-convlist">
+            {myConversations().length === 0 && !newChatMode && (
+              <div className="al-conv-empty">
+                <p>아직 대화가 없어.</p>
+                <span>아래에서 다른 자캐에게 말을 걸어봐.</span>
+              </div>
+            )}
+            {myConversations().map((c) => (
+              <button key={c.key} className="al-convitem"
+                onClick={() => {
+                  if (c.asOwner) {
+                    setPeer({ name: char.name, persona: char.persona, relation: "", asOwner: true });
+                  } else {
+                    const acc = accounts.find((a) => a.char.name === c.peerName);
+                    const fol = following.find((f) => f.name === c.peerName);
+                    setPeer({ name: c.peerName, persona: acc ? acc.char.persona : (fol ? fol.persona : ""), relation: "" });
+                    // 이 방의 화자 복원 (페르소나 방이면 그 페르소나로)
+                    if (c.asPersona) {
+                      const p = personas.find((pp) => pp.name === c.asPersona);
+                      setSpeakAs(p ? `p:${p.id}` : "char");
+                    } else {
+                      setSpeakAs("char");
+                    }
+                  }
+                  setStep("dm");
+                }}>
+                <div className="al-convitem-av">{c.asOwner ? "🙋" : c.asPersona ? "🎭" : (c.peerName.trim()[0] || "?")}</div>
+                <div className="al-convitem-info">
+                  <span className="al-convitem-name">{c.asOwner ? `${char.name} · 나(오너)와` : c.asPersona ? `${c.peerName} · 🎭${c.asPersona}로` : c.peerName}</span>
+                  <span className="al-convitem-last">{c.last.slice(0, 28) || "대화 시작"}</span>
+                </div>
+                <span className="al-convitem-count">{c.count}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* 새 대화 시작 */}
+          <div className="al-newchat">
+            {!newChatMode ? (
+              <>
+                {/* 1. 오너로서 내 자캐에게 */}
+                <button className="al-owner-entry"
+                  onClick={() => {
+                    setPeer({ name: char.name, persona: char.persona, relation: "", asOwner: true });
+                    setStep("dm");
+                  }}>
+                  🙋 나(오너)로서 <b>{char.name}</b>에게 직접 말 걸기
+                </button>
+                {/* 2. 내 자캐로 다른 캐릭터에게 */}
+                <button className="al-newchat-btn" onClick={() => { setNewChatSpeaker("char"); setNewChatMode("char"); }}>
+                  💬 <b>{char.name}</b>(으)로 다른 캐릭터에게 말 걸기
+                </button>
+                {/* 3. 페르소나로 다른 캐릭터에게 */}
+                <button className="al-persona-entry" onClick={() => {
+                  if (personas.length === 0) { setPersonaDraft({ name: "", age: "", persona: "", speech: "" }); return; }
+                  setNewChatSpeaker(`p:${personas[0].id}`); setNewChatMode("persona");
+                }}>
+                  🎭 내 페르소나로 캐릭터에게 말 걸기 {personas.length === 0 && <span className="al-pe-hint">(먼저 만들기)</span>}
+                </button>
+              </>
+            ) : (
+              <div className="al-newchat-panel">
+                {newChatMode === "persona" && (
+                  <>
+                    <p className="al-newchat-lbl">어떤 페르소나로?</p>
+                    <div className="al-nc-speakers">
+                      {personas.map((p) => (
+                        <button key={p.id} className={`al-spk-chip persona ${newChatSpeaker === `p:${p.id}` ? "on" : ""}`}
+                          onClick={() => setNewChatSpeaker(`p:${p.id}`)}>🎭 {p.name}</button>
+                      ))}
+                      <button className="al-spk-chip add" onClick={() => setPersonaDraft({ name: "", age: "", persona: "", speech: "" })}>+ 페르소나</button>
+                    </div>
+                  </>
+                )}
+                <p className="al-newchat-lbl">
+                  누구에게 — {newChatSpeaker === "char" ? char.name : (personas.find((p) => `p:${p.id}` === newChatSpeaker)?.name || char.name)}(으)로
+                </p>
+                <div className="al-newchat-targets">
+                  {/* 페르소나로 말 걸 땐, 지금 보고 있는 내 자캐도 대상 (가면→내 자캐 DM) */}
+                  {newChatMode === "persona" && (
+                    <button className="al-newchat-target mine"
+                      onClick={() => {
+                        setPeer({ name: char.name, persona: char.persona, relation: "" });
+                        setSpeakAs(newChatSpeaker);
+                        setNewChatMode(null);
+                        setStep("dm");
+                      }}>
+                      <span className="al-nt-av">{char.name.trim()[0]}</span>
+                      <span className="al-nt-name">{char.name}</span>
+                      <span className="al-nt-mine-tag">내 자캐</span>
+                    </button>
+                  )}
+                  {accounts.filter((a) => a.id !== activeId).map((a) => {
+                    const rel = relationMatched(char, { name: a.char.name });
+                    return (
+                      <button key={a.id} className="al-newchat-target"
+                        onClick={() => {
+                          setPeer({ name: a.char.name, persona: a.char.persona, relation: "" });
+                          setSpeakAs(newChatSpeaker);
+                          setNewChatMode(null);
+                          setStep("dm");
+                        }}>
+                        <span className="al-nt-av">{a.char.name.trim()[0]}</span>
+                        <span className="al-nt-name">{a.char.name}</span>
+                        {rel && <span className="al-nt-rel">♥ {rel.split(/[—\-–:]/).slice(1).join("").trim() || "관계"}</span>}
+                      </button>
+                    );
+                  })}
+                  {following.map((f) => (
+                    <button key={f.id} className="al-newchat-target ext"
+                      onClick={() => {
+                        setPeer({ name: f.name, persona: f.persona, relation: "" });
+                        setSpeakAs(newChatSpeaker);
+                        setNewChatMode(null);
+                        setStep("dm");
+                      }}>
+                      <span className="al-nt-av">{f.name.trim()[0]}</span>
+                      <span className="al-nt-name">{f.name}</span>
+                      <span className="al-nt-ext">팔로잉 · {f.owner}</span>
+                    </button>
+                  ))}
+                  {newChatMode === "char" && accounts.filter((a) => a.id !== activeId).length === 0 && following.length === 0 && (
+                    <p className="al-nt-none">다른 자캐를 만들거나(홈 → 새 자캐), 🔍 탐색에서 캐릭터를 팔로우해봐.</p>
+                  )}
+                </div>
+                <button className="al-newchat-cancel" onClick={() => setNewChatMode(null)}>닫기</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {step === "dm" && peer && (() => {
+        const peerName = peer.asOwner ? char.name : peer.name;
+        const peerInitial = peerName.trim()[0] || "?";
+        const isCharPeer = !peer.asOwner && !!findPeerChar(peer.name);
+        const showGauge = peer.asOwner || isCharPeer;
+        // 게이지 주체 = 현재 화자(내 자캐 or 유저 페르소나). 오너면 자캐로 폴백.
+        const speakerName = (activePersona ? activePersona.name : char.name);
+        const headSub = peer.asOwner
+          ? "나(오너)로서 대화 중"
+          : `${speakerName}(으)로 대화 중`;
+        const mineToPeer = affOf(speakerName, peerName);   // 화자 → 상대
+        const peerToMine = affOf(peerName, speakerName);   // 상대 → 화자
+        const ownerVal = affOf(peerName, OWNER);           // 하루 → 나(오너)
+        return (
+        <div className="al-phone">
+          <div className="al-dmhead">
+            <button className="al-back-inline" onClick={() => {
+              // 방 나가며 세션 분위기 판정 (최근 발화 기준)
+              const recentLines = dm.slice(-8).map((m) => ({ who: m.from, text: m.text }));
+              if (peer.asOwner) judgeSession(OWNER, peerName, recentLines);
+              else if (findPeerChar(peerName) && meName !== ownerLabel) {
+                processSession(meName, peerName, recentLines);
+              }
+              setStep("dmlist");
+            }}>‹</button>
+            <div className="al-dmhead-av">{peerInitial}</div>
+            <div className="al-dmhead-info">
+              <span className="al-dmhead-name">{peer.asOwner ? `${peerName} (내 자캐)` : peerName}</span>
+              <span className="al-dmhead-sub">{headSub}</span>
+            </div>
+          </div>
+
+          {showGauge && peer.asOwner && (
+            <div className="al-affinity owner">
+              <div className="al-aff-top">
+                <span className="al-aff-lbl">🤍 {peerName} → 나</span>
+                <span className="al-aff-stage">{attachStage(ownerVal)} · {ownerVal}</span>
+              </div>
+              <div className="al-aff-bar"><div className={`al-aff-fill ${ownerVal < 0 ? "neg" : ""}`} style={{ width: `${Math.abs(ownerVal)}%` }} /></div>
+            </div>
+          )}
+
+          {showGauge && !peer.asOwner && activePersona && (
+            <div className="al-affinity">
+              <div className="al-aff-row">
+                <span className="al-aff-lbl rev">♥ {peerName} → {speakerName} <span className="al-aff-note">(가면이라 {speakerName}는 빠지지 않음)</span></span>
+                <span className="al-aff-stage">{affinityStage(peerToMine)} · {peerToMine}</span>
+              </div>
+              <div className="al-aff-bar">
+                <div className={`al-aff-fill rev ${peerToMine < 0 ? "neg" : ""}`} style={{ width: `${Math.abs(peerToMine)}%` }} />
+                <div className="al-aff-mark" style={{ left: `${PROPOSAL_THRESHOLD}%` }} />
+              </div>
+            </div>
+          )}
+
+          {showGauge && !peer.asOwner && !activePersona && (
+            <div className="al-affinity">
+              <div className="al-aff-row">
+                <span className="al-aff-lbl">♥ {speakerName} → {peerName}</span>
+                <span className="al-aff-stage">{affinityStage(mineToPeer)} · {mineToPeer}</span>
+              </div>
+              <div className="al-aff-bar">
+                <div className={`al-aff-fill ${mineToPeer < 0 ? "neg" : ""}`} style={{ width: `${Math.abs(mineToPeer)}%` }} />
+                <div className="al-aff-mark" style={{ left: `${PROPOSAL_THRESHOLD}%` }} title="고백 가능선" />
+              </div>
+              <div className="al-aff-row second">
+                <span className="al-aff-lbl rev">♥ {peerName} → {speakerName}</span>
+                <span className="al-aff-stage">{affinityStage(peerToMine)} · {peerToMine}</span>
+              </div>
+              <div className="al-aff-bar">
+                <div className={`al-aff-fill rev ${peerToMine < 0 ? "neg" : ""}`} style={{ width: `${Math.abs(peerToMine)}%` }} />
+                <div className="al-aff-mark" style={{ left: `${PROPOSAL_THRESHOLD}%` }} />
+              </div>
+            </div>
+          )}
+
+          {(() => {
+            const pc = findPeerChar(peerName);
+            const mems = (pc && pc.lorebook || []).filter((e) => e.peer === speakerName);
+            if (!pc || mems.length === 0) return null;
+            return (
+              <div className="al-peermem">
+                <button className="al-peermem-toggle" onClick={() => setShowPeerMem((v) => !v)}>
+                  🧠 {peerName}가 {speakerName}를 기억하는 것 {mems.length} {showPeerMem ? "▾" : "▸"}
+                </button>
+                {showPeerMem && (
+                  <div className="al-peermem-list">
+                    {mems.slice(-8).reverse().map((e) => (
+                      <div className="al-peermem-item" key={e.id}>· {e.content}</div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          <div className="al-dmscroll">
+            {dm.length === 0 && (
+              <div className="al-dm-empty">
+                <p>{peer.asOwner ? `${peerName}에게 나(오너)로서 말을 걸어봐.` : `${peerName}에게 ${speakerName}(으)로 말을 걸어봐.`}</p>
+              </div>
+            )}
+            {dm.map((m, i) => {
+              const fromPeer = m.from === peerName;   // 상대가 보낸 것만 왼쪽
+              const mine = !fromPeer;
+              const showLabel = mine && m.from !== (char.name || "나"); // 내 쪽인데 하루가 아니면(=오너) 라벨
+              return (
+                <div key={i} className={`al-bubble-row ${mine ? "me" : "char"}`}>
+                  {fromPeer && <div className="al-bubble-av">{peerInitial}</div>}
+                  <div className={`al-bubble ${mine ? "me" : "char"}`}>
+                    {showLabel && <span className="al-bubble-spk">{m.from}</span>}
+                    {m.text}
+                    {isMyOwnChar(m.from) && (
+                      <button className="al-fixbtn-dm" onClick={() => { setFixTarget({ type: "dm", index: i, text: m.text, who: m.from }); setFixText(""); }}>⚠ 캐해 아님</button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+            {dmSending && (
+              <div className="al-bubble-row char">
+                <div className="al-bubble-av">{peerInitial}</div>
+                <div className="al-bubble char typing"><span className="al-typing"><i/><i/><i/></span></div>
+              </div>
+            )}
+            <div ref={dmEndRef} />
+          </div>
+
+          {/* ── 오너↔내자캐 방: 화자는 항상 나(오너). 페르소나만. ── */}
+          {peer.asOwner && (
+            <div className="al-dmctrl">
+              <input className="al-owner-persona" value={ownerPersona} onChange={(e) => setOwnerPersona(e.target.value)}
+                placeholder="나(오너) 페르소나 — 한 줄 (선택, 저장됨)" />
+            </div>
+          )}
+
+          {/* ── 다른 자캐와의 방: 기본=하루, 자동대화 + 끼어들기 ── */}
+          {!peer.asOwner && findPeerChar(peer.name) && (
+            <div className="al-autochat">
+              <div className="al-chatmode">
+                <span className="al-ctrl-lbl">자동 대화 방식:</span>
+                <button className={chatMode === "talk" ? "on" : ""} onClick={() => setChatMode("talk")}>대화</button>
+                <button className={chatMode === "novel" ? "on" : ""} onClick={() => setChatMode("novel")}>소설(묘사)</button>
+              </div>
+              {!autoChatting ? (
+                <button className="al-autochat-go" onClick={startAutoChat} disabled={dmSending}>
+                  ⟳ {speakerName} ↔ {peer.name} 자동 대화 (천천히)
+                </button>
+              ) : (
+                <button className="al-autochat-stop" onClick={stopAutoChat}>
+                  ■ 멈추기 <span className="al-autochat-live">● LIVE — 입력하면 {speakerName}로 끼어들기</span>
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* ── 화자 선택: 어떤 상대든(오너방 제외) 항상 노출 ── */}
+          {!peer.asOwner && (
+            <div className="al-speaker-wrap">
+              <div className="al-speaker-sel">
+                <span className="al-ctrl-lbl">말하는 나:</span>
+                <button className={`al-spk-chip ${speakAs === "char" ? "on" : ""}`} onClick={() => setSpeakAs("char")}>{char.name}</button>
+                <button className={`al-spk-chip ${speakAs === "owner" ? "on" : ""}`} onClick={() => setSpeakAs("owner")}>🙋 나(오너)</button>
+                {personas.map((p) => (
+                  <button key={p.id} className={`al-spk-chip persona ${speakAs === `p:${p.id}` ? "on" : ""}`}
+                    onClick={() => setSpeakAs(`p:${p.id}`)}>🎭 {p.name}</button>
+                ))}
+                <button className="al-spk-chip add" onClick={() => { setPersonaDraft({ name: "", age: "", persona: "", speech: "" }); }}>+ 페르소나</button>
+              </div>
+              {speakAs === "owner" && (
+                <input className="al-owner-persona" value={ownerPersona} onChange={(e) => setOwnerPersona(e.target.value)}
+                  placeholder="나(오너) 페르소나 — 한 줄 (선택)" />
+              )}
+              {activePersona && (
+                <div className="al-persona-active">🎭 {activePersona.name}(으)로 대화 중 · {activePersona.persona?.slice(0, 30)}</div>
+              )}
+            </div>
+          )}
+
+          <div className="al-dminput">
+            <input value={dmInput} onChange={(e) => setDmInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) sendDM(); }}
+              placeholder={autoChatting ? `끼어들기: ${meName}(으)로 입력…` : `${meName}(으)로 메시지…`} />
+            <button onClick={sendDM} disabled={!dmInput.trim() || dmSending}>↑</button>
+          </div>
+        </div>
+        );
+      })()}
+
+      {personaDraft && (
+        <div className="al-modal-bg" onClick={() => setPersonaDraft(null)}>
+          <div className="al-modal" onClick={(e) => e.stopPropagation()}>
+            <h3 className="al-modal-title">🎭 {personaDraft.id ? "페르소나 수정" : "새 페르소나"}</h3>
+            <p className="al-modal-sub">캐릭터에게 다가갈 또 다른 나. 자캐처럼 호감도·관계가 따로 쌓여.</p>
+            <input className="al-pd-input" placeholder="이름" value={personaDraft.name}
+              onChange={(e) => setPersonaDraft({ ...personaDraft, name: e.target.value })} />
+            <input className="al-pd-input" placeholder="나이·한 줄 설정 (예: 24, 떠돌이 사진가)" value={personaDraft.age}
+              onChange={(e) => setPersonaDraft({ ...personaDraft, age: e.target.value })} />
+            <textarea className="al-pd-input area" placeholder="성격·배경 (어떤 사람인지)" value={personaDraft.persona}
+              onChange={(e) => setPersonaDraft({ ...personaDraft, persona: e.target.value })} />
+            <input className="al-pd-input" placeholder="말투 (예: 나른한 반말, 존댓말…)" value={personaDraft.speech}
+              onChange={(e) => setPersonaDraft({ ...personaDraft, speech: e.target.value })} />
+            <div className="al-pd-btns">
+              {personaDraft.id && (
+                <button className="al-pd-del" onClick={() => {
+                  setPersonas((ps) => ps.filter((p) => p.id !== personaDraft.id));
+                  if (speakAs === `p:${personaDraft.id}`) setSpeakAs("char");
+                  setPersonaDraft(null);
+                }}>삭제</button>
+              )}
+              <button className="al-pd-cancel" onClick={() => setPersonaDraft(null)}>취소</button>
+              <button className="al-pd-save" disabled={!personaDraft.name.trim()} onClick={() => {
+                if (personaDraft.id) {
+                  setPersonas((ps) => ps.map((p) => p.id === personaDraft.id ? { ...personaDraft } : p));
+                } else {
+                  const np = { ...personaDraft, id: Date.now() };
+                  setPersonas((ps) => [...ps, np]);
+                  if (peer) setSpeakAs(`p:${np.id}`); // DM이면 만들자마자 그 페르소나로
+                  if (commentOn) setCommentAs(`p:${np.id}`); // 댓글 작성 중이면 그 화자로
+                }
+                setPersonaDraft(null);
+              }}>저장</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {proposal && (
+        <div className="al-modal-bg">
+          <div className="al-modal al-proposal" onClick={(e) => e.stopPropagation()}>
+            <div className="al-prop-heart">♥</div>
+            <div className="al-prop-who">{proposal.asker}</div>
+            <p className="al-prop-line">"{proposal.line}"</p>
+            <p className="al-prop-sub">{proposal.asker}의 마음이 {proposal.other}에게 기울었어. 어떻게 할까?</p>
+            <div className="al-prop-btns">
+              <button className="al-prop-yes" onClick={() => resolveProposal(true)}>응, 가봐! 💘</button>
+              <button className="al-prop-no" onClick={() => resolveProposal(false)}>아직은 아냐</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {relationResult && (
+        <div className="al-modal-bg" onClick={() => setRelationResult(null)}>
+          <div className="al-modal al-proposal" onClick={(e) => e.stopPropagation()}>
+            <div className={`al-prop-heart ${relationResult.accepted ? "" : "broken"}`}>{relationResult.friendship ? "🤝" : (relationResult.accepted ? "💘" : "💔")}</div>
+            {relationResult.friendship ? (
+              <>
+                <div className="al-prop-who">{relationResult.asker}와 {relationResult.other}, 더 가까워졌어!</div>
+                <p className="al-prop-sub">둘의 사이가 한 단계 깊어졌어. 우정은 서로 마음만 맞으면 자연스럽게 이어지지.</p>
+              </>
+            ) : relationResult.accepted ? (
+              <>
+                <div className="al-prop-who">{relationResult.other}도 마음을 받아줬어!</div>
+                <p className="al-prop-sub">{relationResult.asker}와 {relationResult.other}, 서로의 관계가 한 단계 깊어졌어. 양쪽 다 이어졌어.</p>
+              </>
+            ) : (
+              <>
+                <div className="al-prop-who">{relationResult.other}는 받아주지 않았어…</div>
+                <p className="al-prop-sub">{relationResult.asker}의 마음만 남았어. 지금은 <b>짝사랑</b>이야. 마음이 조금 아프지만, 언젠가 닿을지도.</p>
+              </>
+            )}
+            <div className="al-prop-btns">
+              <button className="al-prop-yes" onClick={() => setRelationResult(null)}>확인</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {fixTarget && (
+        <div className="al-modal-bg" onClick={() => setFixTarget(null)}>
+          <div className="al-modal" onClick={(e) => e.stopPropagation()}>
+            <h3 className="al-modal-title">캐해 바로잡기</h3>
+            <p className="al-modal-sub">뭐가 {fixTarget.who || char.name}답지 않았어? 알려주면 다음부턴 안 그래.</p>
+            <div className="al-modal-quote">"{fixTarget.text.slice(0, 60)}{fixTarget.text.length > 60 ? "…" : ""}"</div>
+
+            <div className="al-fixchips">
+              {QUICK_FIXES.map((q) => (
+                <button key={q} className="al-fixchip"
+                  onClick={() => setFixText((t) => t ? `${t}, ${q}` : q)}>{q}</button>
+              ))}
+            </div>
+            <textarea className="al-fixinput" value={fixText} onChange={(e) => setFixText(e.target.value)}
+              placeholder={`예: 얘는 이럴 때 더 무심하게 말해. 느낌표 안 씀.`} />
+
+            <div className="al-modal-actions">
+              <button className="al-modal-cancel" onClick={() => setFixTarget(null)}>취소</button>
+              <button className="al-modal-saveonly" disabled={!fixText.trim()}
+                onClick={() => { addCorrection(fixText, fixTarget.who); setFixTarget(null); }}>교정만</button>
+              <button className="al-modal-save" disabled={!fixText.trim()}
+                onClick={() => {
+                  addCorrection(fixText, fixTarget.who);
+                  if (fixTarget.type === "post") {
+                    setPosts((p) => p.filter((x) => x.id !== fixTarget.id));
+                  } else {
+                    setDmThread((d) => d.filter((_, idx) => idx !== fixTarget.index));
+                  }
+                  setFixTarget(null);
+                }}>교정+지우기</button>
+            </div>
+            {(char.corrections || []).length > 0 && (
+              <p className="al-fixcount">지금까지 교정 {(char.corrections || []).length}개 — 다음 생성부터 반영돼</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      <p className="al-footer">ALIVE · prototype</p>
+    </div>
+  );
+}
+
+const css = `
+*{ box-sizing:border-box; }
+body{ margin:0; }
+.al-root{
+  --bg:#0a0a0c; --phone:#121216; --ink:#ececf0; --soft:#8a8a96; --line:#26262e;
+  --accent:#b892ff; --accent2:#ff9ec7; --like:#ff5a8a;
+  min-height:100vh; background:
+    radial-gradient(circle at 30% -10%, #1d1430 0%, transparent 50%),
+    radial-gradient(circle at 80% 10%, #2a1322 0%, transparent 45%),
+    var(--bg);
+  display:flex; flex-direction:column; align-items:center; padding:26px 16px 40px;
+  font-family:'Pretendard','Inter',-apple-system,'Apple SD Gothic Neo',sans-serif; color:var(--ink);
+}
+.al-phone{ width:100%; max-width:420px; background:var(--phone);
+  border:1px solid var(--line); border-radius:26px; overflow:hidden;
+  box-shadow:0 30px 70px -30px rgba(0,0,0,.8), 0 0 0 1px rgba(255,255,255,.03) inset; }
+
+/* setup */
+.al-setup{ padding:30px 22px 26px; display:flex; flex-direction:column; gap:16px; }
+.al-setup-head{ text-align:center; margin-bottom:4px; }
+.al-spark{ font-size:24px; color:var(--accent); }
+.al-setup-head h1{ font-size:24px; font-weight:800; margin:8px 0 6px; letter-spacing:-.02em; }
+.al-setup-head p{ font-size:13.5px; color:var(--soft); margin:0; line-height:1.6; }
+
+.al-field{ display:flex; flex-direction:column; gap:7px; }
+.al-field > span{ font-size:12.5px; font-weight:700; color:var(--ink); letter-spacing:.02em;
+  display:flex; align-items:center; gap:7px; }
+.al-hint{ font-size:11px; font-weight:400; color:var(--soft); font-style:normal; }
+.al-row{ display:flex; gap:10px; }
+.al-row .al-field{ flex:1; }
+.al-field input, .al-field textarea{ width:100%; background:#1a1a20; border:1px solid var(--line);
+  border-radius:11px; padding:12px 13px; font-family:inherit; font-size:14px; color:var(--ink); resize:none; }
+.al-field input::placeholder, .al-field textarea::placeholder{ color:#55555f; }
+.al-field input:focus, .al-field textarea:focus{ outline:none; border-color:var(--accent); }
+.al-field textarea{ min-height:64px; line-height:1.55; }
+
+.al-tones{ display:flex; flex-wrap:wrap; gap:7px; }
+.al-tone{ flex:1 1 calc(33% - 7px); min-width:96px; background:#1a1a20; border:1px solid var(--line);
+  border-radius:11px; padding:10px 11px; cursor:pointer; font-family:inherit; text-align:left;
+  display:flex; flex-direction:column; gap:2px; transition:.16s; color:var(--ink); }
+.al-tone i{ font-size:10.5px; color:var(--soft); font-style:normal; }
+.al-tone.on{ border-color:var(--accent); background:linear-gradient(135deg, #221a38, #1a1a20);
+  box-shadow:0 0 0 1px var(--accent) inset; }
+.al-tone.on i{ color:#c8b3ff; }
+
+.al-start{ margin-top:8px; padding:15px; border:none; border-radius:13px; cursor:pointer;
+  font-family:inherit; font-size:15px; font-weight:800; letter-spacing:.02em;
+  background:linear-gradient(135deg, var(--accent), var(--accent2)); color:#15101f; transition:.18s; }
+.al-start:hover:not(:disabled){ filter:brightness(1.08); }
+.al-start:disabled{ background:#2a2a32; color:#5a5a64; cursor:not-allowed; }
+
+.al-dump{ width:100%; min-height:200px; background:#1a1a20; border:1px solid var(--line);
+  border-radius:13px; padding:15px; font-family:inherit; font-size:14.5px; line-height:1.7;
+  color:var(--ink); resize:none; }
+.al-dump::placeholder{ color:#55555f; line-height:1.7; }
+.al-dump:focus{ outline:none; border-color:var(--accent); }
+.al-dump-note{ font-size:12px; color:var(--soft); text-align:center; margin:2px 0 0; }
+
+/* guide chips */
+.al-guidechips{ display:flex; flex-wrap:wrap; gap:6px; }
+.al-guidechip{ font-size:11.5px; color:var(--soft); background:#18181e; border:1px solid var(--line);
+  padding:5px 10px; border-radius:20px; }
+
+/* roleplay log (option) */
+.al-rp{ background:#15141b; border:1px solid var(--line); border-radius:13px; padding:13px 14px; }
+.al-rp-head{ display:flex; align-items:center; gap:8px; }
+.al-rp-head > span:first-child{ font-size:13px; font-weight:700; color:var(--ink); }
+.al-rp-opt{ font-size:10.5px; font-weight:700; color:var(--accent); background:#221a38;
+  border:1px solid #2e2640; padding:2px 8px; border-radius:20px; letter-spacing:.04em; }
+.al-rp-desc{ font-size:11.5px; color:var(--soft); margin:7px 0 9px; line-height:1.5; }
+.al-rp-box{ width:100%; min-height:90px; background:#1a1a20; border:1px solid var(--line);
+  border-radius:10px; padding:12px; font-family:inherit; font-size:13.5px; line-height:1.7;
+  color:var(--ink); resize:none; }
+.al-rp-box::placeholder{ color:#55555f; line-height:1.7; }
+.al-rp-box:focus{ outline:none; border-color:var(--accent); }
+
+/* example cards */
+.al-examples{ display:flex; flex-direction:column; gap:8px; }
+.al-examples-lbl{ font-size:11.5px; color:var(--soft); }
+.al-example-cards{ display:flex; gap:8px; }
+.al-example{ flex:1; text-align:left; background:#18141f; border:1px solid var(--line); border-radius:11px;
+  padding:11px 12px; cursor:pointer; font-family:inherit; display:flex; flex-direction:column; gap:3px; transition:.15s; }
+.al-example:hover{ border-color:var(--accent); background:#201a30; }
+.al-example-name{ font-size:13.5px; font-weight:800; color:var(--ink); }
+.al-example-desc{ font-size:11.5px; color:var(--soft); }
+
+/* gallery */
+.al-gallery{ margin-top:14px; padding-top:13px; border-top:1px solid var(--line); }
+.al-gallery-head{ display:flex; justify-content:space-between; align-items:center; }
+.al-gallery-head > span{ font-size:12.5px; font-weight:700; color:var(--ink); }
+.al-upload{ font-size:12px; color:var(--accent); cursor:pointer; font-weight:600; }
+.al-upload:hover{ text-decoration:underline; }
+.al-gallery-empty{ font-size:11.5px; color:var(--soft); line-height:1.55; margin:8px 0 0; }
+.al-gallery-strip{ display:flex; gap:7px; margin-top:9px; flex-wrap:wrap; }
+.al-thumb{ position:relative; width:54px; height:54px; border-radius:9px; overflow:hidden; border:1px solid var(--line); }
+.al-thumb img{ width:100%; height:100%; object-fit:cover; }
+.al-thumb-x{ position:absolute; top:2px; right:2px; width:16px; height:16px; border-radius:50%;
+  background:rgba(0,0,0,.6); color:#fff; border:none; font-size:12px; line-height:1; cursor:pointer; padding:0; }
+
+/* post media */
+.al-post-img{ margin-top:10px; border-radius:13px; overflow:hidden; border:1px solid var(--line); }
+.al-post-img img{ width:100%; display:block; max-height:340px; object-fit:cover; }
+.al-post-photo{ margin-top:10px; display:flex; align-items:center; gap:10px; padding:14px;
+  border-radius:13px; border:1px dashed #3a3550; background:linear-gradient(135deg,#161320,#13131a); }
+.al-photo-frame{ font-size:22px; color:var(--accent); opacity:.6; }
+.al-photo-desc{ font-size:13px; color:#c4c2cc; font-style:italic; line-height:1.5; }
+.al-post-moodcard{ margin-top:10px; padding:11px 14px; border-radius:11px; font-size:13px;
+  color:#d8c2ff; background:linear-gradient(135deg,#1d1730,#181421); border:1px solid #2e2640; }
+.al-confirm-title{ font-size:22px !important; }
+.al-retry{ width:100%; padding:12px; border-radius:11px; cursor:pointer; font-family:inherit;
+  font-size:13.5px; font-weight:700; background:#221a38; border:1px solid var(--accent); color:#c8b3ff; }
+.al-retry:hover{ background:#2a2042; }
+.al-confirm-actions{ display:flex; gap:10px; margin-top:8px; }
+.al-reparse{ flex-shrink:0; padding:15px 16px; border-radius:13px; cursor:pointer; font-family:inherit;
+  font-size:13.5px; font-weight:600; background:#1a1a20; border:1px solid var(--line); color:var(--soft); }
+.al-reparse:hover{ border-color:var(--accent); color:var(--ink); }
+.al-confirm-go{ flex:1; margin-top:0 !important; }
+
+/* deep analysis card */
+.al-analysis{ background:linear-gradient(135deg,#1a1530,#161420); border:1px solid #2e2640;
+  border-radius:13px; padding:14px; display:flex; flex-direction:column; gap:9px; }
+.al-analysis-head{ font-size:12.5px; font-weight:800; color:#c8b3ff; letter-spacing:.02em; margin-bottom:2px; }
+.al-spark-sm{ color:var(--accent); }
+.al-an-row{ display:flex; align-items:center; gap:10px; }
+.al-an-lbl{ font-size:11.5px; color:#9a92b5; width:64px; flex-shrink:0; font-weight:600; }
+.al-warmth-chips{ display:flex; align-items:center; flex-wrap:wrap; gap:6px; }
+.al-warmth-chip{ padding:5px 12px; border-radius:13px; cursor:pointer; font-family:inherit; font-size:12px;
+  font-weight:700; border:1px solid #2a2440; background:#16131f; color:#9aa0b0; }
+.al-warmth-chip.on{ background:#2a2440; color:#fff; border-color:#7a5fa0; }
+.al-warmth-hint{ font-size:10.5px; color:#7a7488; width:100%; margin-top:2px; }
+.al-an-row input{ flex:1; background:#120f1c; border:1px solid #2a2440; border-radius:8px;
+  padding:9px 11px; font-family:inherit; font-size:13px; color:var(--ink); }
+.al-an-row input::placeholder{ color:#544d6b; }
+.al-an-row input:focus{ outline:none; border-color:var(--accent); }
+
+/* auto-post bar */
+.al-autobar{ display:flex; align-items:center; justify-content:space-between; gap:10px;
+  padding:11px 16px; border-bottom:1px solid var(--line);
+  background:linear-gradient(135deg,#14101e,#121119); }
+.al-autotoggle{ display:flex; align-items:center; gap:8px; background:none; border:none;
+  font-family:inherit; font-size:12.5px; font-weight:600; color:var(--soft); cursor:pointer; padding:0; text-align:left; }
+.al-autotoggle.on{ color:#c8b3ff; }
+.al-autodot{ width:8px; height:8px; border-radius:50%; background:#4a4a52; flex-shrink:0; }
+.al-autotoggle.on .al-autodot{ background:var(--accent2); box-shadow:0 0 0 0 var(--accent2);
+  animation:pulse 2s infinite; }
+@keyframes pulse{ 0%{box-shadow:0 0 0 0 rgba(236,72,153,.5);} 70%{box-shadow:0 0 0 7px rgba(236,72,153,0);} 100%{box-shadow:0 0 0 0 rgba(236,72,153,0);} }
+.al-autometa{ display:flex; align-items:center; gap:8px; flex-shrink:0; }
+.al-nextin{ font-size:11.5px; color:var(--soft); font-variant-numeric:tabular-nums; }
+.al-fast{ font-size:11px; font-weight:700; padding:4px 10px; border-radius:20px; cursor:pointer;
+  font-family:inherit; background:#1f1a2e; border:1px solid #2e2640; color:#9a92b5; }
+.al-fast.on{ background:var(--accent); color:#15101f; border-color:var(--accent); }
+
+.al-auto-badge{ font-style:normal; font-size:9.5px; font-weight:800; color:var(--accent2);
+  background:#2a1322; border:1px solid #43203a; padding:1px 6px; border-radius:8px; margin-right:6px; }
+
+/* profile */
+.al-profile{ position:relative; padding-bottom:14px; border-bottom:1px solid var(--line); }
+.al-back{ position:absolute; top:12px; left:12px; z-index:3; width:34px; height:34px; border-radius:50%;
+  background:rgba(10,10,12,.6); backdrop-filter:blur(6px); border:none; color:#fff; font-size:22px;
+  cursor:pointer; line-height:1; }
+.al-banner{ height:96px; background:linear-gradient(120deg, #2d1f4a, #3a1f33 60%, #1f2d3a); }
+.al-avatar{ width:72px; height:72px; border-radius:50%; margin:-36px 0 0 18px; position:relative;
+  background:linear-gradient(135deg, var(--accent), var(--accent2)); border:4px solid var(--phone);
+  display:flex; align-items:center; justify-content:center; font-size:30px; font-weight:800; color:#15101f; }
+.al-profile-info{ padding:8px 18px 0; }
+.al-profile-info h2{ margin:0; font-size:20px; font-weight:800; letter-spacing:-.01em; }
+.al-handle{ font-size:13.5px; color:var(--soft); }
+.al-bio{ display:flex; gap:6px; margin:9px 0 0; flex-wrap:wrap; }
+.al-bio-tag{ font-size:11.5px; padding:3px 9px; border-radius:20px; background:#1f1a2e;
+  color:#c8b3ff; border:1px solid #2e2640; }
+.al-bio-text{ font-size:13px; color:#bcbcc6; line-height:1.6; margin:10px 0 0; }
+
+/* composer */
+.al-composer{ padding:14px 16px; border-bottom:1px solid var(--line); }
+.al-wake{ width:100%; padding:14px; border-radius:13px; cursor:pointer; font-family:inherit;
+  font-size:14.5px; font-weight:700; color:var(--ink); border:1px dashed #3a3550;
+  background:linear-gradient(135deg, #1c1730, #18141f); transition:.18s; }
+.al-wake:hover:not(:disabled){ border-color:var(--accent); color:#fff; }
+.al-wake:disabled{ cursor:default; opacity:.85; }
+.al-typing{ display:inline-flex; gap:5px; }
+.al-typing i{ width:7px; height:7px; border-radius:50%; background:var(--accent);
+  animation:bounce 1.2s infinite both; }
+.al-typing i:nth-child(2){ animation-delay:.18s; } .al-typing i:nth-child(3){ animation-delay:.36s; }
+@keyframes bounce{ 0%,80%,100%{transform:translateY(0);opacity:.4} 40%{transform:translateY(-5px);opacity:1} }
+
+.al-moods{ }
+.al-moods-q{ font-size:13px; color:var(--soft); margin:2px 0 10px; }
+.al-moods-grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.al-mood{ padding:12px 10px; border-radius:11px; cursor:pointer; font-family:inherit; font-size:13px;
+  background:#1a1a20; border:1px solid var(--line); color:var(--ink); transition:.15s; }
+.al-mood:hover{ border-color:var(--accent); background:#201a30; color:#fff; }
+.al-moods-cancel{ width:100%; margin-top:9px; padding:9px; background:none; border:none;
+  color:var(--soft); font-family:inherit; font-size:12.5px; cursor:pointer; }
+
+/* feed */
+.al-feed{ min-height:120px; }
+.al-empty{ text-align:center; padding:50px 24px; color:var(--soft); }
+.al-empty span{ font-size:15px; }
+.al-empty p{ font-size:13px; margin:8px 0 0; line-height:1.6; color:#6a6a74; }
+
+.al-post{ display:flex; gap:11px; padding:15px 16px; border-bottom:1px solid var(--line);
+  animation:fadein .4s ease; }
+@keyframes fadein{ from{opacity:0; transform:translateY(-6px);} to{opacity:1; transform:none;} }
+.al-post-av{ width:42px; height:42px; flex-shrink:0; border-radius:50%;
+  background:linear-gradient(135deg, var(--accent), var(--accent2)); display:flex;
+  align-items:center; justify-content:center; font-size:18px; font-weight:800; color:#15101f; }
+.al-post-body{ flex:1; min-width:0; }
+.al-post-head{ display:flex; align-items:center; gap:5px; font-size:13.5px; }
+.al-post-name{ font-weight:800; }
+.al-post-handle, .al-post-time{ color:var(--soft); font-size:12.5px; }
+.al-post-text{ font-size:14.5px; line-height:1.65; margin:5px 0 0; white-space:pre-wrap; color:#e4e4ea; }
+.al-quoted{ margin-top:10px; border:1px solid var(--line); border-radius:12px; padding:10px 12px; background:#15131c; }
+.al-quoted-head{ display:flex; align-items:center; gap:6px; margin-bottom:4px; }
+.al-quoted-av{ width:20px; height:20px; flex-shrink:0; border-radius:50%; font-size:10px; font-weight:800;
+  display:flex; align-items:center; justify-content:center; color:#15101f; background:linear-gradient(135deg,#c8b3ff,#9d6bff); }
+.al-quoted-name{ font-size:12.5px; font-weight:800; color:var(--ink); }
+.al-quoted-handle{ font-size:11px; color:var(--soft); }
+.al-quoted-text{ font-size:13px; line-height:1.5; margin:0; color:#bcbcc6; }
+.al-post-actions{ display:flex; align-items:center; gap:14px; margin-top:11px; }
+.al-like{ background:none; border:none; color:var(--soft); font-family:inherit; font-size:13px;
+  cursor:pointer; padding:0; transition:.15s; }
+.al-like:hover{ color:var(--like); }
+.al-like.on{ color:var(--like); }
+.al-post-mood{ font-size:11px; color:#5a5a64; background:#18181e; padding:2px 9px; border-radius:20px; }
+
+.al-footer{ margin-top:18px; font-size:11px; letter-spacing:.25em; color:#44444c; text-transform:uppercase; }
+
+/* DM 컨트롤 */
+.al-dmctrl{ padding:10px 14px 0; }
+.al-speakas, .al-chatmode{ display:flex; align-items:center; gap:6px; }
+.al-ctrl-lbl{ font-size:11px; color:var(--soft); flex-shrink:0; }
+.al-speakas button, .al-chatmode button{ padding:5px 12px; border-radius:16px; cursor:pointer; font-family:inherit;
+  font-size:11.5px; font-weight:600; background:#1a1a20; border:1px solid var(--line); color:var(--soft); }
+.al-speakas button.on, .al-chatmode button.on{ background:var(--accent); color:#15101f; border-color:var(--accent); }
+.al-owner-persona{ width:100%; margin-top:8px; background:#1a1a20; border:1px solid var(--line);
+  border-radius:9px; padding:8px 11px; font-family:inherit; font-size:12.5px; color:var(--ink); }
+.al-owner-persona:focus{ outline:none; border-color:var(--accent); }
+.al-chatmode{ margin-bottom:8px; }
+
+/* 관계 시각화 */
+.al-relbox{ background:linear-gradient(135deg,#1d1426,#161420); border:1px solid #2e2640; border-radius:13px; padding:14px; }
+.al-relbox-head{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px; }
+.al-relbox-head > span:first-child{ font-size:13px; font-weight:800; color:var(--accent2); }
+.al-relbox-hint{ font-size:10.5px; color:var(--soft); }
+.al-relviz{ display:flex; flex-direction:column; gap:8px; margin-bottom:10px; }
+.al-relviz-item{ display:flex; flex-direction:column; gap:5px; padding:10px 12px; background:#15111f; border:1px solid #2a2440; border-radius:11px; }
+.al-relviz-line2{ display:flex; align-items:center; gap:8px; font-size:12.5px; }
+.al-relviz-me{ font-weight:800; color:var(--ink); background:#221a38; padding:4px 10px; border-radius:14px; }
+.al-relviz-arrow{ font-size:13px; color:var(--accent2); }
+.al-relviz-peer{ font-weight:700; color:#c8b3ff; background:#1a1a20; border:1px solid #2e2640; padding:4px 10px; border-radius:14px; }
+.al-relviz-rel{ font-size:12px; color:#b8b2c8; line-height:1.5; padding-left:2px; }
+.al-relinput{ width:100%; background:#120f1c; border:1px solid #2a2440; border-radius:9px;
+  padding:9px 11px; font-family:inherit; font-size:13px; color:var(--ink); }
+.al-relinput:focus{ outline:none; border-color:var(--accent); }
+/* 자동 기억 표시 */
+.al-memlist{ margin-top:10px; padding:11px 13px; background:#120f1c; border:1px solid #2a2440; border-radius:11px; }
+.al-rellist{ margin-top:10px; padding:12px 13px; background:#120f1c; border:1px solid #2a2440; border-radius:11px; display:flex; flex-direction:column; gap:12px; }
+.al-rel{ padding:11px 12px; background:#15111f; border:1px solid #241f38; border-radius:11px; }
+.al-rel-top{ display:flex; align-items:center; gap:8px; margin-bottom:7px; }
+.al-rel-av{ width:26px; height:26px; flex-shrink:0; border-radius:50%; font-size:12px; font-weight:800;
+  display:flex; align-items:center; justify-content:center; color:#15101f; background:linear-gradient(135deg,#c8b3ff,#9d6bff); }
+.al-rel-who{ font-size:13px; font-weight:800; color:var(--ink); }
+.al-rel-desc{ font-size:12px; color:#b8b2c8; line-height:1.55; margin:0 0 8px; }
+.al-rel-stage{ font-size:11px; color:var(--soft); margin-left:auto; }
+.al-rel-onesided{ font-size:10px; font-weight:700; color:#ff8aa0; background:#3a1f2a; padding:2px 7px; border-radius:8px; }
+.al-rel-onesided-note{ display:block; font-size:10.5px; color:#d68a9a; margin-top:6px; }
+.al-rel-bar{ height:5px; background:#1f1b2e; border-radius:3px; overflow:hidden; }
+.al-rel-fill{ height:100%; background:linear-gradient(90deg,#9d6bff,#c8b3ff); border-radius:3px; }
+.al-rel-fill.neg{ background:linear-gradient(90deg,#d65a7a,#ff8aa0); }
+.al-mem{ display:flex; gap:7px; align-items:flex-start; padding:3px 0; }
+.al-mem-dot{ color:#9eddb0; font-weight:800; }
+.al-mem-text{ font-size:12.5px; color:#c4c0cf; line-height:1.5; }
+.al-mem-peer{ color:var(--soft); font-size:11px; }
+.al-mem-filters{ display:flex; flex-wrap:wrap; gap:5px; margin-bottom:9px; }
+.al-memchip{ padding:4px 10px; border-radius:12px; cursor:pointer; font-family:inherit; font-size:11px;
+  font-weight:700; border:1px solid #2a2440; background:#16131f; color:#9aa0b0; }
+.al-memchip.on{ background:#2a2440; color:#fff; border-color:#5a4570; }
+button.al-mem-peer{ background:none; border:none; cursor:pointer; padding:0; }
+button.al-mem-peer:hover{ color:#c8b3ff; text-decoration:underline; }
+/* DM 내 상대 기억 */
+.al-peermem{ padding:0 14px 6px; }
+.al-peermem-toggle{ width:100%; text-align:left; padding:8px 11px; border-radius:9px; cursor:pointer;
+  font-family:inherit; font-size:12px; font-weight:700; color:#9eddb0; background:#121a16; border:1px solid #1f3a2c; }
+.al-peermem-toggle:hover{ border-color:#2f6a4c; }
+.al-peermem-list{ margin-top:6px; padding:9px 11px; background:#101810; border:1px solid #1f3a2c; border-radius:9px; }
+.al-peermem-item{ font-size:12px; color:#c4c0cf; line-height:1.6; }
+.al-mem-note{ font-size:11px; color:var(--soft); margin:8px 0 0; }
+
+/* DM 대화 목록 */
+.al-convlist{ min-height:180px; }
+.al-conv-empty{ text-align:center; padding:50px 24px; color:var(--soft); }
+.al-conv-empty p{ font-size:14px; margin:0 0 6px; }
+.al-conv-empty span{ font-size:12.5px; color:#6a6a74; }
+.al-convitem{ width:100%; display:flex; align-items:center; gap:12px; padding:14px 16px; cursor:pointer;
+  font-family:inherit; background:none; border:none; border-bottom:1px solid var(--line); text-align:left; transition:.15s; }
+.al-convitem:hover{ background:#161420; }
+.al-convitem-av{ width:44px; height:44px; flex-shrink:0; border-radius:50%; font-size:18px; font-weight:800;
+  color:#15101f; background:linear-gradient(135deg,var(--accent),var(--accent2)); display:flex; align-items:center; justify-content:center; }
+.al-convitem-info{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+.al-convitem-name{ font-size:15px; font-weight:700; }
+.al-convitem-last{ font-size:12.5px; color:var(--soft); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.al-convitem-count{ font-size:11px; color:var(--soft); background:#1f1a2e; padding:2px 8px; border-radius:10px; flex-shrink:0; }
+
+.al-newchat{ padding:14px 16px; border-top:1px solid var(--line); }
+.al-newchat-btn{ width:100%; padding:13px; border-radius:12px; cursor:pointer; font-family:inherit;
+  font-size:14px; font-weight:700; color:var(--accent); background:#16121f; border:1px dashed #3a3550; }
+.al-newchat-btn:hover{ border-color:var(--accent); background:#1c1730; }
+.al-newchat-lbl{ font-size:12px; color:var(--soft); margin:0 0 10px; }
+.al-newchat-targets{ display:flex; flex-direction:column; gap:8px; }
+.al-newchat-target{ display:flex; align-items:center; gap:10px; padding:11px 13px; cursor:pointer;
+  font-family:inherit; background:#161420; border:1px solid var(--line); border-radius:11px; transition:.15s; }
+.al-newchat-target:hover{ border-color:var(--accent); background:#1c1730; }
+.al-nt-av{ width:32px; height:32px; flex-shrink:0; border-radius:50%; font-size:14px; font-weight:800;
+  color:#15101f; background:linear-gradient(135deg,var(--accent),var(--accent2)); display:flex; align-items:center; justify-content:center; }
+.al-nt-name{ font-size:14px; font-weight:700; flex:1; text-align:left; }
+.al-nt-rel{ font-size:11px; color:var(--accent2); flex-shrink:0; }
+.al-nt-none{ font-size:12.5px; color:var(--soft); line-height:1.5; }
+.al-newchat-cancel{ width:100%; margin-top:9px; padding:9px; background:none; border:none;
+  color:var(--soft); font-family:inherit; font-size:12.5px; cursor:pointer; }
+
+/* 직접 지시 */
+.al-directive{ display:flex; align-items:center; gap:9px; padding:10px 16px; border-bottom:1px solid var(--line); background:#100e18; }
+.al-directive-lbl{ font-size:11.5px; color:var(--accent); font-weight:700; flex-shrink:0; }
+.al-directive-input{ flex:1; background:#1a1a20; border:1px solid var(--line); border-radius:9px;
+  padding:8px 11px; font-family:inherit; font-size:12.5px; color:var(--ink); }
+.al-directive-input:focus{ outline:none; border-color:var(--accent); }
+.al-directive-on{ font-size:10px; font-weight:800; color:#7bbf6a; background:#13201a;
+  border:1px solid #294a30; padding:2px 7px; border-radius:8px; flex-shrink:0; }
+
+/* 자동 대화 */
+.al-autochat{ padding:10px 14px 0; }
+.al-autochat-go{ width:100%; padding:11px; border-radius:11px; cursor:pointer; font-family:inherit;
+  font-size:13px; font-weight:700; color:#c8b3ff; background:#1c1730; border:1px solid #3a3550; }
+.al-autochat-go:hover:not(:disabled){ border-color:var(--accent); }
+.al-autochat-go:disabled{ opacity:.5; cursor:not-allowed; }
+.al-autochat-stop{ width:100%; padding:11px; border-radius:11px; cursor:pointer; font-family:inherit;
+  font-size:13px; font-weight:700; color:#ff8b8b; background:#251416; border:1px solid #43203a;
+  display:flex; align-items:center; justify-content:center; gap:8px; }
+.al-autochat-live{ font-size:10px; color:var(--accent2); animation:pulse 1.5s infinite; }
+/* 오너 끼어들기 */
+.al-intervene{ margin-top:8px; }
+/* 화자 선택 칩 */
+.al-speaker-wrap{ padding:0 14px; }
+.al-nc-speakers{ display:flex; flex-wrap:wrap; gap:6px; margin:4px 0 12px; }
+.al-persona-entry{ width:100%; padding:13px; margin-top:9px; border-radius:12px; cursor:pointer;
+  font-family:inherit; font-size:13.5px; font-weight:700; color:#ffd27a; background:#1f1a10;
+  border:1px solid #4a3c1c; text-align:center; }
+.al-persona-entry:hover{ border-color:#ffd27a; }
+.al-pe-hint{ font-size:11px; color:var(--soft); font-weight:400; }
+.al-newchat-target.mine{ border-color:#5a4570; background:#1c1730; }
+.al-nt-mine-tag{ margin-left:auto; font-size:11px; color:#c8b3ff; background:#2a2440; padding:2px 8px; border-radius:8px; }.al-speaker-sel{ display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-top:8px; }.al-spk-chip{ padding:6px 11px; border-radius:16px; cursor:pointer; font-family:inherit; font-size:12px;
+  font-weight:700; border:1px solid #3a3550; background:#16161c; color:#9aa0b0; }
+.al-spk-chip:hover{ border-color:var(--accent); }
+.al-spk-chip.on{ background:#2a2440; color:#fff; border-color:#5a4570; }
+.al-spk-chip.persona.on{ background:#3a2a18; color:#ffd27a; border-color:#5a4520; }
+.al-spk-chip.add{ border-style:dashed; color:#9eddb0; }
+.al-persona-active{ margin-top:7px; font-size:11.5px; color:#ffd27a; }
+/* 페르소나 편집 모달 */
+.al-pd-input{ width:100%; margin-top:9px; background:#1a1a20; border:1px solid var(--line); border-radius:10px;
+  padding:11px 13px; color:var(--ink); font-family:inherit; font-size:13px; box-sizing:border-box; }
+.al-pd-input:focus{ outline:none; border-color:var(--accent); }
+.al-pd-input.area{ min-height:64px; resize:vertical; }
+.al-pd-btns{ display:flex; gap:8px; margin-top:16px; }
+.al-pd-save,.al-pd-cancel,.al-pd-del{ flex:1; padding:12px; border-radius:11px; cursor:pointer; font-family:inherit;
+  font-size:13px; font-weight:800; border:none; }
+.al-pd-save{ background:linear-gradient(135deg,var(--accent),#9d6bff); color:#15101f; }
+.al-pd-save:disabled{ opacity:.4; cursor:not-allowed; }
+.al-pd-cancel{ background:#26222e; color:#b8b4c4; }
+.al-pd-del{ background:#2a1418; color:#ff8b8b; flex:0 0 auto; padding:12px 16px; }
+/* 홈 페르소나 관리 */
+.al-persona-mgr{ margin-top:24px; padding-top:20px; border-top:1px solid var(--line); }
+.al-pm-head{ font-size:15px; font-weight:800; color:#ffd27a; }
+.al-pm-head span{ color:var(--soft); font-weight:600; }
+.al-pm-desc{ font-size:12px; color:var(--soft); margin:5px 0 12px; line-height:1.5; }
+.al-pm-list{ display:flex; flex-direction:column; gap:8px; }
+.al-pm-card{ display:flex; gap:11px; align-items:center; background:#16141c; border:1px solid var(--line);
+  border-radius:12px; padding:11px; cursor:pointer; text-align:left; }
+.al-pm-card:hover{ border-color:#5a4520; }
+.al-pm-av{ width:38px; height:38px; flex-shrink:0; border-radius:50%; font-size:16px; font-weight:800;
+  display:flex; align-items:center; justify-content:center; color:#15101f; background:linear-gradient(135deg,#ffd27a,#e8a040); }
+.al-pm-info{ display:flex; flex-direction:column; min-width:0; }
+.al-pm-name{ font-size:14px; font-weight:800; color:var(--ink); }
+.al-pm-sub{ font-size:11.5px; color:var(--soft); }
+.al-pm-add{ padding:11px; border-radius:12px; cursor:pointer; font-family:inherit; font-size:13px; font-weight:700;
+  border:1px dashed #5a4520; background:#1a1610; color:#ffd27a; }.al-intervene-btn{ width:100%; padding:9px; border-radius:10px; cursor:pointer; font-family:inherit;
+  font-size:12px; font-weight:700; color:#9aa0b0; background:#16161c; border:1px dashed #3a3a48; }
+.al-intervene-btn:hover{ color:#c8b3ff; border-color:var(--accent); }
+.al-intervene-btn.on{ color:#ffd27a; background:#241d10; border-style:solid; border-color:#5a4520; }
+.al-bubble-spk{ display:block; font-size:10px; font-weight:800; opacity:.7; margin-bottom:3px; }
+/* 오너→내자캐 직접 대화 입구 */
+.al-owner-entry{ width:100%; padding:12px; margin-bottom:10px; border-radius:12px; cursor:pointer;
+  font-family:inherit; font-size:13px; color:#ffd27a; background:#1f1a10; border:1px solid #4a3c1c; text-align:left; }
+.al-owner-entry:hover{ border-color:#ffd27a; }
+.al-owner-entry b{ color:#fff; }
+/* 호감도 게이지 */
+.al-affinity{ padding:8px 14px 4px; }
+.al-aff-top{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:5px; }
+.al-aff-row{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:5px; }
+.al-aff-row.second{ margin-top:9px; }
+.al-aff-lbl.rev{ color:#9ec4ff; }
+.al-aff-fill.rev{ background:linear-gradient(90deg,#9ec4ff,#6ea8ff); }
+.al-aff-fill.neg{ background:linear-gradient(90deg,#6a5560,#c0506a) !important; }
+.al-aff-note{ font-size:10px; color:var(--soft); font-weight:400; }
+.al-aff-lbl{ font-size:11px; font-weight:700; color:#ff9ec4; }
+.al-aff-stage{ font-size:10.5px; color:var(--soft); }
+.al-aff-bar{ position:relative; height:7px; background:#241820; border-radius:6px; overflow:hidden; }
+.al-aff-fill{ height:100%; border-radius:6px; background:linear-gradient(90deg,#ff7eb3,#ff5a8c); transition:width .5s ease; }
+.al-aff-mark{ position:absolute; top:-2px; width:2px; height:11px; background:#ffd27a; opacity:.8; transform:translateX(-1px); }
+.al-affinity.owner .al-aff-lbl{ color:#a8c8ff; }
+.al-affinity.owner .al-aff-fill{ background:linear-gradient(90deg,#9ec4ff,#6ea8ff); }
+/* 진도질문 모달 */
+.al-proposal{ text-align:center; max-width:340px; }
+.al-prop-heart{ font-size:34px; color:#ff5a8c; animation:pulse 1.4s infinite; }
+.al-prop-who{ font-size:14px; font-weight:800; color:#ff9ec4; margin-top:2px; }
+.al-prop-line{ font-size:16px; line-height:1.55; color:#fff; margin:12px 4px; font-weight:500; }
+.al-prop-sub{ font-size:12px; color:var(--soft); margin-bottom:16px; }
+.al-prop-btns{ display:flex; gap:10px; }
+.al-prop-yes,.al-prop-no{ flex:1; padding:13px; border-radius:12px; cursor:pointer; font-family:inherit;
+  font-size:14px; font-weight:800; border:none; }
+.al-prop-yes{ background:linear-gradient(135deg,#ff7eb3,#ff5a8c); color:#fff; }
+.al-prop-no{ background:#26222e; color:#b8b4c4; border:1px solid #3a3550; }
+.al-prop-yes:hover{ filter:brightness(1.08); }
+.al-prop-heart.broken{ filter:grayscale(0.3); opacity:0.85; }
+.al-prop-no:hover{ border-color:var(--soft); }
+
+/* 캐해 교정 */
+.al-fixbtn{ background:none; border:none; color:#8a8a96; font-family:inherit; font-size:12px; cursor:pointer; padding:0; }
+.al-fixbtn:hover{ color:#ffb454; }
+.al-fixbtn-dm{ display:block; margin-top:8px; background:none; border:none; color:#6a6a74;
+  font-family:inherit; font-size:11px; cursor:pointer; padding:0; }
+.al-fixbtn-dm:hover{ color:#ffb454; }
+.al-modal-bg{ position:fixed; inset:0; background:rgba(0,0,0,.6); backdrop-filter:blur(3px);
+  display:flex; align-items:center; justify-content:center; padding:20px; z-index:50; }
+.al-modal{ width:100%; max-width:400px; background:var(--phone); border:1px solid var(--line);
+  border-radius:18px; padding:22px; box-shadow:0 30px 70px -20px #000; }
+.al-modal-title{ font-size:18px; font-weight:800; margin:0 0 6px; }
+.al-modal-sub{ font-size:13px; color:var(--soft); margin:0 0 14px; line-height:1.5; }
+.al-modal-quote{ font-size:13px; color:#bcbcc6; background:#1a1a20; border-left:2px solid #ffb454;
+  border-radius:0 8px 8px 0; padding:10px 12px; margin-bottom:14px; font-style:italic; }
+.al-fixchips{ display:flex; flex-wrap:wrap; gap:7px; margin-bottom:11px; }
+.al-fixchip{ font-size:12px; padding:6px 11px; border-radius:16px; cursor:pointer; font-family:inherit;
+  background:#241d14; border:1px solid #4a3a22; color:#ffb454; }
+.al-fixchip:hover{ border-color:#ffb454; }
+.al-fixinput{ width:100%; min-height:70px; background:#1a1a20; border:1px solid var(--line);
+  border-radius:11px; padding:11px; font-family:inherit; font-size:13.5px; line-height:1.6; color:var(--ink); resize:none; }
+.al-fixinput:focus{ outline:none; border-color:var(--accent); }
+.al-modal-actions{ display:flex; gap:7px; justify-content:flex-end; margin-top:13px; flex-wrap:wrap; }
+.al-modal-cancel{ padding:9px 14px; border-radius:9px; cursor:pointer; font-family:inherit; font-size:13px;
+  background:none; border:1px solid var(--line); color:var(--soft); }
+.al-modal-saveonly{ padding:9px 14px; border-radius:9px; cursor:pointer; font-family:inherit; font-size:13px; font-weight:600;
+  background:#1f1a2e; border:1px solid var(--accent); color:#c8b3ff; }
+.al-modal-saveonly:disabled,.al-modal-save:disabled{ opacity:.4; cursor:not-allowed; }
+.al-modal-save{ padding:9px 16px; border-radius:9px; cursor:pointer; font-family:inherit; font-size:13px; font-weight:700;
+  background:#ffb454; color:#1c1208; border:none; }
+.al-fixcount{ font-size:11.5px; color:var(--soft); margin:12px 0 0; text-align:center; }
+
+/* home — account list */
+.al-home{ padding:30px 22px 26px; }
+.al-home-head{ text-align:center; margin-bottom:20px; }
+.al-home-head h1{ font-size:24px; font-weight:800; margin:8px 0 6px; }
+.al-home-head p{ font-size:13.5px; color:var(--soft); margin:0; }
+.al-acclist{ display:flex; flex-direction:column; gap:10px; }
+.al-acccard{ display:flex; align-items:center; gap:13px; padding:14px; cursor:pointer; font-family:inherit;
+  background:#161420; border:1px solid var(--line); border-radius:14px; text-align:left; transition:.16s; }
+.al-acccard:hover{ border-color:var(--accent); background:#1c1730; }
+.al-acccard-av{ width:48px; height:48px; flex-shrink:0; border-radius:50%; font-size:21px; font-weight:800;
+  color:#15101f; background:linear-gradient(135deg,var(--accent),var(--accent2)); display:flex; align-items:center; justify-content:center; }
+.al-acccard-info{ flex:1; min-width:0; display:flex; flex-direction:column; gap:1px; }
+.al-acccard-name{ font-size:16px; font-weight:800; }
+.al-acccard-handle{ font-size:12.5px; color:var(--soft); }
+.al-acccard-rel{ font-size:11.5px; color:var(--accent2); margin-top:2px; }
+.al-acccard-count{ font-size:11.5px; color:var(--soft); flex-shrink:0; }
+.al-accadd{ padding:15px; cursor:pointer; font-family:inherit; font-size:14px; font-weight:700;
+  color:var(--accent); background:#16121f; border:1px dashed #3a3550; border-radius:14px; transition:.16s; }
+.al-accadd:hover{ border-color:var(--accent); background:#1c1730; }
+.al-dump-back{ background:none; border:none; color:var(--soft); font-family:inherit; font-size:13.5px;
+  cursor:pointer; padding:14px 16px 0; }
+.al-dump-back:hover{ color:var(--ink); }
+
+/* compose row + write */
+.al-compose-row{ display:flex; gap:8px; }
+.al-compose-row .al-wake{ flex:1; }
+.al-writeself{ flex-shrink:0; padding:14px 16px; border-radius:13px; cursor:pointer; font-family:inherit;
+  font-size:13.5px; font-weight:700; background:#1a1a20; border:1px solid var(--line); color:#c8b3ff; }
+.al-writeself:hover{ border-color:var(--accent); }
+.al-writebox{ margin-top:10px; }
+.al-write-lbl{ font-size:11.5px; color:var(--soft); margin:0 0 7px; }
+.al-writebox textarea{ width:100%; min-height:80px; background:#1a1a20; border:1px solid var(--line);
+  border-radius:11px; padding:12px; font-family:inherit; font-size:14px; line-height:1.6; color:var(--ink); resize:none; }
+.al-writebox textarea:focus{ outline:none; border-color:var(--accent); }
+.al-write-actions{ display:flex; gap:8px; justify-content:flex-end; margin-top:8px; }
+.al-write-cancel{ padding:8px 16px; border-radius:9px; cursor:pointer; font-family:inherit; font-size:13px;
+  background:none; border:1px solid var(--line); color:var(--soft); }
+.al-write-post{ padding:8px 18px; border-radius:9px; cursor:pointer; font-family:inherit; font-size:13px; font-weight:700;
+  background:var(--accent); color:#15101f; border:none; }
+.al-write-post:disabled{ background:#2a2a32; color:#5a5a64; cursor:not-allowed; }
+
+.al-user-badge{ font-style:normal; font-size:9.5px; font-weight:800; color:#7bbf6a;
+  background:#13201a; border:1px solid #294a30; padding:1px 6px; border-radius:8px; margin-right:6px; }
+.al-occhip{ font-size:12px; padding:6px 11px; border-radius:16px; cursor:pointer; font-family:inherit;
+  background:#1a2820; border:1px solid #2a4a35; color:#9eddb0; }
+.al-occhip:hover{ border-color:#7bbf6a; color:#fff; }
+
+/* profile DM button */
+.al-profile-top{ display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
+.al-dmbtn{ flex-shrink:0; padding:8px 15px; border-radius:20px; cursor:pointer; font-family:inherit;
+  font-size:13px; font-weight:700; background:linear-gradient(135deg,var(--accent),var(--accent2));
+  color:#15101f; border:none; transition:.16s; }
+.al-dmbtn:hover{ filter:brightness(1.1); }
+.al-feed-actions{ display:flex; gap:7px; flex-shrink:0; }
+.al-dmbtn.ghost{ background:#1c1730; color:#c8b3ff; border:1px solid #3a3550; }
+.al-dmbtn.ghost:hover{ border-color:var(--accent); filter:none; }
+/* 탐색 */
+.al-disc-search{ padding:10px 14px; }
+.al-disc-search input{ width:100%; background:#1a1a20; border:1px solid var(--line); border-radius:11px;
+  padding:11px 14px; color:var(--ink); font-family:inherit; font-size:13px; }
+.al-disc-search input:focus{ outline:none; border-color:var(--accent); }
+.al-disc-list{ flex:1; overflow-y:auto; padding:0 14px 14px; display:flex; flex-direction:column; gap:10px; }
+.al-disc-none{ text-align:center; color:var(--soft); font-size:13px; padding:30px 0; }
+.al-disc-card{ display:flex; gap:11px; align-items:flex-start; background:#16141c; border:1px solid var(--line);
+  border-radius:14px; padding:13px; }
+.al-disc-card.on{ border-color:#5a4570; background:#1a1626; }
+.al-disc-av{ width:42px; height:42px; flex-shrink:0; border-radius:50%; font-size:18px; font-weight:800;
+  display:flex; align-items:center; justify-content:center; color:#15101f;
+  background:linear-gradient(135deg,var(--accent),#9d6bff); }
+.al-disc-body{ flex:1; min-width:0; }
+.al-disc-top{ display:flex; align-items:baseline; gap:7px; }
+.al-disc-name{ font-size:14px; font-weight:800; color:var(--ink); }
+.al-disc-owner{ font-size:11px; color:var(--soft); }
+.al-disc-persona{ font-size:12px; color:#c4c0cf; margin:4px 0 6px; line-height:1.45; }
+.al-disc-tags{ display:flex; flex-wrap:wrap; gap:5px; }
+.al-disc-tag{ font-size:10.5px; color:#9eddb0; background:#15201a; border-radius:5px; padding:2px 6px; }
+.al-disc-follow{ flex-shrink:0; align-self:center; padding:8px 13px; border-radius:9px; cursor:pointer;
+  font-family:inherit; font-size:12px; font-weight:700; border:1px solid #3a3550; background:#1c1730; color:#c8b3ff; }
+.al-disc-follow:hover{ border-color:var(--accent); }
+.al-disc-follow.on{ background:#2a2440; color:#fff; border-color:#5a4570; }
+.al-disc-foot{ padding:10px 14px; font-size:11.5px; color:var(--soft); text-align:center; border-top:1px solid var(--line); }
+.al-newchat-target.ext{ border-style:dashed; }
+.al-nt-ext{ font-size:10px; color:#9eddb0; margin-left:auto; }
+/* 팔로우 통계 */
+.al-follow-stats{ display:flex; gap:14px; align-items:center; margin-top:9px; flex-wrap:wrap; }
+.al-fstat{ background:none; border:none; padding:0; font-family:inherit; font-size:12.5px; color:var(--soft); cursor:default; }
+button.al-fstat{ cursor:pointer; }
+.al-fstat b{ color:var(--ink); font-weight:800; }
+.al-fstat-new{ font-size:11px; color:#ff9ec4; background:#241621; border-radius:6px; padding:2px 8px; }
+.al-disc-fcount{ font-size:10.5px; color:var(--soft); margin-left:auto; }
+/* 외부 글 / 댓글 */
+.al-post-av.ext{ background:linear-gradient(135deg,#6ea8ff,#9d6bff); }
+.al-post-extbadge{ font-size:9.5px; color:#a8c8ff; background:#16203a; border-radius:5px; padding:1px 6px; }
+.al-comments{ margin-top:10px; padding-top:9px; border-top:1px solid var(--line); display:flex; flex-direction:column; gap:8px; }
+.al-comment{ display:flex; gap:8px; align-items:flex-start; }
+.al-comment-av{ width:26px; height:26px; flex-shrink:0; border-radius:50%; font-size:12px; font-weight:800;
+  display:flex; align-items:center; justify-content:center; color:#15101f; background:linear-gradient(135deg,#c8b3ff,#9d6bff); }
+.al-comment-body{ font-size:12.5px; line-height:1.5; }
+.al-comment-name{ font-weight:800; color:var(--ink); margin-right:6px; }
+.al-comment-text{ color:#c4c0cf; }
+.al-comment-av.mine{ background:linear-gradient(135deg,#c8b3ff,#9d6bff); }
+.al-cmt-mine{ font-size:9px; font-weight:700; color:#c8b3ff; background:#2a2440; padding:1px 5px; border-radius:6px; margin-left:5px; font-style:normal; }
+.al-cmt-open{ margin-top:9px; padding:7px 12px; border-radius:9px; cursor:pointer; font-family:inherit;
+  font-size:12px; font-weight:700; border:1px solid var(--line); background:#16131f; color:var(--soft); }
+.al-cmt-open:hover{ border-color:var(--accent); color:#c8b3ff; }
+.al-cmtbox{ margin-top:10px; padding:10px; border:1px solid #2a2440; border-radius:11px; background:#15131c; }
+.al-cmtbox-who{ display:flex; flex-wrap:wrap; gap:5px; margin-bottom:8px; }
+.al-cmtbox-row{ display:flex; gap:6px; }
+.al-cmtbox-input{ flex:1; background:#1a1626; border:1px solid #2a2440; border-radius:9px; padding:9px 11px;
+  color:var(--ink); font-family:inherit; font-size:13px; }
+.al-cmtbox-input:focus{ outline:none; border-color:var(--accent); }
+.al-cmtbox-send{ flex:0 0 auto; width:38px; border:none; border-radius:9px; cursor:pointer;
+  background:linear-gradient(135deg,var(--accent),#9d6bff); color:#15101f; font-size:15px; font-weight:800; }
+.al-cmtbox-cancel{ margin-top:7px; background:none; border:none; color:var(--soft); font-size:11px; cursor:pointer; font-family:inherit; }
+
+/* DM screen */
+.al-dmhead{ display:flex; align-items:center; gap:11px; padding:14px 16px; border-bottom:1px solid var(--line); }
+.al-back-inline{ background:none; border:none; color:var(--ink); font-size:26px; cursor:pointer; line-height:1; padding:0; }
+.al-dmhead-av{ width:38px; height:38px; border-radius:50%; background:linear-gradient(135deg,var(--accent),var(--accent2));
+  display:flex; align-items:center; justify-content:center; font-size:16px; font-weight:800; color:#15101f; }
+.al-dmhead-info{ display:flex; flex-direction:column; }
+.al-dmhead-name{ font-size:15px; font-weight:800; }
+.al-dmhead-sub{ font-size:11.5px; color:var(--soft); }
+
+.al-identity{ border-bottom:1px solid var(--line); }
+.al-identity-cur{ width:100%; display:flex; align-items:center; gap:8px; padding:11px 16px;
+  background:#14101e; border:none; cursor:pointer; font-family:inherit; color:var(--ink); }
+.al-identity-lbl{ font-size:12px; color:var(--soft); }
+.al-identity-val{ font-size:12.5px; font-weight:700; color:#c8b3ff; flex:1; text-align:left; }
+.al-identity-caret{ color:var(--soft); font-size:14px; }
+.al-identity-panel{ padding:12px 16px; background:#120f1c; display:flex; flex-direction:column; gap:8px; }
+.al-identity-modes{ display:flex; gap:8px; }
+.al-identity-modes button{ flex:1; padding:9px; border-radius:9px; cursor:pointer; font-family:inherit;
+  font-size:12.5px; font-weight:600; background:#1a1a20; border:1px solid var(--line); color:var(--soft); }
+.al-identity-modes button.on{ background:var(--accent); color:#15101f; border-color:var(--accent); }
+.al-identity-input{ width:100%; background:#1a1a20; border:1px solid var(--line); border-radius:9px;
+  padding:9px 11px; font-family:inherit; font-size:13px; color:var(--ink); resize:none; }
+.al-identity-input:focus{ outline:none; border-color:var(--accent); }
+.al-identity-done{ align-self:flex-end; padding:7px 16px; border-radius:8px; cursor:pointer; font-family:inherit;
+  font-size:12.5px; font-weight:700; background:var(--accent); color:#15101f; border:none; }
+.al-relhint{ margin:0; font-size:12px; color:var(--accent2); font-weight:600; }
+.al-relpick{ display:flex; flex-direction:column; gap:6px; }
+.al-relpick-lbl{ font-size:11px; color:var(--soft); }
+.al-relchips{ display:flex; flex-wrap:wrap; gap:6px; }
+.al-relchip{ font-size:12px; padding:6px 11px; border-radius:16px; cursor:pointer; font-family:inherit;
+  background:#1f1a2e; border:1px solid #2e2640; color:#c8b3ff; }
+.al-relchip:hover{ border-color:var(--accent2); color:#fff; }
+.al-persona-guide{ font-size:11.5px; color:var(--soft); margin:0; line-height:1.5; }
+.al-persona-area{ min-height:96px; line-height:1.6; resize:none; }
+
+.al-dmscroll{ min-height:280px; max-height:440px; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:10px; }
+.al-dm-empty{ text-align:center; padding:60px 20px; color:var(--soft); }
+.al-dm-empty p{ font-size:14px; margin:0 0 6px; }
+.al-dm-empty span{ font-size:12px; color:#5a5a64; }
+.al-bubble-row{ display:flex; gap:8px; align-items:flex-end; }
+.al-bubble-row.me{ justify-content:flex-end; }
+.al-bubble-av{ width:28px; height:28px; flex-shrink:0; border-radius:50%;
+  background:linear-gradient(135deg,var(--accent),var(--accent2)); display:flex; align-items:center;
+  justify-content:center; font-size:13px; font-weight:800; color:#15101f; }
+.al-bubble{ max-width:74%; padding:10px 13px; border-radius:16px; font-size:14px; line-height:1.55; white-space:pre-wrap; }
+.al-bubble.char{ background:#211f29; color:#e4e4ea; border-bottom-left-radius:5px; }
+.al-bubble.me{ background:linear-gradient(135deg,var(--accent),#9d6bff); color:#15101f; border-bottom-right-radius:5px; font-weight:500; }
+.al-bubble.typing{ padding:13px 15px; }
+.al-bubble-label{ display:block; font-size:10.5px; font-weight:800; opacity:.7; margin-bottom:3px; }
+
+.al-dminput{ display:flex; gap:8px; padding:12px 14px; border-top:1px solid var(--line); }
+.al-dminput input{ flex:1; background:#1a1a20; border:1px solid var(--line); border-radius:22px;
+  padding:11px 16px; font-family:inherit; font-size:14px; color:var(--ink); }
+.al-dminput input:focus{ outline:none; border-color:var(--accent); }
+.al-dminput button{ width:42px; height:42px; flex-shrink:0; border-radius:50%; border:none; cursor:pointer;
+  background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#15101f; font-size:18px; font-weight:800; }
+.al-dminput button:disabled{ background:#2a2a32; color:#5a5a64; cursor:not-allowed; }
+@media (prefers-reduced-motion:reduce){ .al-post,.al-typing i{ animation:none; } }
+`;
+
+export default App;
