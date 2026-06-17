@@ -90,7 +90,11 @@ export default async function handler(req, res) {
     }
 
     if (wantsJson) {
-      text = text.replace(/^\s*```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
+      body.generationConfig.responseMimeType = "application/json";
+      // 🔑 flash 계열만 thinking 끌 수 있음. 2.5 Pro는 thinking 못 꺼서 0 주면 400 에러남.
+      if (geminiModel !== GOOD) {
+        body.generationConfig.thinkingConfig = { thinkingBudget: 0 };
+      }
     }
 
     return res.status(200).json({

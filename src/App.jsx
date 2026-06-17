@@ -264,8 +264,8 @@ JSON 구조:
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: MODEL_CHAT,
-          max_tokens: 1500,
+          model: MODEL_AUTO, 
+          max_tokens: 2048,
           system: sys,
           messages: [{ role: "user", content: combined }],
         }),
