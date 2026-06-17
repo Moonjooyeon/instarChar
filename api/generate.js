@@ -9,6 +9,7 @@ const GOOD = process.env.GEMINI_MODEL_GOOD || "gemini-2.5-pro";
 const DAILY_LIMIT = parseInt(process.env.API_DAILY_LIMIT || "50", 10);
 const MONTHLY_COST_LIMIT_USD = parseFloat(process.env.API_MONTHLY_COST_LIMIT_USD || "60");
 const ESTIMATED_CALL_COST_USD = parseFloat(process.env.API_ESTIMATED_CALL_COST_USD || "0.003");
+const API_LIMIT_MESSAGE = "오늘 한정된 API는 다 사용했어요! 다음에 만나요.";
 const usageStore = globalThis.__aliveUsageStore || (globalThis.__aliveUsageStore = {
   daily: new Map(),
   monthly: new Map(),
@@ -72,7 +73,7 @@ function checkUsageLimit(req) {
     return {
       blocked: true,
       status: 429,
-      body: { error: "DAILY_LIMIT_EXCEEDED", message: `오늘 API 호출 한도(${DAILY_LIMIT}회)를 넘었습니다.` },
+      body: { error: "DAILY_LIMIT_EXCEEDED", message: API_LIMIT_MESSAGE },
     };
   }
 
@@ -80,7 +81,7 @@ function checkUsageLimit(req) {
     return {
       blocked: true,
       status: 429,
-      body: { error: "MONTHLY_COST_LIMIT_EXCEEDED", message: `월 예상 비용 상한($${MONTHLY_COST_LIMIT_USD})에 도달했습니다.` },
+      body: { error: "MONTHLY_COST_LIMIT_EXCEEDED", message: API_LIMIT_MESSAGE },
     };
   }
 

@@ -17,6 +17,7 @@ const MODEL_CHAT = MODEL_DIRECT; // 캐릭터 파싱 등 품질 필요한 곳 �
 const MODEL_UTIL = "claude-haiku-4-5-20251001";
 const BUILD_MARK = typeof __ALIVE_BUILD__ !== "undefined" ? __ALIVE_BUILD__ : "local";
 const LOCAL_STATE_KEY = "alive_app_state_v1";
+const API_LIMIT_MESSAGE = "오늘 한정된 API는 다 사용했어요! 다음에 만나요.";
 
 const TONE_PRESETS = [
   { id: "calm", label: "차분/시크", hint: "말수 적고 담담함" },
@@ -67,6 +68,45 @@ function parseRelations(relStr) {
   return out;
 }
 
+function compactName(value) {
+  return String(value || "").replace(/\s/g, "").toLowerCase();
+}
+
+function identityText(c) {
+  if (!c) return "";
+  return [c.name, c.handle, c.age, c.persona, c.surface, c.inner, c.world, c.interests, ...(c.tags || [])]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+function isSpecialRelation(label) {
+  return /연인|애인|연애|사랑|부부|배우자|약혼|반려|짝사랑|흠모|연모|썸|운명|순애/.test(label || "");
+}
+
+function relationTargetMatches(rel, targetChar, strictSpecial = false) {
+  const who = String(rel?.who || "").trim();
+  const targetName = String(targetChar?.name || targetChar || "").trim();
+  if (!who || !targetName) return false;
+  const nw = compactName(who);
+  const nt = compactName(targetName);
+  if (nw === nt) return true;
+
+  const whoTokens = who.split(/\s+/).filter(Boolean);
+  const targetTokens = targetName.split(/\s+/).filter(Boolean);
+  const special = strictSpecial || isSpecialRelation(rel?.label);
+
+  if (special) {
+    if (whoTokens.length === 1 && targetTokens.length > 1) return false;
+    const haystack = identityText(targetChar);
+    return who.length >= 2 && haystack.includes(who.toLowerCase()) && nw.length >= Math.min(3, nt.length);
+  }
+
+  if (whoTokens.length === 1 && targetTokens.includes(whoTokens[0])) return true;
+  if (targetTokens.length === 1 && whoTokens.includes(targetTokens[0])) return true;
+  return false;
+}
+
 // 캐해 교정 빠른 선택
 const QUICK_FIXES = ["말투가 아님", "성격이 아님", "이런 말 안 함", "너무 오버함", "관계 반영 안 됨", "이모지 안 씀"];
 
@@ -106,7 +146,7 @@ function relationMatched(char, ident) {
   const myNorm = norm(myName);
   if (char.relations) {
     const hit = parseRelations(char.relations)
-      .find((r) => norm(r.who).includes(myNorm) || myNorm.includes(norm(r.who)));
+      .find((r) => relationTargetMatches(r, { name: myName, relation: ident.relation }, true) || (norm(r.who).includes(myNorm) && myNorm.length >= 2));
     if (hit) return `${hit.who}${hit.label ? ` — ${hit.label}` : ""}`;
   }
   if (ident.relation) return `${myName} — ${ident.relation}`;
@@ -181,6 +221,8 @@ function App() {
   // 팔로우한 외부 캐릭터(다른 사람 캐릭터) — char 객체 배열
   const [following, setFollowing] = useState([]);
   const [discoverQuery, setDiscoverQuery] = useState("");
+  const [sharedCharacters, setSharedCharacters] = useState([]);
+  const [shareStatus, setShareStatus] = useState("");
   // 호감도: 쌍 키("이름A|이름B" 정렬) → 0~100
   const [affinity, setAffinity] = useState({});
   // 진도질문 모달: null | {meName, peerName, line, pairKey, stage}
@@ -305,6 +347,75 @@ function App() {
     setSaveStatus("저장됨");
   }
 
+  function sharedRowToChar(row) {
+    const base = row.character || {};
+    return {
+      ...base,
+      id: `shared_${row.id}`,
+      sharedId: row.id,
+      sourceAccountId: row.source_account_id,
+      owner: `@${row.owner_name || "user"}`,
+      ownerName: row.owner_name || "user",
+      external: true,
+      shared: true,
+      name: row.name || base.name || "이름 없음",
+      handle: row.handle || base.handle || "",
+      persona: row.persona || base.persona || "",
+      tags: row.tags || base.tags || [],
+    };
+  }
+
+  async function loadSharedCharacters() {
+    if (!supabase) return;
+    const { data, error } = await supabase
+      .from("alive_shared_characters")
+      .select("id,owner_id,owner_name,source_account_id,name,handle,persona,tags,character,created_at")
+      .order("created_at", { ascending: false })
+      .limit(80);
+    if (error) {
+      console.warn("공유 캐릭터 불러오기 실패:", error);
+      return;
+    }
+    setSharedCharacters((data || [])
+      .filter((row) => row.owner_id !== session?.user?.id)
+      .map(sharedRowToChar));
+  }
+
+  async function shareCurrentCharacter() {
+    if (!activeId || !char.name.trim()) return;
+    if (!supabase || !session?.user) {
+      setShareStatus("로그인 후 공유할 수 있어.");
+      return;
+    }
+    const payload = {
+      owner_id: session.user.id,
+      owner_name: profileName || session.user.email?.split("@")[0] || "user",
+      source_account_id: activeId,
+      name: char.name,
+      handle: char.handle || "",
+      persona: char.persona || "",
+      tags: [char.age, char.surface, char.interests].filter(Boolean).slice(0, 6),
+      character: { ...char },
+    };
+    const { data, error } = await supabase
+      .from("alive_shared_characters")
+      .upsert(payload, { onConflict: "owner_id,source_account_id" })
+      .select("id")
+      .single();
+    if (error) {
+      setShareStatus(`공유 실패: ${error.message}`);
+      return;
+    }
+    const url = `${window.location.origin}/?shared=${data.id}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setShareStatus("공유 링크를 복사했어.");
+    } catch (e) {
+      setShareStatus(url);
+    }
+    loadSharedCharacters();
+  }
+
   async function readApiJson(res, label) {
     const text = await res.text();
     if (!text.trim()) {
@@ -318,6 +429,7 @@ function App() {
   }
 
   function apiErrorText(data) {
+    if (data?.error === "DAILY_LIMIT_EXCEEDED" || data?.error === "MONTHLY_COST_LIMIT_EXCEEDED") return API_LIMIT_MESSAGE;
     return data?.message
       || data?.detail?.error?.message
       || (data?.finishReason ? `${data.error || "API_ERROR"}: ${data.finishReason}` : "")
@@ -338,6 +450,8 @@ function App() {
     if (!text) throw new Error(`${label} 응답에 텍스트가 없습니다.`);
     return text;
   }
+
+  const canUseApp = !hasSupabaseConfig || (session && stateReady);
 
   useEffect(() => {
     if (!hasSupabaseConfig || !supabase) {
@@ -442,6 +556,19 @@ function App() {
     }, 700);
     return () => clearTimeout(saveTimerRef.current);
   }, [accounts, activeId, char, gallery, posts, personas, dmThreads, ownerPersona, following, affinity, discoverQuery, profileName, onboardingOpen, step, stateReady, session?.user?.id]); // eslint-disable-line
+
+  useEffect(() => {
+    if (canUseApp && step === "discover") loadSharedCharacters();
+  }, [canUseApp, step, session?.user?.id]); // eslint-disable-line
+
+  useEffect(() => {
+    const sharedId = new URLSearchParams(window.location.search).get("shared");
+    if (canUseApp && sharedId) {
+      setDiscoverQuery(sharedId);
+      setStep("discover");
+      loadSharedCharacters();
+    }
+  }, [canUseApp]); // eslint-disable-line
 
   function fieldText(value) {
     if (value == null) return "";
@@ -745,7 +872,7 @@ ${formatRule}${ANTI_REPEAT_RULES}${recentLinesBlock(posts.slice(0, 6).map((p) =>
       }
     } catch (e) {
       setPosts((p) => [
-        { id: Date.now(), text: "(연결이 끊겼어… 잠시 후 다시.)", mood, time: new Date(), likes: 0, liked: false },
+        { id: Date.now(), text: e.message === API_LIMIT_MESSAGE ? API_LIMIT_MESSAGE : "(연결이 끊겼어… 잠시 후 다시.)", mood, time: new Date(), likes: 0, liked: false },
         ...p,
       ]);
     } finally {
@@ -976,8 +1103,10 @@ ${formatRule}${ANTI_REPEAT_RULES}${recentLinesBlock(posts.slice(0, 6).map((p) =>
   //  일방적 주장(내가 혼자 연인이라 써둔 것)만으로는 통과 못 함 — 상대 데이터에 내가 있어야 함.
   function verifyMutualLove(myChar, otherChar) {
     const isLove = (lbl) => /연인|애인|연애|사랑|부부|배우자|약혼|반려/.test(lbl || "");
-    const myLabel = relLabelFor(myChar, otherChar.name);        // 내가 상대를 연인으로 보는가
-    const theirLabel = relLabelFor(otherChar, myChar.name);     // 상대 데이터에 내가 연인으로 있는가 (역검증)
+    const myHit = relationFor(myChar, otherChar, true);
+    const theirHit = relationFor(otherChar, myChar, true);
+    const myLabel = myHit?.label || "";        // 내가 상대를 연인으로 보는가
+    const theirLabel = theirHit?.label || "";  // 상대 데이터에 내가 연인으로 있는가 (역검증)
     // 둘 다 충족해야 진짜 상호 연인. 상대 데이터에 내가 없으면(theirLabel 없음) 맞팔 불가.
     return { mutual: isLove(myLabel) && isLove(theirLabel), theirLoves: isLove(theirLabel) };
   }
@@ -1026,19 +1155,25 @@ ${formatRule}${ANTI_REPEAT_RULES}${recentLinesBlock(posts.slice(0, 6).map((p) =>
     if (tb.length === 1 && ta.includes(tb[0])) return true;
     return false;
   }
+  function relationFor(fromChar, toCharOrName, strictSpecial = false) {
+    const c = fromChar && fromChar.relations ? fromChar : findPeerChar(fromChar?.name || fromChar);
+    if (!c || !c.relations) return null;
+    const target = typeof toCharOrName === "string" ? { name: toCharOrName } : toCharOrName;
+    return parseRelations(c.relations).find((r) => relationTargetMatches(r, target, strictSpecial)) || null;
+  }
   function relationBaseFor(fromName, toName) {
     const c = (fromName === char.name) ? char : (findPeerChar(fromName) || null);
     if (!c || !c.relations) return null;
-    const hit = parseRelations(c.relations).find((r) => nameMatch(r.who, toName));
+    const target = findPeerChar(toName) || { name: toName };
+    const hit = relationFor(c, target, true);
     if (!hit || !hit.label) return null;
     for (const [re, val] of RELATION_BASE) if (re.test(hit.label)) return val;
     return null;
   }
   // fromName이 가진 relations에서 toName과의 관계 라벨(텍스트)을 추출. (예: "애인", "라이벌")
   function relLabelFor(fromChar, toName) {
-    const c = fromChar && fromChar.relations ? fromChar : findPeerChar(fromChar.name || fromChar);
-    if (!c || !c.relations) return "";
-    const hit = parseRelations(c.relations).find((r) => nameMatch(r.who, toName));
+    const target = findPeerChar(toName) || { name: toName };
+    const hit = relationFor(fromChar, target, true);
     return hit ? hit.label : "";
   }
   // from이 to에게 느끼는 호감도. 저장값 우선, 없으면 관계 기반 기본값, 그것도 없으면 0.
@@ -1877,7 +2012,6 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
   }
 
   const initial = char.name.trim() ? char.name.trim()[0] : "?";
-  const canUseApp = !hasSupabaseConfig || (session && stateReady);
 
   return (
     <div className="al-root">
@@ -1973,9 +2107,7 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
 
       {canUseApp && step === "dump" && (
         <div className="al-phone">
-          {accounts.length > 0 && (
-            <button className="al-dump-back" onClick={() => setStep("home")}>‹ 내 캐릭터들</button>
-          )}
+          <button className="al-dump-back" onClick={() => setStep("home")}>‹ 내 캐릭터들</button>
           <div className="al-setup">
             <div className="al-setup-head">
               <span className="al-spark">✶</span>
@@ -2168,6 +2300,7 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
                 </div>
                 <div className="al-feed-actions">
                   <button className="al-dmbtn ghost" onClick={() => setStep("discover")}>🔍 탐색</button>
+                  <button className="al-dmbtn ghost" onClick={shareCurrentCharacter}>🔗 공유</button>
                   <button className="al-dmbtn" onClick={() => setStep("dmlist")}>✉ DM</button>
                 </div>
               </div>
@@ -2176,6 +2309,7 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
                 {char.surface && <span className="al-bio-tag">{char.surface}</span>}
               </p>
               {char.persona && <p className="al-bio-text">{char.persona}</p>}
+              {shareStatus && <p className="al-share-status">{shareStatus}</p>}
 
               <div className="al-follow-stats">
                 <button className="al-fstat" onClick={() => setStep("discover")}>
@@ -2489,10 +2623,11 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
       {}
       {canUseApp && step === "discover" && (() => {
         const q = discoverQuery.trim().toLowerCase();
-        const list = DISCOVER_POOL.filter((c) => {
+        const mergedDiscover = [...sharedCharacters, ...DISCOVER_POOL];
+        const list = mergedDiscover.filter((c) => {
           if (isFollowing(c.id)) return false;
           if (!q) return true;
-          return [c.name, c.persona, c.owner, ...(c.tags || [])].join(" ").toLowerCase().includes(q);
+          return [c.sharedId, c.name, c.handle, c.persona, c.owner, c.ownerName, ...(c.tags || [])].join(" ").toLowerCase().includes(q);
         });
         return (
         <div className="al-phone">
@@ -2500,12 +2635,12 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
             <button className="al-back-inline" onClick={() => setStep("feed")}>‹</button>
             <div className="al-dmhead-info">
               <span className="al-dmhead-name">🔍 캐릭터 탐색</span>
-              <span className="al-dmhead-sub">다른 사람의 캐릭터를 팔로우해봐</span>
+              <span className="al-dmhead-sub">다른 사용자와 캐릭터를 찾아 팔로우해봐</span>
             </div>
           </div>
           <div className="al-disc-search">
             <input value={discoverQuery} onChange={(e) => setDiscoverQuery(e.target.value)}
-              placeholder="이름·성격·태그로 검색 (예: 냉미남, 인어, 느와르)" />
+              placeholder="사용자·이름·성격·태그 검색" />
           </div>
           <div className="al-disc-list">
             {list.length === 0 && <p className="al-disc-none">{discoverQuery ? `"${discoverQuery}"에 맞는 새 캐릭터가 없어.` : "팔로잉하지 않은 새 캐릭터가 없어."}</p>}
@@ -2517,7 +2652,7 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
                   <div className="al-disc-body">
                     <div className="al-disc-top">
                       <span className="al-disc-name">{c.name}</span>
-                      <span className="al-disc-owner">{c.owner}</span>
+                      <span className="al-disc-owner">{c.shared ? `${c.owner} · 공유됨` : c.owner}</span>
                       <span className="al-disc-fcount">팔로워 {baseFollowerCount(c.name).toLocaleString()}</span>
                     </div>
                     <p className="al-disc-persona">{c.persona}</p>
@@ -3188,6 +3323,7 @@ body{ margin:0; }
 .al-bio-tag{ font-size:11.5px; padding:3px 9px; border-radius:20px; background:#1f1a2e;
   color:#c8b3ff; border:1px solid #2e2640; }
 .al-bio-text{ font-size:13px; color:#bcbcc6; line-height:1.6; margin:10px 0 0; }
+.al-share-status{ font-size:11.5px; color:#c8b3ff; line-height:1.5; margin:8px 0 0; word-break:break-all; }
 
 /* composer */
 .al-composer{ padding:14px 16px; border-bottom:1px solid var(--line); }
