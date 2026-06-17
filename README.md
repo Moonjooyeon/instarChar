@@ -48,8 +48,8 @@ Vercel 프로젝트 → **Settings → Environment Variables** 에서:
 | 이름 | 값 |
 |---|---|
 | `GEMINI_API_KEY` | (1번에서 발급한 키) |
-| `GEMINI_MODEL_FAST` | `gemini-2.5-flash` (선택) |
-| `GEMINI_MODEL_GOOD` | `gemini-2.5-flash` (선택, 품질 올리려면 pro 계열로) |
+| `GEMINI_MODEL_FAST` | `gemini-3.1-flash-lite` (선택, 비우면 기본값) |
+| `GEMINI_MODEL_GOOD` | `gemini-2.5-pro` (선택, 비우면 기본값) |
 | `API_DAILY_LIMIT` | `50` (선택, IP 기준 일일 호출 한도) |
 | `API_MONTHLY_COST_LIMIT_USD` | `60` (선택, 서버 인스턴스 메모리 기준 월 예상 비용 상한) |
 | `API_ESTIMATED_CALL_COST_USD` | `0.003` (선택, 호출 1회당 보수적 추정 비용) |
@@ -63,6 +63,19 @@ Vercel 프로젝트 → **Settings → Environment Variables** 에서:
 - 이 저장소의 `supabase-schema.sql` 내용을 그대로 실행.
 - Authentication → URL Configuration에서 Site URL을 Vercel 주소로 맞춘다.
 - 로컬 테스트를 할 때는 Redirect URLs에 `http://localhost:5173`도 추가한다.
+
+### 5-1. 앱으로 열기
+현재 React/Vite 화면을 Capacitor로 감싸서 iOS/Android 앱 프로젝트를 생성해둔 상태다.
+
+```bash
+npm run app:sync
+npm run app:open:ios
+npm run app:open:android
+```
+
+- `npm run app:sync`는 웹 빌드 후 `ios/`, `android/`에 최신 화면을 복사한다.
+- iOS 빌드는 Xcode, Android 빌드는 Android Studio에서 실행한다.
+- Gemini 호출은 앱 안에서도 계속 Vercel `/api/generate`를 탄다. API 키는 앱 번들에 들어가지 않는다.
 
 ### 6. 확인
 - 배포된 주소 접속 → 캐릭터 만들고 글 생성이 되면 성공.
@@ -82,7 +95,7 @@ Vercel 프로젝트 → **Settings → Environment Variables** 에서:
 ## 현재 구현 상태
 - 계정별 저장: Supabase `alive_profiles.app_state` JSON에 캐릭터/피드/DM/로어북/페르소나 저장.
 - 캐릭터 공유: `alive_shared_characters`에 공개 캐릭터를 저장하고 링크 복사/탐색 검색 지원.
-- 로그인: Supabase 이메일 매직링크.
+- 로그인: Supabase 이메일/비밀번호 회원가입 및 로그인.
 - 온보딩: 첫 로그인 시 닉네임 입력.
 - 탐색: 이미 팔로잉한 캐릭터는 숨기고, 다른 사용자가 공유한 캐릭터와 사용자명을 검색.
 - 댓글: 자동 댓글은 댓글 작성자가 원글 작성자를 팔로잉하거나 맞팔로 판단될 때만 생성.

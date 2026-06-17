@@ -1,0 +1,19 @@
+{
+  "name": "ALIVE",
+  "short_name": "ALIVE",
+  "description": "Character social simulation app",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#09070d",
+  "theme_color": "#a66cff",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

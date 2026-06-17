@@ -3209,7 +3209,8 @@ body{ margin:0; }
     radial-gradient(circle at 30% -10%, #1d1430 0%, transparent 50%),
     radial-gradient(circle at 80% 10%, #2a1322 0%, transparent 45%),
     var(--bg);
-  display:flex; flex-direction:column; align-items:center; padding:26px 16px 40px;
+  display:flex; flex-direction:column; align-items:center;
+  padding:calc(26px + env(safe-area-inset-top)) 16px calc(40px + env(safe-area-inset-bottom));
   font-family:'Pretendard','Inter',-apple-system,'Apple SD Gothic Neo',sans-serif; color:var(--ink);
 }
 .al-phone{ width:100%; max-width:420px; background:var(--phone);

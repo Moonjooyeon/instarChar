@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">ALIVE</string>
+    <string name="title_activity_main">ALIVE</string>
+    <string name="package_name">app.instarcharacterbot.alive</string>
+    <string name="custom_url_scheme">app.instarcharacterbot.alive</string>
+</resources>

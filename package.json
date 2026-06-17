@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "app:sync": "npm run build && cap sync",
+    "app:open:ios": "cap open ios",
+    "app:open:android": "cap open android"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.108.2",
@@ -14,6 +17,10 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.4.0",
+    "@capacitor/cli": "^8.4.0",
+    "@capacitor/core": "^8.4.0",
+    "@capacitor/ios": "^8.4.0",
     "@vitejs/plugin-react": "^4.3.1",
     "vite": "^5.4.0"
   }
