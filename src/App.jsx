@@ -223,104 +223,74 @@ function App() {
     return TONE_PRESETS.find((t) => t.id === id)?.label || "";
   }
 
-  // 한 문단 → AI 파싱
-  async function parseDump() {
-    if (!dump.trim() && !rpLog.trim()) return;
-    setParsing(true);
+  const parseDump = async (textRaw) => {
+    setLoading(true);
     setParseFailed(false);
-    const combined = [
-      dump.trim() ? `[캐릭터 설명]\n${dump.trim()}` : "",
-      rpLog.trim() ? `[역극/대사 로그]\n${rpLog.trim()}` : "",
-    ].filter(Boolean).join("\n\n");
-    const sys = `너는 사용자가 던진 캐릭터 설명을 읽고, 그 캐릭터를 깊이 있게 분석해 아래 JSON으로 정리하는 캐릭터 분석가다.
-입력은 설명문일 수도 있고, 역극/대사 로그(예: "리안: 됐어, 그런 건 알아서 할게…")일 수도 있다.
-대사 로그가 있으면 그 말투·어조·자주 쓰는 표현을 적극 반영해라.
-
-중요:
-- 표면적 라벨 하나로 가두지 말고 입체적으로 분석해라.
-- 모든 필드를 최대한 채워라. 입력에 명시 안 됐어도 맥락에서 자연스럽게 추론해 채운다. 빈 칸을 남기지 마라(정말 단서가 전혀 없을 때만 "").
-- 입력이 짧으면 더 적극적으로 상상해서 그럴듯하게 채운다.
-- 출력은 오직 JSON 하나. 앞뒤에 어떤 설명·인사·코드펜스도 붙이지 마라. 첫 글자가 { 여야 한다.
-
-JSON 구조:
-{"name":"","handle":"","age":"","persona":"","world":"","speech":"","catchphrase":"","surface":"","inner":"","situational":"","triggers":"","interests":"","relations":"","warmth":""}
-- name: 캐릭터 이름
-- handle: 아이디용 영문/숫자 (없으면 이름 기반)
-- age: 나이나 한 줄 설정 (예: "19 / 흑표 인수")
-- persona: 한 문단 요약
-- world: 세계관/배경 (단서 없으면 "")
-- speech: 말투·어미·입버릇 (대사에서 뽑으면 좋음)
-- catchphrase: 캐치프레이즈/명대사 (없으면 "")
-- surface: 겉으로 보이는 모습·첫인상 (한 줄)
-- inner: 속마음·숨은 면, 겉과 다른 점 (한 줄)
-- situational: 상황별 반응 차이 (평소 vs 친한 사람 vs 위기, 한두 줄)
-- triggers: 무너지거나 발끈하거나 집착하는 포인트 (한 줄)
-- interests: 좋아하는 것·싫어하는 것·취미 (한 줄)
-- relations: 다른 캐릭터와의 관계. "이름 — 관계" 형식으로. 여러 명이면 쉼표로. (예: "선우 연 — 애인, 카엘 — 라이벌") 입력에 등장하는 상대(예: 대사 속 '연')를 놓치지 마라. 없으면 ""
-- warmth: 이 캐릭터가 남에게 마음을 여는 속도. 무뚝뚝·과묵·냉소·시크·경계심·낯가림·배타적·차가움·방어적 중 하나라도 보이면 "slow"(쉽게 정 안 줌). 다정·친화적·외향적·금방 정 주는 타입이면 "fast". 어느 쪽 신호도 뚜렷이 없을 때만 "normal". 셋 중 하나만. 애매하면 성격 묘사의 분위기를 보고 slow/fast 중 가까운 쪽으로.`;
+    const sys = `다음 텍스트를 읽고, 아래 항목을 갖춘 JSON 객체로만 답해. 절대 마크다운 백틱(\`\`\`)을 쓰지 마라.
+    {
+      "name": "이름 (1~6자)",
+      "age": "나이 (알 수 없으면 '?')",
+      "isPersona": false,
+      "persona": "한 줄 요약 성격 (15자 이내)",
+      "rules": ["말투나 행동 특징 1", "특징 2", "특징 3"],
+      "avatar": "가장 잘 어울리는 이모지 1개"
+    }`;
 
     try {
       const res = await fetch("/api/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: MODEL_AUTO, 
-          max_tokens: 2048,
+          model: MODEL_CHAT, 
+          max_tokens: 800, 
           system: sys,
-          messages: [{ role: "user", content: combined }],
+          messages: [{ role: "user", content: textRaw }]
         }),
       });
+      
       const data = await res.json();
-      let text = data.content.map((i) => (i.type === "text" ? i.text : "")).join("").trim();
-      // 코드펜스 제거
-      text = text.replace(/```json|```/g, "").trim();
-      // 중괄호 바깥 텍스트 제거: 첫 { 부터 마지막 } 까지만
-      const first = text.indexOf("{");
-      const last = text.lastIndexOf("}");
-      if (first !== -1 && last !== -1 && last > first) {
-        text = text.slice(first, last + 1);
-      }
-      const parsed = JSON.parse(text);
-      setChar({
-        name: parsed.name || "",
-        handle: parsed.handle || "",
-        age: parsed.age || "",
-        tone: "calm",
-        persona: parsed.persona || "",
-        world: parsed.world || "",
-        speech: parsed.speech || "",
-        catchphrase: parsed.catchphrase || "",
-        surface: parsed.surface || "",
-        inner: parsed.inner || "",
-        situational: parsed.situational || "",
-        triggers: parsed.triggers || "",
-        interests: parsed.interests || "",
-        relations: parsed.relations || "",
-        warmth: parsed.warmth || "normal",
-        corrections: [], directions: "", lorebook: [],
-      });
-      setParseFailed(false);
-      setStep("confirm");
-    } catch (e) {
-      // 파싱 실패 시: 태그 제거하고 원문에서 이름만 추출 시도, 나머지는 페르소나로
-      const cleaned = combined
-        .replace(/\[캐릭터 설명\]/g, "")
-        .replace(/\[역극\/?대사 로그\]/g, "")
-        .trim();
-      const nameMatch = cleaned.match(/이름\s*[:：]\s*([^\n,]+)/);
-      const guessedName = nameMatch ? nameMatch[1].trim().replace(/[🥕•·]/g, "").trim() : "";
-      setChar((c) => ({
-        ...c,
-        name: c.name || guessedName,
-        persona: cleaned,
-      }));
-      setParseFailed(true);
-      setStep("confirm");
-    } finally {
-      setParsing(false);
-    }
-  }
 
+      // 🚨 [핵심 방어 코드] 서버에서 에러를 보냈으면 숨기지 말고 알림창(팝업) 띄우기!
+      if (data.error) {
+        const errMsg = data.detail?.error?.message || JSON.stringify(data.detail) || "알 수 없는 에러";
+        alert(`🚨 [API 통신 실패]\n\n서버에서 다음 에러를 뱉었습니다:\n${errMsg}\n\n(원인: 할당량 초과(429), 모델명 없음(404), 혹은 Vercel 타임아웃)`);
+        setLoading(false);
+        setParseFailed(true);
+        return;
+      }
+
+      // 정상 응답일 경우 파싱 시작
+      let raw = data.content.map(i => i.type === "text" ? i.text : "").join("");
+      
+      // AI가 헛소리를 덧붙여도 JSON만 강제로 도려내서 파싱
+      const first = raw.indexOf("{");
+      const last = raw.lastIndexOf("}");
+      if (first !== -1 && last !== -1 && last > first) {
+        raw = raw.slice(first, last + 1);
+      }
+
+      const obj = JSON.parse(raw);
+      if (!obj.name) throw new Error("이름 필드가 없습니다.");
+      
+      let baseRel = RELATION_BASE.find(r => r.name === obj.name) || { target: OWNER, affinity: 0, state: "none", memo: "" };
+      const id = "char_" + Date.now();
+      const ch = {
+        id, name: obj.name, age: obj.age || "?", isPersona: !!obj.isPersona,
+        persona: obj.persona || "성격 요약 없음", rules: obj.rules || ["특징 없음"],
+        avatar: obj.avatar || "👤", warmth: 1, affinityToOwner: baseRel.affinity, stateWithOwner: baseRel.state
+      };
+      addLog(`[System] ${ch.name} 캐릭터 데이터가 생성되었습니다. (대기 상태)`);
+      setTempChar(ch);
+
+    } catch (e) {
+      console.error("분석 중 에러:", e);
+      // JSON 파싱 실패나 네트워크 단절 등 예기치 못한 에러 팝업
+      alert(`🚨 [파싱 실패]\n\nAI가 JSON을 망가뜨렸거나 처리 시간이 너무 길어 Vercel이 강제로 끊었습니다.\n\n에러 원인: ${e.message}`);
+      setParseFailed(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
   const confirmReady = char.name.trim() && char.persona.trim();
 
   async function generatePost(mood, isAuto = false) {
