@@ -33,6 +33,12 @@ function toGeminiContents(messages) {
   });
 }
 
+function extractGeminiText(data) {
+  const cand = data?.candidates?.[0];
+  const text = cand?.content?.parts?.map((p) => p.text || "").join("") || "";
+  return { cand, text };
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
 
@@ -49,7 +55,7 @@ export default async function handler(req, res) {
     const body = {
       contents: toGeminiContents(messages),
       generationConfig: {
-        maxOutputTokens: max_tokens || 2048,
+        maxOutputTokens: wantsJson ? Math.max(max_tokens || 2048, 2048) : (max_tokens || 2048),
         temperature: wantsJson ? 0.3 : 0.9,
       },
     };
@@ -63,13 +69,15 @@ export default async function handler(req, res) {
     }
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent`;
-    const r = await fetch(url, {
+    const callGemini = (requestBody) => fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-      body: JSON.stringify(body),
+      body: JSON.stringify(requestBody),
     });
 
-    const data = await r.json();
+    let r = await callGemini(body);
+
+    let data = await r.json();
 
     // 🚨 여기서 200 OK인 척 하지 않고 확실하게 500 에러를 던지도록 수정했습니다.
     if (!r.ok) {
@@ -77,11 +85,42 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: "API_ERROR", status: r.status, detail: data });
     }
 
-    const cand = data?.candidates?.[0];
-    let text = cand?.content?.parts?.map((p) => p.text || "").join("") || "";
+    let { cand, text } = extractGeminiText(data);
+
+    if (!text && wantsJson && body.generationConfig.responseMimeType) {
+      const retryBody = {
+        ...body,
+        generationConfig: {
+          ...body.generationConfig,
+          maxOutputTokens: Math.max(body.generationConfig.maxOutputTokens || 2048, 4096),
+        },
+      };
+      delete retryBody.generationConfig.responseMimeType;
+      r = await callGemini(retryBody);
+      data = await r.json();
+
+      if (!r.ok) {
+        console.error("Gemini API 재시도 실패:", data);
+        return res.status(500).json({ error: "API_ERROR", status: r.status, detail: data });
+      }
+
+      ({ cand, text } = extractGeminiText(data));
+    }
 
     if (!text) {
-      return res.status(500).json({ error: "EMPTY_RESPONSE", finishReason: cand?.finishReason });
+      const finishReason = cand?.finishReason || data?.promptFeedback?.blockReason || "unknown";
+      return res.status(500).json({
+        error: "EMPTY_RESPONSE",
+        message: `Gemini가 빈 응답을 반환했습니다. finishReason: ${finishReason}`,
+        finishReason,
+        detail: {
+          promptFeedback: data?.promptFeedback,
+          candidate: cand ? {
+            finishReason: cand.finishReason,
+            safetyRatings: cand.safetyRatings,
+          } : null,
+        },
+      });
     }
 
     return res.status(200).json({ content: [{ type: "text", text }] });
