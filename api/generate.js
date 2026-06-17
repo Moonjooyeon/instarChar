@@ -6,6 +6,13 @@ export const maxDuration = 60;
 
 const FAST = process.env.GEMINI_MODEL_FAST || "gemini-3.1-flash-lite";
 const GOOD = process.env.GEMINI_MODEL_GOOD || "gemini-2.5-pro";
+const DAILY_LIMIT = parseInt(process.env.API_DAILY_LIMIT || "50", 10);
+const MONTHLY_COST_LIMIT_USD = parseFloat(process.env.API_MONTHLY_COST_LIMIT_USD || "60");
+const ESTIMATED_CALL_COST_USD = parseFloat(process.env.API_ESTIMATED_CALL_COST_USD || "0.003");
+const usageStore = globalThis.__aliveUsageStore || (globalThis.__aliveUsageStore = {
+  daily: new Map(),
+  monthly: new Map(),
+});
 
 function pickGeminiModel(model) {
   const m = String(model || "");
@@ -39,6 +46,54 @@ function extractGeminiText(data) {
   return { cand, text };
 }
 
+function periodKey(date, type) {
+  const y = date.getUTCFullYear();
+  const m = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(date.getUTCDate()).padStart(2, "0");
+  return type === "month" ? `${y}-${m}` : `${y}-${m}-${d}`;
+}
+
+function clientKey(req) {
+  const forwarded = req.headers["x-forwarded-for"];
+  const firstIp = Array.isArray(forwarded) ? forwarded[0] : String(forwarded || "").split(",")[0];
+  return firstIp.trim() || req.headers["x-real-ip"] || "local";
+}
+
+function checkUsageLimit(req) {
+  const now = new Date();
+  const day = periodKey(now, "day");
+  const month = periodKey(now, "month");
+  const key = clientKey(req);
+  const dailyKey = `${day}:${key}`;
+  const dailyCount = usageStore.daily.get(dailyKey) || 0;
+  const monthlyCost = usageStore.monthly.get(month) || 0;
+
+  if (dailyCount >= DAILY_LIMIT) {
+    return {
+      blocked: true,
+      status: 429,
+      body: { error: "DAILY_LIMIT_EXCEEDED", message: `오늘 API 호출 한도(${DAILY_LIMIT}회)를 넘었습니다.` },
+    };
+  }
+
+  if (monthlyCost + ESTIMATED_CALL_COST_USD > MONTHLY_COST_LIMIT_USD) {
+    return {
+      blocked: true,
+      status: 429,
+      body: { error: "MONTHLY_COST_LIMIT_EXCEEDED", message: `월 예상 비용 상한($${MONTHLY_COST_LIMIT_USD})에 도달했습니다.` },
+    };
+  }
+
+  return { blocked: false, dailyKey, month, monthlyCost };
+}
+
+function recordUsage(usage) {
+  usageStore.daily.set(usage.dailyKey, (usageStore.daily.get(usage.dailyKey) || 0) + 1);
+  usageStore.monthly.set(usage.month, usage.monthlyCost + ESTIMATED_CALL_COST_USD);
+}
+
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
 
@@ -48,6 +103,9 @@ export default async function handler(req, res) {
   }
 
   try {
+    const usage = checkUsageLimit(req);
+    if (usage.blocked) return res.status(usage.status).json(usage.body);
+
     const { model, system, messages, max_tokens } = req.body || {};
     const geminiModel = pickGeminiModel(model);
     const wantsJson = /JSON|json 객체|json으로|JSON으로|반드시 JSON/.test(system || "");
@@ -69,11 +127,26 @@ export default async function handler(req, res) {
     }
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent`;
-    const callGemini = (requestBody) => fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-      body: JSON.stringify(requestBody),
-    });
+    const callGemini = async (requestBody) => {
+      let lastResponse = null;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const r = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+          body: JSON.stringify(requestBody),
+        });
+        lastResponse = r;
+        if (![429, 503].includes(r.status)) return r;
+        if (attempt < 2) {
+          const retryAfter = Number(r.headers.get("retry-after"));
+          const delay = Number.isFinite(retryAfter) && retryAfter > 0
+            ? retryAfter * 1000
+            : 600 * Math.pow(2, attempt) + Math.floor(Math.random() * 250);
+          await wait(delay);
+        }
+      }
+      return lastResponse;
+    };
 
     let r = await callGemini(body);
 
@@ -87,7 +160,7 @@ export default async function handler(req, res) {
 
     let { cand, text } = extractGeminiText(data);
 
-    if (!text && wantsJson && body.generationConfig.responseMimeType) {
+    if (!text && (cand?.finishReason === "MAX_TOKENS" || (wantsJson && body.generationConfig.responseMimeType))) {
       const retryBody = {
         ...body,
         generationConfig: {
@@ -95,7 +168,7 @@ export default async function handler(req, res) {
           maxOutputTokens: Math.max(body.generationConfig.maxOutputTokens || 2048, 4096),
         },
       };
-      delete retryBody.generationConfig.responseMimeType;
+      if (wantsJson) delete retryBody.generationConfig.responseMimeType;
       r = await callGemini(retryBody);
       data = await r.json();
 
@@ -123,6 +196,7 @@ export default async function handler(req, res) {
       });
     }
 
+    recordUsage(usage);
     return res.status(200).json({ content: [{ type: "text", text }] });
   } catch (e) {
     console.error("서버 내부 에러:", e);

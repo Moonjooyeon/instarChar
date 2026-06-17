@@ -14,7 +14,7 @@ alive/
 │   └── main.jsx        ← React 진입점
 ├── index.html
 ├── package.json
-├── vite.config.js
+├── vite.config.js       ← 로컬 개발용 /api/generate shim 포함
 ├── vercel.json
 └── .env.example        ← 환경변수 예시 (실제 키는 여기 쓰지 말 것)
 ```
@@ -48,22 +48,28 @@ Vercel 프로젝트 → **Settings → Environment Variables** 에서:
 | `GEMINI_API_KEY` | (1번에서 발급한 키) |
 | `GEMINI_MODEL_FAST` | `gemini-2.5-flash` (선택) |
 | `GEMINI_MODEL_GOOD` | `gemini-2.5-flash` (선택, 품질 올리려면 pro 계열로) |
+| `API_DAILY_LIMIT` | `50` (선택, IP 기준 일일 호출 한도) |
+| `API_MONTHLY_COST_LIMIT_USD` | `60` (선택, 서버 인스턴스 메모리 기준 월 예상 비용 상한) |
+| `API_ESTIMATED_CALL_COST_USD` | `0.003` (선택, 호출 1회당 보수적 추정 비용) |
 
 → 넣고 Deploy. 키는 서버에만 저장되고 브라우저로 안 내려간다.
 
 ### 5. 확인
-- 배포된 주소 접속 → 자캐 만들고 글 생성이 되면 성공.
+- 배포된 주소 접속 → 캐릭터 만들고 글 생성이 되면 성공.
 - 안 되면 Vercel → Deployments → 함수 로그(Functions 탭)에서 에러 확인.
 
 ## 자주 나는 문제
 - **"GEMINI_API_KEY not set"** → 환경변수 안 넣었거나, 넣고 재배포 안 함. 환경변수 바꾸면 재배포 필요.
-- **빈 응답** → 모델명이 틀렸을 수 있음. `GEMINI_MODEL_FAST`를 `gemini-2.5-flash`로 확인.
-- **로컬 테스트** → `npm install` 후 `.env.local` 파일 만들어 `GEMINI_API_KEY=...` 넣고 `vercel dev` (vercel CLI 필요). 그냥 `npm run dev`로는 /api 함수가 안 돈다.
+- **빈 응답 / MAX_TOKENS** → 서버가 JSON 모드 또는 MAX_TOKENS 빈 응답을 더 큰 토큰으로 한 번 재시도한다. 그래도 실패하면 화면에 finishReason이 표시된다.
+- **429 Too Many Requests** → 서버가 429/503 응답에 짧은 exponential backoff 재시도를 한다. 무료 티어 한계가 계속 걸리면 Google Cloud 결제 연결로 Tier 1을 올려야 한다.
+- **로컬 테스트** → `npm install` 후 `.env.local` 파일을 만들고 `GEMINI_API_KEY=...`를 넣은 뒤 `npm run dev`. 현재 Vite 설정에 로컬 `/api/generate` shim이 있어 `vercel dev` 없이도 API가 돈다.
+- **사용량 한도 주의** → 현재 한도는 Vercel 서버 인스턴스 메모리 기반이라 재시작/스케일아웃 시 리셋될 수 있다. 실제 과금 방어는 Supabase 같은 DB에 usage를 저장하는 4단계에서 강화한다.
 
 ## 아직 안 된 것 (다음 단계)
 - 저장(새로고침하면 날아감) → 2단계: Supabase 연결
 - 로그인/유저 분별 → 3단계
 - 사용량 한도(비용 상한) → 4단계
+- 현재는 서버 메모리 기반 임시 한도만 있음. DB 기반 강제 한도는 4단계.
 - 상대 캐릭터 데이터 역검증(맞팔) → DB 붙은 뒤
 
 지금은 **"키 안전 + 배포"** 까지가 목표. 저장은 아직 브라우저 메모리라 새로고침하면 사라진다. (테스터에게 "아직 저장 안 됨"이라고 미리 알릴 것)
