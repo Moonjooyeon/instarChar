@@ -292,7 +292,8 @@ function App() {
   function exportAppState() {
     return {
       version: 1,
-      step: normalizeSavedStep(step, Boolean(activeId)),
+      // Do not persist navigation. OAuth/login restore should never jump into DM/feed.
+      step: "home",
       accounts: accountSnapshot(),
       activeId,
       char,
@@ -328,7 +329,7 @@ function App() {
     setAffinity(saved.affinity || {});
     setDiscoverQuery(saved.discoverQuery || "");
     setPeer(null);
-    setStep(normalizeSavedStep(saved.step, Boolean(active)));
+    setStep("home");
     feedInitRef.current = Boolean(active?.posts?.length || saved.posts?.length);
   }
 
