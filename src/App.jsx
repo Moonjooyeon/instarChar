@@ -616,6 +616,7 @@ function App() {
   }
 
   const canUseApp = !hasSupabaseConfig || (session && stateReady);
+  const authBusy = hasSupabaseConfig && (authLoading || profileLoading || (session && !stateReady));
 
   useEffect(() => {
     if (!hasSupabaseConfig || !supabase) {
@@ -637,6 +638,11 @@ function App() {
       if (!alive) return;
       setSession(data.session || null);
       setAuthLoading(false);
+    }).catch((error) => {
+      if (!alive) return;
+      setAuthMessage(error.message || "로그인 상태 확인에 실패했어.");
+      setAuthLoading(false);
+      setProfileLoading(false);
     });
     const { data: sub } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (event === "PASSWORD_RECOVERY") setPasswordRecoveryOpen(true);
@@ -667,36 +673,50 @@ function App() {
       setStateReady(false);
       setProfileLoading(true);
       setSaveStatus("불러오는 중");
-      const { data, error } = await supabase
-        .from("alive_profiles")
-        .select("display_name,onboarded,app_state")
-        .eq("id", session.user.id)
-        .maybeSingle();
+      try {
+        const { data, error } = await supabase
+          .from("alive_profiles")
+          .select("display_name,onboarded,app_state")
+          .eq("id", session.user.id)
+          .maybeSingle();
 
-      if (cancelled) return;
-      if (error) setSaveStatus(`불러오기 실패: ${error.message}`);
+        if (cancelled) return;
+        if (error) throw error;
 
-      const defaultName = data?.display_name || session.user.email?.split("@")[0] || "";
-      if (data?.app_state) {
-        applyAppState(data.app_state);
-      } else {
-        resetRuntimeState(defaultName);
-      }
-      setProfileName(defaultName);
-      setOnboardingOpen(!data?.onboarded);
-      profileLoadedRef.current = true;
-      setStateReady(true);
-      setProfileLoading(false);
-      setSaveStatus(data ? "저장됨" : "새 프로필");
+        const metadataName = session.user.user_metadata?.name || session.user.user_metadata?.full_name || session.user.user_metadata?.preferred_username || "";
+        const defaultName = data?.display_name || session.user.email?.split("@")[0] || metadataName || "사용자";
+        if (data?.app_state) {
+          applyAppState(data.app_state);
+        } else {
+          resetRuntimeState(defaultName);
+        }
+        setProfileName(defaultName);
+        setOnboardingOpen(!data?.onboarded);
+        profileLoadedRef.current = true;
+        setStateReady(true);
+        setProfileLoading(false);
+        setSaveStatus(data ? "저장됨" : "새 프로필");
 
-      if (!data) {
-        await supabase.from("alive_profiles").upsert({
-          id: session.user.id,
-          email: session.user.email,
-          display_name: defaultName,
-          onboarded: false,
-          app_state: blankAppState(defaultName),
-        });
+        if (!data) {
+          const { error: insertError } = await supabase.from("alive_profiles").upsert({
+            id: session.user.id,
+            email: session.user.email,
+            display_name: defaultName,
+            onboarded: false,
+            app_state: blankAppState(defaultName),
+          });
+          if (insertError) setSaveStatus(`프로필 생성 실패: ${insertError.message}`);
+        }
+      } catch (error) {
+        if (cancelled) return;
+        setAuthMessage(`프로필 불러오기 실패: ${error.message || String(error)}`);
+        setSaveStatus("불러오기 실패");
+        const fallbackName = session.user.email?.split("@")[0] || session.user.user_metadata?.name || "사용자";
+        resetRuntimeState(fallbackName);
+        setOnboardingOpen(true);
+        profileLoadedRef.current = true;
+        setProfileLoading(false);
+        setStateReady(true);
       }
     }
     loadProfile();
@@ -2244,7 +2264,7 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
     <div className="al-root">
       <style>{css}</style>
 
-      {hasSupabaseConfig && (authLoading || profileLoading) && (
+      {authBusy && (
         <div className="al-phone">
           <div className="al-auth">
             <span className="al-spark">✶</span>
@@ -2265,8 +2285,8 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
               <button className={authMode === "signin" ? "on" : ""} onClick={() => { setAuthMode("signin"); setAuthMessage(""); }}>로그인</button>
             </div>
             <div className="al-social-login">
-              <button onClick={() => signInWithProvider("google")} disabled={authLoading}>Google로 계속</button>
               <button onClick={() => signInWithProvider("kakao")} disabled={authLoading}>Kakao로 계속</button>
+              <button onClick={() => signInWithProvider("google")} disabled={authLoading}>Google로 계속</button>
               <button onClick={() => signInWithProvider("x")} disabled={authLoading}>X로 계속</button>
             </div>
             <div className="al-auth-divider"><span>또는 이메일로</span></div>
@@ -3919,17 +3939,17 @@ body{ margin:0; }
 .al-accountbar b{ font-weight:700; color:#8d849e; }
 .al-accountbar button{ border:none; background:#1f1a2e; color:#c8b3ff; border-radius:8px; padding:5px 8px;
   font-family:inherit; font-size:11px; cursor:pointer; }
-.al-auth{ min-height:620px; padding:84px 24px 28px; display:flex; flex-direction:column; align-items:center; text-align:center; }
+.al-auth{ min-height:620px; padding:76px 24px 28px; display:flex; flex-direction:column; align-items:center; text-align:center; }
 .al-auth h1{ margin:12px 0 8px; font-size:25px; font-weight:900; }
 .al-auth p{ margin:0 0 18px; color:var(--soft); font-size:13.5px; line-height:1.6; }
 .al-auth-tabs{ width:100%; display:flex; gap:7px; margin-bottom:10px; padding:4px; border:1px solid #2a2440; border-radius:12px; background:#120f1c; }
 .al-auth-tabs button{ flex:1; padding:9px; border:none; border-radius:9px; cursor:pointer; font-family:inherit;
   font-size:13px; font-weight:800; color:var(--soft); background:transparent; }
 .al-auth-tabs button.on{ color:#fff; background:linear-gradient(135deg,var(--accent),var(--accent2)); }
-.al-social-login{ width:100%; display:flex; flex-wrap:wrap; gap:8px; margin:10px 0 4px; }
-.al-social-login button{ flex:1 1 30%; min-width:96px; min-height:42px; border-radius:12px; border:1px solid #4a4654; cursor:pointer;
-  background:#f7f5fb; color:#17151d; font-family:inherit; font-size:13px; font-weight:900; }
-.al-social-login button:nth-child(2){ background:#fee500; border-color:#fee500; color:#191600; }
+.al-social-login{ width:100%; display:flex; flex-direction:column; gap:8px; margin:12px 0 6px; }
+.al-social-login button{ width:100%; min-height:44px; border-radius:12px; border:1px solid #4a4654; cursor:pointer;
+  background:#fee500; color:#191600; font-family:inherit; font-size:14px; font-weight:900; }
+.al-social-login button:nth-child(2){ background:#f7f5fb; border-color:#e8e3f1; color:#17151d; }
 .al-social-login button:nth-child(3){ background:#111; border-color:#333; color:#fff; }
 .al-social-login button:disabled{ opacity:.45; cursor:default; }
 .al-auth-divider{ width:100%; display:flex; align-items:center; gap:10px; margin:10px 0 2px; color:var(--soft); font-size:11.5px; }
@@ -3941,8 +3961,8 @@ body{ margin:0; }
   font-family:inherit; font-size:14px; font-weight:800; color:#fff; background:linear-gradient(135deg,var(--accent),var(--accent2)); }
 .al-auth-btn:disabled{ background:#2a2a32; color:#5a5a64; cursor:default; }
 .al-auth-alt{ width:100%; display:flex; gap:8px; margin-top:10px; }
-.al-auth-alt button{ flex:1; min-height:38px; border:1px solid #3a3550; border-radius:11px; cursor:pointer;
-  font-family:inherit; font-size:12px; font-weight:800; color:#d8cbff; background:#171222; }
+.al-auth-alt button{ flex:1; min-height:34px; border:1px solid #3a3550; border-radius:11px; cursor:pointer;
+  font-family:inherit; font-size:11.5px; font-weight:800; color:#d8cbff; background:#171222; }
 .al-auth-alt button:hover:not(:disabled){ border-color:var(--accent); background:#211a34; color:#fff; }
 .al-auth-alt button:disabled{ opacity:.45; cursor:default; }
 .al-auth-msg{ margin-top:13px !important; color:#c8b3ff !important; }
