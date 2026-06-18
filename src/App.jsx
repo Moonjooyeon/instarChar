@@ -225,6 +225,9 @@ function App() {
   const [following, setFollowing] = useState([]);
   const [discoverQuery, setDiscoverQuery] = useState("");
   const [sharedCharacters, setSharedCharacters] = useState([]);
+  const [sharedFocusId, setSharedFocusId] = useState("");
+  const [followerCounts, setFollowerCounts] = useState({});
+  const [activeSharedId, setActiveSharedId] = useState("");
   const [shareStatus, setShareStatus] = useState("");
   // 호감도: 쌍 키("이름A|이름B" 정렬) → 0~100
   const [affinity, setAffinity] = useState({});
@@ -244,6 +247,34 @@ function App() {
   const saveTimerRef = useRef(null);
 
   const update = (k, v) => setChar((c) => ({ ...c, [k]: v }));
+
+  function blankChar() {
+    return {
+      name: "", handle: "", age: "", tone: "calm",
+      persona: "", world: "", speech: "", catchphrase: "",
+      surface: "", inner: "", situational: "", triggers: "", interests: "",
+      relations: "", corrections: [], directions: "", lorebook: [],
+    };
+  }
+
+  function blankAppState(name = "") {
+    return {
+      version: 1,
+      step: "home",
+      accounts: [],
+      activeId: null,
+      char: blankChar(),
+      gallery: [],
+      posts: [],
+      personas: [],
+      dmThreads: {},
+      ownerPersona: "",
+      following: [],
+      affinity: {},
+      discoverQuery: "",
+      profileName: name,
+    };
+  }
 
   function accountSnapshot() {
     return accounts.map((a) => a.id === activeId ? { ...a, char, gallery, posts, following } : a);
@@ -289,6 +320,20 @@ function App() {
     setDiscoverQuery(saved.discoverQuery || "");
     setStep(saved.step || "home");
     feedInitRef.current = Boolean(active?.posts?.length || saved.posts?.length);
+  }
+
+  function resetRuntimeState(name = "") {
+    applyAppState(blankAppState(name));
+    setProfileName(name);
+    setPeer(null);
+    setDmInput("");
+    setCommentOn(null);
+    setCommentText("");
+    setNewChatMode(null);
+    setShareStatus("");
+    setSharedFocusId("");
+    setActiveSharedId("");
+    setFollowerCounts({});
   }
 
   async function submitAuth() {
@@ -348,6 +393,22 @@ function App() {
     setAuthMessage(error ? error.message : "비밀번호 재설정 링크를 보냈어. 메일에서 링크를 누르고 새 비밀번호를 정하면 돼.");
   }
 
+  async function signInWithProvider(provider) {
+    if (!supabase) return;
+    setAuthLoading(true);
+    setAuthMessage("");
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: window.location.origin,
+      },
+    });
+    if (error) {
+      setAuthLoading(false);
+      setAuthMessage(error.message);
+    }
+  }
+
   async function updateRecoveredPassword() {
     if (!supabase || newPassword.length < 6) return;
     setAuthLoading(true);
@@ -367,6 +428,7 @@ function App() {
     await supabase.auth.signOut();
     setSession(null);
     setStateReady(false);
+    resetRuntimeState("");
     setStep("home");
     setSaveStatus("로그인 대기");
   }
@@ -399,6 +461,7 @@ function App() {
       ...base,
       id: `shared_${row.id}`,
       sharedId: row.id,
+      ownerId: row.owner_id,
       sourceAccountId: row.source_account_id,
       owner: `@${row.owner_name || "user"}`,
       ownerName: row.owner_name || "user",
@@ -409,6 +472,34 @@ function App() {
       persona: row.persona || base.persona || "",
       tags: row.tags || base.tags || [],
     };
+  }
+
+  function shuffled(list) {
+    const arr = [...list];
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  async function loadFollowerCountsFor(rows) {
+    if (!supabase || !rows?.length) return;
+    const ids = rows.map((row) => row.id).filter(Boolean);
+    if (!ids.length) return;
+    const { data, error } = await supabase
+      .from("alive_character_follows")
+      .select("target_shared_character_id")
+      .in("target_shared_character_id", ids);
+    if (error) {
+      console.warn("팔로워 수 불러오기 실패:", error);
+      return;
+    }
+    const counts = {};
+    (data || []).forEach((r) => {
+      counts[r.target_shared_character_id] = (counts[r.target_shared_character_id] || 0) + 1;
+    });
+    setFollowerCounts((prev) => ({ ...prev, ...counts }));
   }
 
   async function loadSharedCharacters() {
@@ -422,9 +513,9 @@ function App() {
       console.warn("공유 캐릭터 불러오기 실패:", error);
       return;
     }
-    setSharedCharacters((data || [])
-      .filter((row) => row.owner_id !== session?.user?.id)
-      .map(sharedRowToChar));
+    const rows = data || [];
+    setSharedCharacters(shuffled(rows).map(sharedRowToChar));
+    loadFollowerCountsFor(rows);
   }
 
   async function shareCurrentCharacter() {
@@ -453,6 +544,7 @@ function App() {
       return;
     }
     const url = `${window.location.origin}/?shared=${data.id}`;
+    setActiveSharedId(data.id);
     try {
       await navigator.clipboard.writeText(url);
       setShareStatus("공유 링크를 복사했어.");
@@ -460,6 +552,32 @@ function App() {
       setShareStatus(url);
     }
     loadSharedCharacters();
+  }
+
+  async function recordFollowChange(poolChar, wasFollowing) {
+    if (!supabase || !session?.user || !activeId || !poolChar?.sharedId) return;
+    if (wasFollowing) {
+      const { error } = await supabase
+        .from("alive_character_follows")
+        .delete()
+        .eq("follower_id", session.user.id)
+        .eq("follower_account_id", activeId)
+        .eq("target_shared_character_id", poolChar.sharedId);
+      if (error) console.warn("언팔로우 저장 실패:", error);
+    } else {
+      const payload = {
+        follower_id: session.user.id,
+        follower_name: profileName || session.user.email?.split("@")[0] || "user",
+        follower_account_id: activeId,
+        follower_character: { ...char },
+        target_shared_character_id: poolChar.sharedId,
+      };
+      const { error } = await supabase
+        .from("alive_character_follows")
+        .upsert(payload, { onConflict: "follower_id,follower_account_id,target_shared_character_id" });
+      if (error) console.warn("팔로우 저장 실패:", error);
+    }
+    loadFollowerCountsFor([{ id: poolChar.sharedId }]);
   }
 
   async function readApiJson(res, label) {
@@ -522,6 +640,9 @@ function App() {
     });
     const { data: sub } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (event === "PASSWORD_RECOVERY") setPasswordRecoveryOpen(true);
+      profileLoadedRef.current = false;
+      setStateReady(false);
+      setProfileLoading(Boolean(nextSession));
       setSession(nextSession);
       setAuthLoading(false);
     });
@@ -542,6 +663,8 @@ function App() {
 
     let cancelled = false;
     async function loadProfile() {
+      profileLoadedRef.current = false;
+      setStateReady(false);
       setProfileLoading(true);
       setSaveStatus("불러오는 중");
       const { data, error } = await supabase
@@ -553,8 +676,13 @@ function App() {
       if (cancelled) return;
       if (error) setSaveStatus(`불러오기 실패: ${error.message}`);
 
-      if (data?.app_state) applyAppState(data.app_state);
-      setProfileName(data?.display_name || session.user.email?.split("@")[0] || "");
+      const defaultName = data?.display_name || session.user.email?.split("@")[0] || "";
+      if (data?.app_state) {
+        applyAppState(data.app_state);
+      } else {
+        resetRuntimeState(defaultName);
+      }
+      setProfileName(defaultName);
       setOnboardingOpen(!data?.onboarded);
       profileLoadedRef.current = true;
       setStateReady(true);
@@ -565,9 +693,9 @@ function App() {
         await supabase.from("alive_profiles").upsert({
           id: session.user.id,
           email: session.user.email,
-          display_name: session.user.email?.split("@")[0] || "",
+          display_name: defaultName,
           onboarded: false,
-          app_state: exportAppState(),
+          app_state: blankAppState(defaultName),
         });
       }
     }
@@ -609,11 +737,39 @@ function App() {
   }, [canUseApp, step, session?.user?.id]); // eslint-disable-line
 
   useEffect(() => {
+    if (!canUseApp || !supabase || !session?.user || !activeId) {
+      setActiveSharedId("");
+      return;
+    }
+    let cancelled = false;
+    async function loadActiveShare() {
+      const { data, error } = await supabase
+        .from("alive_shared_characters")
+        .select("id")
+        .eq("owner_id", session.user.id)
+        .eq("source_account_id", activeId)
+        .maybeSingle();
+      if (cancelled) return;
+      if (error) {
+        console.warn("내 공유 캐릭터 확인 실패:", error);
+        setActiveSharedId("");
+        return;
+      }
+      setActiveSharedId(data?.id || "");
+      if (data?.id) loadFollowerCountsFor([{ id: data.id }]);
+    }
+    loadActiveShare();
+    return () => { cancelled = true; };
+  }, [canUseApp, activeId, session?.user?.id]); // eslint-disable-line
+
+  useEffect(() => {
     const sharedId = new URLSearchParams(window.location.search).get("shared");
     if (canUseApp && sharedId) {
-      setDiscoverQuery(sharedId);
+      setSharedFocusId(sharedId);
+      setDiscoverQuery("");
       setStep("discover");
       loadSharedCharacters();
+      window.history.replaceState({}, "", window.location.pathname);
     }
   }, [canUseApp]); // eslint-disable-line
 
@@ -1000,11 +1156,7 @@ ${formatRule}${ANTI_REPEAT_RULES}${recentLinesBlock(posts.slice(0, 6).map((p) =>
   function startNewCharacter() {
     wakingRef.current = false;
     setWaking(false);
-    setChar({
-      name: "", handle: "", age: "", tone: "calm",
-      persona: "", world: "", speech: "", catchphrase: "",
-      surface: "", inner: "", situational: "", triggers: "", interests: "", relations: "",
-    });
+    setChar(blankChar());
     setGallery([]); setPosts([]); setDump(""); setRpLog("");
     setParseFailed(false); setParseError("");
     setActiveId(null);
@@ -1019,12 +1171,7 @@ ${formatRule}${ANTI_REPEAT_RULES}${recentLinesBlock(posts.slice(0, 6).map((p) =>
       wakingRef.current = false;
       setWaking(false);
       setActiveId(null);
-      setChar({
-        name: "", handle: "", age: "", tone: "calm",
-        persona: "", world: "", speech: "", catchphrase: "",
-        surface: "", inner: "", situational: "", triggers: "", interests: "", relations: "",
-        corrections: [], directions: "", lorebook: [],
-      });
+      setChar(blankChar());
       setGallery([]);
       setPosts([]);
       setFollowing([]);
@@ -1186,6 +1333,7 @@ ${formatRule}${ANTI_REPEAT_RULES}${recentLinesBlock(posts.slice(0, 6).map((p) =>
     setFollowing((prev) => already
       ? prev.filter((f) => f.id !== poolChar.id)
       : [...prev, { ...poolChar, corrections: [], directions: "", relations: poolChar.relations || "", external: true }]);
+    recordFollowChange(poolChar, already);
     // 새로 팔로: 상대 데이터까지 역검증해서 "진짜 상호 연인"일 때만 자동 맞팔
     if (!already) {
       const { theirLoves } = verifyMutualLove(char, poolChar);
@@ -2116,6 +2264,11 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
               <button className={authMode === "signup" ? "on" : ""} onClick={() => { setAuthMode("signup"); setAuthMessage(""); }}>회원가입</button>
               <button className={authMode === "signin" ? "on" : ""} onClick={() => { setAuthMode("signin"); setAuthMessage(""); }}>로그인</button>
             </div>
+            <div className="al-social-login">
+              <button onClick={() => signInWithProvider("google")} disabled={authLoading}>Google로 계속</button>
+              <button onClick={() => signInWithProvider("kakao")} disabled={authLoading}>Kakao로 계속</button>
+            </div>
+            <div className="al-auth-divider"><span>또는 이메일로</span></div>
             <input className="al-auth-input" type="email" value={authEmail}
               onChange={(e) => setAuthEmail(e.target.value)} placeholder="email@example.com"
               onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) submitAuth(); }} />
@@ -2401,7 +2554,7 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
                 <button className="al-fstat" onClick={() => setStep("discover")}>
                   <b>{following.length}</b> 팔로잉
                 </button>
-                <span className="al-fstat"><b>{myFollowers().length}</b> 팔로워</span>
+                <span className="al-fstat"><b>{activeSharedId ? (followerCounts[activeSharedId] || 0) : myFollowers().length}</b> 팔로워</span>
                 <button className="al-fstat" onClick={() => setShowMemory((v) => !v)}>
                   🧠 <b>{(char.lorebook || []).length}</b> 로어북 {showMemory ? "▾" : "▸"}
                 </button>
@@ -2709,8 +2862,10 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
       {}
       {canUseApp && step === "discover" && (() => {
         const q = discoverQuery.trim().toLowerCase();
-        const mergedDiscover = [...sharedCharacters, ...DISCOVER_POOL];
+        const mergedDiscover = hasSupabaseConfig ? sharedCharacters : DISCOVER_POOL;
         const list = mergedDiscover.filter((c) => {
+          if (sharedFocusId) return c.sharedId === sharedFocusId || c.id === sharedFocusId;
+          if (c.ownerId && c.ownerId === session?.user?.id) return false;
           if (isFollowing(c.id)) return false;
           if (!q) return true;
           return [c.sharedId, c.name, c.handle, c.persona, c.owner, c.ownerName, ...(c.tags || [])].join(" ").toLowerCase().includes(q);
@@ -2725,11 +2880,17 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
             </div>
           </div>
           <div className="al-disc-search">
-            <input value={discoverQuery} onChange={(e) => setDiscoverQuery(e.target.value)}
+            <input value={discoverQuery} onChange={(e) => { setSharedFocusId(""); setDiscoverQuery(e.target.value); }}
               placeholder="사용자·이름·성격·태그 검색" />
           </div>
+          {sharedFocusId && (
+            <div className="al-disc-focus">
+              공유 링크로 들어온 캐릭터
+              <button onClick={() => setSharedFocusId("")}>전체 탐색 보기</button>
+            </div>
+          )}
           <div className="al-disc-list">
-            {list.length === 0 && <p className="al-disc-none">{discoverQuery ? `"${discoverQuery}"에 맞는 새 캐릭터가 없어.` : "팔로잉하지 않은 새 캐릭터가 없어."}</p>}
+            {list.length === 0 && <p className="al-disc-none">{sharedFocusId ? "이 공유 링크의 캐릭터를 찾지 못했어." : discoverQuery ? `"${discoverQuery}"에 맞는 새 캐릭터가 없어.` : "아직 공유된 사용자 캐릭터가 없어."}</p>}
             {list.map((c) => {
               const followed = isFollowing(c.id);
               return (
@@ -2739,7 +2900,7 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
                     <div className="al-disc-top">
                       <span className="al-disc-name">{c.name}</span>
                       <span className="al-disc-owner">{c.shared ? `${c.owner} · 공유됨` : c.owner}</span>
-                      <span className="al-disc-fcount">팔로워 {baseFollowerCount(c.name).toLocaleString()}</span>
+                      <span className="al-disc-fcount">팔로워 {(c.shared ? (followerCounts[c.sharedId] || 0) : baseFollowerCount(c.name)).toLocaleString()}</span>
                     </div>
                     <p className="al-disc-persona">{c.persona}</p>
                     <div className="al-disc-tags">
@@ -3270,11 +3431,11 @@ const css = `
 *{ box-sizing:border-box; }
 body{ margin:0; }
 .al-root{
-  --bg:#0a0a0c; --phone:#121216; --ink:#ececf0; --soft:#8a8a96; --line:#26262e;
-  --accent:#b892ff; --accent2:#ff9ec7; --like:#ff5a8a;
+  --bg:#15131a; --phone:#191820; --ink:#f4f2f8; --soft:#aaa4b6; --line:#34313d;
+  --accent:#9f7cff; --accent2:#ff8fc6; --like:#ff5a8a;
   min-height:100vh; background:
-    radial-gradient(circle at 30% -10%, #1d1430 0%, transparent 50%),
-    radial-gradient(circle at 80% 10%, #2a1322 0%, transparent 45%),
+    radial-gradient(circle at 30% -10%, #30224a 0%, transparent 50%),
+    radial-gradient(circle at 80% 10%, #3b2032 0%, transparent 45%),
     var(--bg);
   display:flex; flex-direction:column; align-items:center;
   padding:calc(26px + env(safe-area-inset-top)) 16px calc(40px + env(safe-area-inset-bottom));
@@ -3282,7 +3443,7 @@ body{ margin:0; }
 }
 .al-phone{ width:100%; max-width:420px; background:var(--phone);
   border:1px solid var(--line); border-radius:26px; overflow:hidden;
-  box-shadow:0 30px 70px -30px rgba(0,0,0,.8), 0 0 0 1px rgba(255,255,255,.03) inset; }
+  box-shadow:0 30px 70px -30px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.05) inset; }
 
 /* setup */
 .al-setup{ padding:30px 22px 26px; display:flex; flex-direction:column; gap:16px; }
@@ -3685,7 +3846,8 @@ body{ margin:0; }
 .al-owner-entry:hover{ border-color:#ffd27a; }
 .al-owner-entry b{ color:#fff; }
 /* 호감도 게이지 */
-.al-affinity{ padding:8px 14px 4px; }
+.al-affinity{ margin:10px 14px 8px; padding:12px 13px; border:1px solid #4a3650; border-radius:14px;
+  background:linear-gradient(135deg,#251b2d,#1b1a23); box-shadow:0 10px 28px -22px #000; }
 .al-aff-top{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:5px; }
 .al-aff-row{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:5px; }
 .al-aff-row.second{ margin-top:9px; }
@@ -3693,9 +3855,9 @@ body{ margin:0; }
 .al-aff-fill.rev{ background:linear-gradient(90deg,#9ec4ff,#6ea8ff); }
 .al-aff-fill.neg{ background:linear-gradient(90deg,#6a5560,#c0506a) !important; }
 .al-aff-note{ font-size:10px; color:var(--soft); font-weight:400; }
-.al-aff-lbl{ font-size:11px; font-weight:700; color:#ff9ec4; }
-.al-aff-stage{ font-size:10.5px; color:var(--soft); }
-.al-aff-bar{ position:relative; height:7px; background:#241820; border-radius:6px; overflow:hidden; }
+.al-aff-lbl{ font-size:12px; font-weight:900; color:#ffacd2; }
+.al-aff-stage{ font-size:11.5px; color:#fff; background:#4a2c42; border:1px solid #6a3c5a; border-radius:999px; padding:2px 8px; font-weight:900; }
+.al-aff-bar{ position:relative; height:10px; background:#2b2430; border:1px solid #3f3448; border-radius:999px; overflow:hidden; }
 .al-aff-fill{ height:100%; border-radius:6px; background:linear-gradient(90deg,#ff7eb3,#ff5a8c); transition:width .5s ease; }
 .al-aff-mark{ position:absolute; top:-2px; width:2px; height:11px; background:#ffd27a; opacity:.8; transform:translateX(-1px); }
 .al-affinity.owner .al-aff-lbl{ color:#a8c8ff; }
@@ -3763,6 +3925,13 @@ body{ margin:0; }
 .al-auth-tabs button{ flex:1; padding:9px; border:none; border-radius:9px; cursor:pointer; font-family:inherit;
   font-size:13px; font-weight:800; color:var(--soft); background:transparent; }
 .al-auth-tabs button.on{ color:#fff; background:linear-gradient(135deg,var(--accent),var(--accent2)); }
+.al-social-login{ width:100%; display:flex; gap:8px; margin:10px 0 4px; }
+.al-social-login button{ flex:1; min-height:42px; border-radius:12px; border:1px solid #4a4654; cursor:pointer;
+  background:#f7f5fb; color:#17151d; font-family:inherit; font-size:13px; font-weight:900; }
+.al-social-login button:nth-child(2){ background:#fee500; border-color:#fee500; color:#191600; }
+.al-social-login button:disabled{ opacity:.45; cursor:default; }
+.al-auth-divider{ width:100%; display:flex; align-items:center; gap:10px; margin:10px 0 2px; color:var(--soft); font-size:11.5px; }
+.al-auth-divider:before,.al-auth-divider:after{ content:""; flex:1; height:1px; background:#363241; }
 .al-auth-input{ width:100%; background:#1a1a20; border:1px solid var(--line); border-radius:12px;
   padding:13px 14px; color:var(--ink); font-family:inherit; font-size:14px; margin-top:8px; }
 .al-auth-input:focus{ outline:none; border-color:var(--accent); }
@@ -3840,6 +4009,10 @@ body{ margin:0; }
 .al-disc-search input{ width:100%; background:#1a1a20; border:1px solid var(--line); border-radius:11px;
   padding:11px 14px; color:var(--ink); font-family:inherit; font-size:13px; }
 .al-disc-search input:focus{ outline:none; border-color:var(--accent); }
+.al-disc-focus{ margin:0 14px 10px; padding:10px 12px; border-radius:12px; border:1px solid #5f4c82;
+  background:#241d35; color:#e8ddff; font-size:12px; font-weight:800; display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.al-disc-focus button{ border:none; border-radius:9px; padding:7px 9px; cursor:pointer; font-family:inherit; font-size:11px; font-weight:900;
+  color:#1b1526; background:#d8cbff; }
 .al-disc-list{ flex:1; overflow-y:auto; padding:0 14px 14px; display:flex; flex-direction:column; gap:10px; }
 .al-disc-none{ text-align:center; color:var(--soft); font-size:13px; padding:30px 0; }
 .al-disc-card{ display:flex; gap:11px; align-items:flex-start; background:#16141c; border:1px solid var(--line);
@@ -3929,7 +4102,8 @@ button.al-fstat{ cursor:pointer; }
 .al-persona-guide{ font-size:11.5px; color:var(--soft); margin:0; line-height:1.5; }
 .al-persona-area{ min-height:96px; line-height:1.6; resize:none; }
 
-.al-dmscroll{ min-height:280px; max-height:440px; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:10px; }
+.al-dmscroll{ min-height:280px; max-height:440px; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:10px;
+  background:linear-gradient(180deg,#202029,#191820); }
 .al-dm-empty{ text-align:center; padding:60px 20px; color:var(--soft); }
 .al-dm-empty p{ font-size:14px; margin:0 0 6px; }
 .al-dm-empty span{ font-size:12px; color:#5a5a64; }
@@ -3938,14 +4112,15 @@ button.al-fstat{ cursor:pointer; }
 .al-bubble-av{ width:28px; height:28px; flex-shrink:0; border-radius:50%;
   background:linear-gradient(135deg,var(--accent),var(--accent2)); display:flex; align-items:center;
   justify-content:center; font-size:13px; font-weight:800; color:#fff; }
-.al-bubble{ max-width:74%; padding:10px 13px; border-radius:16px; font-size:14px; line-height:1.55; white-space:pre-wrap; }
-.al-bubble.char{ background:#211f29; color:#e4e4ea; border-bottom-left-radius:5px; }
-.al-bubble.me{ background:linear-gradient(135deg,var(--accent),#9d6bff); color:#fff; border-bottom-right-radius:5px; font-weight:600; }
+.al-bubble{ max-width:76%; padding:10px 13px; border-radius:18px; font-size:14.5px; line-height:1.55; white-space:pre-wrap;
+  box-shadow:0 8px 18px -16px #000; }
+.al-bubble.char{ background:#f1eff6; color:#17151d; border-bottom-left-radius:5px; }
+.al-bubble.me{ background:#0a84ff; color:#fff; border-bottom-right-radius:5px; font-weight:600; }
 .al-bubble.typing{ padding:13px 15px; }
 .al-bubble-label{ display:block; font-size:10.5px; font-weight:800; opacity:.7; margin-bottom:3px; }
 
-.al-dminput{ display:flex; gap:8px; padding:12px 14px; border-top:1px solid var(--line); }
-.al-dminput input{ flex:1; background:#1a1a20; border:1px solid var(--line); border-radius:22px;
+.al-dminput{ display:flex; gap:8px; padding:12px 14px; border-top:1px solid var(--line); background:#1f1e26; }
+.al-dminput input{ flex:1; background:#2a2932; border:1px solid #45424f; border-radius:22px;
   padding:11px 16px; font-family:inherit; font-size:14px; color:var(--ink); }
 .al-dminput input:focus{ outline:none; border-color:var(--accent); }
 .al-dminput button{ width:42px; height:42px; flex-shrink:0; border-radius:50%; border:none; cursor:pointer;

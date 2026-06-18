@@ -88,3 +88,37 @@ create trigger alive_shared_characters_touch_updated_at
 before update on public.alive_shared_characters
 for each row
 execute function public.touch_alive_profiles_updated_at();
+
+create table if not exists public.alive_character_follows (
+  id uuid primary key default gen_random_uuid(),
+  follower_id uuid not null references auth.users(id) on delete cascade,
+  follower_name text not null default '',
+  follower_account_id text not null,
+  follower_character jsonb not null default '{}'::jsonb,
+  target_shared_character_id uuid not null references public.alive_shared_characters(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  unique(follower_id, follower_account_id, target_shared_character_id)
+);
+
+alter table public.alive_character_follows enable row level security;
+
+drop policy if exists "alive_character_follows_select_public" on public.alive_character_follows;
+create policy "alive_character_follows_select_public"
+on public.alive_character_follows for select
+using (true);
+
+drop policy if exists "alive_character_follows_insert_own" on public.alive_character_follows;
+create policy "alive_character_follows_insert_own"
+on public.alive_character_follows for insert
+with check (auth.uid() = follower_id);
+
+drop policy if exists "alive_character_follows_delete_own" on public.alive_character_follows;
+create policy "alive_character_follows_delete_own"
+on public.alive_character_follows for delete
+using (auth.uid() = follower_id);
+
+create index if not exists alive_character_follows_target_idx
+on public.alive_character_follows(target_shared_character_id);
+
+create index if not exists alive_character_follows_follower_idx
+on public.alive_character_follows(follower_id, follower_account_id);

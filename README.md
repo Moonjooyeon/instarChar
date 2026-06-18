@@ -64,7 +64,17 @@ Vercel 프로젝트 → **Settings → Environment Variables** 에서:
 - Authentication → URL Configuration에서 Site URL을 Vercel 주소로 맞춘다.
 - 로컬 테스트를 할 때는 Redirect URLs에 `http://localhost:5173`도 추가한다.
 
-### 5-1. 앱으로 열기
+### 5-1. Supabase 소셜 로그인
+앱에는 Google/Kakao 로그인 버튼이 준비되어 있다. 실제 사용하려면 Supabase Dashboard에서 provider 키를 켠다.
+
+- Authentication → Providers → Google 활성화 → Google OAuth Client ID/Secret 입력.
+- Authentication → Providers → Kakao 활성화 → Kakao REST API Key/Client Secret 입력.
+- 각 provider 콘솔의 redirect/callback URL에는 Supabase가 보여주는 callback URL을 등록한다.
+- Supabase Authentication → URL Configuration:
+  - Site URL: `https://instarcharacterbot.vercel.app`
+  - Redirect URLs: `https://instarcharacterbot.vercel.app`, `http://localhost:5173`
+
+### 5-2. 앱으로 열기
 현재 React/Vite 화면을 Capacitor로 감싸서 iOS/Android 앱 프로젝트를 생성해둔 상태다.
 
 ```bash
@@ -95,7 +105,7 @@ npm run app:open:android
 ## 현재 구현 상태
 - 계정별 저장: Supabase `alive_profiles.app_state` JSON에 캐릭터/피드/DM/로어북/페르소나 저장.
 - 캐릭터 공유: `alive_shared_characters`에 공개 캐릭터를 저장하고 링크 복사/탐색 검색 지원.
-- 로그인: Supabase 이메일/비밀번호 회원가입·로그인, 이메일 링크 간편 로그인, 비밀번호 재설정.
+- 로그인: Supabase 이메일/비밀번호 회원가입·로그인, 이메일 링크 간편 로그인, 비밀번호 재설정, Google/Kakao OAuth 버튼.
 - 온보딩: 첫 로그인 시 닉네임 입력.
 - 탐색: 이미 팔로잉한 캐릭터는 숨기고, 다른 사용자가 공유한 캐릭터와 사용자명을 검색.
 - 댓글: 자동 댓글은 댓글 작성자가 원글 작성자를 팔로잉하거나 맞팔로 판단될 때만 생성.
