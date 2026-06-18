@@ -216,6 +216,7 @@ function App() {
   const [personas, setPersonas] = useState([]); // [{id, name, age, persona, speech}]
   const [personaDraft, setPersonaDraft] = useState(null); // 편집 중 {id?, name, age, persona, speech}
   const [deleteTarget, setDeleteTarget] = useState(null); // 삭제 확인 중인 캐릭터 계정
+  const [publicProfile, setPublicProfile] = useState(null); // 탐색에서 열어본 공개 캐릭터
   const [showMemory, setShowMemory] = useState(false); // 피드에서 쌓인 기억 펼침
   const [showRelations, setShowRelations] = useState(false); // 프로필 관계 펼침
   const [memFilter, setMemFilter] = useState(null); // 기억 상대 필터 (null=전체)
@@ -243,6 +244,7 @@ function App() {
   // 진도질문 모달: null | {meName, peerName, line, pairKey, stage}
   const [proposal, setProposal] = useState(null);
   const [relationResult, setRelationResult] = useState(null); // {asker, other, accepted}
+  const [affinityOpen, setAffinityOpen] = useState(false);
   const proposalRef = useRef(null);
   // 진도질문 띄운 쌍 — 거절/처리 후 당분간 다시 안 물어봄 (쌍키 → true)
   const proposalCooldownRef = useRef({});
@@ -1296,6 +1298,30 @@ ${formatRule}${ANTI_REPEAT_RULES}${recentLinesBlock(posts.slice(0, 6).map((p) =>
     setStep("feed");
   }
 
+  function editAccount(id) {
+    if (activeId) {
+      setAccounts((accs) => accs.map((a) => a.id === activeId ? { ...a, char, gallery, posts, following } : a));
+    }
+    const target = accounts.find((a) => a.id === id);
+    if (!target) return;
+    setChar(target.char);
+    setGallery(target.gallery || []);
+    setPosts(target.posts || []);
+    setFollowing(target.following || []);
+    setActiveId(id);
+    setParseFailed(false);
+    setParseError("");
+    setWaking(false);
+    wakingRef.current = false;
+    setStep("confirm");
+  }
+
+  function saveCharacterEdits() {
+    if (!activeId) return;
+    setAccounts((accs) => accs.map((a) => a.id === activeId ? { ...a, char: { ...char }, gallery: [...gallery], posts, following } : a));
+    setStep("feed");
+  }
+
   // 홈으로 (현재 계정 저장)
   function goHome() {
     if (activeId) {
@@ -1331,6 +1357,13 @@ ${formatRule}${ANTI_REPEAT_RULES}${recentLinesBlock(posts.slice(0, 6).map((p) =>
       setStep("home");
     }
     setDeleteTarget(null);
+  }
+
+  function deletePersona(id) {
+    setPersonas((ps) => ps.filter((p) => p.id !== id));
+    if (speakAs === `p:${id}`) setSpeakAs("char");
+    if (commentAs === `p:${id}`) setCommentAs("char");
+    if (newChatSpeaker === `p:${id}`) setNewChatSpeaker("char");
   }
 
   function updateLorebook(updater) {
@@ -2468,7 +2501,10 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
                       </div>
                       <span className="al-acccard-count">{(a.posts || []).length}글</span>
                     </button>
-                    <button className="al-accdel" onClick={() => setDeleteTarget(a)} aria-label={`${a.char.name} 삭제`}>삭제</button>
+                    <div className="al-acc-actions">
+                      <button className="al-accedit" onClick={() => editAccount(a.id)} aria-label={`${a.char.name} 수정`}>수정</button>
+                      <button className="al-accdel" onClick={() => setDeleteTarget(a)} aria-label={`${a.char.name} 삭제`}>삭제</button>
+                    </div>
                   </div>
                 );
               })}
@@ -2480,13 +2516,16 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
               <p className="al-pm-desc">캐릭터에게 다가갈 또 다른 나. DM에서 골라 쓰면 캐릭터처럼 호감도·관계가 따로 쌓여.</p>
               <div className="al-pm-list">
                 {personas.map((p) => (
-                  <button key={p.id} className="al-pm-card" onClick={() => setPersonaDraft({ ...p })}>
-                    <span className="al-pm-av">{p.name.trim()[0] || "?"}</span>
-                    <span className="al-pm-info">
-                      <span className="al-pm-name">{p.name}</span>
-                      <span className="al-pm-sub">{p.age || p.persona?.slice(0, 24) || "설정 없음"}</span>
-                    </span>
-                  </button>
+                  <div key={p.id} className="al-pm-row">
+                    <button className="al-pm-card" onClick={() => setPersonaDraft({ ...p })}>
+                      <span className="al-pm-av">{p.name.trim()[0] || "?"}</span>
+                      <span className="al-pm-info">
+                        <span className="al-pm-name">{p.name}</span>
+                        <span className="al-pm-sub">{p.age || p.persona?.slice(0, 24) || "설정 없음"}</span>
+                      </span>
+                    </button>
+                    <button className="al-pm-del-mini" onClick={() => deletePersona(p.id)} aria-label={`${p.name} 페르소나 삭제`}>삭제</button>
+                  </div>
                 ))}
                 <button className="al-pm-add" onClick={() => setPersonaDraft({ name: "", age: "", persona: "", speech: "" })}>+ 페르소나 만들기</button>
               </div>
@@ -2668,8 +2707,8 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
 
             <div className="al-confirm-actions">
               <button className="al-reparse" onClick={() => setStep("dump")}>← 다시 쓰기</button>
-              <button className="al-start al-confirm-go" disabled={!confirmReady || waking} onClick={wakeCharacter}>
-                {waking ? "깨우는 중..." : confirmReady ? `${char.name.trim()} 깨우기` : "이름·페르소나 필수"}
+              <button className="al-start al-confirm-go" disabled={!confirmReady || waking} onClick={activeId ? saveCharacterEdits : wakeCharacter}>
+                {waking ? "깨우는 중..." : activeId ? "수정 저장" : confirmReady ? `${char.name.trim()} 깨우기` : "이름·페르소나 필수"}
               </button>
             </div>
           </div>
@@ -3042,16 +3081,35 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
               <button onClick={() => setSharedFocusId("")}>전체 탐색 보기</button>
             </div>
           )}
+          {following.length > 0 && (
+            <div className="al-following-panel">
+              <div className="al-following-head">팔로잉 목록 <b>{following.length}</b></div>
+              <div className="al-following-list">
+                {following.map((f) => (
+                  <div className="al-following-card" key={f.id}>
+                    <button className="al-following-main" onClick={() => setPublicProfile(f)}>
+                      <span className="al-following-av">{f.name.trim()[0] || "?"}</span>
+                      <span className="al-following-info">
+                        <b>{f.name}</b>
+                        <small>@{f.handle || f.name.replace(/\s/g, "").toLowerCase()} · {f.owner}</small>
+                      </span>
+                    </button>
+                    <button className="al-unfollow" onClick={() => toggleFollow(f)}>팔로우 취소</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="al-disc-list">
             {list.length === 0 && <p className="al-disc-none">{sharedFocusId ? "이 공유 링크의 캐릭터를 찾지 못했어." : discoverQuery ? `"${discoverQuery}"에 맞는 새 캐릭터가 없어.` : "아직 공유된 사용자 캐릭터가 없어."}</p>}
             {list.map((c) => {
               const followed = isFollowing(c.id);
               return (
                 <div key={c.id} className={`al-disc-card ${followed ? "on" : ""}`}>
-                  <div className="al-disc-av">{c.name.trim()[0]}</div>
+                  <button className="al-disc-av" onClick={() => setPublicProfile(c)} aria-label={`${c.name} 프로필 보기`}>{c.name.trim()[0]}</button>
                   <div className="al-disc-body">
                     <div className="al-disc-top">
-                      <span className="al-disc-name">{c.name}</span>
+                      <button className="al-disc-name" onClick={() => setPublicProfile(c)}>{c.name}</button>
                       <span className="al-disc-owner">{c.shared ? `${c.owner} · 공유됨` : c.owner}</span>
                       <span className="al-disc-fcount">팔로워 {(c.shared ? (followerCounts[c.sharedId] || 0) : baseFollowerCount(c.name)).toLocaleString()}</span>
                     </div>
@@ -3251,47 +3309,58 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
             </div>
           </div>
 
-          {showGauge && peer.asOwner && (
-            <div className="al-affinity owner">
-              <div className="al-aff-top">
-                <span className="al-aff-lbl">🤍 {peerName} → 나</span>
-                <span className="al-aff-stage">{attachStage(ownerVal)} · {ownerVal}</span>
-              </div>
-              <div className="al-aff-bar"><div className={`al-aff-fill ${ownerVal < 0 ? "neg" : ""}`} style={{ width: `${Math.abs(ownerVal)}%` }} /></div>
-            </div>
-          )}
-
-          {showGauge && !peer.asOwner && activePersona && (
-            <div className="al-affinity">
-              <div className="al-aff-row">
-                <span className="al-aff-lbl rev">♥ {peerName} → {speakerName} <span className="al-aff-note">(가면이라 {speakerName}는 빠지지 않음)</span></span>
-                <span className="al-aff-stage">{affinityStage(peerToMine)} · {peerToMine}</span>
-              </div>
-              <div className="al-aff-bar">
-                <div className={`al-aff-fill rev ${peerToMine < 0 ? "neg" : ""}`} style={{ width: `${Math.abs(peerToMine)}%` }} />
-                <div className="al-aff-mark" style={{ left: `${PROPOSAL_THRESHOLD}%` }} />
-              </div>
-            </div>
-          )}
-
-          {showGauge && !peer.asOwner && !activePersona && (
-            <div className="al-affinity">
-              <div className="al-aff-row">
-                <span className="al-aff-lbl">♥ {speakerName} → {peerName}</span>
-                <span className="al-aff-stage">{affinityStage(mineToPeer)} · {mineToPeer}</span>
-              </div>
-              <div className="al-aff-bar">
-                <div className={`al-aff-fill ${mineToPeer < 0 ? "neg" : ""}`} style={{ width: `${Math.abs(mineToPeer)}%` }} />
-                <div className="al-aff-mark" style={{ left: `${PROPOSAL_THRESHOLD}%` }} title="고백 가능선" />
-              </div>
-              <div className="al-aff-row second">
-                <span className="al-aff-lbl rev">♥ {peerName} → {speakerName}</span>
-                <span className="al-aff-stage">{affinityStage(peerToMine)} · {peerToMine}</span>
-              </div>
-              <div className="al-aff-bar">
-                <div className={`al-aff-fill rev ${peerToMine < 0 ? "neg" : ""}`} style={{ width: `${Math.abs(peerToMine)}%` }} />
-                <div className="al-aff-mark" style={{ left: `${PROPOSAL_THRESHOLD}%` }} />
-              </div>
+          {showGauge && (
+            <div className={`al-affinity ${peer.asOwner ? "owner" : ""}`}>
+              <button className="al-aff-toggle" onClick={() => setAffinityOpen((v) => !v)}>
+                <span>호감도</span>
+                <b>{peer.asOwner ? `${attachStage(ownerVal)} · ${ownerVal}` : `${affinityStage(peerToMine)} · ${peerToMine}`}</b>
+                <i>{affinityOpen ? "접기" : "펼치기"}</i>
+              </button>
+              {affinityOpen && (
+                <div className="al-aff-content">
+                  {peer.asOwner && (
+                    <>
+                      <div className="al-aff-top">
+                        <span className="al-aff-lbl">🤍 {peerName} → 나</span>
+                        <span className="al-aff-stage">{attachStage(ownerVal)} · {ownerVal}</span>
+                      </div>
+                      <div className="al-aff-bar"><div className={`al-aff-fill ${ownerVal < 0 ? "neg" : ""}`} style={{ width: `${Math.abs(ownerVal)}%` }} /></div>
+                    </>
+                  )}
+                  {!peer.asOwner && activePersona && (
+                    <>
+                      <div className="al-aff-row">
+                        <span className="al-aff-lbl rev">♥ {peerName} → {speakerName} <span className="al-aff-note">(가면이라 {speakerName}는 빠지지 않음)</span></span>
+                        <span className="al-aff-stage">{affinityStage(peerToMine)} · {peerToMine}</span>
+                      </div>
+                      <div className="al-aff-bar">
+                        <div className={`al-aff-fill rev ${peerToMine < 0 ? "neg" : ""}`} style={{ width: `${Math.abs(peerToMine)}%` }} />
+                        <div className="al-aff-mark" style={{ left: `${PROPOSAL_THRESHOLD}%` }} />
+                      </div>
+                    </>
+                  )}
+                  {!peer.asOwner && !activePersona && (
+                    <>
+                      <div className="al-aff-row">
+                        <span className="al-aff-lbl">♥ {speakerName} → {peerName}</span>
+                        <span className="al-aff-stage">{affinityStage(mineToPeer)} · {mineToPeer}</span>
+                      </div>
+                      <div className="al-aff-bar">
+                        <div className={`al-aff-fill ${mineToPeer < 0 ? "neg" : ""}`} style={{ width: `${Math.abs(mineToPeer)}%` }} />
+                        <div className="al-aff-mark" style={{ left: `${PROPOSAL_THRESHOLD}%` }} title="고백 가능선" />
+                      </div>
+                      <div className="al-aff-row second">
+                        <span className="al-aff-lbl rev">♥ {peerName} → {speakerName}</span>
+                        <span className="al-aff-stage">{affinityStage(peerToMine)} · {peerToMine}</span>
+                      </div>
+                      <div className="al-aff-bar">
+                        <div className={`al-aff-fill rev ${peerToMine < 0 ? "neg" : ""}`} style={{ width: `${Math.abs(peerToMine)}%` }} />
+                        <div className="al-aff-mark" style={{ left: `${PROPOSAL_THRESHOLD}%` }} />
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -3457,6 +3526,32 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
         </div>
       )}
 
+      {canUseApp && publicProfile && (
+        <div className="al-modal-bg" onClick={() => setPublicProfile(null)}>
+          <div className="al-public-profile" onClick={(e) => e.stopPropagation()}>
+            <button className="al-public-back" onClick={() => setPublicProfile(null)}>‹</button>
+            <div className="al-public-banner" />
+            <div className="al-public-avatar">{publicProfile.name?.trim()[0] || "?"}</div>
+            <div className="al-public-body">
+              <div className="al-public-main">
+                <h3>{publicProfile.name}</h3>
+                <span>@{publicProfile.handle || publicProfile.name?.replace(/\s/g, "").toLowerCase()}</span>
+              </div>
+              <p className="al-public-age">{publicProfile.age || "설정 비공개"}</p>
+              {publicProfile.surface && <p className="al-public-line">{publicProfile.surface}</p>}
+              {publicProfile.persona && <p className="al-public-desc">{publicProfile.persona}</p>}
+              <div className="al-public-stats">
+                <b>{isFollowing(publicProfile.id) ? 1 : 0}</b> 팔로잉
+                <b>{(publicProfile.shared ? (followerCounts[publicProfile.sharedId] || 0) : baseFollowerCount(publicProfile.name || "")).toLocaleString()}</b> 팔로워
+              </div>
+              <button className={`al-public-follow ${isFollowing(publicProfile.id) ? "on" : ""}`} onClick={() => toggleFollow(publicProfile)}>
+                {isFollowing(publicProfile.id) ? "팔로잉 취소" : "+ 팔로우"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {canUseApp && personaDraft && (
         <div className="al-modal-bg" onClick={() => setPersonaDraft(null)}>
           <div className="al-modal" onClick={(e) => e.stopPropagation()}>
@@ -3473,8 +3568,7 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
             <div className="al-pd-btns">
               {personaDraft.id && (
                 <button className="al-pd-del" onClick={() => {
-                  setPersonas((ps) => ps.filter((p) => p.id !== personaDraft.id));
-                  if (speakAs === `p:${personaDraft.id}`) setSpeakAs("char");
+                  deletePersona(personaDraft.id);
                   setPersonaDraft(null);
                 }}>삭제</button>
               )}
@@ -3992,8 +4086,9 @@ body{ margin:0; }
 .al-pm-head span{ color:var(--soft); font-weight:600; }
 .al-pm-desc{ font-size:12px; color:var(--soft); margin:5px 0 12px; line-height:1.5; }
 .al-pm-list{ display:flex; flex-direction:column; gap:8px; }
+.al-pm-row{ display:flex; align-items:stretch; gap:8px; }
 .al-pm-card{ display:flex; gap:11px; align-items:center; background:#16141c; border:1px solid var(--line);
-  border-radius:12px; padding:11px; cursor:pointer; text-align:left; }
+  border-radius:12px; padding:11px; cursor:pointer; text-align:left; flex:1; min-width:0; }
 .al-pm-card:hover{ border-color:#5a4520; }
 .al-pm-av{ width:38px; height:38px; flex-shrink:0; border-radius:50%; font-size:16px; font-weight:800;
   display:flex; align-items:center; justify-content:center; color:#fff; background:linear-gradient(135deg,#ffd27a,#e8a040); }
@@ -4001,7 +4096,11 @@ body{ margin:0; }
 .al-pm-name{ font-size:14px; font-weight:800; color:var(--ink); }
 .al-pm-sub{ font-size:11.5px; color:var(--soft); }
 .al-pm-add{ padding:11px; border-radius:12px; cursor:pointer; font-family:inherit; font-size:13px; font-weight:700;
-  border:1px dashed #5a4520; background:#1a1610; color:#ffd27a; }.al-intervene-btn{ width:100%; padding:9px; border-radius:10px; cursor:pointer; font-family:inherit;
+  border:1px dashed #5a4520; background:#1a1610; color:#ffd27a; }
+.al-pm-del-mini{ flex:0 0 auto; padding:0 12px; border-radius:12px; cursor:pointer; font-family:inherit;
+  font-size:12px; font-weight:900; color:#ff9aa9; background:#25151b; border:1px solid #5c2736; }
+.al-pm-del-mini:hover{ border-color:#ff7c95; color:#ffd5dc; }
+.al-intervene-btn{ width:100%; padding:9px; border-radius:10px; cursor:pointer; font-family:inherit;
   font-size:12px; font-weight:700; color:#9aa0b0; background:#16161c; border:1px dashed #3a3a48; }
 .al-intervene-btn:hover{ color:#c8b3ff; border-color:var(--accent); }
 .al-intervene-btn.on{ color:#ffd27a; background:#241d10; border-style:solid; border-color:#5a4520; }
@@ -4013,7 +4112,13 @@ body{ margin:0; }
 .al-owner-entry b{ color:#fff; }
 /* 호감도 게이지 */
 .al-affinity{ margin:10px 14px 8px; padding:12px 13px; border:1px solid #4a3650; border-radius:14px;
-  background:linear-gradient(135deg,#251b2d,#1b1a23); box-shadow:0 10px 28px -22px #000; }
+  background:linear-gradient(135deg,#2b1c31,#181923); box-shadow:0 10px 28px -22px #000, inset 0 0 0 1px rgba(255,255,255,.03); }
+.al-aff-toggle{ width:100%; display:grid; grid-template-columns:1fr auto auto; align-items:center; gap:8px;
+  border:none; background:transparent; color:var(--ink); padding:0; cursor:pointer; font-family:inherit; text-align:left; }
+.al-aff-toggle span{ font-size:13px; font-weight:950; color:#ffd7ec; }
+.al-aff-toggle b{ font-size:11.5px; color:#fff; background:#4a2c42; border:1px solid #6a3c5a; border-radius:999px; padding:3px 8px; }
+.al-aff-toggle i{ font-style:normal; font-size:11px; color:#b7a8c4; }
+.al-aff-content{ margin-top:11px; }
 .al-aff-top{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:5px; }
 .al-aff-row{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:5px; }
 .al-aff-row.second{ margin-top:9px; }
@@ -4130,8 +4235,13 @@ body{ margin:0; }
 .al-acccard-handle{ font-size:12.5px; color:var(--soft); }
 .al-acccard-rel{ font-size:11.5px; color:var(--accent2); margin-top:2px; }
 .al-acccard-count{ font-size:11.5px; color:var(--soft); flex-shrink:0; }
+.al-acc-actions{ display:flex; flex-direction:column; gap:6px; flex-shrink:0; align-self:stretch; }
+.al-accedit{ flex:1; min-width:52px; border:1px solid #4d3d72; border-radius:10px; cursor:pointer;
+  background:#201932; color:#c8b3ff; font-family:inherit; font-size:12px; font-weight:900; }
+.al-accedit:hover{ background:#2a2140; color:#fff; border-color:var(--accent); }
 .al-accdel{ flex-shrink:0; align-self:stretch; min-width:52px; border:1px solid #5a2632; border-radius:10px; cursor:pointer;
   background:#251018; color:#ff9aaa; font-family:inherit; font-size:12px; font-weight:800; }
+.al-acc-actions .al-accdel{ flex:1; align-self:auto; }
 .al-accdel:hover{ background:#3a1522; color:#fff; border-color:#ff5d73; }
 .al-accadd{ padding:15px; cursor:pointer; font-family:inherit; font-size:14px; font-weight:700;
   color:var(--accent); background:#16121f; border:1px dashed #3a3550; border-radius:14px; transition:.16s; }
@@ -4182,6 +4292,23 @@ body{ margin:0; }
   background:#241d35; color:#e8ddff; font-size:12px; font-weight:800; display:flex; align-items:center; justify-content:space-between; gap:8px; }
 .al-disc-focus button{ border:none; border-radius:9px; padding:7px 9px; cursor:pointer; font-family:inherit; font-size:11px; font-weight:900;
   color:#1b1526; background:#d8cbff; }
+.al-following-panel{ margin:0 14px 12px; padding:12px; border:1px solid #3d344d; border-radius:14px;
+  background:#171420; }
+.al-following-head{ display:flex; justify-content:space-between; align-items:center; margin-bottom:9px;
+  font-size:13px; font-weight:900; color:#d9ccff; }
+.al-following-head b{ color:#fff; background:#2a2440; border:1px solid #51436b; border-radius:999px; padding:2px 8px; }
+.al-following-list{ display:flex; flex-direction:column; gap:8px; max-height:190px; overflow:auto; }
+.al-following-card{ display:flex; align-items:center; gap:8px; padding:8px; border:1px solid #302b3a; border-radius:12px;
+  background:#111018; }
+.al-following-main{ flex:1; min-width:0; display:flex; align-items:center; gap:9px; background:none; border:none;
+  color:var(--ink); cursor:pointer; font-family:inherit; text-align:left; }
+.al-following-av{ width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  color:#fff; font-weight:900; background:linear-gradient(135deg,var(--accent),var(--accent2)); }
+.al-following-info{ min-width:0; display:flex; flex-direction:column; gap:1px; }
+.al-following-info b{ font-size:13px; }
+.al-following-info small{ font-size:11px; color:var(--soft); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.al-unfollow{ flex-shrink:0; padding:7px 9px; border-radius:9px; cursor:pointer; font-family:inherit; font-size:11.5px;
+  font-weight:900; color:#ffb0bd; background:#25151b; border:1px solid #5c2736; }
 .al-disc-list{ flex:1; overflow-y:auto; padding:0 14px 14px; display:flex; flex-direction:column; gap:10px; }
 .al-disc-none{ text-align:center; color:var(--soft); font-size:13px; padding:30px 0; }
 .al-disc-card{ display:flex; gap:11px; align-items:flex-start; background:#16141c; border:1px solid var(--line);
@@ -4189,10 +4316,11 @@ body{ margin:0; }
 .al-disc-card.on{ border-color:#5a4570; background:#1a1626; }
 .al-disc-av{ width:42px; height:42px; flex-shrink:0; border-radius:50%; font-size:18px; font-weight:800;
   display:flex; align-items:center; justify-content:center; color:#fff;
-  background:linear-gradient(135deg,var(--accent),#9d6bff); }
+  background:linear-gradient(135deg,var(--accent),#9d6bff); border:none; cursor:pointer; font-family:inherit; }
 .al-disc-body{ flex:1; min-width:0; }
 .al-disc-top{ display:flex; align-items:baseline; gap:7px; }
-.al-disc-name{ font-size:14px; font-weight:800; color:var(--ink); }
+.al-disc-name{ font-size:14px; font-weight:800; color:var(--ink); background:none; border:none; padding:0; cursor:pointer; font-family:inherit; }
+.al-disc-name:hover{ color:#d9ccff; text-decoration:underline; text-underline-offset:3px; }
 .al-disc-owner{ font-size:11px; color:var(--soft); }
 .al-disc-persona{ font-size:12px; color:#c4c0cf; margin:4px 0 6px; line-height:1.45; }
 .al-disc-tags{ display:flex; flex-wrap:wrap; gap:5px; }
@@ -4202,6 +4330,26 @@ body{ margin:0; }
 .al-disc-follow:hover{ border-color:var(--accent); }
 .al-disc-follow.on{ background:#2a2440; color:#fff; border-color:#5a4570; }
 .al-disc-foot{ padding:10px 14px; font-size:11.5px; color:var(--soft); text-align:center; border-top:1px solid var(--line); }
+.al-public-profile{ position:relative; width:min(390px,calc(100vw - 34px)); overflow:hidden; border-radius:18px;
+  border:1px solid #343040; background:#17161e; color:var(--ink); box-shadow:0 30px 80px rgba(0,0,0,.48); }
+.al-public-back{ position:absolute; z-index:2; top:12px; left:12px; width:34px; height:34px; border-radius:50%;
+  border:none; cursor:pointer; color:#fff; background:#111018; font-size:24px; line-height:1; }
+.al-public-banner{ height:96px; background:linear-gradient(120deg,#2b2142,#4a1f3a 55%,#263044); }
+.al-public-avatar{ width:70px; height:70px; margin:-35px 0 0 18px; border:4px solid #17161e; border-radius:50%;
+  display:flex; align-items:center; justify-content:center; color:#fff; font-size:30px; font-weight:950;
+  background:linear-gradient(135deg,var(--accent),var(--accent2)); }
+.al-public-body{ padding:12px 16px 17px; }
+.al-public-main h3{ margin:0; font-size:23px; line-height:1.1; }
+.al-public-main span{ color:var(--soft); font-size:13px; }
+.al-public-age{ display:inline-flex; margin:10px 0 6px; padding:4px 9px; border-radius:999px;
+  color:#cdbbff; background:#211b34; border:1px solid #493b68; font-size:12px; font-weight:800; }
+.al-public-line{ margin:5px 0; color:#d8d3e2; font-size:13px; line-height:1.5; }
+.al-public-desc{ margin:8px 0 12px; color:#e8e4ee; font-size:13px; line-height:1.6; }
+.al-public-stats{ display:flex; gap:12px; color:var(--soft); font-size:12px; margin-bottom:13px; }
+.al-public-stats b{ color:#fff; }
+.al-public-follow{ width:100%; min-height:42px; border:none; border-radius:14px; cursor:pointer; font-family:inherit;
+  font-size:14px; font-weight:950; color:#fff; background:linear-gradient(135deg,var(--accent),var(--accent2)); }
+.al-public-follow.on{ background:#26212e; color:#ffb0bd; border:1px solid #5c2736; }
 .al-newchat-target.ext{ border-style:dashed; }
 .al-nt-ext{ font-size:10px; color:#9eddb0; margin-left:auto; }
 /* 팔로우 통계 */
