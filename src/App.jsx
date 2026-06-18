@@ -245,7 +245,6 @@ function App() {
   const wakingRef = useRef(false);
   const profileLoadedRef = useRef(false);
   const saveTimerRef = useRef(null);
-  const oauthHandledRef = useRef(false);
 
   const update = (k, v) => setChar((c) => ({ ...c, [k]: v }));
 
@@ -651,38 +650,31 @@ function App() {
     let alive = true;
     const url = new URL(window.location.href);
     const oauthCode = url.searchParams.get("code");
-    if (oauthCode && !oauthHandledRef.current) {
-      oauthHandledRef.current = true;
+    const hasOAuthHash = window.location.hash.includes("access_token") || window.location.hash.includes("error");
+    const hasOAuthCallback = Boolean(oauthCode || hasOAuthHash);
+    if (hasOAuthCallback) {
       setAuthLoading(true);
-      supabase.auth.exchangeCodeForSession(oauthCode)
-        .then(({ data, error }) => {
-          if (!alive) return;
-          if (error) throw error;
-          setSession(data.session || null);
-          window.history.replaceState({}, "", window.location.pathname);
-        })
-        .catch((error) => {
-          if (!alive) return;
-          setAuthMessage(`소셜 로그인 완료 처리 실패: ${error.message || String(error)}`);
-          setSession(null);
-        })
-        .finally(() => {
-          if (!alive) return;
-          setAuthLoading(false);
-        });
     }
     supabase.auth.getSession().then(({ data }) => {
       if (!alive) return;
       setSession(data.session || null);
-      if (!oauthCode) setAuthLoading(false);
+      if (!hasOAuthCallback || data.session) setAuthLoading(false);
     }).catch((error) => {
       if (!alive) return;
       setAuthMessage(error.message || "로그인 상태 확인에 실패했어.");
-      if (!oauthCode) setAuthLoading(false);
+      setAuthLoading(false);
       setProfileLoading(false);
     });
+    const oauthFallback = hasOAuthCallback ? setTimeout(() => {
+      if (!alive) return;
+      setAuthLoading(false);
+      setProfileLoading(false);
+      setAuthMessage("소셜 로그인 처리가 끝나지 않았어. 다시 시도해줘.");
+      window.history.replaceState({}, "", window.location.pathname);
+    }, 9000) : null;
     const { data: sub } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (event === "PASSWORD_RECOVERY") setPasswordRecoveryOpen(true);
+      if (nextSession && hasOAuthCallback) window.history.replaceState({}, "", window.location.pathname);
       profileLoadedRef.current = false;
       setStateReady(false);
       setProfileLoading(Boolean(nextSession));
@@ -691,6 +683,7 @@ function App() {
     });
     return () => {
       alive = false;
+      if (oauthFallback) clearTimeout(oauthFallback);
       sub.subscription.unsubscribe();
     };
   }, []); // eslint-disable-line
@@ -737,7 +730,7 @@ function App() {
         if (!data) {
           const { error: insertError } = await supabase.from("alive_profiles").upsert({
             id: session.user.id,
-            email: session.user.email,
+            email: session.user.email || "",
             display_name: defaultName,
             onboarded: false,
             app_state: blankAppState(defaultName),
