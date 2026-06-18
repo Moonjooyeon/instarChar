@@ -19,6 +19,7 @@ const BUILD_MARK = typeof __ALIVE_BUILD__ !== "undefined" ? __ALIVE_BUILD__ : "l
 const LOCAL_STATE_KEY = "alive_app_state_v1";
 const API_LIMIT_MESSAGE = "오늘 한정된 API는 다 사용했어요! 다음에 만나요.";
 const RENDERABLE_STEPS = new Set(["home", "dump", "confirm", "feed", "discover", "dmlist", "dm"]);
+const X_LOGIN_ENABLED = false;
 
 function normalizeSavedStep(savedStep, hasActiveAccount) {
   if (!RENDERABLE_STEPS.has(savedStep)) return "home";
@@ -423,6 +424,10 @@ function App() {
 
   async function signInWithProvider(provider) {
     if (!supabase) return;
+    if (provider === "x" && !X_LOGIN_ENABLED) {
+      setAuthMessage("X 로그인은 X 개발자 콘솔 설정 확인 후 다시 열게. 지금은 Kakao/Google/이메일 로그인을 써줘.");
+      return;
+    }
     setAuthLoading(true);
     setAuthMessage("");
     const { error } = await supabase.auth.signInWithOAuth({
@@ -2379,8 +2384,9 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
             <div className="al-social-login">
               <button onClick={() => signInWithProvider("kakao")} disabled={authLoading}>Kakao로 계속</button>
               <button onClick={() => signInWithProvider("google")} disabled={authLoading}>Google로 계속</button>
-              <button onClick={() => signInWithProvider("x")} disabled={authLoading}>X로 계속</button>
+              <button className="is-disabled" onClick={() => signInWithProvider("x")} disabled={authLoading}>X 설정 필요</button>
             </div>
+            <p className="al-auth-note">X 로그인은 X 개발자 콘솔 권한 확인 후 열 예정이야.</p>
             <div className="al-auth-divider"><span>또는 이메일로</span></div>
             <input className="al-auth-input" type="email" value={authEmail}
               onChange={(e) => setAuthEmail(e.target.value)} placeholder="email@example.com"
@@ -4056,7 +4062,9 @@ body{ margin:0; }
   background:#fee500; color:#191600; font-family:inherit; font-size:14px; font-weight:900; }
 .al-social-login button:nth-child(2){ background:#f7f5fb; border-color:#e8e3f1; color:#17151d; }
 .al-social-login button:nth-child(3){ background:#111; border-color:#333; color:#fff; }
+.al-social-login button.is-disabled{ background:#24212b; border-color:#3a3545; color:#8e8899; }
 .al-social-login button:disabled{ opacity:.45; cursor:default; }
+.al-auth-note{ margin:0 0 6px; color:#8f899a; font-size:11.5px; line-height:1.5; }
 .al-auth-divider{ width:100%; display:flex; align-items:center; gap:10px; margin:10px 0 2px; color:var(--soft); font-size:11.5px; }
 .al-auth-divider:before,.al-auth-divider:after{ content:""; flex:1; height:1px; background:#363241; }
 .al-auth-input{ width:100%; background:#1a1a20; border:1px solid var(--line); border-radius:12px;
