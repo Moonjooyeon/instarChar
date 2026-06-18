@@ -850,7 +850,8 @@ function App() {
 
   useEffect(() => {
     if (!canUseApp) return;
-    if (!RENDERABLE_STEPS.has(step) || (step === "dm" && !peer) || (!activeId && step !== "home")) {
+    const needsActiveCharacter = ["feed", "discover", "dmlist", "dm"].includes(step);
+    if (!RENDERABLE_STEPS.has(step) || (step === "dm" && !peer) || (needsActiveCharacter && !activeId)) {
       setPeer(null);
       setStep("home");
     }
@@ -1254,7 +1255,7 @@ ${formatRule}${ANTI_REPEAT_RULES}${recentLinesBlock(posts.slice(0, 6).map((p) =>
 
   // confirm에서 깨우기 → 새 계정으로 저장하고 피드로
   function wakeCharacter() {
-    if (wakingRef.current || activeId) return;
+    if (wakingRef.current) return;
     wakingRef.current = true;
     setWaking(true);
     const id = "acc_" + Date.now();
