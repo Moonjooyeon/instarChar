@@ -245,6 +245,7 @@ function App() {
   const wakingRef = useRef(false);
   const profileLoadedRef = useRef(false);
   const saveTimerRef = useRef(null);
+  const oauthHandledRef = useRef(false);
 
   const update = (k, v) => setChar((c) => ({ ...c, [k]: v }));
 
@@ -617,6 +618,20 @@ function App() {
 
   const canUseApp = !hasSupabaseConfig || (session && stateReady);
   const authBusy = hasSupabaseConfig && (authLoading || profileLoading || (session && !stateReady));
+  const hasMainScreen = authBusy || (hasSupabaseConfig && !authLoading && !session) || canUseApp;
+  const showRecoveryScreen = !hasMainScreen;
+
+  async function recoverAuthScreen() {
+    if (supabase) {
+      await supabase.auth.signOut();
+    }
+    setSession(null);
+    resetRuntimeState("");
+    setAuthLoading(false);
+    setProfileLoading(false);
+    setStateReady(false);
+    setAuthMessage("로그인 상태를 초기화했어. 다시 로그인해줘.");
+  }
 
   useEffect(() => {
     if (!hasSupabaseConfig || !supabase) {
@@ -634,14 +649,36 @@ function App() {
     }
 
     let alive = true;
+    const url = new URL(window.location.href);
+    const oauthCode = url.searchParams.get("code");
+    if (oauthCode && !oauthHandledRef.current) {
+      oauthHandledRef.current = true;
+      setAuthLoading(true);
+      supabase.auth.exchangeCodeForSession(oauthCode)
+        .then(({ data, error }) => {
+          if (!alive) return;
+          if (error) throw error;
+          setSession(data.session || null);
+          window.history.replaceState({}, "", window.location.pathname);
+        })
+        .catch((error) => {
+          if (!alive) return;
+          setAuthMessage(`소셜 로그인 완료 처리 실패: ${error.message || String(error)}`);
+          setSession(null);
+        })
+        .finally(() => {
+          if (!alive) return;
+          setAuthLoading(false);
+        });
+    }
     supabase.auth.getSession().then(({ data }) => {
       if (!alive) return;
       setSession(data.session || null);
-      setAuthLoading(false);
+      if (!oauthCode) setAuthLoading(false);
     }).catch((error) => {
       if (!alive) return;
       setAuthMessage(error.message || "로그인 상태 확인에 실패했어.");
-      setAuthLoading(false);
+      if (!oauthCode) setAuthLoading(false);
       setProfileLoading(false);
     });
     const { data: sub } = supabase.auth.onAuthStateChange((event, nextSession) => {
@@ -3439,6 +3476,18 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
             {(char.corrections || []).length > 0 && (
               <p className="al-fixcount">지금까지 교정 {(char.corrections || []).length}개 — 다음 생성부터 반영돼</p>
             )}
+          </div>
+        </div>
+      )}
+
+      {showRecoveryScreen && (
+        <div className="al-phone">
+          <div className="al-auth">
+            <span className="al-spark">✶</span>
+            <h1>로그인 확인이 멈췄어</h1>
+            <p>소셜 로그인에서 돌아오는 중 상태가 꼬였어. 다시 로그인하면 바로 복구돼.</p>
+            <button className="al-auth-btn" onClick={recoverAuthScreen}>로그인 다시 하기</button>
+            {authMessage && <p className="al-auth-msg">{authMessage}</p>}
           </div>
         </div>
       )}
