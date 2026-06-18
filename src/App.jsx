@@ -2267,6 +2267,7 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
             <div className="al-social-login">
               <button onClick={() => signInWithProvider("google")} disabled={authLoading}>Google로 계속</button>
               <button onClick={() => signInWithProvider("kakao")} disabled={authLoading}>Kakao로 계속</button>
+              <button onClick={() => signInWithProvider("twitter")} disabled={authLoading}>X로 계속</button>
             </div>
             <div className="al-auth-divider"><span>또는 이메일로</span></div>
             <input className="al-auth-input" type="email" value={authEmail}
@@ -3925,10 +3926,11 @@ body{ margin:0; }
 .al-auth-tabs button{ flex:1; padding:9px; border:none; border-radius:9px; cursor:pointer; font-family:inherit;
   font-size:13px; font-weight:800; color:var(--soft); background:transparent; }
 .al-auth-tabs button.on{ color:#fff; background:linear-gradient(135deg,var(--accent),var(--accent2)); }
-.al-social-login{ width:100%; display:flex; gap:8px; margin:10px 0 4px; }
-.al-social-login button{ flex:1; min-height:42px; border-radius:12px; border:1px solid #4a4654; cursor:pointer;
+.al-social-login{ width:100%; display:flex; flex-wrap:wrap; gap:8px; margin:10px 0 4px; }
+.al-social-login button{ flex:1 1 30%; min-width:96px; min-height:42px; border-radius:12px; border:1px solid #4a4654; cursor:pointer;
   background:#f7f5fb; color:#17151d; font-family:inherit; font-size:13px; font-weight:900; }
 .al-social-login button:nth-child(2){ background:#fee500; border-color:#fee500; color:#191600; }
+.al-social-login button:nth-child(3){ background:#111; border-color:#333; color:#fff; }
 .al-social-login button:disabled{ opacity:.45; cursor:default; }
 .al-auth-divider{ width:100%; display:flex; align-items:center; gap:10px; margin:10px 0 2px; color:var(--soft); font-size:11.5px; }
 .al-auth-divider:before,.al-auth-divider:after{ content:""; flex:1; height:1px; background:#363241; }
