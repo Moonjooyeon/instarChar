@@ -18,6 +18,15 @@ const MODEL_UTIL = "claude-haiku-4-5-20251001";
 const BUILD_MARK = typeof __ALIVE_BUILD__ !== "undefined" ? __ALIVE_BUILD__ : "local";
 const LOCAL_STATE_KEY = "alive_app_state_v1";
 const API_LIMIT_MESSAGE = "오늘 한정된 API는 다 사용했어요! 다음에 만나요.";
+const RENDERABLE_STEPS = new Set(["home", "dump", "confirm", "feed", "discover", "dmlist", "dm"]);
+
+function normalizeSavedStep(savedStep, hasActiveAccount) {
+  if (!RENDERABLE_STEPS.has(savedStep)) return "home";
+  if (["dump", "confirm"].includes(savedStep)) return "home";
+  if (!hasActiveAccount && savedStep !== "home") return "home";
+  if (savedStep === "dm") return "dmlist";
+  return savedStep;
+}
 
 const TONE_PRESETS = [
   { id: "calm", label: "차분/시크", hint: "말수 적고 담담함" },
@@ -283,7 +292,7 @@ function App() {
   function exportAppState() {
     return {
       version: 1,
-      step: ["dump", "confirm"].includes(step) ? "home" : step,
+      step: normalizeSavedStep(step, Boolean(activeId)),
       accounts: accountSnapshot(),
       activeId,
       char,
@@ -318,7 +327,8 @@ function App() {
     setOwnerPersona(saved.ownerPersona || "");
     setAffinity(saved.affinity || {});
     setDiscoverQuery(saved.discoverQuery || "");
-    setStep(saved.step || "home");
+    setPeer(null);
+    setStep(normalizeSavedStep(saved.step, Boolean(active)));
     feedInitRef.current = Boolean(active?.posts?.length || saved.posts?.length);
   }
 
@@ -635,7 +645,11 @@ function App() {
 
   const canUseApp = !hasSupabaseConfig || (session && stateReady);
   const authBusy = hasSupabaseConfig && (authLoading || profileLoading || (session && !stateReady));
-  const hasMainScreen = authBusy || (hasSupabaseConfig && !authLoading && !session) || canUseApp;
+  const appScreenVisible = canUseApp && (
+    ["home", "dump", "confirm", "feed", "discover", "dmlist"].includes(step)
+    || (step === "dm" && peer)
+  );
+  const hasMainScreen = authBusy || (hasSupabaseConfig && !authLoading && !session) || appScreenVisible;
   const showRecoveryScreen = !hasMainScreen;
 
   async function recoverAuthScreen() {
@@ -820,6 +834,14 @@ function App() {
     }, 700);
     return () => clearTimeout(saveTimerRef.current);
   }, [accounts, activeId, char, gallery, posts, personas, dmThreads, ownerPersona, following, affinity, discoverQuery, profileName, onboardingOpen, step, stateReady, session?.user?.id]); // eslint-disable-line
+
+  useEffect(() => {
+    if (!canUseApp) return;
+    if (!RENDERABLE_STEPS.has(step) || (step === "dm" && !peer) || (!activeId && step !== "home")) {
+      setPeer(null);
+      setStep("home");
+    }
+  }, [canUseApp, step, activeId, peer]); // eslint-disable-line
 
   useEffect(() => {
     if (canUseApp && step === "discover") loadSharedCharacters();
@@ -3516,9 +3538,10 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
         <div className="al-phone">
           <div className="al-auth">
             <span className="al-spark">✶</span>
-            <h1>로그인 확인이 멈췄어</h1>
-            <p>소셜 로그인에서 돌아오는 중 상태가 꼬였어. 다시 로그인하면 바로 복구돼.</p>
-            <button className="al-auth-btn" onClick={recoverAuthScreen}>로그인 다시 하기</button>
+            <h1>화면 복구가 필요해</h1>
+            <p>저장된 화면 위치가 꼬였어. 홈으로 돌아가거나 로그인 상태를 초기화할 수 있어.</p>
+            <button className="al-auth-btn" onClick={() => { setPeer(null); setStep("home"); setStateReady(true); }}>홈으로 돌아가기</button>
+            <button className="al-auth-linkbtn" onClick={recoverAuthScreen}>로그인 상태 초기화</button>
             {authMessage && <p className="al-auth-msg">{authMessage}</p>}
           </div>
         </div>
@@ -4041,6 +4064,8 @@ body{ margin:0; }
 .al-auth-btn{ width:100%; margin-top:10px; padding:13px; border:none; border-radius:12px; cursor:pointer;
   font-family:inherit; font-size:14px; font-weight:800; color:#fff; background:linear-gradient(135deg,var(--accent),var(--accent2)); }
 .al-auth-btn:disabled{ background:#2a2a32; color:#5a5a64; cursor:default; }
+.al-auth-linkbtn{ width:100%; margin-top:9px; padding:11px; border-radius:12px; cursor:pointer; font-family:inherit;
+  font-size:13px; font-weight:800; color:#d8cbff; background:#171222; border:1px solid #3a3550; }
 .al-auth-alt{ width:100%; display:flex; gap:8px; margin-top:10px; }
 .al-auth-alt button{ flex:1; min-height:34px; border:1px solid #3a3550; border-radius:11px; cursor:pointer;
   font-family:inherit; font-size:11.5px; font-weight:800; color:#d8cbff; background:#171222; }
