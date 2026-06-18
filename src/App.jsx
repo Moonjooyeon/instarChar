@@ -728,10 +728,22 @@ function App() {
     const { data: sub } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (event === "PASSWORD_RECOVERY") setPasswordRecoveryOpen(true);
       if (nextSession && hasOAuthCallback) window.history.replaceState({}, "", window.location.pathname);
-      profileLoadedRef.current = false;
-      setStateReady(false);
-      setProfileLoading(Boolean(nextSession));
-      setSession(nextSession);
+      setSession((prevSession) => {
+        const sameUser = prevSession?.user?.id && nextSession?.user?.id === prevSession.user.id;
+        if (!nextSession) {
+          profileLoadedRef.current = false;
+          setStateReady(false);
+          setProfileLoading(false);
+        } else if (sameUser && profileLoadedRef.current) {
+          setStateReady(true);
+          setProfileLoading(false);
+        } else {
+          profileLoadedRef.current = false;
+          setStateReady(false);
+          setProfileLoading(true);
+        }
+        return nextSession;
+      });
       setAuthLoading(false);
     });
     return () => {
@@ -843,6 +855,33 @@ function App() {
       setStep("home");
     }
   }, [canUseApp, step, activeId, peer]); // eslint-disable-line
+
+  useEffect(() => {
+    if (!hasSupabaseConfig || !supabase || !authBusy) return;
+    const timer = setTimeout(async () => {
+      const { data, error } = await supabase.auth.getSession();
+      if (error) {
+        setAuthMessage(error.message || "로그인 상태 확인에 실패했어.");
+        setAuthLoading(false);
+        setProfileLoading(false);
+        return;
+      }
+      if (!data.session) {
+        setSession(null);
+        setAuthLoading(false);
+        setProfileLoading(false);
+        setStateReady(false);
+        return;
+      }
+      setSession(data.session);
+      setAuthLoading(false);
+      if (profileLoadedRef.current) {
+        setProfileLoading(false);
+        setStateReady(true);
+      }
+    }, 8000);
+    return () => clearTimeout(timer);
+  }, [authBusy]); // eslint-disable-line
 
   useEffect(() => {
     if (canUseApp && step === "discover") loadSharedCharacters();
