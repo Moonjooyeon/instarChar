@@ -87,7 +87,7 @@ npm run app:open:android
 - **"GEMINI_API_KEY not set"** → 환경변수 안 넣었거나, 넣고 재배포 안 함. 환경변수 바꾸면 재배포 필요.
 - **빈 응답 / MAX_TOKENS** → 서버가 JSON 모드 또는 MAX_TOKENS 빈 응답을 더 큰 토큰으로 한 번 재시도한다. 그래도 실패하면 화면에 finishReason이 표시된다.
 - **429 Too Many Requests** → 서버가 429/503 응답에 짧은 exponential backoff 재시도를 한다. 무료 티어 한계가 계속 걸리면 Google Cloud 결제 연결로 Tier 1을 올려야 한다.
-- **로그인 링크가 안 옴** → Supabase Auth URL/Redirect URL 설정과 Vercel 환경변수 `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`를 확인.
+- **로그인 링크/비밀번호 재설정 메일이 안 옴** → Supabase Auth URL/Redirect URL 설정과 Vercel 환경변수 `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`를 확인.
 - **DB 저장 실패** → `supabase-schema.sql`을 실행했는지, RLS policy가 생겼는지 확인.
 - **로컬 테스트** → `npm install` 후 `.env.local` 파일을 만들고 `GEMINI_API_KEY=...`, `VITE_SUPABASE_URL=...`, `VITE_SUPABASE_ANON_KEY=...`를 넣은 뒤 `npm run dev`. 현재 Vite 설정에 로컬 `/api/generate` shim이 있어 `vercel dev` 없이도 API가 돈다.
 - **사용량 한도 주의** → 현재 한도는 Vercel 서버 인스턴스 메모리 기반이라 재시작/스케일아웃 시 리셋될 수 있다. 실제 과금 방어는 Supabase 같은 DB에 usage를 저장하는 4단계에서 강화한다.
@@ -95,7 +95,7 @@ npm run app:open:android
 ## 현재 구현 상태
 - 계정별 저장: Supabase `alive_profiles.app_state` JSON에 캐릭터/피드/DM/로어북/페르소나 저장.
 - 캐릭터 공유: `alive_shared_characters`에 공개 캐릭터를 저장하고 링크 복사/탐색 검색 지원.
-- 로그인: Supabase 이메일/비밀번호 회원가입 및 로그인.
+- 로그인: Supabase 이메일/비밀번호 회원가입·로그인, 이메일 링크 간편 로그인, 비밀번호 재설정.
 - 온보딩: 첫 로그인 시 닉네임 입력.
 - 탐색: 이미 팔로잉한 캐릭터는 숨기고, 다른 사용자가 공유한 캐릭터와 사용자명을 검색.
 - 댓글: 자동 댓글은 댓글 작성자가 원글 작성자를 팔로잉하거나 맞팔로 판단될 때만 생성.
