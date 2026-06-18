@@ -2267,7 +2267,7 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
             <div className="al-social-login">
               <button onClick={() => signInWithProvider("google")} disabled={authLoading}>Google로 계속</button>
               <button onClick={() => signInWithProvider("kakao")} disabled={authLoading}>Kakao로 계속</button>
-              <button onClick={() => signInWithProvider("twitter")} disabled={authLoading}>X로 계속</button>
+              <button onClick={() => signInWithProvider("x")} disabled={authLoading}>X로 계속</button>
             </div>
             <div className="al-auth-divider"><span>또는 이메일로</span></div>
             <input className="al-auth-input" type="email" value={authEmail}
