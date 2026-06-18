@@ -336,6 +336,23 @@ function App() {
     setFollowerCounts({});
   }
 
+  function clearLocalAuthStorage() {
+    try {
+      Object.keys(localStorage).forEach((key) => {
+        if (key.startsWith("sb-") || key.includes("supabase") || key === LOCAL_STATE_KEY) {
+          localStorage.removeItem(key);
+        }
+      });
+      Object.keys(sessionStorage).forEach((key) => {
+        if (key.startsWith("sb-") || key.includes("supabase")) {
+          sessionStorage.removeItem(key);
+        }
+      });
+    } catch (e) {
+      console.warn("로그인 저장값 초기화 실패:", e);
+    }
+  }
+
   async function submitAuth() {
     const email = authEmail.trim();
     const password = authPassword;
@@ -426,6 +443,7 @@ function App() {
   async function signOut() {
     if (!supabase) return;
     await supabase.auth.signOut();
+    clearLocalAuthStorage();
     setSession(null);
     setStateReady(false);
     resetRuntimeState("");
@@ -624,6 +642,7 @@ function App() {
     if (supabase) {
       await supabase.auth.signOut();
     }
+    clearLocalAuthStorage();
     setSession(null);
     resetRuntimeState("");
     setAuthLoading(false);
@@ -649,6 +668,19 @@ function App() {
 
     let alive = true;
     const url = new URL(window.location.href);
+    const wantsAuthReset = url.searchParams.get("resetAuth") === "1" || url.searchParams.get("clearAuth") === "1";
+    if (wantsAuthReset) {
+      clearLocalAuthStorage();
+      supabase.auth.signOut().catch(() => {});
+      window.history.replaceState({}, "", window.location.pathname);
+      setSession(null);
+      resetRuntimeState("");
+      setAuthLoading(false);
+      setProfileLoading(false);
+      setStateReady(false);
+      setAuthMessage("꼬인 로그인 저장값을 지웠어. 다시 로그인해줘.");
+      return;
+    }
     const oauthCode = url.searchParams.get("code");
     const hasOAuthHash = window.location.hash.includes("access_token") || window.location.hash.includes("error");
     const hasOAuthCallback = Boolean(oauthCode || hasOAuthHash);
@@ -665,6 +697,12 @@ function App() {
       setAuthLoading(false);
       setProfileLoading(false);
     });
+    const initFallback = setTimeout(() => {
+      if (!alive) return;
+      setAuthLoading(false);
+      setProfileLoading(false);
+      if (!session) setAuthMessage("저장된 로그인 상태 확인이 오래 걸려. 안 뜨면 로그인 상태 초기화를 눌러줘.");
+    }, 7000);
     const oauthFallback = hasOAuthCallback ? setTimeout(() => {
       if (!alive) return;
       setAuthLoading(false);
@@ -683,6 +721,7 @@ function App() {
     });
     return () => {
       alive = false;
+      clearTimeout(initFallback);
       if (oauthFallback) clearTimeout(oauthFallback);
       sub.subscription.unsubscribe();
     };
