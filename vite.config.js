@@ -61,5 +61,10 @@ export default defineConfig(({ mode }) => {
       __ALIVE_BUILD__: JSON.stringify(process.env.VERCEL_GIT_COMMIT_SHA || process.env.VITE_ALIVE_BUILD || "local"),
     },
     plugins: [localApiPlugin(), react()],
+    server: {
+      watch: {
+        ignored: ["**/.gradle/**", "**/android/**/build/**"],
+      },
+    },
   };
 });

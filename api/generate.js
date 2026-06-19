@@ -108,6 +108,13 @@ export default async function handler(req, res) {
     if (usage.blocked) return res.status(usage.status).json(usage.body);
 
     const { model, system, messages, max_tokens } = req.body || {};
+    if (!Array.isArray(messages) || messages.length === 0) {
+      return res.status(400).json({
+        error: "BAD_REQUEST",
+        message: "messages 배열이 필요합니다.",
+      });
+    }
+
     const geminiModel = pickGeminiModel(model);
     const wantsJson = /JSON|json 객체|json으로|JSON으로|반드시 JSON/.test(system || "");
 

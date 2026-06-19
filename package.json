@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
     "preview": "vite preview",
     "app:sync": "npm run build && cap sync",
     "app:open:ios": "cap open ios",
@@ -21,6 +23,7 @@
     "@capacitor/cli": "^8.4.0",
     "@capacitor/core": "^8.4.0",
     "@capacitor/ios": "^8.4.0",
+    "@playwright/test": "^1.61.0",
     "@vitejs/plugin-react": "^4.3.1",
     "vite": "^5.4.0"
   }
