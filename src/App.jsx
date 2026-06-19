@@ -274,6 +274,7 @@ function App() {
   const [personaDraft, setPersonaDraft] = useState(null); // 편집 중 {id?, name, age, persona, speech}
   const [deleteTarget, setDeleteTarget] = useState(null); // 삭제 확인 중인 캐릭터 계정
   const [publicProfile, setPublicProfile] = useState(null); // 탐색에서 열어본 공개 캐릭터
+  const [openWorlds, setOpenWorlds] = useState({});
   const [showMemory, setShowMemory] = useState(false); // 피드에서 쌓인 기억 펼침
   const [showRelations, setShowRelations] = useState(false); // 프로필 관계 펼침
   const [followPanel, setFollowPanel] = useState(null); // null | following | followers
@@ -629,6 +630,38 @@ function App() {
       [arr[i], arr[j]] = [arr[j], arr[i]];
     }
     return arr;
+  }
+
+  function worldTextFor(c) {
+    return String(c?.world || c?.character?.world || "").trim();
+  }
+
+  function worldKeyFor(c, fallback = "current") {
+    return c?.sharedId || c?.id || c?.name || fallback;
+  }
+
+  function toggleWorld(c, fallback, event) {
+    event?.stopPropagation();
+    const key = worldKeyFor(c, fallback);
+    setOpenWorlds((prev) => ({ ...prev, [key]: !prev[key] }));
+  }
+
+  function WorldChip({ c, fallback }) {
+    const text = worldTextFor(c);
+    if (!text) return null;
+    const key = worldKeyFor(c, fallback);
+    return (
+      <button type="button" className={`al-world-chip ${openWorlds[key] ? "on" : ""}`} onClick={(e) => toggleWorld(c, fallback, e)}>
+        세계관
+      </button>
+    );
+  }
+
+  function WorldPeek({ c, fallback }) {
+    const text = worldTextFor(c);
+    const key = worldKeyFor(c, fallback);
+    if (!text || !openWorlds[key]) return null;
+    return <p className="al-world-peek">{text}</p>;
   }
 
   async function loadFollowerCountsFor(rows) {
@@ -3343,7 +3376,10 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
             <div className="al-profile-info">
               <div className="al-profile-top">
                 <div className="al-profile-top-main">
-                  <h2>{char.name}</h2>
+                  <div className="al-name-line">
+                    <h2>{char.name}</h2>
+                    <WorldChip c={char} fallback="current-character" />
+                  </div>
                   <span className="al-handle">@{char.handle || char.name.replace(/\s/g, "").toLowerCase()}</span>
                 </div>
                 <div className="al-feed-actions">
@@ -3356,6 +3392,7 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
                 {char.age && <span className="al-bio-tag">{char.age}</span>}
                 {char.surface && <span className="al-bio-tag">{char.surface}</span>}
               </p>
+              <WorldPeek c={char} fallback="current-character" />
               {char.persona && <p className="al-bio-text">{char.persona}</p>}
               {shareStatus && <p className="al-share-status">{shareStatus}</p>}
 
@@ -3758,9 +3795,11 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
                   <div className="al-disc-body">
                     <div className="al-disc-top">
                       <button className="al-disc-name" onClick={() => setPublicProfile(c)}>{c.name}</button>
+                      <WorldChip c={c} fallback={`disc-${c.id}`} />
                       <span className="al-disc-owner">{c.shared ? `${c.owner} · 공유됨` : c.owner}</span>
                       <span className="al-disc-fcount">팔로워 {(c.shared ? (followerCounts[c.sharedId] || 0) : baseFollowerCount(c.name)).toLocaleString()}</span>
                     </div>
+                    <WorldPeek c={c} fallback={`disc-${c.id}`} />
                     <p className="al-disc-persona">{c.persona}</p>
                     <div className="al-disc-tags">
                       {(c.tags || []).map((t) => <span key={t} className="al-disc-tag">#{t}</span>)}
@@ -4186,11 +4225,15 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
             <div className="al-public-avatar">{publicProfile.name?.trim()[0] || "?"}</div>
             <div className="al-public-body">
               <div className="al-public-main">
-                <h3>{publicProfile.name}</h3>
+                <div className="al-name-line">
+                  <h3>{publicProfile.name}</h3>
+                  <WorldChip c={publicProfile} fallback="public-profile" />
+                </div>
                 <span>@{publicProfile.handle || publicProfile.name?.replace(/\s/g, "").toLowerCase()}</span>
               </div>
               <p className="al-public-age">{publicProfile.age || "설정 비공개"}</p>
               {publicProfile.surface && <p className="al-public-line">{publicProfile.surface}</p>}
+              <WorldPeek c={publicProfile} fallback="public-profile" />
               {publicProfile.persona && <p className="al-public-desc">{publicProfile.persona}</p>}
               <div className="al-public-stats">
                 <b>{isFollowing(publicProfile.id) ? 1 : 0}</b> 팔로잉
@@ -4218,14 +4261,20 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
               ) : (
                 <div className="al-follow-modal-list">
                   {list.map((f) => (
-                    <button key={f.id} className="al-follow-modal-item" onClick={() => setPublicProfile(f)}>
-                      <span className="al-follow-modal-av">{f.name.trim()[0] || "?"}</span>
-                      <span className="al-follow-modal-info">
-                        <b>{f.name}</b>
-                        <small>@{f.handle || f.name.replace(/\s/g, "").toLowerCase()} · {f.owner || "공유 캐릭터"}</small>
-                      </span>
-                      <i>{isFollowing(f.id) ? "팔로잉" : "보기"}</i>
-                    </button>
+                    <div key={f.id} className="al-follow-modal-row">
+                      <div className="al-follow-modal-item">
+                        <button className="al-follow-modal-main" onClick={() => setPublicProfile(f)}>
+                          <span className="al-follow-modal-av">{f.name.trim()[0] || "?"}</span>
+                          <span className="al-follow-modal-info">
+                            <b>{f.name}</b>
+                            <small>@{f.handle || f.name.replace(/\s/g, "").toLowerCase()} · {f.owner || "공유 캐릭터"}</small>
+                          </span>
+                        </button>
+                        <WorldChip c={f} fallback={`follow-${f.id}`} />
+                        <i>{isFollowing(f.id) ? "팔로잉" : "보기"}</i>
+                      </div>
+                      <WorldPeek c={f} fallback={`follow-${f.id}`} />
+                    </div>
                   ))}
                 </div>
               );
@@ -4609,6 +4658,12 @@ body{ margin:0; }
 .al-profile-info{ padding:8px 18px 0; }
 .al-profile-info h2{ margin:0; font-size:20px; font-weight:800; letter-spacing:-.01em; }
 .al-profile-top-main{ min-width:0; flex:1 1 auto; }
+.al-name-line{ display:flex; align-items:center; gap:7px; min-width:0; flex-wrap:wrap; }
+.al-world-chip{ flex-shrink:0; border:1px solid #3a3550; border-radius:999px; padding:3px 7px; cursor:pointer;
+  background:#1c1730; color:#c8b3ff; font-family:inherit; font-size:10.5px; font-weight:900; line-height:1.1; }
+.al-world-chip:hover,.al-world-chip.on{ border-color:var(--accent); color:#fff; background:#241d35; }
+.al-world-peek{ margin:7px 0 8px; padding:9px 10px; border:1px solid #342e46; border-radius:10px;
+  background:#15131c; color:#cfc7dc; font-size:12.5px; line-height:1.55; white-space:pre-wrap; }
 .al-handle{ font-size:13.5px; color:var(--soft); }
 .al-bio{ display:flex; gap:6px; margin:9px 0 0; flex-wrap:wrap; }
 .al-bio-tag{ font-size:11.5px; padding:3px 9px; border-radius:20px; background:#1f1a2e;
@@ -5133,15 +5188,18 @@ body{ margin:0; }
   color:#bdb5ca; background:#26212e; font-size:12px; font-weight:900; }
 .al-follow-empty{ margin:0; padding:28px 16px; color:var(--soft); font-size:13px; text-align:center; }
 .al-follow-modal-list{ overflow:auto; padding:10px; display:flex; flex-direction:column; gap:8px; }
-.al-follow-modal-item{ display:flex; align-items:center; gap:10px; width:100%; padding:10px; border-radius:13px; cursor:pointer;
-  border:1px solid #302b3a; background:#111018; color:var(--ink); font-family:inherit; text-align:left; }
-.al-follow-modal-item:hover{ border-color:var(--accent); background:#1c1730; }
+.al-follow-modal-row{ border:1px solid #302b3a; border-radius:13px; background:#111018; overflow:hidden; }
+.al-follow-modal-row:hover{ border-color:var(--accent); background:#1c1730; }
+.al-follow-modal-item{ display:flex; align-items:center; gap:8px; width:100%; padding:10px; color:var(--ink); }
+.al-follow-modal-main{ flex:1; min-width:0; display:flex; align-items:center; gap:10px; border:none; background:none; color:inherit;
+  cursor:pointer; font-family:inherit; text-align:left; padding:0; }
 .al-follow-modal-av{ width:38px; height:38px; flex-shrink:0; border-radius:50%; display:flex; align-items:center; justify-content:center;
   color:#fff; font-weight:950; background:linear-gradient(135deg,var(--accent),var(--accent2)); }
 .al-follow-modal-info{ min-width:0; flex:1; display:flex; flex-direction:column; gap:2px; }
 .al-follow-modal-info b{ font-size:14px; }
 .al-follow-modal-info small{ font-size:11.5px; color:var(--soft); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .al-follow-modal-item i{ font-style:normal; flex-shrink:0; font-size:11px; color:#c8b3ff; background:#241d35; border:1px solid #4a3c68; border-radius:999px; padding:3px 8px; }
+.al-follow-modal-row .al-world-peek{ margin:0 10px 10px 58px; }
 .al-mem-meta{ display:flex; gap:6px; align-items:center; margin-bottom:7px; }
 .al-mem-meta button,.al-mem-meta select,.al-mem-meta span{ border:1px solid #3a3446; border-radius:999px; padding:4px 8px;
   background:#15131c; color:#bdb5ca; font-family:inherit; font-size:11px; font-weight:800; }
