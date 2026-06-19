@@ -255,3 +255,47 @@ create trigger alive_dm_threads_touch_updated_at
 before update on public.alive_dm_threads
 for each row
 execute function public.touch_alive_profiles_updated_at();
+
+create table if not exists public.alive_shared_dm_threads (
+  id uuid primary key default gen_random_uuid(),
+  thread_key text not null unique,
+  participant_user_ids uuid[] not null default array[]::uuid[],
+  participant_labels text[] not null default array[]::text[],
+  messages jsonb not null default '[]'::jsonb,
+  world_pref jsonb not null default '{}'::jsonb,
+  created_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.alive_shared_dm_threads enable row level security;
+
+drop policy if exists "alive_shared_dm_threads_select_participant" on public.alive_shared_dm_threads;
+create policy "alive_shared_dm_threads_select_participant"
+on public.alive_shared_dm_threads for select
+using (auth.uid() = any(participant_user_ids));
+
+drop policy if exists "alive_shared_dm_threads_insert_participant" on public.alive_shared_dm_threads;
+create policy "alive_shared_dm_threads_insert_participant"
+on public.alive_shared_dm_threads for insert
+with check (auth.uid() = any(participant_user_ids));
+
+drop policy if exists "alive_shared_dm_threads_update_participant" on public.alive_shared_dm_threads;
+create policy "alive_shared_dm_threads_update_participant"
+on public.alive_shared_dm_threads for update
+using (auth.uid() = any(participant_user_ids))
+with check (auth.uid() = any(participant_user_ids));
+
+drop policy if exists "alive_shared_dm_threads_delete_participant" on public.alive_shared_dm_threads;
+create policy "alive_shared_dm_threads_delete_participant"
+on public.alive_shared_dm_threads for delete
+using (auth.uid() = any(participant_user_ids));
+
+create index if not exists alive_shared_dm_threads_participants_idx
+on public.alive_shared_dm_threads using gin(participant_user_ids);
+
+drop trigger if exists alive_shared_dm_threads_touch_updated_at on public.alive_shared_dm_threads;
+create trigger alive_shared_dm_threads_touch_updated_at
+before update on public.alive_shared_dm_threads
+for each row
+execute function public.touch_alive_profiles_updated_at();

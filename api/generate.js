@@ -21,22 +21,43 @@ function pickGeminiModel(model) {
   return FAST;
 }
 
+function dataUrlToInlineData(url) {
+  const match = String(url || "").match(/^data:([^;,]+);base64,(.+)$/);
+  if (!match) return null;
+  return {
+    mimeType: match[1],
+    data: match[2],
+  };
+}
+
+function contentPartToGeminiPart(part) {
+  if (!part) return null;
+  if (part.type === "text") return { text: part.text || "" };
+  if (part.type === "image_url") {
+    const url = typeof part.image_url === "string" ? part.image_url : part.image_url?.url;
+    const inlineData = dataUrlToInlineData(url);
+    return inlineData ? { inlineData } : null;
+  }
+  if (part.type === "image" || part.type === "input_image") {
+    const inlineData = dataUrlToInlineData(part.dataUrl || part.url || part.image || part.image_url);
+    return inlineData ? { inlineData } : null;
+  }
+  return { text: JSON.stringify(part) };
+}
+
 function toGeminiContents(messages) {
   return (messages || []).map((m) => {
-    let extractedText = "";
+    let parts = [];
     if (typeof m.content === "string") {
-      extractedText = m.content;
+      parts = [{ text: m.content }];
     } else if (Array.isArray(m.content)) {
-      extractedText = m.content
-          .filter((c) => c.type === "text")
-          .map((c) => c.text || "")
-          .join("\n");
+      parts = m.content.map(contentPartToGeminiPart).filter(Boolean);
     } else {
-      extractedText = JSON.stringify(m.content);
+      parts = [{ text: JSON.stringify(m.content) }];
     }
     return {
       role: m.role === "assistant" ? "model" : "user",
-      parts: [{ text: extractedText }],
+      parts: parts.length ? parts : [{ text: "" }],
     };
   });
 }
