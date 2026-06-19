@@ -219,6 +219,7 @@ function App() {
   const [publicProfile, setPublicProfile] = useState(null); // 탐색에서 열어본 공개 캐릭터
   const [showMemory, setShowMemory] = useState(false); // 피드에서 쌓인 기억 펼침
   const [showRelations, setShowRelations] = useState(false); // 프로필 관계 펼침
+  const [followPanel, setFollowPanel] = useState(null); // null | following | followers
   const [memFilter, setMemFilter] = useState(null); // 기억 상대 필터 (null=전체)
   const [memDraftPeer, setMemDraftPeer] = useState("");
   const [memDraftCustomPeer, setMemDraftCustomPeer] = useState("");
@@ -967,11 +968,13 @@ function App() {
   // 방의 "내 쪽 주체" = 현재 화자(캐릭터/페르소나). 오너로 말할 땐 캐릭터 방에 묻어감.
   //  → 하루↔세인 / 유진↔세인 방이 각각 분리됨. 오너 끼어들기는 캐릭터 방에 남음.
   const roomMe = activePersona ? activePersona.name : (char.name || "나");
-  const dmKey = peer
+  const dmScope = activeId ? `acc:${activeId}` : `draft:${char.name || "new"}`;
+  const baseDmKey = peer
     ? (peer.asOwner
         ? `${ownerLabel}|${char.name}`
         : [roomMe, peer.name].sort().join("|"))
     : "";
+  const dmKey = baseDmKey ? `${dmScope}::${baseDmKey}` : "";
   const dm = (peer && dmThreads[dmKey]) || [];
   const setDmThread = (updater) => setDmThreads((prev) => {
     const cur = prev[dmKey] || [];
@@ -984,15 +987,18 @@ function App() {
     const me = char.name || "나";
     const myNames = new Set([me, ...personas.map((p) => p.name)]);
     return Object.entries(dmThreads)
+      .filter(([k]) => k.startsWith(`${dmScope}::`))
       .filter(([k]) => {
-        const parts = k.split("|");
+        const roomKey = k.slice(`${dmScope}::`.length);
+        const parts = roomKey.split("|");
         // 오너→내캐릭터 방
         if (parts[0] === ownerLabel && parts[1] === me) return true;
         // 내 쪽(캐릭터 또는 내 페르소나)이 참여한 방
         return parts.some((n) => myNames.has(n));
       })
       .map(([k, msgs]) => {
-        const parts = k.split("|");
+        const roomKey = k.slice(`${dmScope}::`.length);
+        const parts = roomKey.split("|");
         const isOwnerThread = parts[0] === ownerLabel && parts[1] === me;
         const personaSide = isOwnerThread ? null : parts.find((n) => isPersonaName(n));
         let mineSide, other, asPersona;
@@ -2417,7 +2423,9 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
   }
 
   function timeAgo(t) {
-    const s = Math.floor((Date.now() - t) / 1000);
+    const ms = t instanceof Date ? t.getTime() : (typeof t === "number" ? t : Date.parse(t));
+    if (!Number.isFinite(ms)) return "방금";
+    const s = Math.max(0, Math.floor((Date.now() - ms) / 1000));
     if (s < 60) return "방금";
     if (s < 3600) return `${Math.floor(s / 60)}분`;
     return `${Math.floor(s / 3600)}시간`;
@@ -2444,7 +2452,7 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
           <div className="al-auth">
             <span className="al-spark">✶</span>
             <h1>{authMode === "signup" ? "ALIVE 시작하기" : "ALIVE 로그인"}</h1>
-            <p>{authMode === "signup" ? "계정을 만들면 캐릭터, 로어북, DM이 저장돼." : "저장된 캐릭터와 대화를 불러올게."}</p>
+            <p>{authMode === "signup" ? "계정을 만들면 캐릭터, 장기기억, DM이 저장돼." : "저장된 캐릭터와 대화를 불러올게."}</p>
             <div className="al-auth-tabs">
               <button className={authMode === "signup" ? "on" : ""} onClick={() => { setAuthMode("signup"); setAuthMessage(""); }}>회원가입</button>
               <button className={authMode === "signin" ? "on" : ""} onClick={() => { setAuthMode("signin"); setAuthMessage(""); }}>로그인</button>
@@ -2524,7 +2532,10 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
                         <span className="al-pm-sub">{p.age || p.persona?.slice(0, 24) || "설정 없음"}</span>
                       </span>
                     </button>
-                    <button className="al-pm-del-mini" onClick={() => deletePersona(p.id)} aria-label={`${p.name} 페르소나 삭제`}>삭제</button>
+                    <div className="al-pm-actions">
+                      <button className="al-pm-edit-mini" onClick={() => setPersonaDraft({ ...p })} aria-label={`${p.name} 페르소나 수정`}>수정</button>
+                      <button className="al-pm-del-mini" onClick={() => deletePersona(p.id)} aria-label={`${p.name} 페르소나 삭제`}>삭제</button>
+                    </div>
                   </div>
                 ))}
                 <button className="al-pm-add" onClick={() => setPersonaDraft({ name: "", age: "", persona: "", speech: "" })}>+ 페르소나 만들기</button>
@@ -2706,9 +2717,11 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
             </label>
 
             <div className="al-confirm-actions">
-              <button className="al-reparse" onClick={() => setStep("dump")}>← 다시 쓰기</button>
+              <button className="al-reparse" onClick={() => activeId ? setStep("home") : setStep("dump")}>
+                {activeId ? "← 뒤로 가기" : "← 다시 쓰기"}
+              </button>
               <button className="al-start al-confirm-go" disabled={!confirmReady || waking} onClick={activeId ? saveCharacterEdits : wakeCharacter}>
-                {waking ? "깨우는 중..." : activeId ? "수정 저장" : confirmReady ? `${char.name.trim()} 깨우기` : "이름·페르소나 필수"}
+                {waking ? "깨우는 중..." : activeId ? "수정완료" : confirmReady ? `${char.name.trim()} 깨우기` : "이름·페르소나 필수"}
               </button>
             </div>
           </div>
@@ -2743,12 +2756,14 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
               {shareStatus && <p className="al-share-status">{shareStatus}</p>}
 
               <div className="al-follow-stats">
-                <button className="al-fstat" onClick={() => setStep("discover")}>
+                <button className={`al-fstat ${followPanel === "following" ? "on" : ""}`} onClick={() => setFollowPanel((v) => v === "following" ? null : "following")}>
                   <b>{following.length}</b> 팔로잉
                 </button>
-                <span className="al-fstat"><b>{activeSharedId ? (followerCounts[activeSharedId] || 0) : myFollowers().length}</b> 팔로워</span>
+                <button className={`al-fstat ${followPanel === "followers" ? "on" : ""}`} onClick={() => setFollowPanel((v) => v === "followers" ? null : "followers")}>
+                  <b>{activeSharedId ? (followerCounts[activeSharedId] || 0) : myFollowers().length}</b> 팔로워
+                </button>
                 <button className="al-fstat" onClick={() => setShowMemory((v) => !v)}>
-                  🧠 <b>{(char.lorebook || []).length}</b> 로어북 {showMemory ? "▾" : "▸"}
+                  🧠 <b>{(char.lorebook || []).length}</b> 장기기억 {showMemory ? "▾" : "▸"}
                 </button>
                 {(() => {
                   const relCount = parseRelations(char.relations).length;
@@ -2760,6 +2775,31 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
                 })()}
                 {myFollowers().length > 0 && <span className="al-fstat-new">친해진 캐가 맞팔했어!</span>}
               </div>
+
+              {followPanel && (
+                <div className="al-profile-follow-panel">
+                  <div className="al-profile-follow-head">
+                    <span>{followPanel === "following" ? "팔로잉" : "팔로워"}</span>
+                    <button onClick={() => setFollowPanel(null)}>닫기</button>
+                  </div>
+                  {(followPanel === "following" ? following : myFollowers()).length === 0 ? (
+                    <p className="al-mem-note">{followPanel === "following" ? "아직 팔로우한 캐릭터가 없어." : "아직 맞팔한 캐릭터가 없어."}</p>
+                  ) : (
+                    <div className="al-profile-follow-list">
+                      {(followPanel === "following" ? following : myFollowers()).map((f) => (
+                        <div className="al-profile-follow-card" key={f.id}>
+                          <button onClick={() => setPublicProfile(f)}>
+                            <span>{f.name.trim()[0] || "?"}</span>
+                            <b>{f.name}</b>
+                            <small>{f.owner || "공유 캐릭터"}</small>
+                          </button>
+                          {followPanel === "following" && <button className="al-unfollow small" onClick={() => toggleFollow(f)}>취소</button>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {showRelations && (() => {
                 const rels = parseRelations(char.relations);
@@ -2799,11 +2839,11 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
                 <div className="al-memlist">
                   {(char.lorebook || []).length === 0 ? (
                     <>
-                      <p className="al-mem-note">아직 쌓인 로어북이 없어. {char.name}가 대화를 나누면 핵심을 자동으로 기억해 — 약속·사건·감정 같은 걸 잊지 않게.</p>
+                      <p className="al-mem-note">아직 쌓인 장기기억이 없어. {char.name}가 대화를 나누면 핵심을 자동으로 기억해 — 약속·사건·감정 같은 걸 잊지 않게.</p>
                       <div className="al-mem-add">
                         {renderLorePeerSelect(lorePeerOptions())}
-                        <textarea value={memDraftText} onChange={(e) => setMemDraftText(e.target.value)} placeholder="직접 추가할 로어북 내용" />
-                        <button className="al-mem-add-btn" disabled={!memDraftText.trim()} onClick={addManualMemory}>로어북 추가</button>
+                        <textarea value={memDraftText} onChange={(e) => setMemDraftText(e.target.value)} placeholder="직접 추가할 장기기억 내용" />
+                        <button className="al-mem-add-btn" disabled={!memDraftText.trim()} onClick={addManualMemory}>장기기억 추가</button>
                       </div>
                     </>
                   ) : (() => {
@@ -2833,7 +2873,7 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
                               <button onClick={() => setMemFilter(null)}>‹ 사람별 목록</button>
                               <span>{memFilter === "*" ? "전체 설정" : memFilter}</span>
                             </div>
-                            {shown.length === 0 && <p className="al-mem-note">이 사람에게 남은 로어북이 없어.</p>}
+                            {shown.length === 0 && <p className="al-mem-note">이 사람에게 남은 장기기억이 없어.</p>}
                             {shown.map((e) => (
                               <div className="al-mem-edit" key={e.id}>
                                 <textarea value={e.content} onChange={(ev) => editMemory(e.id, ev.target.value)} />
@@ -2842,20 +2882,20 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
                             ))}
                             <div className="al-mem-add">
                               {renderLorePeerSelect(peerOptions, memFilter)}
-                              <textarea value={memDraftText} onChange={(e) => setMemDraftText(e.target.value)} placeholder={`${memFilter === "*" ? "전체 설정" : memFilter} 로어북 추가`} />
-                              <button className="al-mem-add-btn" disabled={!memDraftText.trim()} onClick={addManualMemory}>로어북 추가</button>
+                              <textarea value={memDraftText} onChange={(e) => setMemDraftText(e.target.value)} placeholder={`${memFilter === "*" ? "전체 설정" : memFilter} 장기기억 추가`} />
+                              <button className="al-mem-add-btn" disabled={!memDraftText.trim()} onClick={addManualMemory}>장기기억 추가</button>
                             </div>
                           </>
                         )}
                         {!memFilter && (
                           <div className="al-mem-add compact">
-                            <div className="al-mem-add-title">새 로어북 추가</div>
+                            <div className="al-mem-add-title">새 장기기억 추가</div>
                             {renderLorePeerSelect(peerOptions)}
-                            <textarea value={memDraftText} onChange={(e) => setMemDraftText(e.target.value)} placeholder="새 로어북을 직접 추가" />
-                            <button className="al-mem-add-btn" disabled={!memDraftText.trim()} onClick={addManualMemory}>로어북 추가</button>
+                            <textarea value={memDraftText} onChange={(e) => setMemDraftText(e.target.value)} placeholder="새 장기기억을 직접 추가" />
+                            <button className="al-mem-add-btn" disabled={!memDraftText.trim()} onClick={addManualMemory}>장기기억 추가</button>
                           </div>
                         )}
-                        <p className="al-mem-note">{memFilter ? "내용을 바로 고치면 저장돼. 필요 없는 항목은 삭제할 수 있어." : "사람을 선택하면 해당 상대와의 로어북만 열려. 전체 설정은 특정 상대 없이 항상 참고하는 내용이야."}</p>
+                        <p className="al-mem-note">{memFilter ? "내용을 바로 고치면 저장돼. 필요 없는 항목은 삭제할 수 있어." : "사람을 선택하면 해당 상대와의 장기기억만 열려. 전체 설정은 특정 상대 없이 항상 참고하는 내용이야."}</p>
                       </>
                     );
                   })()}
@@ -4016,7 +4056,7 @@ body{ margin:0; }
 
 .al-newchat{ padding:14px 16px; border-top:1px solid var(--line); }
 .al-newchat-btn{ width:100%; padding:13px; border-radius:12px; cursor:pointer; font-family:inherit;
-  font-size:14px; font-weight:700; color:var(--accent); background:#16121f; border:1px dashed #3a3550; }
+  font-size:14px; font-weight:700; color:var(--accent); background:#16121f; border:1px dashed #3a3550; text-align:center; }
 .al-newchat-btn:hover{ border-color:var(--accent); background:#1c1730; }
 .al-newchat-lbl{ font-size:12px; color:var(--soft); margin:0 0 10px; }
 .al-newchat-targets{ display:flex; flex-direction:column; gap:8px; }
@@ -4097,6 +4137,9 @@ body{ margin:0; }
 .al-pm-sub{ font-size:11.5px; color:var(--soft); }
 .al-pm-add{ padding:11px; border-radius:12px; cursor:pointer; font-family:inherit; font-size:13px; font-weight:700;
   border:1px dashed #5a4520; background:#1a1610; color:#ffd27a; }
+.al-pm-actions{ display:flex; flex-direction:column; gap:6px; flex-shrink:0; }
+.al-pm-edit-mini{ flex:1; padding:0 12px; border-radius:12px; cursor:pointer; font-family:inherit;
+  font-size:12px; font-weight:900; color:#ffd27a; background:#241d10; border:1px solid #5a4520; }
 .al-pm-del-mini{ flex:0 0 auto; padding:0 12px; border-radius:12px; cursor:pointer; font-family:inherit;
   font-size:12px; font-weight:900; color:#ff9aa9; background:#25151b; border:1px solid #5c2736; }
 .al-pm-del-mini:hover{ border-color:#ff7c95; color:#ffd5dc; }
@@ -4107,7 +4150,7 @@ body{ margin:0; }
 .al-bubble-spk{ display:block; font-size:10px; font-weight:800; opacity:.7; margin-bottom:3px; }
 /* 오너→내캐릭터 직접 대화 입구 */
 .al-owner-entry{ width:100%; padding:12px; margin-bottom:10px; border-radius:12px; cursor:pointer;
-  font-family:inherit; font-size:13px; color:#ffd27a; background:#1f1a10; border:1px solid #4a3c1c; text-align:left; }
+  font-family:inherit; font-size:13px; color:#ffd27a; background:#1f1a10; border:1px solid #4a3c1c; text-align:center; }
 .al-owner-entry:hover{ border-color:#ffd27a; }
 .al-owner-entry b{ color:#fff; }
 /* 호감도 게이지 */
@@ -4356,8 +4399,21 @@ body{ margin:0; }
 .al-follow-stats{ display:flex; gap:14px; align-items:center; margin-top:9px; flex-wrap:wrap; }
 .al-fstat{ background:none; border:none; padding:0; font-family:inherit; font-size:12.5px; color:var(--soft); cursor:default; }
 button.al-fstat{ cursor:pointer; }
+.al-fstat.on{ color:#d9ccff; text-decoration:underline; text-underline-offset:4px; }
 .al-fstat b{ color:var(--ink); font-weight:800; }
 .al-fstat-new{ font-size:11px; color:#ff9ec4; background:#241621; border-radius:6px; padding:2px 8px; }
+.al-profile-follow-panel{ margin-top:11px; padding:11px; border:1px solid #3a3550; border-radius:13px; background:#15131d; }
+.al-profile-follow-head{ display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; color:#d9ccff; font-size:13px; font-weight:900; }
+.al-profile-follow-head button{ border:none; background:#26212e; color:#bdb5ca; border-radius:8px; padding:5px 8px; cursor:pointer; font-family:inherit; font-size:11px; }
+.al-profile-follow-list{ display:flex; flex-direction:column; gap:7px; }
+.al-profile-follow-card{ display:flex; align-items:center; gap:7px; }
+.al-profile-follow-card > button:first-child{ flex:1; min-width:0; display:flex; align-items:center; gap:8px; padding:8px; border:1px solid #2f2a3a;
+  border-radius:10px; background:#111018; color:var(--ink); cursor:pointer; font-family:inherit; text-align:left; }
+.al-profile-follow-card span{ width:30px; height:30px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center;
+  color:#fff; font-weight:900; background:linear-gradient(135deg,var(--accent),var(--accent2)); }
+.al-profile-follow-card b{ font-size:13px; }
+.al-profile-follow-card small{ margin-left:auto; color:var(--soft); font-size:11px; }
+.al-unfollow.small{ padding:8px 9px; font-size:11px; }
 .al-disc-fcount{ font-size:10.5px; color:var(--soft); margin-left:auto; }
 /* 외부 글 / 댓글 */
 .al-post-av.ext{ background:linear-gradient(135deg,#6ea8ff,#9d6bff); }
