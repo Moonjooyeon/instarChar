@@ -1394,12 +1394,15 @@ function App() {
       return;
     }
     const oauthCode = url.searchParams.get("code");
-    const hasOAuthHash = window.location.hash.includes("access_token") || window.location.hash.includes("error");
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    const hashAccessToken = hashParams.get("access_token");
+    const hashRefreshToken = hashParams.get("refresh_token");
+    const hasOAuthHash = Boolean(hashAccessToken || hashParams.get("error"));
     const hasOAuthCallback = Boolean(oauthCode || hasOAuthHash);
     const oauthError = url.searchParams.get("error_description")
       || url.searchParams.get("error")
-      || new URLSearchParams(window.location.hash.replace(/^#/, "")).get("error_description")
-      || new URLSearchParams(window.location.hash.replace(/^#/, "")).get("error");
+      || hashParams.get("error_description")
+      || hashParams.get("error");
     if (oauthError) {
       setAuthMessage(`소셜 로그인 실패: ${decodeURIComponent(oauthError)}`);
       window.history.replaceState({}, "", window.location.pathname);
@@ -1409,7 +1412,14 @@ function App() {
     }
     authResolvedRef.current = false;
     async function resolveInitialSession() {
-      if (oauthCode) {
+      if (hashAccessToken && hashRefreshToken) {
+        const { error: sessionError } = await supabase.auth.setSession({
+          access_token: hashAccessToken,
+          refresh_token: hashRefreshToken,
+        });
+        if (sessionError) throw sessionError;
+        window.history.replaceState({}, "", "/app");
+      } else if (oauthCode) {
         window.__aliveOAuthExchanges ||= {};
         window.__aliveOAuthExchanges[oauthCode] ||= supabase.auth.exchangeCodeForSession(oauthCode);
         const { error: exchangeError } = await window.__aliveOAuthExchanges[oauthCode];
