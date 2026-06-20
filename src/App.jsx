@@ -448,6 +448,27 @@ function App() {
     }
   }
 
+  async function saveAppStateSnapshot(snapshot) {
+    if (!snapshot) return;
+    if (!hasSupabaseConfig || !supabase || !session?.user) {
+      persistLocalSnapshot(snapshot);
+      return;
+    }
+    const { error } = await supabase.from("alive_profiles").upsert({
+      id: session.user.id,
+      email: session.user.email,
+      display_name: profileName.trim() || session.user.email?.split("@")[0] || "",
+      onboarded: !onboardingOpen,
+      app_state: snapshot,
+    });
+    if (error) {
+      setSaveStatus(`저장 실패: ${error.message}`);
+      return;
+    }
+    syncStructuredState(snapshot).catch((e) => console.warn("분리 테이블 동기화 실패:", e));
+    setSaveStatus("저장됨");
+  }
+
   function applyAppState(saved = {}) {
     const nextAccounts = Array.isArray(saved.accounts) ? saved.accounts : [];
     const active = saved.activeId ? nextAccounts.find((a) => a.id === saved.activeId) : null;
@@ -964,6 +985,39 @@ function App() {
       return { ...prev, [id]: Math.max(0, current + (wasFollowing ? -1 : 1)) };
     });
     loadFollowerCountsFor([{ id: poolChar.sharedId }]);
+  }
+
+  async function deleteStructuredCharacterAccount(targetId) {
+    if (!supabase || !session?.user || !targetId) return;
+    const ownerId = session.user.id;
+    const jobs = [
+      supabase.from("alive_characters")
+        .delete()
+        .eq("owner_id", ownerId)
+        .eq("source_account_id", targetId),
+      supabase.from("alive_shared_characters")
+        .delete()
+        .eq("owner_id", ownerId)
+        .eq("source_account_id", targetId),
+      supabase.from("alive_character_follows")
+        .delete()
+        .eq("follower_id", ownerId)
+        .eq("follower_account_id", targetId),
+      supabase.from("alive_dm_threads")
+        .delete()
+        .eq("owner_id", ownerId)
+        .like("thread_key", `owner::${targetId}::%`),
+    ];
+    const results = await Promise.allSettled(jobs);
+    let ok = true;
+    results.forEach((result) => {
+      const error = result.status === "rejected" ? result.reason : result.value?.error;
+      if (error) {
+        ok = false;
+        console.warn("캐릭터 삭제 구조화 데이터 정리 실패:", error.message || error);
+      }
+    });
+    return ok;
   }
 
   async function syncStructuredState(snapshot) {
@@ -2179,11 +2233,28 @@ ${formatRule}${ANTI_REPEAT_RULES}${recentLinesBlock(posts.slice(0, 6).map((p) =>
     setStep("dump");
   }
 
-  function confirmDeleteCharacter() {
+  async function confirmDeleteCharacter() {
     if (!deleteTarget) return;
     const targetId = deleteTarget.id;
-    setAccounts((accs) => accs.filter((a) => a.id !== targetId));
-    if (activeId === targetId) {
+    const deletingActive = activeId === targetId;
+    const nextAccounts = accountSnapshot().filter((a) => a.id !== targetId);
+    const nextDmThreads = Object.fromEntries(Object.entries(dmThreads || {}).filter(([key]) => !key.startsWith(`owner::${targetId}::`)));
+    const nextDmWorldPrefs = Object.fromEntries(Object.entries(dmWorldPrefs || {}).filter(([key]) => !key.startsWith(`owner::${targetId}::`)));
+    const nextSnapshot = {
+      ...exportAppState(),
+      accounts: nextAccounts,
+      activeId: deletingActive ? null : activeId,
+      char: deletingActive ? blankChar() : char,
+      gallery: deletingActive ? [] : gallery,
+      posts: deletingActive ? [] : posts,
+      following: deletingActive ? [] : following,
+      dmThreads: nextDmThreads,
+      dmWorldPrefs: nextDmWorldPrefs,
+    };
+    setAccounts(nextAccounts);
+    setDmThreads(nextDmThreads);
+    setDmWorldPrefs(nextDmWorldPrefs);
+    if (deletingActive) {
       wakingRef.current = false;
       setWaking(false);
       setActiveId(null);
@@ -2195,6 +2266,10 @@ ${formatRule}${ANTI_REPEAT_RULES}${recentLinesBlock(posts.slice(0, 6).map((p) =>
       setStep("home");
     }
     setDeleteTarget(null);
+    setSaveStatus("삭제 저장 중");
+    const structuredOk = await deleteStructuredCharacterAccount(targetId);
+    await saveAppStateSnapshot(nextSnapshot);
+    if (structuredOk === false) setSaveStatus("삭제 저장 일부 실패");
   }
 
   function deletePersona(id) {
