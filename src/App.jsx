@@ -295,6 +295,7 @@ function App() {
   // DM — 대화는 두 참여자(캐릭터/나) 사이. 키는 이름 정렬로 양방향 공유.
   const [dmThreads, setDmThreads] = useState({}); // { "이름A|이름B": [{from, text}] }
   const [dmWorldPrefs, setDmWorldPrefs] = useState({}); // dmKey -> {mode, note}
+  const [deletedDmKeys, setDeletedDmKeys] = useState([]);
   const [pendingDm, setPendingDm] = useState(null); // {peer, speakAs, mode?}
   const [dmWorldDraft, setDmWorldDraft] = useState("");
   const [dmSettingsOpen, setDmSettingsOpen] = useState(false);
@@ -410,6 +411,7 @@ function App() {
       dmThreads: {},
       dmThreadTitles: {},
       dmWorldPrefs: {},
+      deletedDmKeys: [],
       ownerPersona: "",
       following: [],
       affinity: {},
@@ -436,6 +438,7 @@ function App() {
       dmThreads,
       dmThreadTitles,
       dmWorldPrefs,
+      deletedDmKeys,
       ownerPersona,
       following,
       affinity,
@@ -504,6 +507,9 @@ function App() {
     setDmThreads(saved.dmThreads || {});
     setDmThreadTitles(saved.dmThreadTitles || {});
     setDmWorldPrefs(saved.dmWorldPrefs || {});
+    const deletedKeys = Array.isArray(saved.deletedDmKeys) ? saved.deletedDmKeys : [];
+    setDeletedDmKeys(deletedKeys);
+    deletedDmKeysRef.current = new Set(deletedKeys);
     setOwnerPersona(saved.ownerPersona || "");
     setAffinity(saved.affinity || {});
     setDiscoverQuery("");
@@ -1245,9 +1251,13 @@ function App() {
     const ownerDmRows = [];
     const sharedDmRows = [];
     const compactMessages = (messages) => Array.isArray(messages) ? messages.slice(-160) : [];
+    const deletedKeys = new Set([
+      ...(Array.isArray(snapshot.deletedDmKeys) ? snapshot.deletedDmKeys : []),
+      ...deletedDmKeysRef.current,
+    ]);
     Object.entries(snapshot.dmThreads || {}).forEach(([threadKey, messages]) => {
       if (!threadKey) return;
-      if (deletedDmKeysRef.current.has(threadKey)) return;
+      if (deletedKeys.has(threadKey)) return;
       const row = {
         thread_key: threadKey,
         messages: compactMessages(messages),
@@ -1263,6 +1273,24 @@ function App() {
         });
       } else {
         ownerDmRows.push({ ...row, owner_id: ownerId });
+      }
+    });
+    deletedKeys.forEach((threadKey) => {
+      if (!threadKey) return;
+      const deletedRow = {
+        thread_key: threadKey,
+        messages: [],
+        world_pref: { deleted: true, deleted_at: new Date().toISOString() },
+      };
+      if (threadKey.startsWith("dm::")) {
+        sharedDmRows.push({
+          ...deletedRow,
+          participant_user_ids: [ownerId],
+          participant_labels: roomKeyFromDmThreadKey(threadKey).split("|"),
+          created_by: ownerId,
+        });
+      } else {
+        ownerDmRows.push({ ...deletedRow, owner_id: ownerId });
       }
     });
 
@@ -1352,6 +1380,13 @@ function App() {
       if (dmResult.status === "fulfilled" || sharedDmResult.status === "fulfilled") {
         const dmLoaded = dmResult.status === "fulfilled" && !dmResult.value.error;
         const sharedLoaded = sharedDmResult.status === "fulfilled" && !sharedDmResult.value.error;
+        const deletedFromRows = [...dmRows, ...sharedDmRows]
+          .filter((row) => row.world_pref?.deleted)
+          .map((row) => row.thread_key)
+          .filter(Boolean);
+        const deletedSet = new Set([...(next.deletedDmKeys || []), ...deletedFromRows]);
+        next.deletedDmKeys = [...deletedSet];
+        deletedDmKeysRef.current = deletedSet;
         const shouldReplaceKey = (key) =>
           (sharedLoaded && key.startsWith("dm::")) ||
           (dmLoaded && (key.startsWith("owner::") || key.startsWith("local::")));
@@ -1359,6 +1394,7 @@ function App() {
         next.dmThreads = keepLocal;
         next.dmWorldPrefs = Object.fromEntries(Object.entries(next.dmWorldPrefs || {}).filter(([key]) => !shouldReplaceKey(key)));
         [...dmRows, ...sharedDmRows].forEach((row) => {
+          if (deletedSet.has(row.thread_key) || row.world_pref?.deleted) return;
           next.dmThreads[row.thread_key] = Array.isArray(row.messages) ? row.messages : [];
           if (row.world_pref && Object.keys(row.world_pref).length) next.dmWorldPrefs[row.thread_key] = row.world_pref;
         });
@@ -1670,7 +1706,7 @@ function App() {
       setSaveStatus("저장됨");
     }, 700);
     return () => clearTimeout(saveTimerRef.current);
-  }, [accounts, activeId, char, gallery, posts, personas, dmThreads, dmThreadTitles, dmWorldPrefs, ownerPersona, following, affinity, profileName, onboardingOpen, stateReady, session?.user?.id]); // eslint-disable-line
+  }, [accounts, activeId, char, gallery, posts, personas, dmThreads, dmThreadTitles, dmWorldPrefs, deletedDmKeys, ownerPersona, following, affinity, profileName, onboardingOpen, stateReady, session?.user?.id]); // eslint-disable-line
 
   useEffect(() => {
     if (!stateReady) return;
@@ -1686,7 +1722,7 @@ function App() {
       window.removeEventListener("pagehide", saveBeforeLeave);
       window.removeEventListener("beforeunload", saveBeforeLeave);
     };
-  }, [accounts, activeId, char, gallery, posts, personas, dmThreads, dmThreadTitles, dmWorldPrefs, ownerPersona, following, affinity, discoverQuery, profileName, onboardingOpen, stateReady]); // eslint-disable-line
+  }, [accounts, activeId, char, gallery, posts, personas, dmThreads, dmThreadTitles, dmWorldPrefs, deletedDmKeys, ownerPersona, following, affinity, discoverQuery, profileName, onboardingOpen, stateReady]); // eslint-disable-line
 
   useEffect(() => {
     if (!canUseApp) return;
@@ -2011,6 +2047,17 @@ function App() {
     dmSendingRef.current = dmSending;
   }, [dmSending]);
   useEffect(() => {
+    if (step !== "dm" || !peer || !dmKey?.startsWith("local::")) return;
+    const peerName = peer.asOwner ? char.name : peer.name;
+    const speakerName = activePersona ? activePersona.name : char.name;
+    const peerChar = peer.asOwner ? char : (findPeerChar(peer.name) || peer);
+    const peerToSpeakerRel = relationMatched(peerChar, { name: speakerName }) || peer.relation || "";
+    repairRoomAffinityBase(dmKey, [
+      { from: speakerName, to: peerName, hint: peer.relation || "" },
+      { from: peerName, to: speakerName, hint: peerToSpeakerRel },
+    ]);
+  }, [step, dmKey, peer?.name, peer?.relation, char.name, char.relations, activePersona?.name, following, accounts]); // eslint-disable-line
+  useEffect(() => {
     if (step !== "dm" || !peer) {
       dmRequestSeqRef.current += 1;
       dmSendingRef.current = false;
@@ -2090,13 +2137,16 @@ function App() {
         ...(roomAffinitySeed ? { affinityBase: roomAffinitySeed, affinity: roomAffinitySeed } : {}),
       },
     };
+    const nextDeletedKeys = deletedDmKeys.filter((deletedKey) => deletedKey !== key);
+    deletedDmKeysRef.current = new Set(nextDeletedKeys);
     const nextThreads = {
       ...dmThreads,
       [key]: dmThreads[key] || [],
     };
     setDmThreads(nextThreads);
     setDmWorldPrefs(nextPrefs);
-    persistLocalSnapshot({ ...exportAppState(), dmThreads: nextThreads, dmWorldPrefs: nextPrefs });
+    setDeletedDmKeys(nextDeletedKeys);
+    persistLocalSnapshot({ ...exportAppState(), dmThreads: nextThreads, dmWorldPrefs: nextPrefs, deletedDmKeys: nextDeletedKeys });
     enterDm(peerForRoom, pendingDm.speakAs);
   }
 
@@ -2178,7 +2228,9 @@ function App() {
 
   async function deleteDmThread(key, event) {
     event?.stopPropagation();
-    deletedDmKeysRef.current.add(key);
+    const nextDeletedKeys = [...new Set([...deletedDmKeys, key])];
+    deletedDmKeysRef.current = new Set(nextDeletedKeys);
+    setDeletedDmKeys(nextDeletedKeys);
     resetAffinityForDmThread(key);
     const nextThreads = { ...dmThreads };
     const nextPrefs = { ...dmWorldPrefs };
@@ -2198,6 +2250,7 @@ function App() {
       dmThreads: nextThreads,
       dmWorldPrefs: nextPrefs,
       dmThreadTitles: nextTitles,
+      deletedDmKeys: nextDeletedKeys,
     };
     if (supabase && session?.user) {
       const table = key.startsWith("dm::") ? "alive_shared_dm_threads" : "alive_dm_threads";
@@ -2205,9 +2258,9 @@ function App() {
       if (table === "alive_dm_threads") query = query.eq("owner_id", session.user.id);
       const { error } = await query;
       if (error) console.warn("DM방 삭제 동기화 실패:", error);
+      await syncStructuredState(nextSnapshot);
     }
     await saveAppStateSnapshot(nextSnapshot);
-    window.setTimeout(() => deletedDmKeysRef.current.delete(key), 15000);
   }
   
   // 현재 계정(char)이 참여한 대화 목록 (캐릭터 방 + 내 페르소나 방 + 오너 방)
@@ -3037,6 +3090,33 @@ ${formatRule}${ANTI_REPEAT_RULES}${recentLinesBlock(posts.slice(0, 6).map((p) =>
     if (bPersona && !aPersona) { bumpRoomAffinity(roomKey, a, b, jitter(), aToBHint); return; }
     bumpRoomAffinity(roomKey, a, b, jitter(), aToBHint);
     bumpRoomAffinity(roomKey, b, a, jitter(), bToAHint);
+  }
+  function repairRoomAffinityBase(roomKey, pairs) {
+    if (!roomKey?.startsWith("local::") || !pairs?.length) return;
+    setDmWorldPrefs((prev) => {
+      const pref = prev[roomKey] || {};
+      const nextBase = { ...(pref.affinityBase || {}) };
+      const nextAffinity = { ...(pref.affinity || {}) };
+      let changed = false;
+      pairs.forEach(({ from, to, hint = "" }) => {
+        if (!from || !to || from === to) return;
+        const key = dirKey(from, to);
+        const liveBase = dmAffOf(from, to, hint);
+        if (liveBase >= 90 && (nextBase[key] == null || nextBase[key] < liveBase)) {
+          nextBase[key] = liveBase;
+          changed = true;
+        }
+        if (liveBase >= 90 && (nextAffinity[key] == null || (nextAffinity[key] >= 0 && nextAffinity[key] < liveBase))) {
+          nextAffinity[key] = liveBase;
+          changed = true;
+        }
+      });
+      if (!changed) return prev;
+      return {
+        ...prev,
+        [roomKey]: { ...pref, affinityBase: nextBase, affinity: nextAffinity },
+      };
+    });
   }
   const FOLLOWBACK_THRESHOLD = 15; // 아는사이→관심 구간이면 맞팔
   // 내 활성 캐릭터를 맞팔한 외부 캐 (그 캐가 나를 향한 호감도 15 이상)
