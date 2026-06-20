@@ -263,6 +263,49 @@ function App() {
     }
   }
 
+  function hasUsableSavedState(state) {
+    return Boolean(state && Array.isArray(state.accounts) && state.accounts.length > 0);
+  }
+
+  function compactProfileBackup(snapshot = {}) {
+    const compactGallery = (items) => Array.isArray(items) ? items.slice(-12) : [];
+    const compactPosts = (items) => Array.isArray(items) ? items.slice(0, 40).map((post) => ({
+      ...post,
+      comments: Array.isArray(post.comments) ? post.comments.slice(-20) : [],
+    })) : [];
+    const compactFollowing = (items) => Array.isArray(items) ? items.slice(0, 120) : [];
+    const compactThreads = Object.fromEntries(Object.entries(snapshot.dmThreads || {}).map(([key, value]) => [
+      key,
+      Array.isArray(value) ? value.slice(-80) : value,
+    ]));
+    return {
+      ...snapshot,
+      accounts: (snapshot.accounts || []).map((account) => ({
+        ...account,
+        gallery: compactGallery(account.gallery),
+        posts: compactPosts(account.posts),
+        following: compactFollowing(account.following),
+      })),
+      gallery: compactGallery(snapshot.gallery),
+      posts: compactPosts(snapshot.posts),
+      following: compactFollowing(snapshot.following),
+      dmThreads: compactThreads,
+    };
+  }
+
+  function profileUpsertPayload(snapshot) {
+    const payload = {
+      id: session.user.id,
+      email: session.user.email,
+      display_name: profileName.trim() || session.user.email?.split("@")[0] || "",
+      onboarded: !onboardingOpen,
+    };
+    if (hasUsableSavedState(snapshot)) {
+      payload.app_state = compactProfileBackup(snapshot);
+    }
+    return payload;
+  }
+
   async function saveAppStateSnapshot(snapshot) {
     if (!snapshot) return;
     if (!hasSupabaseConfig || !supabase || !session?.user) {
@@ -274,12 +317,7 @@ function App() {
       setSaveStatus("분리 저장됨");
       return;
     }
-    const { error } = await supabase.from("alive_profiles").upsert({
-      id: session.user.id,
-      email: session.user.email,
-      display_name: profileName.trim() || session.user.email?.split("@")[0] || "",
-      onboarded: !onboardingOpen,
-    });
+    const { error } = await supabase.from("alive_profiles").upsert(profileUpsertPayload(snapshot));
     if (error) {
       profileTableBrokenRef.current = true;
       setSaveStatus(`저장 실패: ${error.message}`);
@@ -1422,7 +1460,7 @@ function App() {
       const metadataName = session.user.user_metadata?.name || session.user.user_metadata?.full_name || session.user.user_metadata?.preferred_username || "";
       const fallbackName = session.user.email?.split("@")[0] || metadataName || "사용자";
       const cachedState = readLocalSnapshot();
-      const hasCachedState = Boolean(cachedState?.accounts?.length);
+      const hasCachedState = hasUsableSavedState(cachedState);
       if (hasCachedState) {
         applyAppState(cachedState);
         setProfileName(cachedState.profileName || fallbackName);
@@ -1441,7 +1479,7 @@ function App() {
       try {
         const { data, error } = await withRejectTimeout(supabase
           .from("alive_profiles")
-          .select("display_name,onboarded")
+          .select("display_name,onboarded,app_state")
           .eq("id", session.user.id)
           .maybeSingle(), 5000, "프로필 메타 로드");
 
@@ -1449,8 +1487,10 @@ function App() {
         if (error) throw error;
 
         const defaultName = data?.display_name || session.user.email?.split("@")[0] || metadataName || "사용자";
-        const baseState = hasCachedState
-          ? { ...blankAppState(defaultName), ...cachedState, profileName: cachedState.profileName || defaultName }
+        const profileState = data?.app_state && typeof data.app_state === "object" ? data.app_state : null;
+        const backupState = hasCachedState ? cachedState : (hasUsableSavedState(profileState) ? profileState : null);
+        const baseState = backupState
+          ? { ...blankAppState(defaultName), ...backupState, profileName: backupState.profileName || defaultName }
           : blankAppState(defaultName);
         const mergedState = await loadStructuredStateFallback(baseState, session.user.id);
         if (cancelled) return;
@@ -1528,12 +1568,7 @@ function App() {
         setSaveStatus("분리 저장됨");
         return;
       }
-      const { error } = await supabase.from("alive_profiles").upsert({
-        id: session.user.id,
-        email: session.user.email,
-        display_name: profileName.trim() || session.user.email?.split("@")[0] || "",
-        onboarded: !onboardingOpen,
-      });
+      const { error } = await supabase.from("alive_profiles").upsert(profileUpsertPayload(snapshot));
       if (error) {
         profileTableBrokenRef.current = true;
         setSaveStatus(`저장 실패: ${error.message}`);
