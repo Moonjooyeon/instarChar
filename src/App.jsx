@@ -2972,6 +2972,10 @@ ${formatRule}${ANTI_REPEAT_RULES}${recentLinesBlock(posts.slice(0, 6).map((p) =>
     [/애착|소중|아끼는|특별/, 80],
     [/라이벌|앙숙|경쟁|적대/, 30], [/아는|지인/, 20],
   ];
+  const SYMMETRIC_RELATION_BASE = [
+    [/부부|배우자|연인|애인|연애|사랑하는|사랑함|반려|순애/, 100],
+    [/약혼/, 92],
+  ];
   // 이름 매칭: a와 b가 같은 인물을 가리키는지 정밀 판정.
   //  "선우 연" vs "연" → O (성+이름 중 이름 일치). "연" vs "연희" → X (단순 부분문자열 배제).
   function nameMatch(a, b) {
@@ -3002,11 +3006,20 @@ ${formatRule}${ANTI_REPEAT_RULES}${recentLinesBlock(posts.slice(0, 6).map((p) =>
   }
   function relationBaseFor(fromName, toName) {
     const c = (fromName === char.name) ? char : (findPeerChar(fromName) || null);
-    if (!c || !c.relations) return null;
     const target = findPeerChar(toName) || { name: toName };
-    const hit = relationFor(c, target, true);
-    if (!hit || !hit.label) return null;
-    for (const [re, val] of RELATION_BASE) if (re.test(hit.label)) return val;
+    if (c?.relations) {
+      const hit = relationFor(c, target, true);
+      if (hit?.label) {
+        for (const [re, val] of RELATION_BASE) if (re.test(hit.label)) return val;
+      }
+    }
+    const reverseChar = target.name === char.name ? char : (findPeerChar(target.name) || null);
+    if (reverseChar?.relations) {
+      const reverseHit = relationFor(reverseChar, { name: fromName }, true);
+      if (reverseHit?.label) {
+        for (const [re, val] of SYMMETRIC_RELATION_BASE) if (re.test(reverseHit.label)) return val;
+      }
+    }
     return null;
   }
   function relationStageLabel(label, aff) {
@@ -3022,7 +3035,12 @@ ${formatRule}${ANTI_REPEAT_RULES}${recentLinesBlock(posts.slice(0, 6).map((p) =>
   function relLabelFor(fromChar, toName) {
     const target = findPeerChar(toName) || { name: toName };
     const hit = relationFor(fromChar, target, true);
-    return hit ? hit.label : "";
+    if (hit?.label) return hit.label;
+    const reverseChar = target.name === char.name ? char : (findPeerChar(target.name) || null);
+    const fromName = fromChar?.name || fromChar;
+    const reverseHit = reverseChar?.relations ? relationFor(reverseChar, { name: fromName }, true) : null;
+    if (reverseHit?.label && SYMMETRIC_RELATION_BASE.some(([re]) => re.test(reverseHit.label))) return reverseHit.label;
+    return "";
   }
   // from이 to에게 느끼는 호감도. 저장값 우선, 없으면 관계 기반 기본값, 그것도 없으면 0.
   function affOf(from, to) {
@@ -3038,7 +3056,14 @@ ${formatRule}${ANTI_REPEAT_RULES}${recentLinesBlock(posts.slice(0, 6).map((p) =>
   }
   function relationHintFor(fromName, toName, fallback = "", fromCharOverride = null) {
     const fromChar = fromCharOverride || (fromName === char.name ? char : (findPeerChar(fromName) || null));
-    return fromChar ? relationMatched(fromChar, { name: toName, relation: fallback }) : fallback;
+    const direct = fromChar ? relationMatched(fromChar, { name: toName, relation: fallback }) : fallback;
+    if (direct) return direct;
+    const reverseChar = toName === char.name ? char : (findPeerChar(toName) || null);
+    const reverseHit = reverseChar?.relations ? relationFor(reverseChar, { name: fromName }, true) : null;
+    if (reverseHit?.label && SYMMETRIC_RELATION_BASE.some(([re]) => re.test(reverseHit.label))) {
+      return `${toName} — ${reverseHit.label}`;
+    }
+    return fallback;
   }
   function affinityWithBase(stored, base) {
     if (stored == null) return base == null ? 0 : base;
@@ -5200,6 +5225,8 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
         const mineToPeer = npcRoom ? roomAffOf(dmKey, speakerName, peerName, speakerToPeerRel) : dmAffOf(speakerName, peerName, speakerToPeerRel);   // 화자 → 상대
         const peerToMine = npcRoom ? roomAffOf(dmKey, peerName, speakerName, peerToSpeakerRel) : dmAffOf(peerName, speakerName, peerToSpeakerRel);   // 상대 → 화자
         const ownerVal = npcRoom ? roomAffOf(dmKey, peerName, OWNER) : affOf(peerName, OWNER);           // 하루 → 나(오너)
+        const mineToPeerStage = relationStageLabel(speakerToPeerRel, mineToPeer);
+        const peerToMineStage = relationStageLabel(peerToSpeakerRel, peerToMine);
         const peerCharForMemory = findPeerChar(peerName);
         const roomMems = roomMemoryEntries(currentWorldPref, peerName, speakerName);
         const globalMems = (peerCharForMemory?.lorebook || []).filter((e) => e.peer === speakerName && !e.roomKey);
@@ -5235,7 +5262,7 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
             <div className={`al-affinity ${peer.asOwner ? "owner" : ""}`}>
               <button className="al-aff-toggle" onClick={() => setAffinityOpen((v) => !v)}>
                 <span>호감도</span>
-                <b>{peer.asOwner ? `${attachStage(ownerVal)} · ${ownerVal}` : `${affinityStage(peerToMine)} · ${peerToMine}`}</b>
+                <b>{peer.asOwner ? `${attachStage(ownerVal)} · ${ownerVal}` : `${peerToMineStage} · ${peerToMine}`}</b>
                 <i>{affinityOpen ? "접기" : "펼치기"}</i>
               </button>
               {affinityOpen && (
@@ -5253,7 +5280,7 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
                     <>
                       <div className="al-aff-row">
                         <span className="al-aff-lbl rev">♥ {peerName} → {speakerName} <span className="al-aff-note">(가면이라 {speakerName}는 빠지지 않음)</span></span>
-                        <span className="al-aff-stage">{affinityStage(peerToMine)} · {peerToMine}</span>
+                        <span className="al-aff-stage">{peerToMineStage} · {peerToMine}</span>
                       </div>
                       <div className="al-aff-bar">
                         <div className={`al-aff-fill rev ${peerToMine < 0 ? "neg" : ""}`} style={{ width: `${Math.abs(peerToMine)}%` }} />
@@ -5265,7 +5292,7 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
                     <>
                       <div className="al-aff-row">
                         <span className="al-aff-lbl">♥ {speakerName} → {peerName}</span>
-                        <span className="al-aff-stage">{affinityStage(mineToPeer)} · {mineToPeer}</span>
+                        <span className="al-aff-stage">{mineToPeerStage} · {mineToPeer}</span>
                       </div>
                       <div className="al-aff-bar">
                         <div className={`al-aff-fill ${mineToPeer < 0 ? "neg" : ""}`} style={{ width: `${Math.abs(mineToPeer)}%` }} />
@@ -5273,7 +5300,7 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
                       </div>
                       <div className="al-aff-row second">
                         <span className="al-aff-lbl rev">♥ {peerName} → {speakerName}</span>
-                        <span className="al-aff-stage">{affinityStage(peerToMine)} · {peerToMine}</span>
+                        <span className="al-aff-stage">{peerToMineStage} · {peerToMine}</span>
                       </div>
                       <div className="al-aff-bar">
                         <div className={`al-aff-fill rev ${peerToMine < 0 ? "neg" : ""}`} style={{ width: `${Math.abs(peerToMine)}%` }} />
