@@ -4668,9 +4668,12 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
                       {(c.tags || []).map((t) => <span key={t} className="al-disc-tag">#{t}</span>)}
                     </div>
                   </div>
-                  <button className={`al-disc-follow ${followed ? "on" : ""}`} onClick={() => toggleFollow(c)}>
-                    {followed ? "팔로잉 ✓" : "+ 팔로우"}
-                  </button>
+                  <div className="al-disc-actions">
+                    <button className="al-disc-dm" onClick={() => requestDmEntry(c, "char")}>✉ DM</button>
+                    <button className={`al-disc-follow ${followed ? "on" : ""}`} onClick={() => toggleFollow(c)}>
+                      {followed ? "팔로잉 ✓" : "+ 팔로우"}
+                    </button>
+                  </div>
                 </div>
               );
             })}
@@ -5135,9 +5138,17 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
                 <b>{publicFollowingCount(publicProfile)}</b> 팔로잉
                 <b>{publicFollowerCount(publicProfile).toLocaleString()}</b> 팔로워
               </div>
-              <button className={`al-public-follow ${isFollowing(publicProfile.id) ? "on" : ""}`} onClick={() => toggleFollow(publicProfile)}>
-                {isFollowing(publicProfile.id) ? "팔로잉 취소" : "+ 팔로우"}
-              </button>
+              <div className="al-public-actions">
+                <button className="al-public-dm" onClick={() => {
+                  setPublicProfile(null);
+                  requestDmEntry(publicProfile, "char");
+                }}>
+                  ✉ 바로 DM
+                </button>
+                <button className={`al-public-follow ${isFollowing(publicProfile.id) ? "on" : ""}`} onClick={() => toggleFollow(publicProfile)}>
+                  {isFollowing(publicProfile.id) ? "팔로잉 취소" : "+ 팔로우"}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -6152,10 +6163,12 @@ body{ overflow-x:hidden; }
 .al-disc-tags{ display:flex; flex-wrap:wrap; gap:5px; }
 .al-disc-tag{ max-width:100%; font-size:10.5px; color:#9eddb0; background:#15201a; border-radius:5px; padding:2px 6px;
   overflow-wrap:anywhere; }
-.al-disc-follow{ grid-column:2; justify-self:start; min-height:32px; padding:8px 13px; border-radius:9px; cursor:pointer;
+.al-disc-actions{ grid-column:2; justify-self:start; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.al-disc-follow,.al-disc-dm{ min-height:32px; padding:8px 12px; border-radius:9px; cursor:pointer;
   font-family:inherit; font-size:12px; font-weight:700; border:1px solid #3a3550; background:#1c1730; color:#c8b3ff; white-space:nowrap; }
-.al-disc-follow:hover{ border-color:var(--accent); }
+.al-disc-follow:hover,.al-disc-dm:hover{ border-color:var(--accent); }
 .al-disc-follow.on{ background:#2a2440; color:#fff; border-color:#5a4570; }
+.al-disc-dm{ color:#fff; background:linear-gradient(135deg,var(--accent),var(--accent2)); border:none; }
 .al-disc-foot{ padding:10px 14px; font-size:11.5px; color:var(--soft); text-align:center; border-top:1px solid var(--line); }
 .al-public-profile{ position:relative; width:min(390px,calc(100vw - 34px)); overflow:hidden; border-radius:18px;
   border:1px solid #343040; background:#17161e; color:var(--ink); box-shadow:0 30px 80px rgba(0,0,0,.48); }
@@ -6180,9 +6193,11 @@ body{ overflow-x:hidden; }
 .al-public-desc{ margin:8px 0 12px; color:#e8e4ee; font-size:13px; line-height:1.6; }
 .al-public-stats{ display:flex; gap:12px; color:var(--soft); font-size:12px; margin-bottom:13px; }
 .al-public-stats b{ color:#fff; }
-.al-public-follow{ width:100%; min-height:42px; border:none; border-radius:14px; cursor:pointer; font-family:inherit;
+.al-public-actions{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.al-public-follow,.al-public-dm{ width:100%; min-height:42px; border:none; border-radius:14px; cursor:pointer; font-family:inherit;
   font-size:14px; font-weight:950; color:#fff; background:linear-gradient(135deg,var(--accent),var(--accent2)); }
 .al-public-follow.on{ background:#26212e; color:#ffb0bd; border:1px solid #5c2736; }
+.al-public-dm{ background:#1c1730; color:#c8b3ff; border:1px solid #3a3550; }
 .al-follow-modal{ width:min(390px,calc(100vw - 34px)); max-height:min(620px,82vh); overflow:hidden; border-radius:18px;
   border:1px solid #343040; background:#17161e; color:var(--ink); box-shadow:0 30px 80px rgba(0,0,0,.48); display:flex; flex-direction:column; }
 .al-follow-modal-head{ display:flex; align-items:center; justify-content:space-between; padding:15px 16px; border-bottom:1px solid var(--line); }
