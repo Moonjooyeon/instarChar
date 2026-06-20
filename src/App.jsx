@@ -944,6 +944,33 @@ function App() {
     loadFollowerCountsFor(rows);
   }
 
+  async function loadSharedCharacterById(sharedId) {
+    if (!supabase || !sharedId) return null;
+    setSharedLoadState({ loading: true, error: "" });
+    const { data, error } = await supabase
+      .from("alive_shared_characters")
+      .select("id,owner_id,owner_name,source_account_id,name,handle,persona,tags,character,created_at")
+      .eq("id", sharedId)
+      .maybeSingle();
+    if (error) {
+      console.warn("공유 링크 캐릭터 불러오기 실패:", error);
+      setSharedLoadState({ loading: false, error: error.message || "공유 캐릭터를 불러오지 못했어." });
+      return null;
+    }
+    if (!data) {
+      setSharedLoadState({ loading: false, error: "이 공유 링크의 캐릭터를 찾지 못했어." });
+      return null;
+    }
+    const next = sharedRowToChar(data);
+    setSharedCharacters((prev) => {
+      const rest = (prev || []).filter((item) => item.sharedId !== next.sharedId);
+      return [next, ...rest];
+    });
+    setSharedLoadState({ loading: false, error: "" });
+    loadFollowerCountsFor([data]);
+    return next;
+  }
+
   async function shareCurrentCharacter() {
     if (!activeId || !char.name.trim()) return;
     if (!supabase || !session?.user) {
@@ -1663,7 +1690,10 @@ function App() {
       setSharedFocusId(sharedId);
       setDiscoverQuery("");
       setStep("discover");
-      loadSharedCharacters();
+      loadSharedCharacterById(sharedId).then((found) => {
+        if (found) setPublicProfile(found);
+        loadSharedCharacters();
+      });
       window.history.replaceState({}, "", window.location.pathname);
     }
   }, [canUseApp]); // eslint-disable-line
