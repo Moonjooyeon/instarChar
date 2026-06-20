@@ -4710,8 +4710,7 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
       {canUseApp && step === "dm" && peer && (() => {
         const peerName = peer.asOwner ? char.name : peer.name;
         const peerInitial = peerName.trim()[0] || "?";
-        const isCharPeer = !peer.asOwner && !!findPeerChar(peer.name);
-        const showGauge = peer.asOwner || isCharPeer;
+        const showGauge = true;
         // 게이지 주체 = 현재 화자(내 캐릭터 or 유저 페르소나). 오너면 캐릭터로 폴백.
         const speakerName = (activePersona ? activePersona.name : char.name);
         const headSub = peer.asOwner
@@ -4728,7 +4727,7 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
               // 방 나가며 세션 분위기 판정 (최근 발화 기준)
               const recentLines = dm.slice(-8).map((m) => ({ who: m.from, text: m.text }));
               if (peer.asOwner) judgeSession(OWNER, peerName, recentLines);
-              else if (findPeerChar(peerName) && meName !== ownerLabel) {
+              else if (meName !== ownerLabel) {
                 processSession(meName, peerName, recentLines);
               }
               setStep("dmlist");
