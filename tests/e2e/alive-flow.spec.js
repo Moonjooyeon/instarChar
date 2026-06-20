@@ -56,7 +56,7 @@ test("character, follow, DM world modal, back and forward stay consistent", asyn
   await page.getByRole("button", { name: "🔍 탐색" }).click();
   await expect(page).toHaveURL(/\/app\/discover$/);
   await page.getByRole("button", { name: "+ 팔로우" }).first().click();
-  await expect(page.getByText("팔로잉 목록")).toBeVisible();
+  await expect(page.getByRole("button", { name: "팔로잉 ✓" }).first()).toBeVisible();
 
   await page.getByRole("button", { name: "‹" }).click();
   await expect(page).toHaveURL(/\/app\/feed$/);
@@ -80,6 +80,8 @@ test("character, follow, DM world modal, back and forward stay consistent", asyn
   await expect(page.locator(".al-world-note")).toHaveValue("테스트린은 사건 조사를 위해 세인의 세계에 들어왔다.");
 
   await page.getByRole("button", { name: "다듬고 시작" }).click();
+  await expect(page.getByRole("heading", { name: "어떤 채팅방으로 만들까?" })).toBeVisible();
+  await page.getByRole("button", { name: /NPC처럼 대화/ }).click();
   await expect(page).toHaveURL(/\/app\/dm\/thread$/);
   await page.getByRole("button", { name: "세계관" }).click();
   await expect(page.getByRole("heading", { name: "이 DM방 세계관 설정" })).toBeVisible();
@@ -107,9 +109,9 @@ test("DM send ignores rapid duplicate clicks while request is pending", async ({
   await page.getByRole("button", { name: "🙋 나(오너)로서 테스트린에게 직접 말 걸기" }).click();
   await expect(page).toHaveURL(/\/app\/dm\/thread$/);
 
-  const input = page.locator(".al-dminput input");
+  const input = page.getByRole("textbox", { name: /메시지/ });
   await input.fill("지금 확인해줘");
-  const send = page.locator(".al-dminput button");
+  const send = page.getByRole("button", { name: "↑" });
   await send.click();
   await send.click({ force: true });
 
@@ -120,12 +122,15 @@ test("DM send ignores rapid duplicate clicks while request is pending", async ({
 test("manual long-term memory can be added, pinned and marked important", async ({ page }) => {
   await createCharacter(page);
   await page.getByRole("button", { name: /0 장기기억/ }).click();
-  await page.getByPlaceholder("직접 추가할 장기기억 내용").fill("테스트린은 밤 순찰 전에 기록실을 확인한다.");
-  await page.getByRole("button", { name: "장기기억 추가" }).click();
+  await page.getByRole("button", { name: "+ 새 장기기억 추가" }).click();
+  await page.getByPlaceholder("감정 변화와 원인, 약속, 사건 같은 핵심만 추가").fill("테스트린은 밤 순찰 전에 기록실을 확인한다.");
+  await page.getByRole("button", { name: "장기기억 추가", exact: true }).click();
 
-  await page.getByRole("button", { name: /전체 설정/ }).click();
+  await page.getByRole("button", { name: /전체 설정 1개/ }).click();
   await expect(page.getByText("테스트린은 밤 순찰 전에 기록실을 확인한다.")).toBeVisible();
   await page.getByRole("button", { name: "고정" }).click();
-  await page.locator(".al-mem-meta select").selectOption("3");
-  await expect(page.locator(".al-mem-meta button.on")).toHaveText("고정");
+  await expect(page.getByRole("button", { name: "해제" })).toBeVisible();
+  await page.getByRole("button", { name: "수정" }).click();
+  await page.locator(".al-mem-editbox select").selectOption("5");
+  await expect(page.locator(".al-mem-kind")).toHaveText("핵심");
 });
