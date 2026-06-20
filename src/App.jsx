@@ -1102,6 +1102,37 @@ function App() {
   async function syncStructuredState(snapshot) {
     if (!supabase || !session?.user || !snapshot) return;
     const ownerId = session.user.id;
+    const compactGallery = (items) => Array.isArray(items) ? items.slice(-12) : [];
+    const compactPosts = (items) => Array.isArray(items) ? items.slice(0, 40).map((post) => ({
+      ...post,
+      comments: Array.isArray(post.comments) ? post.comments.slice(-20) : [],
+    })) : [];
+    const compactFollowing = (items) => Array.isArray(items) ? items.slice(0, 120).map((f) => ({
+      id: f.id,
+      sharedId: f.sharedId,
+      ownerId: f.ownerId,
+      sourceAccountId: f.sourceAccountId,
+      name: f.name,
+      handle: f.handle,
+      owner: f.owner,
+      ownerName: f.ownerName,
+      persona: f.persona,
+      world: f.world,
+      speech: f.speech,
+      surface: f.surface,
+      inner: f.inner,
+      relations: f.relations,
+      avatarImg: f.avatarImg,
+      headerImg: f.headerImg,
+      tags: f.tags || [],
+      external: f.external,
+      shared: f.shared,
+    })) : [];
+    const compactCharacter = (account) => ({
+      ...(account.char || {}),
+      posts: publicPostSnapshot(compactPosts(account.posts || [])),
+      following: compactFollowing(account.following || []),
+    });
     const participantIdsForThread = (threadKey) => {
       if (!threadKey?.startsWith("dm::")) return [ownerId];
       const names = roomKeyFromDmThreadKey(threadKey).split("|").map((name) => name.trim()).filter(Boolean);
@@ -1119,10 +1150,10 @@ function App() {
       source_account_id: account.id,
       name: account.char?.name || "",
       handle: account.char?.handle || "",
-      character: account.char || {},
-      gallery: account.gallery || [],
-      posts: account.posts || [],
-      following: account.following || [],
+      character: compactCharacter(account),
+      gallery: compactGallery(account.gallery || []),
+      posts: compactPosts(account.posts || []),
+      following: compactFollowing(account.following || []),
     })).filter((row) => row.source_account_id && row.name);
 
     const personaRows = (snapshot.personas || []).map((persona) => ({
@@ -1867,7 +1898,9 @@ function App() {
   });
 
   function enterDm(nextPeer, nextSpeakAs = speakAs) {
-    setPeer(nextPeer);
+    const relationFromActive = nextPeer?.asOwner ? "" : relationMatched(char, { name: nextPeer?.name || "", relation: nextPeer?.relation || "" });
+    const peerWithRelation = nextPeer?.asOwner ? nextPeer : { ...nextPeer, relation: nextPeer?.relation || relationFromActive };
+    setPeer(peerWithRelation);
     setSpeakAs(nextSpeakAs);
     setPendingDm(null);
     setDmWorldDraft("");
@@ -2747,6 +2780,19 @@ ${formatRule}${ANTI_REPEAT_RULES}${recentLinesBlock(posts.slice(0, 6).map((p) =>
     if (k in affinity) return affinity[k];
     const base = relationBaseFor(from, to);
     return base == null ? 0 : base;
+  }
+  function relationBaseFromLabel(label) {
+    if (!label) return null;
+    for (const [re, val] of RELATION_BASE) if (re.test(label)) return val;
+    return null;
+  }
+  function dmAffOf(from, to, relationHint = "") {
+    const key = dirKey(from, to);
+    if (key in affinity) return affinity[key];
+    const directBase = relationBaseFor(from, to);
+    if (directBase != null) return directBase;
+    const hintBase = relationBaseFromLabel(relationHint);
+    return hintBase == null ? 0 : hintBase;
   }
   const FOLLOWBACK_THRESHOLD = 15; // 아는사이→관심 구간이면 맞팔
   // 내 활성 캐릭터를 맞팔한 외부 캐 (그 캐가 나를 향한 호감도 15 이상)
@@ -4717,8 +4763,8 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
           ? "나(오너)로서 대화 중"
           : `${josa(speakerName, "으로/로")} 대화 중`;
         const roomTitle = dmThreadTitles[dmKey] || (peer.asOwner ? `${peerName} (내 캐릭터)` : peerName);
-        const mineToPeer = affOf(speakerName, peerName);   // 화자 → 상대
-        const peerToMine = affOf(peerName, speakerName);   // 상대 → 화자
+        const mineToPeer = dmAffOf(speakerName, peerName, peer.relation);   // 화자 → 상대
+        const peerToMine = dmAffOf(peerName, speakerName, peer.relation);   // 상대 → 화자
         const ownerVal = affOf(peerName, OWNER);           // 하루 → 나(오너)
         return (
         <div className="al-phone">
