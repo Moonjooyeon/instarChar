@@ -2658,6 +2658,7 @@ ${formatRule}${ANTI_REPEAT_RULES}${recentLinesBlock(posts.slice(0, 6).map((p) =>
   }
   function relationStageLabel(label, aff) {
     const clean = String(label || "").trim();
+    if (aff >= 100 && /부부|배우자|연인|애인|연애|사랑|약혼|반려|순애/.test(clean)) return "순애";
     if (/서운함|미움|혐오|증오|관심|호감|아는 사이/.test(clean)) {
       return affinityStage(aff);
     }
@@ -3402,13 +3403,18 @@ ${styleRule}
 
     let hist = dm.map((m) => ({ who: m.from, text: m.text }));
     const sessionStart = hist.length; // 이번 세션에 새로 쌓인 발화 구간
+    const lastSpeaker = hist[hist.length - 1]?.who || "";
+    const firstSpeaker = lastSpeaker === meChar.name
+      ? partner
+      : lastSpeaker === partner.name
+        ? meChar
+        : meChar;
 
     for (let turn = 0; turn < 6; turn++) {
       if (!autoChatRef.current) break;
-      // 짝수턴: 내 캐릭터(meChar)가 말함, 홀수턴: partner가 말함
-      const speaker = turn % 2 === 0 ? meChar : partner;
-      const listener = turn % 2 === 0 ? partner : meChar;
-      const rel = turn % 2 === 0 ? relForMe : relForPartner;
+      const speaker = turn % 2 === 0 ? firstSpeaker : (firstSpeaker.name === meChar.name ? partner : meChar);
+      const listener = speaker.name === meChar.name ? partner : meChar;
+      const rel = speaker.name === meChar.name ? relForMe : relForPartner;
       const line = await genLine(speaker, listener, hist, rel, chatMode, currentWorldPref);
       if (!autoChatRef.current) break;
       if (!line) {
