@@ -1288,9 +1288,14 @@ function App() {
       }
 
       if (dmResult.status === "fulfilled" || sharedDmResult.status === "fulfilled") {
-        const keepLocal = Object.fromEntries(Object.entries(next.dmThreads || {}).filter(([key]) => !key.startsWith("dm::") && !key.startsWith("owner::")));
+        const dmLoaded = dmResult.status === "fulfilled" && !dmResult.value.error;
+        const sharedLoaded = sharedDmResult.status === "fulfilled" && !sharedDmResult.value.error;
+        const shouldReplaceKey = (key) =>
+          (sharedLoaded && key.startsWith("dm::")) ||
+          (dmLoaded && (key.startsWith("owner::") || key.startsWith("local::")));
+        const keepLocal = Object.fromEntries(Object.entries(next.dmThreads || {}).filter(([key]) => !shouldReplaceKey(key)));
         next.dmThreads = keepLocal;
-        next.dmWorldPrefs = Object.fromEntries(Object.entries(next.dmWorldPrefs || {}).filter(([key]) => !key.startsWith("dm::") && !key.startsWith("owner::")));
+        next.dmWorldPrefs = Object.fromEntries(Object.entries(next.dmWorldPrefs || {}).filter(([key]) => !shouldReplaceKey(key)));
         [...dmRows, ...sharedDmRows].forEach((row) => {
           next.dmThreads[row.thread_key] = Array.isArray(row.messages) ? row.messages : [];
           if (row.world_pref && Object.keys(row.world_pref).length) next.dmWorldPrefs[row.thread_key] = row.world_pref;
@@ -1868,11 +1873,15 @@ function App() {
   function canonicalDmKey(a, b) {
     return `dm::${[a || "나", b || "나"].map((x) => String(x).trim() || "나").sort().join("|")}`;
   }
+  function localDmKey(a, b) {
+    return `local::${activeId || char.name || "new"}::${[a || "나", b || "나"].map((x) => String(x).trim() || "나").sort().join("|")}`;
+  }
   function ownerDmKey() {
     return `owner::${activeId || char.name || "new"}::${ownerLabel}|${char.name || "나"}`;
   }
   function roomKeyFromDmThreadKey(key) {
     if (key.startsWith("dm::")) return key.slice("dm::".length);
+    if (key.startsWith("local::")) return key.split("::").slice(-1)[0] || "";
     if (key.startsWith("owner::")) return key.split("::").slice(-1)[0] || "";
     if (key.includes("::")) return key.split("::").slice(-1)[0] || "";
     return key;
@@ -1880,6 +1889,7 @@ function App() {
   function dmKeyFor(peerObj, speakerValue = speakAs) {
     if (!peerObj) return "";
     if (peerObj.asOwner) return ownerDmKey();
+    if (peerObj.dmKind === "npc") return localDmKey(speakerNameFor(speakerValue), peerObj.name);
     return canonicalDmKey(speakerNameFor(speakerValue), peerObj.name);
   }
   const dmKey = peer ? dmKeyFor(peer, speakAs) : "";
@@ -1946,30 +1956,31 @@ function App() {
       enterDm(nextPeer, nextSpeakAs);
       return;
     }
-    setPendingDm({ peer: nextPeer, speakAs: nextSpeakAs });
+    setPendingDm({ peer: nextPeer, speakAs: nextSpeakAs, stage: "world" });
     setDmWorldDraft("");
   }
 
   function chooseDmWorldMode(mode) {
     if (!pendingDm) return;
-    const key = dmKeyFor(pendingDm.peer, pendingDm.speakAs);
-    if (mode === "bridge") {
-      const nextPrefs = { ...dmWorldPrefs, [key]: { mode, note: "" } };
-      setDmWorldPrefs(nextPrefs);
-      persistLocalSnapshot({ ...exportAppState(), dmWorldPrefs: nextPrefs });
-      enterDm(pendingDm.peer, pendingDm.speakAs);
-      return;
-    }
-    setPendingDm((p) => ({ ...p, mode }));
+    setPendingDm((p) => ({ ...p, mode, note: "", stage: mode === "bridge" ? "chatKind" : "note" }));
   }
 
   function finishDmWorldSetup(skipNote = false) {
     if (!pendingDm?.mode) return;
-    const key = dmKeyFor(pendingDm.peer, pendingDm.speakAs);
-    const nextPrefs = { ...dmWorldPrefs, [key]: { mode: pendingDm.mode, note: skipNote ? "" : dmWorldDraft.trim() } };
+    setPendingDm((p) => ({ ...p, note: skipNote ? "" : dmWorldDraft.trim(), stage: "chatKind" }));
+  }
+
+  function finishDmChatKind(dmKind) {
+    if (!pendingDm?.mode) return;
+    const peerForRoom = { ...pendingDm.peer, dmKind };
+    const key = dmKeyFor(peerForRoom, pendingDm.speakAs);
+    const nextPrefs = {
+      ...dmWorldPrefs,
+      [key]: { mode: pendingDm.mode, note: pendingDm.note || "", chatKind: dmKind },
+    };
     setDmWorldPrefs(nextPrefs);
     persistLocalSnapshot({ ...exportAppState(), dmWorldPrefs: nextPrefs });
-    enterDm(pendingDm.peer, pendingDm.speakAs);
+    enterDm(peerForRoom, pendingDm.speakAs);
   }
 
   function openDmSettings() {
@@ -2087,6 +2098,7 @@ function App() {
         const roomKey = roomKeyFromDmThreadKey(k);
         const parts = roomKey.split("|");
         if (k.startsWith("owner::") && !k.startsWith(`owner::${activeId || char.name || "new"}::`)) return false;
+        if (k.startsWith("local::") && !k.startsWith(`local::${activeId || char.name || "new"}::`)) return false;
         // 오너→내캐릭터 방
         if (parts[0] === ownerLabel && parts[1] === me) return true;
         // 내 쪽(캐릭터 또는 내 페르소나)이 참여한 방
@@ -2096,6 +2108,7 @@ function App() {
         const roomKey = roomKeyFromDmThreadKey(k);
         const parts = roomKey.split("|");
         const isOwnerThread = parts[0] === ownerLabel && parts[1] === me;
+        const isNpcThread = k.startsWith("local::");
         const personaSide = isOwnerThread ? null : parts.find((n) => isPersonaName(n));
         let mineSide, other, asPersona;
         if (isOwnerThread) {
@@ -2112,7 +2125,7 @@ function App() {
           asPersona = null;
         }
         const last = msgs[msgs.length - 1];
-        return { key: k, peerName: other, last: last ? last.text : "", count: msgs.length, asOwner: isOwnerThread, asPersona };
+        return { key: k, peerName: other, last: last ? last.text : "", count: msgs.length, asOwner: isOwnerThread, asPersona, dmKind: isNpcThread ? "npc" : "shared" };
       });
   }
 
@@ -4671,7 +4684,13 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
                     } else {
                       const acc = accounts.find((a) => a.char.name === c.peerName);
                       const fol = following.find((f) => f.name === c.peerName);
-                      const nextPeer = { name: c.peerName, persona: acc ? acc.char.persona : (fol ? fol.persona : ""), relation: "" };
+                      const nextPeer = {
+                        ...(fol || {}),
+                        name: c.peerName,
+                        persona: acc ? acc.char.persona : (fol ? fol.persona : ""),
+                        relation: relationMatched(char, acc ? { name: acc.char.name } : (fol || { name: c.peerName })),
+                        dmKind: c.dmKind,
+                      };
                       // 이 방의 화자 복원 (페르소나 방이면 그 페르소나로)
                       let restoredSpeakAs = "char";
                       if (c.asPersona) {
@@ -4684,7 +4703,7 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
                   <div className="al-convitem-av">{c.asOwner ? "🙋" : c.asPersona ? "🎭" : (c.peerName.trim()[0] || "?")}</div>
                   <div className="al-convitem-info">
                     <span className="al-convitem-name">{displayDmTitle(c)}</span>
-                    <span className="al-convitem-last">{c.last.slice(0, 28) || "대화 시작"}</span>
+                    <span className="al-convitem-last">{c.dmKind === "npc" ? "NPC 채팅 · " : c.asOwner ? "" : "공유 DM · "}{c.last.slice(0, 28) || "대화 시작"}</span>
                   </div>
                   <span className="al-convitem-count">{c.count}</span>
                 </button>
@@ -4764,7 +4783,7 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
                   {following.map((f) => (
                     <button key={f.id} className="al-newchat-target ext"
                       onClick={() => {
-                        requestDmEntry({ name: f.name, persona: f.persona, relation: "" }, newChatSpeaker);
+                        requestDmEntry({ ...f, name: f.name, persona: f.persona, relation: relationMatched(char, f) }, newChatSpeaker);
                       }}>
                       <span className="al-nt-av">{f.name.trim()[0]}</span>
                       <span className="al-nt-name">{f.name}</span>
@@ -4788,9 +4807,10 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
         const showGauge = true;
         // 게이지 주체 = 현재 화자(내 캐릭터 or 유저 페르소나). 오너면 캐릭터로 폴백.
         const speakerName = (activePersona ? activePersona.name : char.name);
+        const dmKindLabel = peer.dmKind === "npc" ? "NPC 채팅" : "공유 DM";
         const headSub = peer.asOwner
           ? "나(오너)로서 대화 중"
-          : `${josa(speakerName, "으로/로")} 대화 중`;
+          : `${josa(speakerName, "으로/로")} 대화 중 · ${dmKindLabel}`;
         const roomTitle = dmThreadTitles[dmKey] || (peer.asOwner ? `${peerName} (내 캐릭터)` : peerName);
         const mineToPeer = dmAffOf(speakerName, peerName, peer.relation);   // 화자 → 상대
         const peerToMine = dmAffOf(peerName, speakerName, peer.relation);   // 상대 → 화자
@@ -5155,7 +5175,7 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
       {canUseApp && pendingDm && (
         <div className="al-modal-bg" onClick={() => setPendingDm(null)}>
           <div className="al-world-modal" onClick={(e) => e.stopPropagation()}>
-            {!pendingDm.mode ? (
+            {(!pendingDm.mode || pendingDm.stage === "world") ? (
               <>
                 <h3>어느 세계관으로 들어갈까?</h3>
                 <p>{pendingDm.peer.name}와의 DM에서 장면 기준을 정해줘. 캐릭터 정체성은 유지돼.</p>
@@ -5171,6 +5191,21 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
                   <button onClick={() => chooseDmWorldMode("bridge")}>
                     <b>중간다리</b>
                     <span>ALIVE DM/공유 타임라인에서 만나기</span>
+                  </button>
+                </div>
+              </>
+            ) : pendingDm.stage === "chatKind" ? (
+              <>
+                <h3>어떤 채팅방으로 만들까?</h3>
+                <p>이 선택에 따라 저장 위치가 달라져. NPC 채팅은 내 계정 전용, 공유 DM은 상대 오너와 같은 방을 봐.</p>
+                <div className="al-world-options">
+                  <button onClick={() => finishDmChatKind("npc")}>
+                    <b>NPC처럼 대화</b>
+                    <span>{pendingDm.peer.name}을 AI 캐릭터로 굴리는 내 전용 방</span>
+                  </button>
+                  <button onClick={() => finishDmChatKind("shared")}>
+                    <b>상대 오너와 DM 공유</b>
+                    <span>상대 계정에서도 같은 대화가 보이는 공용 방</span>
                   </button>
                 </div>
               </>
