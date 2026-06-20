@@ -873,6 +873,11 @@ function App() {
     });
   }
 
+  function openMemoryPanel() {
+    closeProfilePanels("memory");
+    setShowMemory(true);
+  }
+
   function toggleRelationsPanel() {
     setShowRelations((v) => {
       const next = !v;
@@ -964,29 +969,29 @@ function App() {
   async function loadSharedCharacters() {
     if (!supabase) return;
     setSharedLoadState({ loading: true, error: "" });
-    const [sharedResult, characterResult] = await Promise.allSettled([
-      supabase
-        .from("alive_shared_characters")
-        .select("id,owner_id,owner_name,source_account_id,name,handle,persona,tags,character,created_at")
-        .order("created_at", { ascending: false })
-        .limit(80),
+    const [characterResult, sharedResult] = await Promise.allSettled([
       supabase
         .from("alive_characters")
         .select("owner_id,source_account_id,name,handle,character,gallery,posts,following,updated_at")
         .order("updated_at", { ascending: false })
         .limit(120),
+      supabase
+        .from("alive_shared_characters")
+        .select("id,owner_id,owner_name,source_account_id,name,handle,persona,tags,character,created_at")
+        .order("created_at", { ascending: false })
+        .limit(80),
     ]);
-    const sharedError = sharedResult.status === "fulfilled" ? sharedResult.value.error : sharedResult.reason;
     const characterError = characterResult.status === "fulfilled" ? characterResult.value.error : characterResult.reason;
-    const sharedRows = sharedResult.status === "fulfilled" && !sharedResult.value.error ? (sharedResult.value.data || []) : [];
+    const sharedError = sharedResult.status === "fulfilled" ? sharedResult.value.error : sharedResult.reason;
     const characterRows = characterResult.status === "fulfilled" && !characterResult.value.error ? (characterResult.value.data || []) : [];
-    if (sharedError && characterError) {
-      console.warn("캐릭터 탐색 불러오기 실패:", sharedError, characterError);
-      setSharedLoadState({ loading: false, error: sharedError.message || characterError.message || "사용자 캐릭터를 불러오지 못했어." });
+    const sharedRows = sharedResult.status === "fulfilled" && !sharedResult.value.error ? (sharedResult.value.data || []) : [];
+    if (characterError) {
+      console.warn("alive_characters 탐색 불러오기 실패:", characterError);
+      setSharedCharacters([]);
+      setSharedLoadState({ loading: false, error: characterError.message || "alive_characters를 불러오지 못했어." });
       return;
     }
-    if (sharedError) console.warn("공유 캐릭터 불러오기 실패:", sharedError);
-    if (characterError) console.warn("자동 저장 캐릭터 불러오기 실패:", characterError);
+    if (sharedError) console.warn("공유 정보 불러오기 실패:", sharedError);
     setSharedCharacters(mergeDiscoverCharacters(sharedRows, characterRows));
     setSharedLoadState({ loading: false, error: "" });
     loadFollowerCountsFor(sharedRows);
@@ -3023,6 +3028,25 @@ ${formatRule}${ANTI_REPEAT_RULES}${recentLinesBlock(posts.slice(0, 6).map((p) =>
     setFollowing((fs) => fs.map((f) => f.name === fromName ? apply(f) : f));
   }
 
+  function deleteRelationAt(index) {
+    const rels = parseRelations(char.relations);
+    const target = rels[index];
+    const nextRelations = rels
+      .filter((_, i) => i !== index)
+      .filter((r) => r.who && r.label)
+      .map((r) => `${r.who} — ${r.label}`)
+      .join(", ");
+    update("relations", nextRelations);
+    if (target?.who) {
+      setAffinity((prev) => {
+        const next = { ...prev };
+        delete next[dirKey(char.name, target.who)];
+        delete next[dirKey(target.who, char.name)];
+        return next;
+      });
+    }
+  }
+
   function normalizeRelationLabelsForChar(c) {
     if (!c?.relations) return c;
     let changed = false;
@@ -4277,6 +4301,7 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
                   <span className="al-handle">@{char.handle || char.name.replace(/\s/g, "").toLowerCase()}</span>
                 </div>
                 <div className="al-feed-actions">
+                  <button className="al-dmbtn ghost al-menubtn" onClick={openMemoryPanel} title="장기기억"><span>☰</span><b>기억</b></button>
                   <button className="al-dmbtn ghost" onClick={() => { setDiscoverQuery(""); setSharedFocusId(""); setStep("discover"); }} title="탐색"><span>🔍</span><b>탐색</b></button>
                   <button className="al-dmbtn ghost" onClick={shareCurrentCharacter} title="공유"><span>🔗</span><b>공유</b></button>
                   <button className="al-dmbtn" onClick={() => setStep("dmlist")} title="DM"><span>✉</span><b>DM</b></button>
@@ -4330,6 +4355,7 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
                             <span className="al-rel-who">{who}</span>
                             {oneSided && <span className="al-rel-onesided">💔 짝사랑</span>}
                             <span className="al-rel-stage">{relationStageLabel(label, aff)} · {aff}</span>
+                            <button type="button" className="al-rel-delete" onClick={() => deleteRelationAt(i)}>삭제</button>
                           </div>
                           {label && <p className="al-rel-desc">{label}</p>}
                           <div className="al-rel-bar">
@@ -5845,6 +5871,9 @@ body{ overflow-x:hidden; }
 .al-rel-who{ font-size:13px; font-weight:800; color:var(--ink); }
 .al-rel-desc{ font-size:12px; color:#b8b2c8; line-height:1.55; margin:0 0 8px; }
 .al-rel-stage{ font-size:11px; color:var(--soft); margin-left:auto; }
+.al-rel-delete{ flex-shrink:0; border:1px solid #563044; background:#251520; color:#ff9ab0; border-radius:8px;
+  padding:4px 8px; font-family:inherit; font-size:10.5px; font-weight:800; cursor:pointer; }
+.al-rel-delete:hover{ border-color:#854560; background:#321a2a; color:#ffd3dd; }
 .al-rel-onesided{ font-size:10px; font-weight:700; color:#ff8aa0; background:#3a1f2a; padding:2px 7px; border-radius:8px; }
 .al-rel-onesided-note{ display:block; font-size:10.5px; color:#d68a9a; margin-top:6px; }
 .al-rel-bar{ height:5px; background:#1f1b2e; border-radius:3px; overflow:hidden; }
