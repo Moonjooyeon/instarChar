@@ -1157,11 +1157,10 @@ function App() {
       external: f.external,
       shared: f.shared,
     })) : [];
-    const compactCharacter = (account) => ({
-      ...(account.char || {}),
-      posts: publicPostSnapshot(compactPosts(account.posts || [])),
-      following: compactFollowing(account.following || []),
-    });
+    const compactCharacter = (account) => {
+      const { posts: _posts, following: _following, gallery: _gallery, ...baseChar } = account.char || {};
+      return baseChar;
+    };
     const participantIdsForThread = (threadKey) => {
       if (!threadKey?.startsWith("dm::")) return [ownerId];
       const names = roomKeyFromDmThreadKey(threadKey).split("|").map((name) => name.trim()).filter(Boolean);
@@ -1238,10 +1237,16 @@ function App() {
     }
 
     if (!jobs.length) return;
-    const results = await Promise.allSettled(jobs);
+    const results = await Promise.allSettled(jobs.map((job, index) =>
+      withRejectTimeout(job, 7000, `분리 테이블 동기화 ${index + 1}`)
+    ));
     const failed = results.find((result) => result.status === "fulfilled" && result.value?.error);
     if (failed?.value?.error) {
       console.warn("분리 테이블 동기화 실패:", failed.value.error.message);
+    }
+    const rejected = results.find((result) => result.status === "rejected");
+    if (rejected) {
+      console.warn("분리 테이블 동기화 실패:", rejected.reason?.message || rejected.reason);
     }
   }
 
@@ -2851,10 +2856,15 @@ ${formatRule}${ANTI_REPEAT_RULES}${recentLinesBlock(posts.slice(0, 6).map((p) =>
   }
   function dmAffOf(from, to, relationHint = "") {
     const key = dirKey(from, to);
-    if (key in affinity) return affinity[key];
     const directBase = relationBaseFor(from, to);
-    if (directBase != null) return directBase;
     const hintBase = relationBaseFromLabel(relationHint);
+    const base = directBase ?? hintBase;
+    if (key in affinity) {
+      const stored = affinity[key];
+      if (base != null && base >= 90 && stored < base && stored >= 0) return base;
+      return stored;
+    }
+    if (directBase != null) return directBase;
     return hintBase == null ? 0 : hintBase;
   }
   const FOLLOWBACK_THRESHOLD = 15; // 아는사이→관심 구간이면 맞팔

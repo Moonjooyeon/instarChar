@@ -82,6 +82,10 @@ using (auth.uid() = owner_id);
 
 create index if not exists alive_shared_characters_owner_idx on public.alive_shared_characters(owner_id);
 create index if not exists alive_shared_characters_name_idx on public.alive_shared_characters(name);
+create index if not exists alive_shared_characters_created_at_idx
+on public.alive_shared_characters(created_at desc);
+create index if not exists alive_shared_characters_owner_source_idx
+on public.alive_shared_characters(owner_id, source_account_id);
 
 drop trigger if exists alive_shared_characters_touch_updated_at on public.alive_shared_characters;
 create trigger alive_shared_characters_touch_updated_at
@@ -259,6 +263,10 @@ using (auth.uid() = owner_id);
 
 create index if not exists alive_characters_owner_idx
 on public.alive_characters(owner_id);
+create index if not exists alive_characters_owner_updated_idx
+on public.alive_characters(owner_id, updated_at desc);
+create index if not exists alive_characters_owner_source_idx
+on public.alive_characters(owner_id, source_account_id);
 
 drop trigger if exists alive_characters_touch_updated_at on public.alive_characters;
 create trigger alive_characters_touch_updated_at
