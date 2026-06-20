@@ -430,6 +430,17 @@ function App() {
     return window.location.origin;
   }
 
+  function readableAuthError(error) {
+    const message = typeof error === "string" ? error : error?.message || "";
+    if (/invalid_client|client secret/i.test(message)) {
+      return "소셜 로그인 Provider 설정 오류: Supabase Authentication > Providers의 Client Secret이 Google/Kakao 개발자 콘솔 값과 달라. Secret을 다시 복사해서 저장한 뒤 새 로그인으로 시도해줘.";
+    }
+    if (/Unable to exchange external code/i.test(message)) {
+      return "소셜 로그인 코드를 세션으로 바꾸지 못했어. 이미 소비된 일회용 코드일 수 있으니 로그인 상태 초기화 후 새로 로그인해줘.";
+    }
+    return message || "로그인 상태 확인에 실패했어.";
+  }
+
   async function submitAuth() {
     const email = authEmail.trim();
     const password = authPassword;
@@ -499,7 +510,7 @@ function App() {
     });
     if (error) {
       setAuthLoading(false);
-      setAuthMessage(error.message);
+      setAuthMessage(readableAuthError(error));
     }
   }
 
@@ -1416,7 +1427,7 @@ function App() {
     }).catch((error) => {
       if (!alive) return;
       authResolvedRef.current = true;
-      setAuthMessage(error.message || "로그인 상태 확인에 실패했어.");
+      setAuthMessage(readableAuthError(error));
       setAuthLoading(false);
       setProfileLoading(false);
     });
