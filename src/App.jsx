@@ -1379,8 +1379,11 @@ function App() {
       ]);
 
       const next = { ...baseState };
-      if (charsResult.status === "rejected") throw charsResult.reason;
-      if (charsResult.value.error) throw charsResult.value.error;
+      if (charsResult.status === "rejected") {
+        console.warn("캐릭터 데이터 로드 실패:", charsResult.reason?.message || charsResult.reason);
+      } else if (charsResult.value.error) {
+        console.warn("캐릭터 데이터 로드 실패:", charsResult.value.error.message || charsResult.value.error);
+      }
       const chars = charsResult.status === "fulfilled" && !charsResult.value.error ? (charsResult.value.data || []) : [];
       const personaRows = personasResult.status === "fulfilled" && !personasResult.value.error ? (personasResult.value.data || []) : [];
       const dmRows = dmResult.status === "fulfilled" && !dmResult.value.error ? (dmResult.value.data || []) : [];
@@ -1428,7 +1431,7 @@ function App() {
       return next;
     } catch (e) {
       console.warn("분리 테이블 로드 실패:", e);
-      throw e;
+      return baseState;
     }
   }
 
@@ -1681,11 +1684,14 @@ function App() {
         } catch (fallbackError) {
           if (cancelled) return;
           console.warn("캐릭터 데이터 로드 실패:", fallbackError);
-          profileLoadedRef.current = false;
-          setProfileLoading(true);
-          setStateReady(false);
-          setSaveStatus("캐릭터 불러오는 중");
-          setAuthMessage("캐릭터를 불러오지 못했어요. 네트워크나 DB가 느린 상태라 잠시 뒤 다시 시도해줘.");
+          applyAppState(blankAppState(fallbackName));
+          setProfileName(fallbackName);
+          setOnboardingOpen(false);
+          profileLoadedRef.current = true;
+          setProfileLoading(false);
+          setStateReady(true);
+          setSaveStatus("임시 진입");
+          setAuthMessage("저장된 캐릭터 로드가 느려서 일단 앱에 들어왔어. 새로고침 대신 다시 불러오기를 눌러줘.");
         }
       }
     }
