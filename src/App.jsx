@@ -219,6 +219,31 @@ function catchphraseGuideLine(value) {
   return `캐치프레이즈/말버릇 참고: ${text} (상황에 맞을 때만 아주 가끔 변형해서 사용. 매번 반복하거나 그대로 복붙 금지)`;
 }
 
+function selfSettingPriorityBlock(c, label = "자기 설정") {
+  if (!c) return "";
+  const lines = [
+    c.persona ? `성격/핵심 설정: ${c.persona}` : "",
+    c.world ? `세계관/출신: ${c.world}` : "",
+    c.surface ? `겉으로 보이는 모습: ${c.surface}` : "",
+    c.inner ? `속마음/내면: ${c.inner}` : "",
+    c.situational ? `상황별 반응: ${c.situational}` : "",
+    c.triggers ? `금기/트리거: ${c.triggers}` : "",
+    c.interests ? `관심사: ${c.interests}` : "",
+    speechGuideLine(c.speech, "말투"),
+    catchphraseGuideLine(c.catchphrase),
+    c.relations ? `관계망: ${c.relations}` : "",
+  ].filter(Boolean).join("\n");
+  if (!lines) return "";
+  return `[${label} — 최우선]
+${lines}
+
+자기 설정 적용 규칙:
+- 답하기 전에 위 자기 설정을 반드시 먼저 읽고, 성격·말투·금기·관계망과 충돌하는 말은 하지 마라.
+- 최근 대화 분위기나 상대의 말투를 따라 하더라도, 위 설정의 금지/핵심 성격/호칭 규칙을 절대 깨지 마라.
+- 말투 참고 문장이나 예시를 그대로 베끼지 말고, 설정의 성격과 리듬만 새 문장으로 반영하라.
+- 설정에 없는 급격한 스킨십·집착·연애 진전·캐붕 행동을 임의로 만들지 마라.`;
+}
+
 function relationshipBoundaryLine(c, audience = "public") {
   const rels = Array.isArray(c?.relations)
     ? c.relations.filter(Boolean).join(", ")
@@ -3856,13 +3881,7 @@ ${otherChar && otherChar.relations ? `${otherName}의 관계망: ${otherChar.rel
     let identityBlock = "";
     if (peerChar) {
       identityBlock = `[너는 "${peerChar.name}"이다]
-페르소나: ${peerChar.persona}
-${peerChar.world ? `세계관/출신: ${peerChar.world}` : ""}
-${peerChar.surface ? `겉: ${peerChar.surface}` : ""}${peerChar.inner ? ` / 속: ${peerChar.inner}` : ""}
-${peerChar.situational ? `상황별: ${peerChar.situational}` : ""}
-${speechGuideLine(peerChar.speech, "말투")}
-${catchphraseGuideLine(peerChar.catchphrase)}
-${peerChar.relations ? `너의 관계망: ${peerChar.relations}` : ""}`;
+${selfSettingPriorityBlock(peerChar, `${peerChar.name} 자기 설정`)}`;
     } else {
       identityBlock = `[너는 "${peerName}"이다]\n${peer.persona ? `설정: ${peer.persona}` : "이 캐릭터에 대한 정보는 제한적이다. 자연스럽게 반응하라."}`;
     }
@@ -3894,8 +3913,9 @@ ${identityBlock}
 ${senderDesc}${relNote}${worldBridgeBlock(peerChar || { name: peerName, persona: peer?.persona }, senderChar || { name: meName, persona: ownerPersona }, currentWorldPref)}
 
 [규칙]
-- 너는 "${peerName}"로서만 1인칭으로 답한다. 말투 참고 메모를 복붙하지 말고 ${peerName}답게 새로 말하라. 메타발언 금지.
+- 너는 "${peerName}"로서만 1인칭으로 답한다. 위 자기 설정을 먼저 따른 뒤, 말투 참고 메모를 복붙하지 말고 ${peerName}답게 새로 말하라. 메타발언 금지.
 - 상대를 "${meName}"로 인식하고 거기에 맞게 답하라.
+- 자기 설정에 금지된 호칭·어미·태도는 절대 쓰지 마라. 관계/호감도/최근 대화보다 자기 설정의 금지 규칙이 우선한다.
 - **반드시 상대의 마지막 말에 직접 이어서 답하라.** 흐름을 무시하고 갑자기 다른 화제로 튀지 마라. 지금까지의 대화 맥락을 기억하고 자연스럽게 이어간다.
 - 받아치고 끝내지 마라. 상대 말에 반응하되 네 생각·감정·되묻는 질문을 얹어 대화가 굴러가게 하라. "...어." "...뭘." 같은 영혼 없는 단답·맞장구만 반복하지 마라. 무뚝뚝한 캐릭터여도 속내나 디테일이 한 줄은 묻어나게.
 - DM 대화체로. 보통 1~3문장. 한두 단어 단답으로 끝내지 말 것. 똑같은 표현 반복은 피하되 맥락은 절대 놓치지 마라.
@@ -3998,15 +4018,12 @@ ${senderDesc}${relNote}${worldBridgeBlock(peerChar || { name: peerName, persona:
     const sys = `너는 "${speaker.name}" 본인이다. "${listener.name}"와 DM 중. 상대는 오직 "${listener.name}".
 
 [너는 "${speaker.name}"]
-${speaker.persona || ""}
-${speaker.world ? `세계관/출신: ${speaker.world}` : ""}
-${speechGuideLine(speaker.speech, "말투")}
-${speaker.surface ? `겉: ${speaker.surface}` : ""}${speaker.inner ? ` / 속: ${speaker.inner}` : ""}
-${catchphraseGuideLine(speaker.catchphrase)}
+${selfSettingPriorityBlock(speaker, `${speaker.name} 자기 설정`)}
 ${relationHint ? `${listener.name}와의 관계: ${relationHint}\n${relationshipMatchRuleLine(listener.name, relationHint)}` : `${listener.name}와 특별한 관계 없음.`}${worldBridgeBlock(speaker, listener, worldPref)}
 
 [규칙]
-- 철저히 ${speaker.name}로서 1인칭으로 답한다. 말투 참고 메모를 그대로 쓰지 말고 새 문장으로 말한다. 메타발언 금지.
+- 철저히 ${speaker.name}로서 1인칭으로 답한다. 위 자기 설정을 먼저 따르고, 말투 참고 메모를 그대로 쓰지 말고 새 문장으로 말한다. 메타발언 금지.
+- 자기 설정에 금지된 호칭·어미·태도는 절대 쓰지 마라. 관계/호감도/최근 대화보다 자기 설정의 금지 규칙이 우선한다.
 ${styleRule}
 - 상대 마지막 말을 받아 이어가되 단답으로 끝내지 마라. 네 생각·감정을 얹어 대화를 굴려라. 무뚝뚝해도 속내가 한 줄 묻어나게.
 - 같은 논점을 계속 주고받으며 맴돌지 마라. 받았으면 새 얘기·다른 화제·행동으로 한 발 진전시켜라.
