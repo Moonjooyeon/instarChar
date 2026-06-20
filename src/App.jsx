@@ -370,6 +370,7 @@ function App() {
   const dmRequestSeqRef = useRef(0);
   const dmKeyRef = useRef("");
   const affinityRemainderRef = useRef({});
+  const deletedDmKeysRef = useRef(new Set());
 
   function flashShareStatus(message, ms = 2200) {
     if (shareStatusTimerRef.current) clearTimeout(shareStatusTimerRef.current);
@@ -1246,6 +1247,7 @@ function App() {
     const compactMessages = (messages) => Array.isArray(messages) ? messages.slice(-160) : [];
     Object.entries(snapshot.dmThreads || {}).forEach(([threadKey, messages]) => {
       if (!threadKey) return;
+      if (deletedDmKeysRef.current.has(threadKey)) return;
       const row = {
         thread_key: threadKey,
         messages: compactMessages(messages),
@@ -2176,26 +2178,27 @@ function App() {
 
   async function deleteDmThread(key, event) {
     event?.stopPropagation();
+    deletedDmKeysRef.current.add(key);
     resetAffinityForDmThread(key);
-    setDmThreads((prev) => {
-      const next = { ...prev };
-      delete next[key];
-      return next;
-    });
-    setDmWorldPrefs((prev) => {
-      const next = { ...prev };
-      delete next[key];
-      return next;
-    });
-    setDmThreadTitles((prev) => {
-      const next = { ...prev };
-      delete next[key];
-      return next;
-    });
+    const nextThreads = { ...dmThreads };
+    const nextPrefs = { ...dmWorldPrefs };
+    const nextTitles = { ...dmThreadTitles };
+    delete nextThreads[key];
+    delete nextPrefs[key];
+    delete nextTitles[key];
+    setDmThreads(nextThreads);
+    setDmWorldPrefs(nextPrefs);
+    setDmThreadTitles(nextTitles);
     if (dmKeyRef.current === key) {
       setPeer(null);
       setStep("dmlist");
     }
+    const nextSnapshot = {
+      ...exportAppState(),
+      dmThreads: nextThreads,
+      dmWorldPrefs: nextPrefs,
+      dmThreadTitles: nextTitles,
+    };
     if (supabase && session?.user) {
       const table = key.startsWith("dm::") ? "alive_shared_dm_threads" : "alive_dm_threads";
       let query = supabase.from(table).delete().eq("thread_key", key);
@@ -2203,6 +2206,8 @@ function App() {
       const { error } = await query;
       if (error) console.warn("DM방 삭제 동기화 실패:", error);
     }
+    await saveAppStateSnapshot(nextSnapshot);
+    window.setTimeout(() => deletedDmKeysRef.current.delete(key), 15000);
   }
   
   // 현재 계정(char)이 참여한 대화 목록 (캐릭터 방 + 내 페르소나 방 + 오너 방)
