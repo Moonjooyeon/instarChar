@@ -117,6 +117,12 @@ create policy "alive_character_follows_delete_own"
 on public.alive_character_follows for delete
 using (auth.uid() = follower_id);
 
+drop policy if exists "alive_character_follows_update_own" on public.alive_character_follows;
+create policy "alive_character_follows_update_own"
+on public.alive_character_follows for update
+using (auth.uid() = follower_id)
+with check (auth.uid() = follower_id);
+
 create index if not exists alive_character_follows_target_idx
 on public.alive_character_follows(target_shared_character_id);
 

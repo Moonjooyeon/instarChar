@@ -990,6 +990,24 @@ function App() {
     if (error) console.warn("공유 캐릭터 스냅샷 갱신 실패:", error);
   }
 
+  async function syncOwnFollowRows(nextFollowing = following, nextChar = char) {
+    if (!supabase || !session?.user || !activeId || !nextChar.name?.trim()) return;
+    const rows = (nextFollowing || [])
+      .filter((f) => f?.sharedId)
+      .map((f) => ({
+        follower_id: session.user.id,
+        follower_name: profileName || session.user.email?.split("@")[0] || "user",
+        follower_account_id: activeId,
+        follower_character: { ...nextChar, following: nextFollowing, posts: publicPostSnapshot() },
+        target_shared_character_id: f.sharedId,
+      }));
+    if (!rows.length) return;
+    const { error } = await supabase
+      .from("alive_character_follows")
+      .upsert(rows, { onConflict: "follower_id,follower_account_id,target_shared_character_id" });
+    if (error) console.warn("팔로우 캐릭터 스냅샷 갱신 실패:", error);
+  }
+
   async function recordFollowChange(poolChar, wasFollowing) {
     if (!supabase || !session?.user || !activeId || !poolChar?.sharedId) return;
     let ok = false;
@@ -1607,7 +1625,10 @@ function App() {
       return normalized;
     });
     if (followingChanged) setFollowing(nextFollowingSnapshot);
-    if (charChanged || followingChanged) syncActiveSharedCharacter(nextFollowingSnapshot, nextChar);
+    if (charChanged || followingChanged) {
+      syncActiveSharedCharacter(nextFollowingSnapshot, nextChar);
+      syncOwnFollowRows(nextFollowingSnapshot, nextChar);
+    }
   }, [canUseApp, stateReady, affinity]); // eslint-disable-line
 
   useEffect(() => {
@@ -2585,6 +2606,7 @@ ${formatRule}${ANTI_REPEAT_RULES}${recentLinesBlock(posts.slice(0, 6).map((p) =>
         )))
       : mergeTimelinePosts(prev, importedPosts));
     syncActiveSharedCharacter(nextFollowing);
+    syncOwnFollowRows(nextFollowing);
     const followSaved = await recordFollowChange(poolChar, already);
     // 새로 팔로: 상대 데이터까지 역검증해서 "진짜 상호 연인"일 때만 자동 맞팔
     if (!already) {
