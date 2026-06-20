@@ -473,7 +473,6 @@ function App() {
   }
 
   function persistLocalSnapshot(snapshot) {
-    if (hasSupabaseConfig) return;
     try {
       const oldRaw = localStorage.getItem(LOCAL_STATE_KEY);
       if ((!snapshot.accounts || snapshot.accounts.length === 0) && oldRaw) {
@@ -483,6 +482,16 @@ function App() {
       localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(snapshot));
     } catch (e) {
       console.warn("로컬 즉시 저장 실패:", e);
+    }
+  }
+
+  function readLocalSnapshot() {
+    try {
+      const raw = localStorage.getItem(LOCAL_STATE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) {
+      console.warn("로컬 저장 복원 실패:", e);
+      return null;
     }
   }
 
@@ -999,8 +1008,7 @@ function App() {
     const [characterResult, sharedResult] = await Promise.allSettled([
       supabase
         .from("alive_characters")
-        .select("owner_id,source_account_id,name,handle,character,gallery,posts,following,updated_at")
-        .order("updated_at", { ascending: false })
+        .select("owner_id,source_account_id,name,handle,character,updated_at")
         .limit(120),
       supabase
         .from("alive_shared_characters")
@@ -1354,28 +1362,29 @@ function App() {
   async function loadStructuredStateFallback(baseState, ownerId) {
     if (!supabase || !ownerId) return baseState;
     try {
-      const timedQuery = (query, label, ms = 9000) => withRejectTimeout(query, ms, label);
-      const [charsResult, personasResult, dmResult, sharedDmResult] = await Promise.allSettled([
+      const timedQuery = (query, label, ms = 4500) => withRejectTimeout(query, ms, label);
+      const cachedAccounts = new Map((baseState.accounts || []).map((account) => [account.id, account]));
+      const [charsResult, charDetailsResult, personasResult, dmResult, sharedDmResult] = await Promise.allSettled([
         timedQuery(supabase.from("alive_characters")
-          .select("source_account_id,name,handle,character,gallery,posts,following,updated_at")
+          .select("source_account_id,name,handle,character,updated_at")
           .eq("owner_id", ownerId)
-          .order("updated_at", { ascending: false })
-          .limit(80), "캐릭터 데이터 로드"),
+          .limit(80), "캐릭터 목록 로드"),
+        timedQuery(supabase.from("alive_characters")
+          .select("source_account_id,gallery,posts,following")
+          .eq("owner_id", ownerId)
+          .limit(80), "캐릭터 세부 데이터 로드", 3500),
         timedQuery(supabase.from("alive_personas")
           .select("persona_id,name,persona,updated_at")
           .eq("owner_id", ownerId)
-          .order("updated_at", { ascending: false })
-          .limit(80), "페르소나 데이터 로드", 6000),
+          .limit(80), "페르소나 데이터 로드", 3500),
         timedQuery(supabase.from("alive_dm_threads")
           .select("thread_key,messages,world_pref,updated_at")
           .eq("owner_id", ownerId)
-          .order("updated_at", { ascending: false })
-          .limit(80), "개인 DM 데이터 로드", 6000),
+          .limit(80), "개인 DM 데이터 로드", 3500),
         timedQuery(supabase.from("alive_shared_dm_threads")
           .select("thread_key,messages,world_pref,updated_at")
           .contains("participant_user_ids", [ownerId])
-          .order("updated_at", { ascending: false })
-          .limit(80), "공유 DM 데이터 로드", 6000),
+          .limit(80), "공유 DM 데이터 로드", 3500),
       ]);
 
       const next = { ...baseState };
@@ -1385,18 +1394,29 @@ function App() {
         console.warn("캐릭터 데이터 로드 실패:", charsResult.value.error.message || charsResult.value.error);
       }
       const chars = charsResult.status === "fulfilled" && !charsResult.value.error ? (charsResult.value.data || []) : [];
+      const charDetails = charDetailsResult.status === "fulfilled" && !charDetailsResult.value.error ? (charDetailsResult.value.data || []) : [];
+      if (charDetailsResult.status === "rejected") {
+        console.warn("캐릭터 세부 데이터 로드 실패:", charDetailsResult.reason?.message || charDetailsResult.reason);
+      } else if (charDetailsResult.value?.error) {
+        console.warn("캐릭터 세부 데이터 로드 실패:", charDetailsResult.value.error.message || charDetailsResult.value.error);
+      }
+      const detailsById = new Map(charDetails.map((row) => [row.source_account_id, row]));
       const personaRows = personasResult.status === "fulfilled" && !personasResult.value.error ? (personasResult.value.data || []) : [];
       const dmRows = dmResult.status === "fulfilled" && !dmResult.value.error ? (dmResult.value.data || []) : [];
       const sharedDmRows = sharedDmResult.status === "fulfilled" && !sharedDmResult.value.error ? (sharedDmResult.value.data || []) : [];
 
       if (chars.length) {
-        next.accounts = chars.map((row) => ({
-          id: row.source_account_id,
-          char: { ...(row.character || {}), name: row.character?.name || row.name || "", handle: row.character?.handle || row.handle || "" },
-          gallery: Array.isArray(row.gallery) ? row.gallery : [],
-          posts: Array.isArray(row.posts) ? row.posts : [],
-          following: Array.isArray(row.following) ? row.following : [],
-        }));
+        next.accounts = chars.map((row) => {
+          const cached = cachedAccounts.get(row.source_account_id) || {};
+          const detail = detailsById.get(row.source_account_id) || {};
+          return {
+            id: row.source_account_id,
+            char: { ...(cached.char || {}), ...(row.character || {}), name: row.character?.name || row.name || cached.char?.name || "", handle: row.character?.handle || row.handle || cached.char?.handle || "" },
+            gallery: Array.isArray(detail.gallery) ? detail.gallery : (cached.gallery || []),
+            posts: Array.isArray(detail.posts) ? detail.posts : (cached.posts || []),
+            following: Array.isArray(detail.following) ? detail.following : (cached.following || []),
+          };
+        });
         const activeStillExists = next.activeId && next.accounts.some((a) => a.id === next.activeId);
         if (!activeStillExists) next.activeId = next.accounts[0]?.id || null;
       }
@@ -1631,10 +1651,25 @@ function App() {
     let cancelled = false;
     async function loadProfile() {
       profileLoadedRef.current = false;
-      setStateReady(false);
-      setProfileLoading(true);
-      setSaveStatus("불러오는 중");
-      setAuthMessage("");
+      const metadataName = session.user.user_metadata?.name || session.user.user_metadata?.full_name || session.user.user_metadata?.preferred_username || "";
+      const fallbackName = session.user.email?.split("@")[0] || metadataName || "사용자";
+      const cachedState = readLocalSnapshot();
+      const hasCachedState = Boolean(cachedState?.accounts?.length);
+      if (hasCachedState) {
+        applyAppState(cachedState);
+        setProfileName(cachedState.profileName || fallbackName);
+        setOnboardingOpen(false);
+        profileLoadedRef.current = true;
+        setStateReady(true);
+        setProfileLoading(false);
+        setSaveStatus("로컬 캐시");
+        setAuthMessage("저장된 캐릭터를 먼저 보여주고 있어. 최신 데이터는 뒤에서 확인 중이야.");
+      } else {
+        setStateReady(false);
+      }
+      setProfileLoading(!hasCachedState);
+      setSaveStatus(hasCachedState ? "최신 데이터 확인 중" : "불러오는 중");
+      if (!hasCachedState) setAuthMessage("");
       try {
         const { data, error } = await withRejectTimeout(supabase
           .from("alive_profiles")
@@ -1645,9 +1680,11 @@ function App() {
         if (cancelled) return;
         if (error) throw error;
 
-        const metadataName = session.user.user_metadata?.name || session.user.user_metadata?.full_name || session.user.user_metadata?.preferred_username || "";
         const defaultName = data?.display_name || session.user.email?.split("@")[0] || metadataName || "사용자";
-        const mergedState = await loadStructuredStateFallback(blankAppState(defaultName), session.user.id);
+        const baseState = hasCachedState
+          ? { ...blankAppState(defaultName), ...cachedState, profileName: cachedState.profileName || defaultName }
+          : blankAppState(defaultName);
+        const mergedState = await loadStructuredStateFallback(baseState, session.user.id);
         if (cancelled) return;
         applyAppState(mergedState);
         setProfileName(defaultName);
@@ -1669,9 +1706,11 @@ function App() {
       } catch (error) {
         if (cancelled) return;
         profileTableBrokenRef.current = true;
-        const fallbackName = session.user.email?.split("@")[0] || session.user.user_metadata?.name || "사용자";
         try {
-          const mergedState = await loadStructuredStateFallback(blankAppState(fallbackName), session.user.id);
+          const baseState = hasCachedState
+            ? { ...blankAppState(fallbackName), ...cachedState, profileName: cachedState.profileName || fallbackName }
+            : blankAppState(fallbackName);
+          const mergedState = await loadStructuredStateFallback(baseState, session.user.id);
           if (cancelled) return;
           applyAppState(mergedState);
           setProfileName(fallbackName);
