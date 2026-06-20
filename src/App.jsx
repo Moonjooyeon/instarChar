@@ -2996,10 +2996,12 @@ ${formatRule}${ANTI_REPEAT_RULES}${recentLinesBlock(posts.slice(0, 6).map((p) =>
     if (!roomKey?.startsWith("local::")) return dmAffOf(from, to, relationHint);
     const key = dirKey(from, to);
     const pref = dmWorldPrefs[roomKey] || {};
-    const base = pref.affinityBase?.[key] ?? dmAffOf(from, to, relationHint);
+    const liveBase = dmAffOf(from, to, relationHint);
+    const savedBase = pref.affinityBase?.[key];
+    const base = Math.max(Number.isFinite(savedBase) ? savedBase : liveBase, liveBase);
     if (pref.affinity && key in pref.affinity) {
       const stored = pref.affinity[key];
-      if (!pref.affinityBase?.[key] && base >= 90 && stored < base && stored >= 0) return base;
+      if (base >= 90 && stored < base && stored >= 0) return base;
       return stored;
     }
     return base;
@@ -3010,10 +3012,12 @@ ${formatRule}${ANTI_REPEAT_RULES}${recentLinesBlock(posts.slice(0, 6).map((p) =>
     setDmWorldPrefs((prev) => {
       const pref = prev[roomKey] || {};
       const roomAffinity = pref.affinity || {};
-      const base = pref.affinityBase?.[key] ?? dmAffOf(from, to, relationHint);
+      const liveBase = dmAffOf(from, to, relationHint);
+      const savedBase = pref.affinityBase?.[key];
+      const base = Math.max(Number.isFinite(savedBase) ? savedBase : liveBase, liveBase);
       const stored = roomAffinity[key];
       const before = key in roomAffinity
-        ? (!pref.affinityBase?.[key] && base >= 90 && stored < base && stored >= 0 ? base : stored)
+        ? (base >= 90 && stored < base && stored >= 0 ? base : stored)
         : base;
       const after = Math.max(-100, Math.min(100, before + amt));
       return {
