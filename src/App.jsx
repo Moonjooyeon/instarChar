@@ -3115,6 +3115,10 @@ ${formatRule}${ANTI_REPEAT_RULES}${recentLinesBlock(posts.slice(0, 6).map((p) =>
     if (base != null && base >= 90 && stored >= 0 && stored < base) return base;
     return stored;
   }
+  function finiteNumber(value, fallback = null) {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : fallback;
+  }
   function dmAffOf(from, to, relationHint = "") {
     const key = dirKey(from, to);
     const directBase = relationBaseFor(from, to);
@@ -3134,9 +3138,12 @@ ${formatRule}${ANTI_REPEAT_RULES}${recentLinesBlock(posts.slice(0, 6).map((p) =>
     const key = dirKey(from, to);
     const pref = dmWorldPrefs[roomKey] || {};
     const liveBase = roomInitialAffinity(from, to, relationHint);
-    const savedBase = pref.affinityBase?.[key];
-    const base = Math.max(Number.isFinite(savedBase) ? savedBase : liveBase, liveBase);
-    if (pref.affinity && key in pref.affinity) return Math.max(-100, Math.min(100, Number(pref.affinity[key]) || 0));
+    const savedBase = finiteNumber(pref.affinityBase?.[key], null);
+    const base = Math.max(savedBase == null ? liveBase : savedBase, liveBase);
+    if (pref.affinity && key in pref.affinity) {
+      const stored = finiteNumber(pref.affinity[key], 0);
+      return Math.max(-100, Math.min(100, affinityWithBase(stored, base)));
+    }
     return base;
   }
   function bumpRoomAffinity(roomKey, from, to, amt, relationHint = "") {
@@ -3146,10 +3153,10 @@ ${formatRule}${ANTI_REPEAT_RULES}${recentLinesBlock(posts.slice(0, 6).map((p) =>
       const pref = prev[roomKey] || {};
       const roomAffinity = pref.affinity || {};
       const liveBase = roomInitialAffinity(from, to, relationHint);
-      const savedBase = pref.affinityBase?.[key];
-      const base = Math.max(Number.isFinite(savedBase) ? savedBase : liveBase, liveBase);
-      const stored = roomAffinity[key];
-      const before = key in roomAffinity ? Math.max(-100, Math.min(100, Number(stored) || 0)) : base;
+      const savedBase = finiteNumber(pref.affinityBase?.[key], null);
+      const base = Math.max(savedBase == null ? liveBase : savedBase, liveBase);
+      const stored = finiteNumber(roomAffinity[key], null);
+      const before = key in roomAffinity ? Math.max(-100, Math.min(100, affinityWithBase(stored, base))) : base;
       const after = Math.max(-100, Math.min(100, before + amt));
       return {
         ...prev,
@@ -3186,7 +3193,8 @@ ${formatRule}${ANTI_REPEAT_RULES}${recentLinesBlock(posts.slice(0, 6).map((p) =>
             nextBase[key] = pairRomanticBase;
             changed = true;
           }
-          if (nextAffinity[key] == null) {
+          const stored = finiteNumber(nextAffinity[key], null);
+          if (stored == null || (stored >= 0 && stored < pairRomanticBase)) {
             nextAffinity[key] = pairRomanticBase;
             changed = true;
           }
@@ -3200,7 +3208,8 @@ ${formatRule}${ANTI_REPEAT_RULES}${recentLinesBlock(posts.slice(0, 6).map((p) =>
           nextBase[key] = liveBase;
           changed = true;
         }
-        if (liveBase >= 90 && nextAffinity[key] == null) {
+        const stored = finiteNumber(nextAffinity[key], null);
+        if (liveBase >= 90 && (stored == null || (stored >= 0 && stored < liveBase))) {
           nextAffinity[key] = liveBase;
           changed = true;
         }
