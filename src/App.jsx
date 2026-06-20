@@ -1395,7 +1395,7 @@ function App() {
     authResolvedRef.current = false;
     supabase.auth.getSession().then(({ data }) => {
       if (!alive) return;
-      authResolvedRef.current = true;
+      if (data.session || !hasOAuthCallback) authResolvedRef.current = true;
       setSession(data.session || null);
       if (!hasOAuthCallback || data.session) setAuthLoading(false);
     }).catch((error) => {
@@ -1416,6 +1416,10 @@ function App() {
     }, 7000);
     const oauthFallback = hasOAuthCallback ? setTimeout(() => {
       if (!alive) return;
+      if (!authResolvedRef.current) {
+        setAuthMessage("소셜 로그인 세션을 아직 확인하는 중이야. 조금만 더 기다려줘.");
+        return;
+      }
       setAuthLoading(false);
       setProfileLoading(false);
       setAuthMessage("소셜 로그인 처리가 끝나지 않았어. 다시 시도해줘.");
