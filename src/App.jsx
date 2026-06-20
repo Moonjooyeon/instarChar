@@ -1900,11 +1900,23 @@ function App() {
   function canonicalDmKey(a, b) {
     return `dm::${[a || "나", b || "나"].map((x) => String(x).trim() || "나").sort().join("|")}`;
   }
-  function localDmKey(a, b) {
-    return `local::${activeId || char.name || "new"}::${[a || "나", b || "나"].map((x) => String(x).trim() || "나").sort().join("|")}`;
+  function makeLocalDmRoomId() {
+    if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
+    return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+  }
+  function localDmKey(a, b, roomId = "") {
+    const pair = [a || "나", b || "나"].map((x) => String(x).trim() || "나").sort().join("|");
+    return roomId
+      ? `local::${activeId || char.name || "new"}::${roomId}::${pair}`
+      : `local::${activeId || char.name || "new"}::${pair}`;
   }
   function ownerDmKey() {
     return `owner::${activeId || char.name || "new"}::${ownerLabel}|${char.name || "나"}`;
+  }
+  function localRoomIdFromDmThreadKey(key) {
+    if (!key.startsWith("local::")) return "";
+    const parts = key.split("::");
+    return parts.length >= 4 ? parts[2] : "";
   }
   function roomKeyFromDmThreadKey(key) {
     if (key.startsWith("dm::")) return key.slice("dm::".length);
@@ -1916,7 +1928,8 @@ function App() {
   function dmKeyFor(peerObj, speakerValue = speakAs) {
     if (!peerObj) return "";
     if (peerObj.asOwner) return ownerDmKey();
-    if (peerObj.dmKind === "npc") return localDmKey(speakerNameFor(speakerValue), peerObj.name);
+    if (peerObj.dmKey) return peerObj.dmKey;
+    if (peerObj.dmKind === "npc") return localDmKey(speakerNameFor(speakerValue), peerObj.name, peerObj.localRoomId || "");
     return canonicalDmKey(speakerNameFor(speakerValue), peerObj.name);
   }
   const dmKey = peer ? dmKeyFor(peer, speakAs) : "";
@@ -1930,7 +1943,7 @@ function App() {
     const migratedPrefs = { ...dmWorldPrefs };
     let changed = false;
     Object.entries(dmThreads).forEach(([key, messages]) => {
-      if (key.startsWith("dm::") || key.startsWith("owner::") || !key.includes("::")) return;
+      if (key.startsWith("dm::") || key.startsWith("owner::") || key.startsWith("local::") || !key.includes("::")) return;
       const roomKey = roomKeyFromDmThreadKey(key);
       const parts = roomKey.split("|");
       if (parts.length !== 2 || parts.includes(ownerLabel)) return;
@@ -1978,8 +1991,12 @@ function App() {
       enterDm(nextPeer, nextSpeakAs);
       return;
     }
+    if (nextPeer?.dmKey) {
+      enterDm(nextPeer, nextSpeakAs);
+      return;
+    }
     const key = dmKeyFor(nextPeer, nextSpeakAs);
-    if (dmWorldPrefs[key]) {
+    if (nextPeer?.dmKind && dmWorldPrefs[key]) {
       enterDm(nextPeer, nextSpeakAs);
       return;
     }
@@ -1999,8 +2016,16 @@ function App() {
 
   function finishDmChatKind(dmKind) {
     if (!pendingDm?.mode) return;
-    const peerForRoom = { ...pendingDm.peer, dmKind };
-    const key = dmKeyFor(peerForRoom, pendingDm.speakAs);
+    const roomId = dmKind === "npc" ? makeLocalDmRoomId() : "";
+    const speakerName = speakerNameFor(pendingDm.speakAs);
+    const key = dmKind === "npc"
+      ? localDmKey(speakerName, pendingDm.peer.name, roomId)
+      : canonicalDmKey(speakerName, pendingDm.peer.name);
+    const peerForRoom = {
+      ...pendingDm.peer,
+      dmKind,
+      ...(dmKind === "npc" ? { localRoomId: roomId, dmKey: key } : {}),
+    };
     const nextPrefs = {
       ...dmWorldPrefs,
       [key]: { mode: pendingDm.mode, note: pendingDm.note || "", chatKind: dmKind },
@@ -2152,7 +2177,17 @@ function App() {
           asPersona = null;
         }
         const last = msgs[msgs.length - 1];
-        return { key: k, peerName: other, last: last ? last.text : "", count: msgs.length, asOwner: isOwnerThread, asPersona, dmKind: isNpcThread ? "npc" : "shared" };
+        return {
+          key: k,
+          peerName: other,
+          last: last ? last.text : "",
+          count: msgs.length,
+          asOwner: isOwnerThread,
+          asPersona,
+          dmKind: isNpcThread ? "npc" : "shared",
+          dmKey: k,
+          localRoomId: localRoomIdFromDmThreadKey(k),
+        };
       });
   }
 
@@ -4731,6 +4766,8 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
                         persona: acc ? acc.char.persona : (fol ? fol.persona : ""),
                         relation: relationMatched(char, acc ? { name: acc.char.name } : (fol || { name: c.peerName })),
                         dmKind: c.dmKind,
+                        dmKey: c.dmKey,
+                        localRoomId: c.localRoomId,
                       };
                       // 이 방의 화자 복원 (페르소나 방이면 그 페르소나로)
                       let restoredSpeakAs = "char";
