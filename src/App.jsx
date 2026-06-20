@@ -257,6 +257,7 @@ function App() {
   const [newPassword, setNewPassword] = useState("");
   const [authLoading, setAuthLoading] = useState(Boolean(hasSupabaseConfig));
   const [profileLoading, setProfileLoading] = useState(Boolean(hasSupabaseConfig));
+  const [profileLoadRetry, setProfileLoadRetry] = useState(0);
   const [profileName, setProfileName] = useState("");
   const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [saveStatus, setSaveStatus] = useState(hasSupabaseConfig ? "로그인 대기" : "로컬 저장");
@@ -1242,30 +1243,33 @@ function App() {
   async function loadStructuredStateFallback(baseState, ownerId) {
     if (!supabase || !ownerId) return baseState;
     try {
+      const timedQuery = (query, label, ms = 9000) => withRejectTimeout(query, ms, label);
       const [charsResult, personasResult, dmResult, sharedDmResult] = await Promise.allSettled([
-        supabase.from("alive_characters")
+        timedQuery(supabase.from("alive_characters")
           .select("source_account_id,name,handle,character,gallery,posts,following,updated_at")
           .eq("owner_id", ownerId)
           .order("updated_at", { ascending: false })
-          .limit(80),
-        supabase.from("alive_personas")
+          .limit(80), "캐릭터 데이터 로드"),
+        timedQuery(supabase.from("alive_personas")
           .select("persona_id,name,persona,updated_at")
           .eq("owner_id", ownerId)
           .order("updated_at", { ascending: false })
-          .limit(80),
-        supabase.from("alive_dm_threads")
+          .limit(80), "페르소나 데이터 로드", 6000),
+        timedQuery(supabase.from("alive_dm_threads")
           .select("thread_key,messages,world_pref,updated_at")
           .eq("owner_id", ownerId)
           .order("updated_at", { ascending: false })
-          .limit(80),
-        supabase.from("alive_shared_dm_threads")
+          .limit(80), "개인 DM 데이터 로드", 6000),
+        timedQuery(supabase.from("alive_shared_dm_threads")
           .select("thread_key,messages,world_pref,updated_at")
           .contains("participant_user_ids", [ownerId])
           .order("updated_at", { ascending: false })
-          .limit(80),
+          .limit(80), "공유 DM 데이터 로드", 6000),
       ]);
 
       const next = { ...baseState };
+      if (charsResult.status === "rejected") throw charsResult.reason;
+      if (charsResult.value.error) throw charsResult.value.error;
       const chars = charsResult.status === "fulfilled" && !charsResult.value.error ? (charsResult.value.data || []) : [];
       const personaRows = personasResult.status === "fulfilled" && !personasResult.value.error ? (personasResult.value.data || []) : [];
       const dmRows = dmResult.status === "fulfilled" && !dmResult.value.error ? (dmResult.value.data || []) : [];
@@ -1318,6 +1322,16 @@ function App() {
           console.warn(`${label} 시간 초과`);
           resolve(fallbackValue);
         }, ms);
+      }),
+    ]).finally(() => clearTimeout(timer));
+  }
+
+  function withRejectTimeout(promise, ms, label = "작업") {
+    let timer;
+    return Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${label} 시간 초과`)), ms);
       }),
     ]).finally(() => clearTimeout(timer));
   }
@@ -1498,12 +1512,13 @@ function App() {
       setStateReady(false);
       setProfileLoading(true);
       setSaveStatus("불러오는 중");
+      setAuthMessage("");
       try {
-        const { data, error } = await supabase
+        const { data, error } = await withRejectTimeout(supabase
           .from("alive_profiles")
           .select("display_name,onboarded")
           .eq("id", session.user.id)
-          .maybeSingle();
+          .maybeSingle(), 5000, "프로필 메타 로드");
 
         if (cancelled) return;
         if (error) throw error;
@@ -1551,13 +1566,13 @@ function App() {
           setProfileLoading(true);
           setStateReady(false);
           setSaveStatus("캐릭터 불러오는 중");
-          setAuthMessage("캐릭터를 불러오고 있어요. 저장된 캐릭터를 확인하는 중이라 잠깐만 기다려줘.");
+          setAuthMessage("캐릭터를 불러오지 못했어요. 네트워크나 DB가 느린 상태라 잠시 뒤 다시 시도해줘.");
         }
       }
     }
     loadProfile();
     return () => { cancelled = true; };
-  }, [session?.user?.id]); // eslint-disable-line
+  }, [session?.user?.id, profileLoadRetry]); // eslint-disable-line
 
   useEffect(() => {
     if (!profileLoadedRef.current || !stateReady) return;
@@ -1651,7 +1666,9 @@ function App() {
         setProfileLoading(true);
         setStateReady(false);
         setSaveStatus("캐릭터 불러오는 중");
-        setAuthMessage("캐릭터를 불러오고 있어요. 저장된 캐릭터를 확인하는 중이라 잠깐만 기다려줘.");
+        setAuthMessage((msg) => msg.includes("캐릭터를 불러오지 못했어요")
+          ? msg
+          : "캐릭터를 불러오고 있어요. 저장된 캐릭터를 확인하는 중이라 잠깐만 기다려줘.");
       }
     }, 8000);
     return () => clearTimeout(timer);
@@ -3823,6 +3840,16 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
             <h1>ALIVE 불러오는 중</h1>
             <p>계정과 저장된 캐릭터를 확인하고 있어.</p>
             {authMessage && <p className="al-auth-msg">{authMessage}</p>}
+            {authMessage.includes("캐릭터를 불러오지 못했어요") && (
+              <button className="al-auth-btn" onClick={() => {
+                setAuthMessage("캐릭터를 다시 불러오고 있어요.");
+                setProfileLoading(true);
+                setStateReady(false);
+                setProfileLoadRetry((v) => v + 1);
+              }}>
+                다시 불러오기
+              </button>
+            )}
           </div>
         </div>
       )}
