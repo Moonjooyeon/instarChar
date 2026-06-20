@@ -1090,9 +1090,10 @@ function App() {
         next.personas = personaRows.map((row) => ({ ...(row.persona || {}), id: row.persona?.id || row.persona_id, name: row.persona?.name || row.name || "" }));
       }
 
-      if (dmRows.length || sharedDmRows.length) {
-        next.dmThreads = {};
-        next.dmWorldPrefs = { ...(next.dmWorldPrefs || {}) };
+      if (dmResult.status === "fulfilled" || sharedDmResult.status === "fulfilled") {
+        const keepLocal = Object.fromEntries(Object.entries(next.dmThreads || {}).filter(([key]) => !key.startsWith("dm::") && !key.startsWith("owner::")));
+        next.dmThreads = keepLocal;
+        next.dmWorldPrefs = Object.fromEntries(Object.entries(next.dmWorldPrefs || {}).filter(([key]) => !key.startsWith("dm::") && !key.startsWith("owner::")));
         [...dmRows, ...sharedDmRows].forEach((row) => {
           next.dmThreads[row.thread_key] = Array.isArray(row.messages) ? row.messages : [];
           if (row.world_pref && Object.keys(row.world_pref).length) next.dmWorldPrefs[row.thread_key] = row.world_pref;
@@ -1733,8 +1734,36 @@ function App() {
     setEditingDmTitle(null);
   }
 
-  function deleteDmThread(key, event) {
+  function resetAffinityForDmThread(key) {
+    const parts = roomKeyFromDmThreadKey(key).split("|").filter(Boolean);
+    if (parts.length !== 2) return;
+    const [a, b] = parts;
+    const pairs = [
+      [a === ownerLabel ? OWNER : a, b === ownerLabel ? OWNER : b],
+      [b === ownerLabel ? OWNER : b, a === ownerLabel ? OWNER : a],
+    ];
+    setAffinity((prev) => {
+      const next = { ...prev };
+      pairs.forEach(([from, to]) => {
+        delete next[dirKey(from, to)];
+        delete affinityRemainderRef.current[dirKey(from, to)];
+      });
+      return next;
+    });
+    pairs.forEach(([from, to]) => {
+      if (isOwnerName(from) || isOwnerName(to) || isPersonaName(from)) return;
+      const current = relLabelFor(findPeerChar(from) || (from === char.name ? char : { name: from }), to);
+      if (/서운함|미움|혐오|증오|관심|호감|아는 사이/.test(current || "")) {
+        setRelationLabelFor(from, to, "아는 사이");
+      }
+    });
+    proposalCooldownRef.current = Object.fromEntries(Object.entries(proposalCooldownRef.current || {})
+      .filter(([pairKey]) => !pairs.some(([from, to]) => pairKey === dirKey(from, to))));
+  }
+
+  async function deleteDmThread(key, event) {
     event?.stopPropagation();
+    resetAffinityForDmThread(key);
     setDmThreads((prev) => {
       const next = { ...prev };
       delete next[key];
@@ -1753,6 +1782,13 @@ function App() {
     if (dmKeyRef.current === key) {
       setPeer(null);
       setStep("dmlist");
+    }
+    if (supabase && session?.user) {
+      const table = key.startsWith("dm::") ? "alive_shared_dm_threads" : "alive_dm_threads";
+      let query = supabase.from(table).delete().eq("thread_key", key);
+      if (table === "alive_dm_threads") query = query.eq("owner_id", session.user.id);
+      const { error } = await query;
+      if (error) console.warn("DM방 삭제 동기화 실패:", error);
     }
   }
   
@@ -2493,6 +2529,39 @@ ${formatRule}${ANTI_REPEAT_RULES}${recentLinesBlock(posts.slice(0, 6).map((p) =>
   function stageLabelFor(from, v) { return isOwnerName(from) ? attachStage(v) : affinityStage(v); }
   // 이름이 유저 페르소나인지
   function isPersonaName(n) { return personas.some((p) => p.name === n); }
+
+  function relationLabelFromAffinity(v, current = "") {
+    if (/부부|배우자|연인|애인|약혼|짝사랑|썸/.test(current || "") && v >= 35) return current;
+    if (v <= -80) return "증오";
+    if (v <= -50) return "혐오";
+    if (v <= -20) return "미움";
+    if (v < 0) return "서운함";
+    if (v >= 35 && !current) return "호감";
+    if (v >= 15 && !current) return "관심";
+    if (!current && v >= 0) return "아는 사이";
+    return current;
+  }
+
+  function setRelationLabelFor(fromName, otherName, label) {
+    if (!fromName || !otherName || isOwnerName(fromName) || isPersonaName(fromName)) return;
+    const norm = (s) => s.replace(/\s/g, "");
+    const apply = (c) => {
+      const rels = parseRelations(c.relations);
+      let found = false;
+      const next = rels.map((r) => {
+        if (norm(r.who).includes(norm(otherName)) || norm(otherName).includes(norm(r.who))) {
+          found = true;
+          return { who: otherName, label };
+        }
+        return r;
+      });
+      if (!found && label) next.push({ who: otherName, label });
+      return { ...c, relations: next.filter((r) => r.who && r.label).map((r) => `${r.who} — ${r.label}`).join(", ") };
+    };
+    if (char.name === fromName) setChar((c) => apply(c));
+    setAccounts((accs) => accs.map((a) => a.char.name === fromName ? { ...a, char: apply(a.char) } : a));
+    setFollowing((fs) => fs.map((f) => f.name === fromName ? apply(f) : f));
+  }
   
   // from이 to에게 느끼는 호감 증감. 캐릭터(보는 캐릭터)가 상대에게 60 넘으면 진도질문.
   // 캐릭터가 마음 여는 속도 계수. 무뚝뚝·배타적이면 호감이 천천히 오른다.
@@ -2529,6 +2598,9 @@ ${formatRule}${ANTI_REPEAT_RULES}${recentLinesBlock(posts.slice(0, 6).map((p) =>
     setAffinity((prev) => {
       const before = (key in prev) ? prev[key] : (seed == null ? 0 : seed);
       const after = Math.max(-100, Math.min(100, before + adj));
+      const currentRel = relLabelFor(findPeerChar(from) || (from === char.name ? char : { name: from }), to);
+      const nextRel = relationLabelFromAffinity(after, currentRel);
+      if (nextRel !== currentRel) setRelationLabelFor(from, to, nextRel);
       // 내 캐릭터가 상대에게 임계 돌파 → 진도질문 (오너·페르소나 발신 제외)
       if (fromIsViewerChar && before < PROPOSAL_THRESHOLD && after >= PROPOSAL_THRESHOLD
           && !proposalCooldownRef.current[key] && !proposingRef.current) {
@@ -2538,6 +2610,15 @@ ${formatRule}${ANTI_REPEAT_RULES}${recentLinesBlock(posts.slice(0, 6).map((p) =>
       }
       return { ...prev, [key]: after };
     });
+  }
+
+  function setAffinityManual(from, to, value) {
+    if (!from || !to || from === to) return;
+    const nextValue = Math.max(-100, Math.min(100, Number(value) || 0));
+    setAffinity((prev) => ({ ...prev, [dirKey(from, to)]: nextValue }));
+    const currentRel = relLabelFor(findPeerChar(from) || (from === char.name ? char : { name: from }), to);
+    const nextRel = relationLabelFromAffinity(nextValue, currentRel);
+    if (nextRel !== currentRel) setRelationLabelFor(from, to, nextRel);
   }
   // 양방향 적립 — 단, 한쪽이 유저 페르소나면 "캐→페르소나" 방향만 살린다.
   //  (페르소나는 가면일 뿐 감정을 느끼지 않음. 캐릭터가 페르소나에게 빠지는 것만 기록)
@@ -2588,14 +2669,16 @@ ${speechGuideLine(askerChar.speech, "말투")}
 
 [상황]
 너는 "${otherName}"와 대화를 나누며 마음이 점점 기울었다.${curRel ? ` (지금 관계: ${curRel})` : ""}
-지금 그 감정을 오너에게 살짝 털어놓고, "${otherName}에게 한 발 더 다가가도 될지" 허락을 구하려 한다.
+지금 그 감정을 오너에게 직접 털어놓고, "${otherName}"를 좋아해도 될지 허락을 구하려 한다.
 
 [규칙]
+- 반드시 "나, ${otherName}가/이 좋아진 것 같아요. 좋아해도 될까요?"에 가까운 의미로 말한다.
+- "한 걸음 다가가다", "다가가려 합니다", "관계 진전", "허락을 구한다" 같은 설명식 표현 금지.
 - 1~2문장. 말투 참고 메모를 그대로 반복하지 말고, 네 성격에 맞게 수줍거나 솔직하게.
-- 오너에게 묻는 말투("~해도 될까요?" "~해도 돼?"). 설명·메타발언 금지.
+- 오너에게 묻는 말투("좋아해도 될까요?" "좋아해도 돼?"). 설명·메타발언 금지.
 - "${otherName}"의 이름을 자연스럽게 넣어라.
 - 본문만 출력.`;
-    let line = `${otherName}한테… 마음이 가는 것 같아. 한 발 더 다가가도 될까?`;
+    let line = `나, ${josa(otherName, "이/가")} 좋아진 것 같아요. 좋아해도 될까요?`;
     try {
       const res = await fetch("/api/generate", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -3763,6 +3846,13 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
                           {label && <p className="al-rel-desc">{label}</p>}
                           <div className="al-rel-bar">
                             <div className={`al-rel-fill ${neg ? "neg" : ""}`} style={{ width: `${Math.abs(aff)}%` }} />
+                          </div>
+                          <div className="al-rel-edit">
+                            <span>내 호감도</span>
+                            <input type="range" min="-100" max="100" value={aff}
+                              onChange={(e) => setAffinityManual(char.name, who, e.target.value)} />
+                            <input type="number" min="-100" max="100" value={aff}
+                              onChange={(e) => setAffinityManual(char.name, who, e.target.value)} />
                           </div>
                           {oneSided && <span className="al-rel-onesided-note">{who}의 마음은 아직 {affinityStage(back)}({back}) — 아직 닿지 않았어</span>}
                         </div>
@@ -5239,6 +5329,11 @@ body{ overflow-x:hidden; }
 .al-rel-bar{ height:5px; background:#1f1b2e; border-radius:3px; overflow:hidden; }
 .al-rel-fill{ height:100%; background:linear-gradient(90deg,#9d6bff,#c8b3ff); border-radius:3px; }
 .al-rel-fill.neg{ background:linear-gradient(90deg,#d65a7a,#ff8aa0); }
+.al-rel-edit{ display:grid; grid-template-columns:auto minmax(0,1fr) 54px; align-items:center; gap:8px; margin-top:9px; }
+.al-rel-edit span{ font-size:10.5px; color:#9a92b5; font-weight:900; white-space:nowrap; }
+.al-rel-edit input[type="range"]{ width:100%; accent-color:var(--accent); }
+.al-rel-edit input[type="number"]{ width:54px; min-width:0; border:1px solid #342e40; border-radius:8px; padding:5px 6px;
+  background:#111018; color:#d9ccff; font-family:inherit; font-size:11px; font-weight:900; text-align:center; }
 .al-mem-peers{ display:flex; flex-direction:column; gap:9px; }
 .al-mem-peer-card{ display:flex; align-items:center; gap:10px; width:100%; padding:12px; border-radius:10px;
   cursor:pointer; font-family:inherit; text-align:left; background:#171321; border:1px solid #2a2440; color:var(--ink); }
