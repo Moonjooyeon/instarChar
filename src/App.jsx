@@ -2067,6 +2067,13 @@ function App() {
     const key = dmKind === "npc"
       ? localDmKey(speakerName, pendingDm.peer.name, roomId)
       : canonicalDmKey(speakerName, pendingDm.peer.name);
+    const peerToSpeakerRel = relationMatched(pendingDm.peer, { name: speakerName }) || pendingDm.peer.relation || "";
+    const roomAffinitySeed = dmKind === "npc"
+      ? {
+          [dirKey(speakerName, pendingDm.peer.name)]: dmAffOf(speakerName, pendingDm.peer.name, pendingDm.peer.relation || ""),
+          [dirKey(pendingDm.peer.name, speakerName)]: dmAffOf(pendingDm.peer.name, speakerName, peerToSpeakerRel),
+        }
+      : null;
     const peerForRoom = {
       ...pendingDm.peer,
       dmKind,
@@ -2074,7 +2081,12 @@ function App() {
     };
     const nextPrefs = {
       ...dmWorldPrefs,
-      [key]: { mode: pendingDm.mode, note: pendingDm.note || "", chatKind: dmKind },
+      [key]: {
+        mode: pendingDm.mode,
+        note: pendingDm.note || "",
+        chatKind: dmKind,
+        ...(roomAffinitySeed ? { affinityBase: roomAffinitySeed, affinity: roomAffinitySeed } : {}),
+      },
     };
     const nextThreads = {
       ...dmThreads,
@@ -2979,15 +2991,13 @@ ${formatRule}${ANTI_REPEAT_RULES}${recentLinesBlock(posts.slice(0, 6).map((p) =>
     if (!roomKey?.startsWith("local::")) return dmAffOf(from, to, relationHint);
     const key = dirKey(from, to);
     const pref = dmWorldPrefs[roomKey] || {};
-    const directBase = relationBaseFor(from, to);
-    const hintBase = relationBaseFromLabel(relationHint);
-    const base = directBase ?? hintBase;
+    const base = pref.affinityBase?.[key] ?? dmAffOf(from, to, relationHint);
     if (pref.affinity && key in pref.affinity) {
       const stored = pref.affinity[key];
-      if (base != null && base >= 90 && stored < base && stored >= 0) return base;
+      if (!pref.affinityBase?.[key] && base >= 90 && stored < base && stored >= 0) return base;
       return stored;
     }
-    return base == null ? 0 : base;
+    return base;
   }
   function bumpRoomAffinity(roomKey, from, to, amt, relationHint = "") {
     if (!roomKey?.startsWith("local::") || !from || !to || from === to) return;
@@ -2995,27 +3005,29 @@ ${formatRule}${ANTI_REPEAT_RULES}${recentLinesBlock(posts.slice(0, 6).map((p) =>
     setDmWorldPrefs((prev) => {
       const pref = prev[roomKey] || {};
       const roomAffinity = pref.affinity || {};
-      const directBase = relationBaseFor(from, to);
-      const hintBase = relationBaseFromLabel(relationHint);
-      const base = directBase ?? hintBase;
-      const before = key in roomAffinity ? Math.max(roomAffinity[key], base ?? -100) : (base ?? 0);
+      const base = pref.affinityBase?.[key] ?? dmAffOf(from, to, relationHint);
+      const stored = roomAffinity[key];
+      const before = key in roomAffinity
+        ? (!pref.affinityBase?.[key] && base >= 90 && stored < base && stored >= 0 ? base : stored)
+        : base;
       const after = Math.max(-100, Math.min(100, before + amt));
       return {
         ...prev,
         [roomKey]: {
           ...pref,
+          affinityBase: { ...(pref.affinityBase || {}), [key]: base },
           affinity: { ...roomAffinity, [key]: after },
         },
       };
     });
   }
-  function bumpRoomMutual(roomKey, a, b, amt) {
+  function bumpRoomMutual(roomKey, a, b, amt, aToBHint = "", bToAHint = "") {
     const aPersona = isPersonaName(a), bPersona = isPersonaName(b);
     const jitter = () => amt + Math.floor(Math.random() * 2 - 0.5);
-    if (aPersona && !bPersona) { bumpRoomAffinity(roomKey, b, a, jitter()); return; }
-    if (bPersona && !aPersona) { bumpRoomAffinity(roomKey, a, b, jitter()); return; }
-    bumpRoomAffinity(roomKey, a, b, jitter());
-    bumpRoomAffinity(roomKey, b, a, jitter());
+    if (aPersona && !bPersona) { bumpRoomAffinity(roomKey, b, a, jitter(), bToAHint); return; }
+    if (bPersona && !aPersona) { bumpRoomAffinity(roomKey, a, b, jitter(), aToBHint); return; }
+    bumpRoomAffinity(roomKey, a, b, jitter(), aToBHint);
+    bumpRoomAffinity(roomKey, b, a, jitter(), bToAHint);
   }
   const FOLLOWBACK_THRESHOLD = 15; // 아는사이→관심 구간이면 맞팔
   // 내 활성 캐릭터를 맞팔한 외부 캐 (그 캐가 나를 향한 호감도 15 이상)
@@ -3720,7 +3732,10 @@ ${senderDesc}${relNote}${worldBridgeBlock(peerChar || { name: peerName, persona:
       const ctx = [...newHist, { from: peerName, text }].slice(-6).map((m) => `${m.from}: ${m.text}`);
       if (npcRoom) {
         if (peer.asOwner) bumpRoomAffinity(requestKey, peerName, OWNER, 1 + Math.floor(Math.random() * 2));
-        else if (!senderIsOwner) bumpRoomMutual(requestKey, meName, peerName, 1 + Math.floor(Math.random() * 2));
+        else if (!senderIsOwner) {
+          const peerToMeRel = relationMatched(peerChar || peer, { name: meName }) || peer.relation || "";
+          bumpRoomMutual(requestKey, meName, peerName, 1 + Math.floor(Math.random() * 2), peer.relation || "", peerToMeRel);
+        }
       } else if (peer.asOwner) {
         // 오너↔내캐릭터: "하루(peerName)가 오너(나)를 좋아하는 정도" 한 방향
         bumpAffinity(peerName, OWNER, 1 + Math.floor(Math.random() * 2), ctx);
