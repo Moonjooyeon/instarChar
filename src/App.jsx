@@ -359,6 +359,7 @@ function App() {
   const followBackSyncRef = useRef(new Set());
   const wakingRef = useRef(false);
   const profileLoadedRef = useRef(false);
+  const profileTableBrokenRef = useRef(false);
   const saveTimerRef = useRef(null);
   const shareStatusTimerRef = useRef(null);
   const navInitRef = useRef(false);
@@ -461,15 +462,21 @@ function App() {
       persistLocalSnapshot(snapshot);
       return;
     }
+    if (profileTableBrokenRef.current) {
+      await syncStructuredState(snapshot);
+      setSaveStatus("분리 저장됨");
+      return;
+    }
     const { error } = await supabase.from("alive_profiles").upsert({
       id: session.user.id,
       email: session.user.email,
       display_name: profileName.trim() || session.user.email?.split("@")[0] || "",
       onboarded: !onboardingOpen,
-      app_state: snapshot,
     });
     if (error) {
+      profileTableBrokenRef.current = true;
       setSaveStatus(`저장 실패: ${error.message}`);
+      await syncStructuredState(snapshot);
       return;
     }
     syncStructuredState(snapshot).catch((e) => console.warn("분리 테이블 동기화 실패:", e));
@@ -679,7 +686,6 @@ function App() {
       email: session.user.email,
       display_name: name,
       onboarded: true,
-      app_state: exportAppState(),
     });
     if (error) {
       setSaveStatus(`온보딩 저장 실패: ${error.message}`);
@@ -1413,7 +1419,7 @@ function App() {
       try {
         const { data, error } = await supabase
           .from("alive_profiles")
-          .select("display_name,onboarded,app_state")
+          .select("display_name,onboarded")
           .eq("id", session.user.id)
           .maybeSingle();
 
@@ -1422,13 +1428,9 @@ function App() {
 
         const metadataName = session.user.user_metadata?.name || session.user.user_metadata?.full_name || session.user.user_metadata?.preferred_username || "";
         const defaultName = data?.display_name || session.user.email?.split("@")[0] || metadataName || "사용자";
-        if (data?.app_state) {
-          const mergedState = await loadStructuredStateFallback(data.app_state, session.user.id);
-          if (cancelled) return;
-          applyAppState(mergedState);
-        } else {
-          resetRuntimeState(defaultName);
-        }
+        const mergedState = await loadStructuredStateFallback(blankAppState(defaultName), session.user.id);
+        if (cancelled) return;
+        applyAppState(mergedState);
         setProfileName(defaultName);
         setOnboardingOpen(!data?.onboarded);
         profileLoadedRef.current = true;
@@ -1442,20 +1444,23 @@ function App() {
             email: session.user.email || "",
             display_name: defaultName,
             onboarded: false,
-            app_state: blankAppState(defaultName),
           });
           if (insertError) setSaveStatus(`프로필 생성 실패: ${insertError.message}`);
         }
       } catch (error) {
         if (cancelled) return;
-        setAuthMessage(`프로필 불러오기 실패: ${error.message || String(error)}`);
-        setSaveStatus("불러오기 실패");
+        profileTableBrokenRef.current = true;
         const fallbackName = session.user.email?.split("@")[0] || session.user.user_metadata?.name || "사용자";
-        resetRuntimeState(fallbackName);
-        setOnboardingOpen(true);
+        const mergedState = await loadStructuredStateFallback(blankAppState(fallbackName), session.user.id);
+        if (cancelled) return;
+        applyAppState(mergedState);
+        setProfileName(fallbackName);
+        setOnboardingOpen(false);
         profileLoadedRef.current = true;
         setProfileLoading(false);
         setStateReady(true);
+        setSaveStatus("분리 저장 모드");
+        setAuthMessage("프로필 메타 저장소가 잠깐 불안정해서 캐릭터 데이터만 먼저 불러왔어.");
       }
     }
     loadProfile();
@@ -1479,15 +1484,21 @@ function App() {
     setSaveStatus("저장 중");
     clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(async () => {
+      if (profileTableBrokenRef.current) {
+        await syncStructuredState(snapshot);
+        setSaveStatus("분리 저장됨");
+        return;
+      }
       const { error } = await supabase.from("alive_profiles").upsert({
         id: session.user.id,
         email: session.user.email,
         display_name: profileName.trim() || session.user.email?.split("@")[0] || "",
         onboarded: !onboardingOpen,
-        app_state: snapshot,
       });
       if (error) {
+        profileTableBrokenRef.current = true;
         setSaveStatus(`저장 실패: ${error.message}`);
+        await syncStructuredState(snapshot);
         return;
       }
       syncStructuredState(snapshot).catch((e) => console.warn("분리 테이블 동기화 실패:", e));
