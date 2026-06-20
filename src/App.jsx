@@ -2030,8 +2030,13 @@ function App() {
       ...dmWorldPrefs,
       [key]: { mode: pendingDm.mode, note: pendingDm.note || "", chatKind: dmKind },
     };
+    const nextThreads = {
+      ...dmThreads,
+      [key]: dmThreads[key] || [],
+    };
+    setDmThreads(nextThreads);
     setDmWorldPrefs(nextPrefs);
-    persistLocalSnapshot({ ...exportAppState(), dmWorldPrefs: nextPrefs });
+    persistLocalSnapshot({ ...exportAppState(), dmThreads: nextThreads, dmWorldPrefs: nextPrefs });
     enterDm(peerForRoom, pendingDm.speakAs);
   }
 
