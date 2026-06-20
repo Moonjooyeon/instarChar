@@ -1399,7 +1399,9 @@ function App() {
     authResolvedRef.current = false;
     async function resolveInitialSession() {
       if (oauthCode) {
-        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(oauthCode);
+        window.__aliveOAuthExchanges ||= {};
+        window.__aliveOAuthExchanges[oauthCode] ||= supabase.auth.exchangeCodeForSession(oauthCode);
+        const { error: exchangeError } = await window.__aliveOAuthExchanges[oauthCode];
         if (exchangeError) throw exchangeError;
         window.history.replaceState({}, "", "/app");
       }
