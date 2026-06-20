@@ -426,6 +426,10 @@ function App() {
     }
   }
 
+  function authRedirectUrl() {
+    return `${window.location.origin}/app`;
+  }
+
   async function submitAuth() {
     const email = authEmail.trim();
     const password = authPassword;
@@ -437,7 +441,7 @@ function App() {
           email,
           password,
           options: {
-            emailRedirectTo: window.location.origin,
+            emailRedirectTo: authRedirectUrl(),
             data: { display_name: email.split("@")[0] },
           },
         })
@@ -462,7 +466,7 @@ function App() {
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: window.location.origin,
+        emailRedirectTo: authRedirectUrl(),
         shouldCreateUser: true,
         data: { display_name: email.split("@")[0] },
       },
@@ -477,7 +481,7 @@ function App() {
     setAuthLoading(true);
     setAuthMessage("");
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin,
+      redirectTo: authRedirectUrl(),
     });
     setAuthLoading(false);
     setAuthMessage(error ? error.message : "비밀번호 재설정 링크를 보냈어. 메일에서 링크를 누르고 새 비밀번호를 정하면 돼.");
@@ -490,7 +494,7 @@ function App() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo: window.location.origin,
+        redirectTo: authRedirectUrl(),
       },
     });
     if (error) {
@@ -1393,11 +1397,20 @@ function App() {
       setAuthLoading(true);
     }
     authResolvedRef.current = false;
-    supabase.auth.getSession().then(({ data }) => {
+    async function resolveInitialSession() {
+      if (oauthCode) {
+        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(oauthCode);
+        if (exchangeError) throw exchangeError;
+        window.history.replaceState({}, "", window.location.pathname);
+      }
+      const { data } = await supabase.auth.getSession();
+      return data.session || null;
+    }
+    resolveInitialSession().then((resolvedSession) => {
       if (!alive) return;
-      if (data.session || !hasOAuthCallback) authResolvedRef.current = true;
-      setSession(data.session || null);
-      if (!hasOAuthCallback || data.session) setAuthLoading(false);
+      if (resolvedSession || !hasOAuthCallback) authResolvedRef.current = true;
+      setSession(resolvedSession);
+      if (!hasOAuthCallback || resolvedSession) setAuthLoading(false);
     }).catch((error) => {
       if (!alive) return;
       authResolvedRef.current = true;
