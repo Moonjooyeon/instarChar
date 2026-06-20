@@ -123,6 +123,96 @@ on public.alive_character_follows(target_shared_character_id);
 create index if not exists alive_character_follows_follower_idx
 on public.alive_character_follows(follower_id, follower_account_id);
 
+create or replace function public.alive_relationship_follow_back(
+  p_follower_shared_character_id uuid,
+  p_target_shared_character_id uuid
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  caller_id uuid := auth.uid();
+  follower_char public.alive_shared_characters%rowtype;
+  target_char public.alive_shared_characters%rowtype;
+  follower_rel text;
+  target_rel text;
+  love_pattern text := '(연인|애인|연애|사랑|부부|배우자|약혼|반려)';
+begin
+  if caller_id is null then
+    return false;
+  end if;
+
+  select * into follower_char
+  from public.alive_shared_characters
+  where id = p_follower_shared_character_id;
+
+  select * into target_char
+  from public.alive_shared_characters
+  where id = p_target_shared_character_id;
+
+  if follower_char.id is null or target_char.id is null then
+    return false;
+  end if;
+
+  if target_char.owner_id <> caller_id then
+    return false;
+  end if;
+
+  if not exists (
+    select 1
+    from public.alive_character_follows f
+    where f.follower_id = caller_id
+      and f.follower_account_id = target_char.source_account_id
+      and f.target_shared_character_id = follower_char.id
+  ) then
+    return false;
+  end if;
+
+  follower_rel := coalesce(follower_char.character->>'relations', follower_char.persona, '');
+  target_rel := coalesce(target_char.character->>'relations', target_char.persona, '');
+
+  if not (
+    (
+      replace(lower(follower_rel), ' ', '') like '%' || replace(lower(target_char.name), ' ', '') || '%'
+      or lower(follower_rel) like '%' || lower(regexp_replace(target_char.name, '^.*\s+', '')) || '%'
+    )
+    and follower_rel ~* love_pattern
+    and (
+      replace(lower(target_rel), ' ', '') like '%' || replace(lower(follower_char.name), ' ', '') || '%'
+      or lower(target_rel) like '%' || lower(regexp_replace(follower_char.name, '^.*\s+', '')) || '%'
+    )
+    and target_rel ~* love_pattern
+  ) then
+    return false;
+  end if;
+
+  insert into public.alive_character_follows (
+    follower_id,
+    follower_name,
+    follower_account_id,
+    follower_character,
+    target_shared_character_id
+  )
+  values (
+    follower_char.owner_id,
+    follower_char.owner_name,
+    follower_char.source_account_id,
+    follower_char.character,
+    target_char.id
+  )
+  on conflict (follower_id, follower_account_id, target_shared_character_id)
+  do update set
+    follower_name = excluded.follower_name,
+    follower_character = excluded.follower_character;
+
+  return true;
+end;
+$$;
+
+grant execute on function public.alive_relationship_follow_back(uuid, uuid) to authenticated;
+
 create table if not exists public.alive_characters (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid not null references auth.users(id) on delete cascade,

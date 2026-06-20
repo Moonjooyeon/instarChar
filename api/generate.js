@@ -189,15 +189,23 @@ export default async function handler(req, res) {
 
     let { cand, text } = extractGeminiText(data);
 
-    if (!text && (cand?.finishReason === "MAX_TOKENS" || (wantsJson && body.generationConfig.responseMimeType))) {
+    if (!text && (cand?.finishReason === "STOP" || cand?.finishReason === "MAX_TOKENS" || (wantsJson && body.generationConfig.responseMimeType))) {
       const retryBody = {
         ...body,
         generationConfig: {
           ...body.generationConfig,
           maxOutputTokens: Math.max(body.generationConfig.maxOutputTokens || 2048, 4096),
+          temperature: wantsJson ? 0.2 : 0.75,
         },
       };
       if (wantsJson) delete retryBody.generationConfig.responseMimeType;
+      retryBody.contents = [
+        ...body.contents,
+        {
+          role: "user",
+          parts: [{ text: "직전 응답이 비어 있었다. 위 지시를 그대로 따르되, 반드시 빈 문자열이 아닌 최종 답변 본문만 출력하라." }],
+        },
+      ];
       r = await callGemini(retryBody);
       data = await r.json();
 
