@@ -3373,6 +3373,17 @@ ${formatRule}${ANTI_REPEAT_RULES}${recentLinesBlock(posts.slice(0, 6).map((p) =>
     if (v >= -80) return "혐오";
     return "증오";
   }
+  function intimacyBoundaryRules({ speakerName, listenerName, affinityValue = 0, relationHint = "", messageCount = 0 } = {}) {
+    const rel = String(relationHint || "");
+    const romantic = /연인|애인|연애|사랑|부부|배우자|약혼|반려|순애/.test(rel) || affinityValue >= 85;
+    return `
+[스킨십/관계 진전 제한 — 중요]
+- 능청스러운 농담, 노골적인 비유, 시선·거리감·손끝 같은 긴장감 표현은 가능하다. 하지만 그것을 곧바로 실제 키스·성적 접촉·침대 행동으로 실행하지 마라.
+- 첫 대화거나 대화가 아직 짧으면(현재 ${messageCount}개 메시지), ${speakerName || "캐릭터"}가 ${listenerName || "상대"}에게 먼저 키스하려 들거나 입술을 들이대거나 성적 접촉을 시도하지 마라. 특히 첫 만남/첫 대화에서는 키스 금지.
+- 현재 ${speakerName || "캐릭터"} → ${listenerName || "상대"} 호감도는 ${affinityValue}. ${romantic ? "관계가 깊어도" : "관계가 깊지 않으므로"} 강한 스킨십은 상대가 분명히 먼저 원하거나 동의한 뒤에만 가능하다.
+- 낮은 호감도/초반 관계에서는 접촉을 한다면 손목을 살짝 잡으려다 멈춤, 가까이 기울었다가 물러남, 장난스러운 말로 떠보기 정도까지만. 키스·목덜미·허리 끌어안기·침대/성행위 암시는 실제 행동으로 가지 말고 말장난/비유 수준에 머물러라.
+- 상대가 거절·당황·침묵하면 즉시 물러나고, 농담으로 무마하거나 사과하라. 집요하게 밀어붙이지 마라.`;
+  }
   // 오너↔내캐릭터(애착·신뢰) 단계
   function attachStage(v) {
     if (v >= 100) return "맹목적 애정";
@@ -3814,6 +3825,18 @@ ${peerChar.relations ? `너의 관계망: ${peerChar.relations}` : ""}`;
       : relForPeer
         ? `\n\n[관계 — 중요]\n상대 "${meName}"은(는) 너(${peerName})와 "${relForPeer}" 관계다. 이 관계에 맞게 반응하라.\n${relationshipMatchRuleLine(meName, relForPeer)}`
         : `\n\n[관계]\n상대 "${meName}"과(와) 특별히 등록된 관계는 없다. 처음 보거나 잘 모르는 상대로 대하되, 네 성격대로 반응하라. 절대 다른 사람으로 착각하지 마라.`;
+    const responderAff = npcRoom
+      ? roomAffOf(requestKey, peerName, meName, relForPeer)
+      : peer.asOwner
+        ? affOf(peerName, OWNER)
+        : dmAffOf(peerName, meName, relForPeer);
+    const intimacyRules = intimacyBoundaryRules({
+      speakerName: peerName,
+      listenerName: meName,
+      affinityValue: responderAff,
+      relationHint: relForPeer,
+      messageCount: newHist.length,
+    });
 
     const sys = `너는 "${peerName}" 본인이다. 지금 "${meName}"와 DM으로 1:1 대화 중이다.
 절대 ${meName}를 다른 이름으로 부르거나 다른 사람으로 착각하지 마라. 상대는 오직 "${meName}"다.
@@ -3830,7 +3853,7 @@ ${senderDesc}${relNote}${worldBridgeBlock(peerChar || { name: peerName, persona:
 - 받아치고 끝내지 마라. 상대 말에 반응하되 네 생각·감정·되묻는 질문을 얹어 대화가 굴러가게 하라. "...어." "...뭘." 같은 영혼 없는 단답·맞장구만 반복하지 마라. 무뚝뚝한 캐릭터여도 속내나 디테일이 한 줄은 묻어나게.
 - DM 대화체로. 보통 1~3문장. 한두 단어 단답으로 끝내지 말 것. 똑같은 표현 반복은 피하되 맥락은 절대 놓치지 마라.
 - 상대가 사진을 보냈다면 이미지를 실제로 보고, 이미지 속 표정·시선·상황·분위기에 직접 반응하라. 사진 설명문이 아니라 DM 답장처럼 말하라.
-- 지문(괄호 안 행동)은 역극에 쓸 법하면 약간만.${chatSafetyRules(currentWorldPref)}${roomLoreBlockFor(currentWorldPref, peerName, meName)}${peerChar ? loreBlockFor(peerChar, meName) : ""}${peerChar ? correctionBlockFor(peerChar) : ""}`;
+- 지문(괄호 안 행동)은 역극에 쓸 법하면 약간만.${intimacyRules}${chatSafetyRules(currentWorldPref)}${roomLoreBlockFor(currentWorldPref, peerName, meName)}${peerChar ? loreBlockFor(peerChar, meName) : ""}${peerChar ? correctionBlockFor(peerChar) : ""}`;
 
     // user/assistant 교대 보장: 상대=assistant, 나머지(나/페르소나/오너)=user.
     // 연속된 같은 role은 한 메시지로 병합(이름 접두). API가 맥락을 정확히 잡게.
@@ -3911,10 +3934,20 @@ ${senderDesc}${relNote}${worldBridgeBlock(peerChar || { name: peerName, persona:
   }
 
   // 특정 화자(speaker)가 상대(listener)에게 할 말 1개 생성 — 자동대화용
-  async function genLine(speaker, listener, history, relationHint, mode, worldPref = null) {
+  async function genLine(speaker, listener, history, relationHint, mode, worldPref = null, roomKey = "") {
     const styleRule = mode === "novel"
       ? `- 소설 모드: 행동·표정·분위기 묘사를 지문으로 섞어라. (예: "(시선을 피하며) …그런 건 묻지 마.") 2~4문장으로 깊이 있게.`
       : `- 대화 모드: 순수하게 말로만. 지문·묘사 없이, 실제 카톡하듯 자연스럽게. 보통 1~3문장. 한두 단어 단답으로 끝내지 말 것.`;
+    const speakerAff = roomKey?.startsWith("local::")
+      ? roomAffOf(roomKey, speaker.name, listener.name, relationHint)
+      : dmAffOf(speaker.name, listener.name, relationHint);
+    const intimacyRules = intimacyBoundaryRules({
+      speakerName: speaker.name,
+      listenerName: listener.name,
+      affinityValue: speakerAff,
+      relationHint,
+      messageCount: history.length,
+    });
     const sys = `너는 "${speaker.name}" 본인이다. "${listener.name}"와 DM 중. 상대는 오직 "${listener.name}".
 
 [너는 "${speaker.name}"]
@@ -3930,7 +3963,7 @@ ${relationHint ? `${listener.name}와의 관계: ${relationHint}\n${relationship
 ${styleRule}
 - 상대 마지막 말을 받아 이어가되 단답으로 끝내지 마라. 네 생각·감정을 얹어 대화를 굴려라. 무뚝뚝해도 속내가 한 줄 묻어나게.
 - 같은 논점을 계속 주고받으며 맴돌지 마라. 받았으면 새 얘기·다른 화제·행동으로 한 발 진전시켜라.
-- 본문만 출력.${chatSafetyRules(worldPref)}${loreBlockFor(speaker, listener.name)}${correctionBlockFor(speaker)}`;
+- 본문만 출력.${intimacyRules}${chatSafetyRules(worldPref)}${loreBlockFor(speaker, listener.name)}${correctionBlockFor(speaker)}`;
     const OPENERS = [
       "지금 막 떠오른 일상적인 한마디로",
       "방금 뭔가 보거나 겪은 것처럼",
@@ -3953,7 +3986,7 @@ ${styleRule}
       if (apiMsgs.length && apiMsgs[0].role === "assistant") apiMsgs.shift();
       if (!apiMsgs.length) apiMsgs = [{ role: "user", content: `(${listener.name}에게 자연스럽게 말을 건다.)` }];
     } else {
-      apiMsgs = [{ role: "user", content: `(${speaker.name}가 ${listener.name}에게 ${opener} 먼저 말을 건다. 관계와 성격에 맞게, 자기소개 없이 자연스럽게 운을 떼라.)` }];
+      apiMsgs = [{ role: "user", content: `(${speaker.name}가 ${listener.name}에게 ${opener} 먼저 말을 건다. 관계와 성격에 맞게, 자기소개 없이 자연스럽게 운을 떼라. 첫 말부터 고백·키스·강한 스킨십·성적 접촉으로 관계를 급진전시키지 마라.)` }];
     }
     try {
       const res = await fetch("/api/generate", {
@@ -3994,7 +4027,7 @@ ${styleRule}
       const speaker = turn % 2 === 0 ? firstSpeaker : (firstSpeaker.name === meChar.name ? partner : meChar);
       const listener = speaker.name === meChar.name ? partner : meChar;
       const rel = speaker.name === meChar.name ? relForMe : relForPartner;
-      const line = await genLine(speaker, listener, hist, rel, chatMode, currentWorldPref);
+      const line = await genLine(speaker, listener, hist, rel, chatMode, currentWorldPref, dmKey);
       if (!autoChatRef.current) break;
       if (!line) {
         setSaveStatus("자동대화 응답이 잠깐 비었어");
