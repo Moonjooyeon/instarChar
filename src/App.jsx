@@ -2050,8 +2050,9 @@ function App() {
     if (step !== "dm" || !peer || !dmKey?.startsWith("local::")) return;
     const peerName = peer.asOwner ? char.name : peer.name;
     const speakerName = activePersona ? activePersona.name : char.name;
+    const peerChar = peer.asOwner ? char : (findPeerChar(peer.name) || peer);
     const speakerToPeerRel = relationHintFor(speakerName, peerName, peer.relation || "");
-    const peerToSpeakerRel = relationHintFor(peerName, speakerName, "");
+    const peerToSpeakerRel = relationHintFor(peerName, speakerName, "", peerChar);
     repairRoomAffinityBase(dmKey, [
       { from: speakerName, to: peerName, hint: speakerToPeerRel },
       { from: peerName, to: speakerName, hint: peerToSpeakerRel },
@@ -2117,7 +2118,7 @@ function App() {
       ? localDmKey(speakerName, pendingDm.peer.name, roomId)
       : canonicalDmKey(speakerName, pendingDm.peer.name);
     const speakerToPeerRel = relationHintFor(speakerName, pendingDm.peer.name, pendingDm.peer.relation || "");
-    const peerToSpeakerRel = relationHintFor(pendingDm.peer.name, speakerName, "");
+    const peerToSpeakerRel = relationHintFor(pendingDm.peer.name, speakerName, "", pendingDm.peer);
     const roomAffinitySeed = dmKind === "npc"
       ? {
           [dirKey(speakerName, pendingDm.peer.name)]: dmAffOf(speakerName, pendingDm.peer.name, speakerToPeerRel),
@@ -2903,6 +2904,8 @@ ${formatRule}${ANTI_REPEAT_RULES}${recentLinesBlock(posts.slice(0, 6).map((p) =>
     if (acc) return acc.char;
     const fol = following.find((f) => f.name === name);
     if (fol) return fol;
+    const shared = sharedCharacters.find((c) => c.name === name);
+    if (shared) return shared;
     return null;
   }
   const isFollowing = (id) => following.some((f) => f.id === id);
@@ -3033,8 +3036,8 @@ ${formatRule}${ANTI_REPEAT_RULES}${recentLinesBlock(posts.slice(0, 6).map((p) =>
     for (const [re, val] of RELATION_BASE) if (re.test(label)) return val;
     return null;
   }
-  function relationHintFor(fromName, toName, fallback = "") {
-    const fromChar = fromName === char.name ? char : (findPeerChar(fromName) || null);
+  function relationHintFor(fromName, toName, fallback = "", fromCharOverride = null) {
+    const fromChar = fromCharOverride || (fromName === char.name ? char : (findPeerChar(fromName) || null));
     return fromChar ? relationMatched(fromChar, { name: toName, relation: fallback }) : fallback;
   }
   function affinityWithBase(stored, base) {
@@ -3823,7 +3826,7 @@ ${senderDesc}${relNote}${worldBridgeBlock(peerChar || { name: peerName, persona:
         if (peer.asOwner) bumpRoomAffinity(requestKey, peerName, OWNER, 1 + Math.floor(Math.random() * 2));
         else if (!senderIsOwner) {
           const meToPeerRel = relationHintFor(meName, peerName, peer.relation || "");
-          const peerToMeRel = relationHintFor(peerName, meName, "");
+          const peerToMeRel = relationHintFor(peerName, meName, "", peerChar || peer);
           bumpRoomMutual(requestKey, meName, peerName, 1 + Math.floor(Math.random() * 2), meToPeerRel, peerToMeRel);
         }
       } else if (peer.asOwner) {
@@ -5191,8 +5194,9 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
           ? "나(오너)로서 대화 중"
           : `${josa(speakerName, "으로/로")} 대화 중 · ${dmKindLabel}`;
         const roomTitle = dmThreadTitles[dmKey] || (peer.asOwner ? `${peerName} (내 캐릭터)` : peerName);
+        const peerCharForAffinity = peer.asOwner ? char : (findPeerChar(peerName) || peer);
         const speakerToPeerRel = relationHintFor(speakerName, peerName, peer.relation || "");
-        const peerToSpeakerRel = relationHintFor(peerName, speakerName, "");
+        const peerToSpeakerRel = relationHintFor(peerName, speakerName, "", peerCharForAffinity);
         const mineToPeer = npcRoom ? roomAffOf(dmKey, speakerName, peerName, speakerToPeerRel) : dmAffOf(speakerName, peerName, speakerToPeerRel);   // 화자 → 상대
         const peerToMine = npcRoom ? roomAffOf(dmKey, peerName, speakerName, peerToSpeakerRel) : dmAffOf(peerName, speakerName, peerToSpeakerRel);   // 상대 → 화자
         const ownerVal = npcRoom ? roomAffOf(dmKey, peerName, OWNER) : affOf(peerName, OWNER);           // 하루 → 나(오너)
