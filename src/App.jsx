@@ -656,9 +656,8 @@ function App() {
   function WorldChip({ c, fallback }) {
     const text = worldTextFor(c);
     if (!text) return null;
-    const key = worldKeyFor(c, fallback);
     return (
-      <button type="button" className={`al-world-chip ${openWorlds[key] ? "on" : ""}`} onClick={(e) => toggleWorld(c, fallback, e)}>
+      <button type="button" className="al-world-chip" onClick={(e) => toggleWorld(c, fallback, e)}>
         세계관
       </button>
     );
