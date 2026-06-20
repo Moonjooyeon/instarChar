@@ -227,6 +227,20 @@ function relationshipBoundaryLine(c, audience = "public") {
 관계 적용 규칙: ${scope}. "A 한정 다정함", "B에게만 약함" 같은 관계 전용 태도는 그 이름의 상대에게 말할 때만 쓴다. 불특정 독자나 다른 인물에게 그 다정함/집착/애정을 흘리지 마라.`;
 }
 
+function hasBatchim(text) {
+  const ch = String(text || "").trim().replace(/[^\uAC00-\uD7A3A-Za-z0-9]/g, "").slice(-1);
+  if (!ch) return false;
+  const code = ch.charCodeAt(0);
+  if (code < 0xac00 || code > 0xd7a3) return false;
+  return (code - 0xac00) % 28 !== 0;
+}
+
+function josa(text, pair) {
+  const value = String(text || "").trim();
+  const [withBatchim, withoutBatchim] = pair.split("/");
+  return `${value}${hasBatchim(value) ? withBatchim : withoutBatchim}`;
+}
+
 function App() {
   const [session, setSession] = useState(null);
   const [authMode, setAuthMode] = useState("signup");
@@ -3899,7 +3913,7 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
           <div className="al-autobar">
             <button className={`al-autotoggle ${auto ? "on" : ""}`} onClick={() => setAuto((a) => !a)}>
               <span className="al-autodot" />
-              {auto ? `자율 모드 ON · ${char.name}가 알아서 올리는 중` : "자율 모드 OFF"}
+              {auto ? `자율 모드 ON · ${josa(char.name, "이/가")} 알아서 올리는 중` : "자율 모드 OFF"}
             </button>
             {auto && (
               <div className="al-autometa">
@@ -3913,10 +3927,10 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
 
           {/* 직접 지시 — 상시 지침 */}
           <div className="al-directive">
-            <span className="al-directive-lbl">▸ {char.name}에게 지시</span>
+            <span className="al-directive-lbl">▸ {josa(char.name, "에게/에게")} 지시</span>
             <input className="al-directive-input" value={char.directions || ""}
               onChange={(e) => update("directions", e.target.value)}
-              placeholder="예: 요즘 시험기간이라 예민하게 / 연이랑 싸운 상태로" />
+              placeholder="예: 연이랑 데이트하고 기분 좋음 / 시험 끝나서 들뜬 상태" />
             {(char.directions || "").trim() && <span className="al-directive-on">적용 중</span>}
           </div>
 
@@ -3925,7 +3939,7 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
             {!moodOpen ? (
               <div className="al-compose-row">
                 <button className="al-wake" onClick={() => setMoodOpen(true)} disabled={loading}>
-                  {loading ? <span className="al-typing"><i/><i/><i/></span> : `✶ ${char.name}한테 시키기`}
+                  {loading ? <span className="al-typing"><i/><i/><i/></span> : `✶ ${josa(char.name, "한테/한테")} 시키기`}
                 </button>
                 <button className="al-writeself" onClick={() => setWriteOpen((w) => !w)}>✎ 내가 쓰기</button>
               </div>
@@ -3942,7 +3956,7 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
             )}
             {writeOpen && (
               <div className="al-writebox">
-                <p className="al-write-lbl">{char.name}(으)로 직접 작성 — 내가 이 캐릭터가 되어 올림</p>
+                <p className="al-write-lbl">{josa(char.name, "으로/로")} 직접 작성 — 내가 이 캐릭터가 되어 올림</p>
                 <textarea value={writeText} onChange={(e) => setWriteText(e.target.value)}
                   placeholder={`${char.name}의 글을 직접 써봐…`} />
                 <div className="al-write-actions">
@@ -4340,7 +4354,7 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
         const speakerName = (activePersona ? activePersona.name : char.name);
         const headSub = peer.asOwner
           ? "나(오너)로서 대화 중"
-          : `${speakerName}(으)로 대화 중`;
+          : `${josa(speakerName, "으로/로")} 대화 중`;
         const roomTitle = dmThreadTitles[dmKey] || (peer.asOwner ? `${peerName} (내 캐릭터)` : peerName);
         const mineToPeer = affOf(speakerName, peerName);   // 화자 → 상대
         const peerToMine = affOf(peerName, speakerName);   // 상대 → 화자
@@ -4445,7 +4459,7 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
           <div className="al-dmscroll">
             {dm.length === 0 && (
               <div className="al-dm-empty">
-                <p>{peer.asOwner ? `${peerName}에게 나(오너)로서 말을 걸어봐.` : `${peerName}에게 ${speakerName}(으)로 말을 걸어봐.`}</p>
+                <p>{peer.asOwner ? `${josa(peerName, "에게/에게")} 나(오너)로서 말을 걸어봐.` : `${josa(peerName, "에게/에게")} ${josa(speakerName, "으로/로")} 말을 걸어봐.`}</p>
               </div>
             )}
             {dm.map((m, i) => {
@@ -4908,19 +4922,20 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
 
 const css = `
 *{ box-sizing:border-box; }
-body{ margin:0; }
+html,body,#root{ margin:0; min-height:100%; background:#15131a; }
+body{ overflow-x:hidden; }
 .al-root{
   --bg:#15131a; --phone:#191820; --ink:#f4f2f8; --soft:#aaa4b6; --line:#34313d;
   --accent:#9f7cff; --accent2:#ff8fc6; --like:#ff5a8a;
-  min-height:100vh; background:
+  min-height:100dvh; background:
     radial-gradient(circle at 30% -10%, #30224a 0%, transparent 50%),
     radial-gradient(circle at 80% 10%, #3b2032 0%, transparent 45%),
     var(--bg);
   display:flex; flex-direction:column; align-items:center;
-  padding:calc(26px + env(safe-area-inset-top)) 16px calc(40px + env(safe-area-inset-bottom));
+  padding:0 16px;
   font-family:'Pretendard','Inter',-apple-system,'Apple SD Gothic Neo',sans-serif; color:var(--ink);
 }
-.al-phone{ width:100%; max-width:420px; background:var(--phone);
+.al-phone{ width:100%; max-width:420px; min-height:100dvh; background:var(--phone);
   border:1px solid var(--line); border-radius:26px; overflow:hidden;
   box-shadow:0 30px 70px -30px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.05) inset; }
 
@@ -5073,17 +5088,17 @@ body{ margin:0; }
   cursor:pointer; line-height:1; }
 .al-banner{ position:relative; height:96px; overflow:hidden; background:linear-gradient(120deg, #2d1f4a, #3a1f33 60%, #1f2d3a); }
 .al-banner img{ width:100%; height:100%; display:block; object-fit:cover; }
-.al-cover-tools{ position:absolute; right:10px; bottom:9px; display:flex; gap:6px; }
+.al-cover-tools{ position:absolute; right:10px; bottom:9px; display:flex; align-items:center; gap:6px; }
 .al-cover-tools label,.al-cover-tools button,.al-avatar-tools label,.al-avatar-tools button{ border:1px solid rgba(255,255,255,.22); border-radius:999px;
   padding:6px 9px; cursor:pointer; font-family:inherit; font-size:10.5px; font-weight:900; color:#fff;
-  background:rgba(10,10,12,.58); backdrop-filter:blur(8px); }
+  background:rgba(10,10,12,.58); backdrop-filter:blur(8px); white-space:nowrap; line-height:1; min-width:max-content; }
 .al-cover-tools button,.al-avatar-tools button{ color:#ffb3c0; border-color:rgba(255,143,166,.32); }
 .al-avatar-wrap{ position:relative; width:max-content; margin:-36px 0 0 18px; }
 .al-avatar{ width:72px; height:72px; border-radius:50%; position:relative; overflow:hidden;
   background:linear-gradient(135deg, var(--accent), var(--accent2)); border:4px solid var(--phone);
   display:flex; align-items:center; justify-content:center; font-size:30px; font-weight:800; color:#fff; }
 .al-avatar img{ width:100%; height:100%; object-fit:cover; display:block; }
-.al-avatar-tools{ position:absolute; left:76px; bottom:5px; display:flex; gap:5px; }
+.al-avatar-tools{ position:absolute; left:76px; bottom:5px; display:flex; align-items:center; gap:5px; width:max-content; }
 .al-profile-info{ padding:8px 18px 0; }
 .al-profile-info h2{ margin:0; font-size:20px; font-weight:800; letter-spacing:-.01em; }
 .al-profile-top-main{ min-width:0; flex:1 1 auto; }
@@ -5180,7 +5195,7 @@ body{ margin:0; }
 .al-mini-action:hover{ color:#c8b3ff; }
 .al-mini-action.danger:hover{ color:#ff8fa4; }
 
-.al-footer{ margin-top:18px; font-size:11px; letter-spacing:.25em; color:#44444c; text-transform:uppercase; }
+.al-footer{ display:none; }
 
 /* DM 컨트롤 */
 .al-dmctrl{ padding:10px 14px 0; }
@@ -5840,8 +5855,8 @@ button.al-fstat{ cursor:pointer; }
 .al-dm-image-btn input{ display:none; }
 
 @media (max-width:430px){
-  .al-root{ padding:calc(12px + env(safe-area-inset-top)) 6px calc(24px + env(safe-area-inset-bottom)); }
-  .al-phone{ max-width:none; border-radius:18px; }
+  .al-root{ padding:0; align-items:stretch; }
+  .al-phone{ max-width:none; min-height:100dvh; border-radius:0; border-left:none; border-right:none; }
   .al-profile-info{ padding-left:12px; padding-right:12px; }
   .al-profile-top{ grid-template-columns:1fr; gap:9px; }
   .al-feed-actions{ justify-content:flex-start; }
