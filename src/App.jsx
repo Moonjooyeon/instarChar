@@ -1065,10 +1065,7 @@ function App() {
       });
       return [...ids];
     };
-    const accountsForSync = (snapshot.accounts || []).filter((account) => {
-      if (!snapshot.activeId) return true;
-      return account.id === snapshot.activeId;
-    });
+    const accountsForSync = snapshot.accounts || [];
     const characterRows = accountsForSync.map((account) => ({
       owner_id: ownerId,
       source_account_id: account.id,
