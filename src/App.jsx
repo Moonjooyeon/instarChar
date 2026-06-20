@@ -153,6 +153,7 @@ function App() {
   const feedInitRef = useRef(false);
   const followBackSyncRef = useRef(new Set());
   const wakingRef = useRef(false);
+  const authResolvedRef = useRef(false);
   const profileLoadedRef = useRef(false);
   const profileTableBrokenRef = useRef(false);
   const saveTimerRef = useRef(null);
@@ -1368,6 +1369,7 @@ function App() {
       clearLocalAuthStorage();
       supabase.auth.signOut().catch(() => {});
       window.history.replaceState({}, "", window.location.pathname);
+      authResolvedRef.current = true;
       setSession(null);
       resetRuntimeState("");
       setAuthLoading(false);
@@ -1390,21 +1392,27 @@ function App() {
     if (hasOAuthCallback) {
       setAuthLoading(true);
     }
+    authResolvedRef.current = false;
     supabase.auth.getSession().then(({ data }) => {
       if (!alive) return;
+      authResolvedRef.current = true;
       setSession(data.session || null);
       if (!hasOAuthCallback || data.session) setAuthLoading(false);
     }).catch((error) => {
       if (!alive) return;
+      authResolvedRef.current = true;
       setAuthMessage(error.message || "로그인 상태 확인에 실패했어.");
       setAuthLoading(false);
       setProfileLoading(false);
     });
     const initFallback = setTimeout(() => {
       if (!alive) return;
+      if (!authResolvedRef.current) {
+        setAuthMessage("저장된 로그인 상태 확인이 오래 걸리고 있어. 세션을 확인하는 중이야.");
+        return;
+      }
       setAuthLoading(false);
       setProfileLoading(false);
-      if (!session) setAuthMessage("저장된 로그인 상태 확인이 오래 걸려. 안 뜨면 로그인 상태 초기화를 눌러줘.");
     }, 7000);
     const oauthFallback = hasOAuthCallback ? setTimeout(() => {
       if (!alive) return;
@@ -1414,6 +1422,7 @@ function App() {
       window.history.replaceState({}, "", window.location.pathname);
     }, 9000) : null;
     const { data: sub } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      authResolvedRef.current = true;
       if (event === "PASSWORD_RECOVERY") setPasswordRecoveryOpen(true);
       if (nextSession && hasOAuthCallback) window.history.replaceState({}, "", window.location.pathname);
       setSession((prevSession) => {
