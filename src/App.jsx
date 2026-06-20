@@ -427,7 +427,7 @@ function App() {
   }
 
   function authRedirectUrl() {
-    return `${window.location.origin}/app`;
+    return window.location.origin;
   }
 
   async function submitAuth() {
@@ -1401,7 +1401,7 @@ function App() {
       if (oauthCode) {
         const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(oauthCode);
         if (exchangeError) throw exchangeError;
-        window.history.replaceState({}, "", window.location.pathname);
+        window.history.replaceState({}, "", "/app");
       }
       const { data } = await supabase.auth.getSession();
       return data.session || null;
