@@ -987,15 +987,15 @@ function App() {
     const sharedError = sharedResult.status === "fulfilled" ? sharedResult.value.error : sharedResult.reason;
     const characterRows = characterResult.status === "fulfilled" && !characterResult.value.error ? (characterResult.value.data || []) : [];
     const sharedRows = sharedResult.status === "fulfilled" && !sharedResult.value.error ? (sharedResult.value.data || []) : [];
-    if (characterError) {
-      console.warn("alive_characters 탐색 불러오기 실패:", characterError);
-      setSharedCharacters([]);
-      setSharedLoadState({ loading: false, error: characterError.message || "alive_characters를 불러오지 못했어." });
-      return;
-    }
+    if (characterError) console.warn("alive_characters 탐색 불러오기 실패:", characterError);
     if (sharedError) console.warn("공유 정보 불러오기 실패:", sharedError);
     setSharedCharacters(mergeDiscoverCharacters(sharedRows, characterRows));
-    setSharedLoadState({ loading: false, error: "" });
+    setSharedLoadState({
+      loading: false,
+      error: characterError && !sharedRows.length
+        ? (characterError.message || "alive_characters를 불러오지 못했어.")
+        : "",
+    });
     loadFollowerCountsFor(sharedRows);
   }
 
@@ -1769,7 +1769,7 @@ function App() {
   }, [authBusy]); // eslint-disable-line
 
   useEffect(() => {
-    if (canUseApp && step === "discover") loadSharedCharacters();
+    if (canUseApp && ["discover", "dmlist", "dm"].includes(step)) loadSharedCharacters();
   }, [canUseApp, step, session?.user?.id]); // eslint-disable-line
 
   useEffect(() => {
@@ -2074,8 +2074,8 @@ function App() {
   function enterDm(nextPeer, nextSpeakAs = speakAs) {
     const relationFromActive = nextPeer?.asOwner ? "" : relationMatched(char, { name: nextPeer?.name || "", relation: nextPeer?.relation || "" });
     const peerWithRelation = nextPeer?.asOwner ? nextPeer : { ...nextPeer, relation: nextPeer?.relation || relationFromActive };
-    setPeer(peerWithRelation);
     setSpeakAs(nextSpeakAs);
+    setPeer(peerWithRelation);
     setPendingDm(null);
     setDmWorldDraft("");
     setNewChatMode(null);
@@ -2900,12 +2900,14 @@ ${formatRule}${ANTI_REPEAT_RULES}${recentLinesBlock(posts.slice(0, 6).map((p) =>
   const OWNER = "나";
   // 이름으로 캐릭터 객체 찾기 — 내 계정 + 팔로우한 외부 캐릭터 모두에서
   function findPeerChar(name) {
-    const acc = accounts.find((a) => a.char.name === name);
+    if (char?.name && nameMatch(char.name, name)) return char;
+    const acc = accounts.find((a) => nameMatch(a.char.name, name));
     if (acc) return acc.char;
-    const fol = following.find((f) => f.name === name);
+    const fol = following.find((f) => nameMatch(f.name, name));
     if (fol) return fol;
-    const shared = sharedCharacters.find((c) => c.name === name);
+    const shared = sharedCharacters.find((c) => nameMatch(c.name, name));
     if (shared) return shared;
+    if (peer && !peer.asOwner && nameMatch(peer.name, name)) return peer;
     return null;
   }
   const isFollowing = (id) => following.some((f) => f.id === id);
@@ -5086,13 +5088,15 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
                     if (c.asOwner) {
                       requestDmEntry({ name: char.name, persona: char.persona, relation: "", asOwner: true }, "owner");
                     } else {
-                      const acc = accounts.find((a) => a.char.name === c.peerName);
-                      const fol = following.find((f) => f.name === c.peerName);
+                      const acc = accounts.find((a) => nameMatch(a.char.name, c.peerName));
+                      const fol = following.find((f) => nameMatch(f.name, c.peerName));
+                      const shared = sharedCharacters.find((s) => nameMatch(s.name, c.peerName));
+                      const basePeer = acc?.char || fol || shared || {};
                       const nextPeer = {
-                        ...(fol || {}),
+                        ...basePeer,
                         name: c.peerName,
-                        persona: acc ? acc.char.persona : (fol ? fol.persona : ""),
-                        relation: relationMatched(char, acc ? { name: acc.char.name } : (fol || { name: c.peerName })),
+                        persona: basePeer.persona || "",
+                        relation: relationMatched(char, basePeer.name ? basePeer : { name: c.peerName }),
                         dmKind: c.dmKind,
                         dmKey: c.dmKey,
                         localRoomId: c.localRoomId,
