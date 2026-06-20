@@ -941,7 +941,7 @@ function App() {
       return;
     }
     const rows = data || [];
-    setSharedCharacters(shuffled(rows).map(sharedRowToChar));
+    setSharedCharacters(rows.map(sharedRowToChar));
     setSharedLoadState({ loading: false, error: "" });
     loadFollowerCountsFor(rows);
   }
@@ -1174,7 +1174,11 @@ function App() {
       });
       return [...ids];
     };
-    const characterRows = (snapshot.accounts || []).map((account) => ({
+    const accountsForSync = (snapshot.accounts || []).filter((account) => {
+      if (!snapshot.activeId) return true;
+      return account.id === snapshot.activeId;
+    });
+    const characterRows = accountsForSync.map((account) => ({
       owner_id: ownerId,
       source_account_id: account.id,
       name: account.char?.name || "",
@@ -1613,7 +1617,7 @@ function App() {
       setSaveStatus("저장됨");
     }, 700);
     return () => clearTimeout(saveTimerRef.current);
-  }, [accounts, activeId, char, gallery, posts, personas, dmThreads, dmThreadTitles, dmWorldPrefs, ownerPersona, following, affinity, discoverQuery, profileName, onboardingOpen, step, stateReady, session?.user?.id]); // eslint-disable-line
+  }, [accounts, activeId, char, gallery, posts, personas, dmThreads, dmThreadTitles, dmWorldPrefs, ownerPersona, following, affinity, profileName, onboardingOpen, stateReady, session?.user?.id]); // eslint-disable-line
 
   useEffect(() => {
     if (!stateReady) return;
@@ -4592,7 +4596,10 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
       {canUseApp && step === "discover" && (() => {
         const q = discoverQuery.trim().toLowerCase();
         const mergedDiscover = hasSupabaseConfig ? sharedCharacters : DISCOVER_POOL;
-        const isActiveShared = (c) => activeSharedId && (c.sharedId === activeSharedId || c.id === `shared_${activeSharedId}`);
+        const isActiveShared = (c) => Boolean(
+          (activeSharedId && (c.sharedId === activeSharedId || c.id === `shared_${activeSharedId}`)) ||
+          (session?.user?.id && activeId && c.ownerId === session.user.id && c.sourceAccountId === activeId)
+        );
         const visibleBase = mergedDiscover.filter((c) => {
           if (sharedFocusId) return c.sharedId === sharedFocusId || c.id === sharedFocusId;
           if (isActiveShared(c)) return false;
@@ -4630,7 +4637,7 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
               <span>
                 {sharedLoadState.loading
                   ? "사용자 캐릭터 불러오는 중"
-                  : `불러옴 ${sharedCharacters.length}개 · 표시 ${list.length}개${q ? " · 검색 적용" : ""}${hiddenFollowed ? ` · 팔로잉 ${hiddenFollowed}개 포함` : ""}${hiddenActive ? ` · 현재 캐릭터 제외 ${hiddenActive}개` : ""}`}
+                  : `${hasSupabaseConfig ? "DB" : "샘플"} 불러옴 ${mergedDiscover.length}개 · 표시 ${list.length}개${q ? " · 검색 적용" : ""}${hiddenFollowed ? ` · 팔로잉 ${hiddenFollowed}개 포함` : ""}${hiddenActive ? ` · 현재 캐릭터 제외 ${hiddenActive}개` : ""}`}
               </span>
               {(q || sharedFocusId) && (
                 <button type="button" onClick={() => { setDiscoverQuery(""); setSharedFocusId(""); }}>전체 보기</button>
