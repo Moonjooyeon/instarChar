@@ -241,9 +241,10 @@ create table if not exists public.alive_characters (
 alter table public.alive_characters enable row level security;
 
 drop policy if exists "alive_characters_select_own" on public.alive_characters;
-create policy "alive_characters_select_own"
+drop policy if exists "alive_characters_select_public" on public.alive_characters;
+create policy "alive_characters_select_public"
 on public.alive_characters for select
-using (auth.uid() = owner_id);
+using (true);
 
 drop policy if exists "alive_characters_insert_own" on public.alive_characters;
 create policy "alive_characters_insert_own"
