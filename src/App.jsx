@@ -2121,8 +2121,8 @@ function App() {
     const peerToSpeakerRel = relationHintFor(pendingDm.peer.name, speakerName, "", pendingDm.peer);
     const roomAffinitySeed = dmKind === "npc"
       ? {
-          [dirKey(speakerName, pendingDm.peer.name)]: dmAffOf(speakerName, pendingDm.peer.name, speakerToPeerRel),
-          [dirKey(pendingDm.peer.name, speakerName)]: dmAffOf(pendingDm.peer.name, speakerName, peerToSpeakerRel),
+          [dirKey(speakerName, pendingDm.peer.name)]: roomInitialAffinity(speakerName, pendingDm.peer.name, speakerToPeerRel),
+          [dirKey(pendingDm.peer.name, speakerName)]: roomInitialAffinity(pendingDm.peer.name, speakerName, peerToSpeakerRel),
         }
       : null;
     const peerForRoom = {
@@ -3086,14 +3086,19 @@ ${formatRule}${ANTI_REPEAT_RULES}${recentLinesBlock(posts.slice(0, 6).map((p) =>
     if (directBase != null) return directBase;
     return hintBase == null ? 0 : hintBase;
   }
+  function roomInitialAffinity(from, to, relationHint = "") {
+    const directBase = relationBaseFor(from, to);
+    const hintBase = relationBaseFromLabel(relationHint);
+    return directBase ?? hintBase ?? 0;
+  }
   function roomAffOf(roomKey, from, to, relationHint = "") {
     if (!roomKey?.startsWith("local::")) return dmAffOf(from, to, relationHint);
     const key = dirKey(from, to);
     const pref = dmWorldPrefs[roomKey] || {};
-    const liveBase = dmAffOf(from, to, relationHint);
+    const liveBase = roomInitialAffinity(from, to, relationHint);
     const savedBase = pref.affinityBase?.[key];
     const base = Math.max(Number.isFinite(savedBase) ? savedBase : liveBase, liveBase);
-    if (pref.affinity && key in pref.affinity) return affinityWithBase(pref.affinity[key], base);
+    if (pref.affinity && key in pref.affinity) return Math.max(-100, Math.min(100, Number(pref.affinity[key]) || 0));
     return base;
   }
   function bumpRoomAffinity(roomKey, from, to, amt, relationHint = "") {
@@ -3102,11 +3107,11 @@ ${formatRule}${ANTI_REPEAT_RULES}${recentLinesBlock(posts.slice(0, 6).map((p) =>
     setDmWorldPrefs((prev) => {
       const pref = prev[roomKey] || {};
       const roomAffinity = pref.affinity || {};
-      const liveBase = dmAffOf(from, to, relationHint);
+      const liveBase = roomInitialAffinity(from, to, relationHint);
       const savedBase = pref.affinityBase?.[key];
       const base = Math.max(Number.isFinite(savedBase) ? savedBase : liveBase, liveBase);
       const stored = roomAffinity[key];
-      const before = key in roomAffinity ? affinityWithBase(stored, base) : base;
+      const before = key in roomAffinity ? Math.max(-100, Math.min(100, Number(stored) || 0)) : base;
       const after = Math.max(-100, Math.min(100, before + amt));
       return {
         ...prev,
@@ -3143,7 +3148,7 @@ ${formatRule}${ANTI_REPEAT_RULES}${recentLinesBlock(posts.slice(0, 6).map((p) =>
             nextBase[key] = pairRomanticBase;
             changed = true;
           }
-          if (nextAffinity[key] == null || (nextAffinity[key] >= 0 && nextAffinity[key] < pairRomanticBase)) {
+          if (nextAffinity[key] == null) {
             nextAffinity[key] = pairRomanticBase;
             changed = true;
           }
@@ -3152,12 +3157,12 @@ ${formatRule}${ANTI_REPEAT_RULES}${recentLinesBlock(posts.slice(0, 6).map((p) =>
       pairs.forEach(({ from, to, hint = "" }) => {
         if (!from || !to || from === to) return;
         const key = dirKey(from, to);
-        const liveBase = dmAffOf(from, to, hint);
+        const liveBase = roomInitialAffinity(from, to, hint);
         if (liveBase >= 90 && (nextBase[key] == null || nextBase[key] < liveBase)) {
           nextBase[key] = liveBase;
           changed = true;
         }
-        if (liveBase >= 90 && (nextAffinity[key] == null || (nextAffinity[key] >= 0 && nextAffinity[key] < liveBase))) {
+        if (liveBase >= 90 && nextAffinity[key] == null) {
           nextAffinity[key] = liveBase;
           changed = true;
         }
