@@ -2979,17 +2979,26 @@ ${formatRule}${ANTI_REPEAT_RULES}${recentLinesBlock(posts.slice(0, 6).map((p) =>
     if (!roomKey?.startsWith("local::")) return dmAffOf(from, to, relationHint);
     const key = dirKey(from, to);
     const pref = dmWorldPrefs[roomKey] || {};
-    if (pref.affinity && key in pref.affinity) return pref.affinity[key];
+    const directBase = relationBaseFor(from, to);
     const hintBase = relationBaseFromLabel(relationHint);
-    return hintBase == null ? 0 : hintBase;
+    const base = directBase ?? hintBase;
+    if (pref.affinity && key in pref.affinity) {
+      const stored = pref.affinity[key];
+      if (base != null && base >= 90 && stored < base && stored >= 0) return base;
+      return stored;
+    }
+    return base == null ? 0 : base;
   }
-  function bumpRoomAffinity(roomKey, from, to, amt) {
+  function bumpRoomAffinity(roomKey, from, to, amt, relationHint = "") {
     if (!roomKey?.startsWith("local::") || !from || !to || from === to) return;
     const key = dirKey(from, to);
     setDmWorldPrefs((prev) => {
       const pref = prev[roomKey] || {};
       const roomAffinity = pref.affinity || {};
-      const before = key in roomAffinity ? roomAffinity[key] : 0;
+      const directBase = relationBaseFor(from, to);
+      const hintBase = relationBaseFromLabel(relationHint);
+      const base = directBase ?? hintBase;
+      const before = key in roomAffinity ? Math.max(roomAffinity[key], base ?? -100) : (base ?? 0);
       const after = Math.max(-100, Math.min(100, before + amt));
       return {
         ...prev,
