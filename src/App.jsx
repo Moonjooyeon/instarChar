@@ -1134,11 +1134,12 @@ function App() {
 
     const ownerDmRows = [];
     const sharedDmRows = [];
+    const compactMessages = (messages) => Array.isArray(messages) ? messages.slice(-160) : [];
     Object.entries(snapshot.dmThreads || {}).forEach(([threadKey, messages]) => {
       if (!threadKey) return;
       const row = {
         thread_key: threadKey,
-        messages: Array.isArray(messages) ? messages : [],
+        messages: compactMessages(messages),
         world_pref: snapshot.dmWorldPrefs?.[threadKey] || {},
       };
       const participantIds = participantIdsForThread(threadKey);
@@ -4824,7 +4825,7 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
           )}
 
           {/* ── 다른 캐릭터와의 방: 기본=하루, 자동대화 + 끼어들기 ── */}
-          {!peer.asOwner && findPeerChar(peer.name) && (
+          {!peer.asOwner && (
             <div className="al-autochat">
               <div className="al-chatmode">
                 <span className="al-ctrl-lbl">자동 대화 방식:</span>
