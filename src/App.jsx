@@ -3495,7 +3495,8 @@ ${otherChar && otherChar.relations ? `${otherName}의 관계망: ${otherChar.rel
         if (d !== 0) bumpAffinity(from, to, d, log.map((x) => `${x.who}: ${x.text}`));
       };
       // 페르소나/오너 방향 규칙: 페르소나는 안 받음(캐→페르소나만), 오너쌍은 캐→오너만
-      if (!memOnly) {
+      const npcRoom = roomKey?.startsWith("local::");
+      if (!memOnly && !npcRoom) {
         if (aIsOwner || bIsOwner) {
           const c = aIsOwner ? bName : aName;
           applyAff(c, OWNER, aIsOwner ? obj.aff_b_to_a : obj.aff_a_to_b);
@@ -3633,12 +3634,15 @@ ${senderDesc}${relNote}${worldBridgeBlock(peerChar || { name: peerName, persona:
       setDmThread((d) => [...d, { from: peerName, text }]);
       // 호감도 소폭 적립 (큰 변동은 방 나갈 때 세션 판정)
       const ctx = [...newHist, { from: peerName, text }].slice(-6).map((m) => `${m.from}: ${m.text}`);
+      const npcRoom = requestKey?.startsWith("local::");
       if (peer.asOwner) {
         // 오너↔내캐릭터: "하루(peerName)가 오너(나)를 좋아하는 정도" 한 방향
         bumpAffinity(peerName, OWNER, 1 + Math.floor(Math.random() * 2), ctx);
-      } else if (!senderIsOwner) {
+      } else if (!senderIsOwner && !npcRoom) {
         // 화자(내 캐릭터 또는 유저 페르소나) ↔ 상대 (양방향). meName이 화자 이름.
         bumpMutual(meName, peerName, 1 + Math.floor(Math.random() * 2), ctx);
+      }
+      if (!peer.asOwner && !senderIsOwner) {
         // 직접 대화 중에도 가끔만 중대한 사건을 추출 (사소한 잡담은 버림)
         const full = [...newHist, { from: peerName, text }];
         if (full.length >= 10 && full.length % 10 === 0) {
@@ -4990,7 +4994,7 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
         const showGauge = true;
         // 게이지 주체 = 현재 화자(내 캐릭터 or 유저 페르소나). 오너면 캐릭터로 폴백.
         const speakerName = (activePersona ? activePersona.name : char.name);
-        const dmKindLabel = peer.dmKind === "npc" ? "NPC 채팅" : "공유 DM";
+        const dmKindLabel = peer.dmKind === "npc" ? "NPC 채팅 · 관계 미반영" : "공유 DM";
         const headSub = peer.asOwner
           ? "나(오너)로서 대화 중"
           : `${josa(speakerName, "으로/로")} 대화 중 · ${dmKindLabel}`;
