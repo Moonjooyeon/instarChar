@@ -873,11 +873,6 @@ function App() {
     });
   }
 
-  function openMemoryPanel() {
-    closeProfilePanels("memory");
-    setShowMemory(true);
-  }
-
   function toggleRelationsPanel() {
     setShowRelations((v) => {
       const next = !v;
@@ -2101,11 +2096,11 @@ function App() {
     if (!dmKey) return;
     const nextPrefs = {
       ...dmWorldPrefs,
-      [dmKey]: { mode: dmPrefDraft.mode || "bridge", note: dmPrefDraft.note || "" },
+      [dmKey]: { ...(dmWorldPrefs[dmKey] || {}), mode: dmPrefDraft.mode || "bridge", note: dmPrefDraft.note || "" },
     };
     setDmWorldPrefs((prev) => ({
       ...prev,
-      [dmKey]: { mode: dmPrefDraft.mode || "bridge", note: dmPrefDraft.note || "" },
+      [dmKey]: { ...(prev[dmKey] || {}), mode: dmPrefDraft.mode || "bridge", note: dmPrefDraft.note || "" },
     }));
     persistLocalSnapshot({ ...exportAppState(), dmWorldPrefs: nextPrefs });
     setDmSettingsOpen(false);
@@ -2778,11 +2773,25 @@ ${formatRule}${ANTI_REPEAT_RULES}${recentLinesBlock(posts.slice(0, 6).map((p) =>
   }
   // 자동 기억(메모리): 캐릭터 c가 대화에서 쌓아온 핵심 사건/설정을 프롬프트에 동봉.
   //  withName이 주어지면 그 상대와 관련된 기억을 우선. (까먹음 방지 — 장기기억)
-  function loreBlockFor(c, withName, roomKey = "") {
+  function roomMemoryEntries(pref, viewer, other) {
+    const book = pref?.memories || {};
+    return (book[viewer] || []).filter((e) => !other || e.peer === other);
+  }
+
+  function roomLoreBlockFor(pref, viewer, other) {
+    const picked = roomMemoryEntries(pref, viewer, other)
+      .slice(-12)
+      .map((e) => (e.content || "").trim())
+      .filter(Boolean);
+    if (!picked.length) return "";
+    return `\n\n[이 DM방에서만 이어지는 기억 — 다른 NPC방/공유DM과 섞지 마라]\n${picked.map((t) => `- ${t}`).join("\n")}`;
+  }
+
+  function loreBlockFor(c, withName) {
     const mem = (c && c.lorebook) || [];
     if (!mem.length) return "";
-    const scoped = (e) => !roomKey || !e.roomKey || e.roomKey === roomKey;
-    const rel = withName ? mem.filter((e) => e.peer === withName && scoped(e)) : [];
+    const globalOnly = (e) => !e.roomKey;
+    const rel = withName ? mem.filter((e) => e.peer === withName && globalOnly(e)) : [];
     const gen = mem.filter((e) => (!e.peer || e.peer === "*") && !e.roomKey);
     const picked = [...rel, ...gen].slice(-12).map((e) => (e.content || "").trim()).filter(Boolean);
     if (!picked.length) return "";
@@ -3348,6 +3357,23 @@ ${otherChar && otherChar.relations ? `${otherName}의 관계망: ${otherChar.rel
         .sort((a, b) => Number(b.pinned) - Number(a.pinned) || (b.importance || 2) - (a.importance || 2) || (b.id || 0) - (a.id || 0))
         .slice(0, 120);
     };
+    if (roomKey?.startsWith("local::")) {
+      setDmWorldPrefs((prev) => {
+        const pref = prev[roomKey] || {};
+        const memories = pref.memories || {};
+        return {
+          ...prev,
+          [roomKey]: {
+            ...pref,
+            memories: {
+              ...memories,
+              [viewer]: mkEntries(memories[viewer] || []),
+            },
+          },
+        };
+      });
+      return;
+    }
     if (char.name === viewer) setChar((c) => ({ ...c, lorebook: mkEntries(c.lorebook) }));
     else {
       setAccounts((accs) => accs.map((a) => a.char.name === viewer
@@ -3562,7 +3588,7 @@ ${senderDesc}${relNote}${worldBridgeBlock(peerChar || { name: peerName, persona:
 - 받아치고 끝내지 마라. 상대 말에 반응하되 네 생각·감정·되묻는 질문을 얹어 대화가 굴러가게 하라. "...어." "...뭘." 같은 영혼 없는 단답·맞장구만 반복하지 마라. 무뚝뚝한 캐릭터여도 속내나 디테일이 한 줄은 묻어나게.
 - DM 대화체로. 보통 1~3문장. 한두 단어 단답으로 끝내지 말 것. 똑같은 표현 반복은 피하되 맥락은 절대 놓치지 마라.
 - 상대가 사진을 보냈다면 이미지를 실제로 보고, 이미지 속 표정·시선·상황·분위기에 직접 반응하라. 사진 설명문이 아니라 DM 답장처럼 말하라.
-- 지문(괄호 안 행동)은 역극에 쓸 법하면 약간만.${ANTI_REPEAT_RULES}${peerChar ? loreBlockFor(peerChar, meName, dmKey) : ""}${peerChar ? correctionBlockFor(peerChar) : ""}`;
+- 지문(괄호 안 행동)은 역극에 쓸 법하면 약간만.${ANTI_REPEAT_RULES}${roomLoreBlockFor(currentWorldPref, peerName, meName)}${peerChar ? loreBlockFor(peerChar, meName) : ""}${peerChar ? correctionBlockFor(peerChar) : ""}`;
 
     // user/assistant 교대 보장: 상대=assistant, 나머지(나/페르소나/오너)=user.
     // 연속된 같은 role은 한 메시지로 병합(이름 접두). API가 맥락을 정확히 잡게.
@@ -4301,7 +4327,6 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
                   <span className="al-handle">@{char.handle || char.name.replace(/\s/g, "").toLowerCase()}</span>
                 </div>
                 <div className="al-feed-actions">
-                  <button className="al-dmbtn ghost al-menubtn" onClick={openMemoryPanel} title="장기기억"><span>☰</span><b>기억</b></button>
                   <button className="al-dmbtn ghost" onClick={() => { setDiscoverQuery(""); setSharedFocusId(""); setStep("discover"); }} title="탐색"><span>🔍</span><b>탐색</b></button>
                   <button className="al-dmbtn ghost" onClick={shareCurrentCharacter} title="공유"><span>🔗</span><b>공유</b></button>
                   <button className="al-dmbtn" onClick={() => setStep("dmlist")} title="DM"><span>✉</span><b>DM</b></button>
@@ -4973,6 +4998,10 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
         const mineToPeer = dmAffOf(speakerName, peerName, peer.relation);   // 화자 → 상대
         const peerToMine = dmAffOf(peerName, speakerName, peer.relation);   // 상대 → 화자
         const ownerVal = affOf(peerName, OWNER);           // 하루 → 나(오너)
+        const peerCharForMemory = findPeerChar(peerName);
+        const roomMems = roomMemoryEntries(currentWorldPref, peerName, speakerName);
+        const globalMems = (peerCharForMemory?.lorebook || []).filter((e) => e.peer === speakerName && !e.roomKey);
+        const visibleMems = [...roomMems, ...globalMems];
         return (
         <div className="al-phone">
           <div className="al-dmhead">
@@ -4991,7 +5020,12 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
               <span className="al-dmhead-sub">{headSub}</span>
             </div>
             {!peer.asOwner && (
-              <button className="al-dm-settings-btn" onClick={openDmSettings}>세계관</button>
+              <div className="al-dm-head-actions">
+                <button className="al-dm-settings-btn" onClick={openDmSettings}>세계관</button>
+                <button className={`al-dm-settings-btn ${showPeerMem ? "on" : ""}`} onClick={() => setShowPeerMem((v) => !v)}>
+                  기억 {visibleMems.length}
+                </button>
+              </div>
             )}
           </div>
 
@@ -5051,21 +5085,16 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
           )}
 
           {(() => {
-            const pc = findPeerChar(peerName);
-            const mems = (pc && pc.lorebook || []).filter((e) => e.peer === speakerName && (!e.roomKey || e.roomKey === dmKey));
-            if (!pc || mems.length === 0) return null;
+            if (!showPeerMem) return null;
             return (
               <div className="al-peermem">
-                <button className="al-peermem-toggle" onClick={() => setShowPeerMem((v) => !v)}>
-                  🧠 {peerName}가 {speakerName}를 기억하는 것 {mems.length} {showPeerMem ? "▾" : "▸"}
-                </button>
-                {showPeerMem && (
-                  <div className="al-peermem-list">
-                    {mems.slice(-8).reverse().map((e) => (
-                      <div className="al-peermem-item" key={e.id}>· {e.content}</div>
-                    ))}
-                  </div>
-                )}
+                <div className="al-peermem-list">
+                  {visibleMems.length === 0 ? (
+                    <div className="al-peermem-item muted">아직 이 DM방에 남은 장기기억이 없어.</div>
+                  ) : visibleMems.slice(-8).reverse().map((e) => (
+                    <div className="al-peermem-item" key={e.id}>· {e.content}</div>
+                  ))}
+                </div>
               </div>
             );
           })()}
@@ -5942,6 +5971,7 @@ body{ overflow-x:hidden; }
 .al-peermem-toggle:hover{ border-color:#2f6a4c; }
 .al-peermem-list{ margin-top:6px; padding:9px 11px; background:#101810; border:1px solid #1f3a2c; border-radius:9px; }
 .al-peermem-item{ font-size:12px; color:#c4c0cf; line-height:1.6; }
+.al-peermem-item.muted{ color:#8f889c; }
 .al-mem-note{ font-size:11px; color:var(--soft); margin:8px 0 0; }
 
 /* DM 대화 목록 */
@@ -6396,9 +6426,10 @@ button.al-fstat{ cursor:pointer; }
 .al-profile-follow-card small{ margin-left:auto; color:var(--soft); font-size:11px; }
 .al-unfollow.small{ padding:8px 9px; font-size:11px; }
 .al-disc-fcount{ font-size:10.5px; color:var(--soft); overflow-wrap:anywhere; }
-.al-dm-settings-btn{ margin-left:auto; border:1px solid #3a3550; border-radius:999px; padding:7px 10px;
+.al-dm-settings-btn{ border:1px solid #3a3550; border-radius:999px; padding:7px 10px;
   background:#1c1730; color:#c8b3ff; cursor:pointer; font-family:inherit; font-size:11.5px; font-weight:900; }
 .al-dm-settings-btn:hover{ border-color:var(--accent); color:#fff; }
+.al-dm-settings-btn.on{ border-color:#2f6a4c; background:#121a16; color:#9eddb0; }
 /* 외부 글 / 댓글 */
 .al-post-av.ext{ background:linear-gradient(135deg,#6ea8ff,#9d6bff); }
 .al-post-extbadge{ font-size:9.5px; color:#a8c8ff; background:#16203a; border-radius:5px; padding:1px 6px; }
@@ -6438,9 +6469,10 @@ button.al-fstat{ cursor:pointer; }
 .al-back-inline{ background:none; border:none; color:var(--ink); font-size:26px; cursor:pointer; line-height:1; padding:0; }
 .al-dmhead-av{ width:38px; height:38px; border-radius:50%; background:linear-gradient(135deg,var(--accent),var(--accent2));
   display:flex; align-items:center; justify-content:center; font-size:16px; font-weight:800; color:#fff; }
-.al-dmhead-info{ display:flex; flex-direction:column; }
+.al-dmhead-info{ display:flex; flex-direction:column; min-width:0; flex:1; }
 .al-dmhead-name{ font-size:15px; font-weight:800; color:var(--ink); }
 .al-dmhead-sub{ font-size:11.5px; color:var(--soft); }
+.al-dm-head-actions{ display:flex; align-items:center; gap:6px; flex-shrink:0; }
 
 .al-identity{ border-bottom:1px solid var(--line); }
 .al-identity-cur{ width:100%; display:flex; align-items:center; gap:8px; padding:11px 16px;
