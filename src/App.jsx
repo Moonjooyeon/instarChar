@@ -3056,6 +3056,11 @@ ${formatRule}${ANTI_REPEAT_RULES}${recentLinesBlock(posts.slice(0, 6).map((p) =>
     for (const [re, val] of RELATION_BASE) if (re.test(label)) return val;
     return null;
   }
+  function symmetricRelationBaseFromLabel(label) {
+    if (!label) return null;
+    for (const [re, val] of SYMMETRIC_RELATION_BASE) if (re.test(label)) return val;
+    return null;
+  }
   function relationHintFor(fromName, toName, fallback = "", fromCharOverride = null) {
     const fromChar = fromCharOverride || (fromName === char.name ? char : (findPeerChar(fromName) || null));
     const direct = fromChar ? relationMatched(fromChar, { name: toName, relation: fallback }) : fallback;
@@ -3128,6 +3133,22 @@ ${formatRule}${ANTI_REPEAT_RULES}${recentLinesBlock(posts.slice(0, 6).map((p) =>
       const nextBase = { ...(pref.affinityBase || {}) };
       const nextAffinity = { ...(pref.affinity || {}) };
       let changed = false;
+      const pairLive = pairs
+        .map(({ from, to, hint = "" }) => ({ from, to, key: dirKey(from, to), symmetricBase: symmetricRelationBaseFromLabel(hint) }))
+        .filter(({ from, to }) => from && to && from !== to);
+      const pairRomanticBase = Math.max(0, ...pairLive.map(({ symmetricBase }) => symmetricBase || 0));
+      if (pairRomanticBase >= 90) {
+        pairLive.forEach(({ key }) => {
+          if (nextBase[key] == null || nextBase[key] < pairRomanticBase) {
+            nextBase[key] = pairRomanticBase;
+            changed = true;
+          }
+          if (nextAffinity[key] == null || (nextAffinity[key] >= 0 && nextAffinity[key] < pairRomanticBase)) {
+            nextAffinity[key] = pairRomanticBase;
+            changed = true;
+          }
+        });
+      }
       pairs.forEach(({ from, to, hint = "" }) => {
         if (!from || !to || from === to) return;
         const key = dirKey(from, to);
@@ -5226,8 +5247,14 @@ ${quoteTarget ? `\n[너는 지금 "${char.name}"의 다음 글을 인용해서(�
         const peerCharForAffinity = peer.asOwner ? char : (findPeerChar(peerName) || peer);
         const speakerToPeerRel = relationHintFor(speakerName, peerName, peer.relation || "");
         const peerToSpeakerRel = relationHintFor(peerName, speakerName, "", peerCharForAffinity);
-        const mineToPeer = npcRoom ? roomAffOf(dmKey, speakerName, peerName, speakerToPeerRel) : dmAffOf(speakerName, peerName, speakerToPeerRel);   // 화자 → 상대
-        const peerToMine = npcRoom ? roomAffOf(dmKey, peerName, speakerName, peerToSpeakerRel) : dmAffOf(peerName, speakerName, peerToSpeakerRel);   // 상대 → 화자
+        const mineToPeerRaw = npcRoom ? roomAffOf(dmKey, speakerName, peerName, speakerToPeerRel) : dmAffOf(speakerName, peerName, speakerToPeerRel);   // 화자 → 상대
+        const peerToMineRaw = npcRoom ? roomAffOf(dmKey, peerName, speakerName, peerToSpeakerRel) : dmAffOf(peerName, speakerName, peerToSpeakerRel);   // 상대 → 화자
+        const romanticPairBase = Math.max(
+          symmetricRelationBaseFromLabel(speakerToPeerRel) || 0,
+          symmetricRelationBaseFromLabel(peerToSpeakerRel) || 0,
+        );
+        const mineToPeer = romanticPairBase >= 90 ? Math.max(mineToPeerRaw, romanticPairBase) : mineToPeerRaw;
+        const peerToMine = romanticPairBase >= 90 ? Math.max(peerToMineRaw, romanticPairBase) : peerToMineRaw;
         const ownerVal = npcRoom ? roomAffOf(dmKey, peerName, OWNER) : affOf(peerName, OWNER);           // 하루 → 나(오너)
         const mineToPeerStage = relationStageLabel(speakerToPeerRel, mineToPeer);
         const peerToMineStage = relationStageLabel(peerToSpeakerRel, peerToMine);
