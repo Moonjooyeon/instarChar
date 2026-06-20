@@ -1188,18 +1188,23 @@ function App() {
         supabase.from("alive_characters")
           .select("source_account_id,name,handle,character,gallery,posts,following,updated_at")
           .eq("owner_id", ownerId)
-          .order("updated_at", { ascending: false }),
+          .order("updated_at", { ascending: false })
+          .limit(80),
         supabase.from("alive_personas")
           .select("persona_id,name,persona,updated_at")
           .eq("owner_id", ownerId)
-          .order("updated_at", { ascending: false }),
+          .order("updated_at", { ascending: false })
+          .limit(80),
         supabase.from("alive_dm_threads")
           .select("thread_key,messages,world_pref,updated_at")
           .eq("owner_id", ownerId)
-          .order("updated_at", { ascending: false }),
+          .order("updated_at", { ascending: false })
+          .limit(80),
         supabase.from("alive_shared_dm_threads")
           .select("thread_key,messages,world_pref,updated_at")
-          .order("updated_at", { ascending: false }),
+          .contains("participant_user_ids", [ownerId])
+          .order("updated_at", { ascending: false })
+          .limit(80),
       ]);
 
       const next = { ...baseState };
@@ -1239,6 +1244,19 @@ function App() {
       console.warn("분리 테이블 로드 실패:", e);
       return baseState;
     }
+  }
+
+  function withTimeout(promise, ms, fallbackValue, label = "작업") {
+    let timer;
+    return Promise.race([
+      promise,
+      new Promise((resolve) => {
+        timer = setTimeout(() => {
+          console.warn(`${label} 시간 초과`);
+          resolve(fallbackValue);
+        }, ms);
+      }),
+    ]).finally(() => clearTimeout(timer));
   }
 
   async function readApiJson(res, label) {
@@ -1429,7 +1447,12 @@ function App() {
 
         const metadataName = session.user.user_metadata?.name || session.user.user_metadata?.full_name || session.user.user_metadata?.preferred_username || "";
         const defaultName = data?.display_name || session.user.email?.split("@")[0] || metadataName || "사용자";
-        const mergedState = await loadStructuredStateFallback(blankAppState(defaultName), session.user.id);
+        const mergedState = await withTimeout(
+          loadStructuredStateFallback(blankAppState(defaultName), session.user.id),
+          6000,
+          blankAppState(defaultName),
+          "캐릭터 데이터 로드"
+        );
         if (cancelled) return;
         applyAppState(mergedState);
         setProfileName(defaultName);
@@ -1452,7 +1475,12 @@ function App() {
         if (cancelled) return;
         profileTableBrokenRef.current = true;
         const fallbackName = session.user.email?.split("@")[0] || session.user.user_metadata?.name || "사용자";
-        const mergedState = await loadStructuredStateFallback(blankAppState(fallbackName), session.user.id);
+        const mergedState = await withTimeout(
+          loadStructuredStateFallback(blankAppState(fallbackName), session.user.id),
+          6000,
+          blankAppState(fallbackName),
+          "분리 테이블 로드"
+        );
         if (cancelled) return;
         applyAppState(mergedState);
         setProfileName(fallbackName);
@@ -1555,6 +1583,14 @@ function App() {
       if (profileLoadedRef.current) {
         setProfileLoading(false);
         setStateReady(true);
+      } else {
+        const fallbackName = data.session.user.email?.split("@")[0] || data.session.user.user_metadata?.name || "사용자";
+        resetRuntimeState(fallbackName);
+        setProfileName(fallbackName);
+        profileLoadedRef.current = true;
+        setProfileLoading(false);
+        setStateReady(true);
+        setSaveStatus("로드 지연 - 임시 진입");
       }
     }, 8000);
     return () => clearTimeout(timer);
