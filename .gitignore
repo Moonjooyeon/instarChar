@@ -7,3 +7,4 @@ dist
 *.log
 .idea
 .env*
+.pytest_cache/

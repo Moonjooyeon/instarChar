@@ -1,0 +1,49 @@
+services:
+  db:
+    build:
+      context: ./db
+      dockerfile: Dockerfile
+    container_name: instarchat-local-db
+    ports:
+      - "${DB_PORT:-7555}:5432"
+    volumes:
+      - pg_data_local:/var/lib/postgresql/data
+    networks:
+      - instarchat-local-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U instarchat"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: instarchat-local-backend
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - ./backend:/app
+    environment:
+      DATABASE_URL: postgresql+asyncpg://instarchat:instarchat@db:5432/instarchat
+      # FRONTEND_ORIGINS: ${FRONTEND_ORIGINS:-http://localhost:3000}
+      # ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      # AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-false}
+      # TOSS_CLIENT_KEY: ${TOSS_CLIENT_KEY:-}
+      # TOSS_SECRET_KEY: ${TOSS_SECRET_KEY:-}
+      # TOSS_SECURE_KEY: ${TOSS_SECURE_KEY:-}
+      # TOSS_IS_SANDBOX: ${TOSS_IS_SANDBOX:-true}
+    networks:
+      - instarchat-local-net
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pg_data_local:
+
+networks:
+  instarchat-local-net:
+    driver: bridge
