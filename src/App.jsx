@@ -1794,21 +1794,24 @@ function App() {
 
     setAccounts((prev) => {
       let localChanged = false;
-      const next = prev.map((a) => {
+      const normalizedAccounts = prev.map((a) => {
         const normalized = normalizeRelationLabelsForChar(a.char);
         if (normalized !== a.char) localChanged = true;
         return normalized !== a.char ? { ...a, char: normalized } : a;
       });
+      const next = applyRelationshipAutoFollowsToAccounts(normalizedAccounts);
+      if (next !== normalizedAccounts) localChanged = true;
       return localChanged ? next : prev;
     });
 
     let nextFollowingSnapshot = following;
     let followingChanged = false;
-    nextFollowingSnapshot = following.map((f) => {
+    nextFollowingSnapshot = relationAutoFollowsFor(nextChar, activeId, following, accounts).map((f) => {
       const normalized = normalizeRelationLabelsForChar(f);
       if (normalized !== f) followingChanged = true;
       return normalized;
     });
+    if (nextFollowingSnapshot.length !== following.length) followingChanged = true;
     if (followingChanged) setFollowing(nextFollowingSnapshot);
     if (charChanged || followingChanged) {
       syncActiveSharedCharacter(nextFollowingSnapshot, nextChar);
@@ -2523,23 +2526,31 @@ ${formatRule}${ANTI_REPEAT_RULES}${recentLinesBlock(posts.slice(0, 6).map((p) =>
     wakingRef.current = true;
     setWaking(true);
     const id = "acc_" + Date.now();
-    const acc = { id, char: { ...char }, gallery: [...gallery], posts: [], following: [] };
     const charKey = `${char.name.trim()}|${char.handle.trim()}|${char.persona.trim()}`;
     const existing = accounts.find((x) => `${x.char.name.trim()}|${(x.char.handle || "").trim()}|${x.char.persona.trim()}` === charKey);
     if (existing) {
+      const nextFollowing = relationAutoFollowsFor(existing.char, existing.id, existing.following || [], accounts);
+      const nextAccounts = applyRelationshipAutoFollowsToAccounts(accounts.map((a) => a.id === existing.id ? { ...a, following: nextFollowing } : a));
+      const nextExisting = nextAccounts.find((a) => a.id === existing.id) || { ...existing, following: nextFollowing };
+      setAccounts(nextAccounts);
       setActiveId(existing.id);
-      setChar(existing.char);
-      setGallery(existing.gallery || []);
-      setPosts(existing.posts || []);
-      setFollowing(existing.following || []);
-      persistLocalSnapshot({ ...exportAppState(), accounts: accountSnapshot(), activeId: existing.id, char: existing.char, gallery: existing.gallery || [], posts: existing.posts || [], following: existing.following || [] });
-      feedInitRef.current = (existing.posts && existing.posts.length > 0);
+      setChar(nextExisting.char);
+      setGallery(nextExisting.gallery || []);
+      setPosts(nextExisting.posts || []);
+      setFollowing(nextExisting.following || []);
+      persistLocalSnapshot({ ...exportAppState(), accounts: nextAccounts, activeId: existing.id, char: nextExisting.char, gallery: nextExisting.gallery || [], posts: nextExisting.posts || [], following: nextExisting.following || [] });
+      feedInitRef.current = (nextExisting.posts && nextExisting.posts.length > 0);
     } else {
-      setAccounts((a) => [...a, acc]);
+      const baseAcc = { id, char: { ...char }, gallery: [...gallery], posts: [], following: [] };
+      const poolAccounts = [...accounts, baseAcc];
+      const acc = { ...baseAcc, following: relationAutoFollowsFor(baseAcc.char, id, [], poolAccounts) };
+      const nextAccounts = applyRelationshipAutoFollowsToAccounts([...accounts, acc]);
+      const nextAcc = nextAccounts.find((a) => a.id === id) || acc;
+      setAccounts(nextAccounts);
       setActiveId(id);
       setPosts([]);
-      setFollowing([]); // 새 캐릭터는 팔로잉 0에서 시작
-      persistLocalSnapshot({ ...exportAppState(), accounts: [...accounts, acc], activeId: id, char: { ...char }, gallery: [...gallery], posts: [], following: [] });
+      setFollowing(nextAcc.following || []);
+      persistLocalSnapshot({ ...exportAppState(), accounts: nextAccounts, activeId: id, char: { ...char }, gallery: [...gallery], posts: [], following: nextAcc.following || [] });
       feedInitRef.current = false;
     }
     setStep("feed");
@@ -2583,8 +2594,15 @@ ${formatRule}${ANTI_REPEAT_RULES}${recentLinesBlock(posts.slice(0, 6).map((p) =>
 
   function saveCharacterEdits() {
     if (!activeId) return;
-    setAccounts((accs) => accs.map((a) => a.id === activeId ? { ...a, char: { ...char }, gallery: [...gallery], posts, following } : a));
-    persistLocalSnapshot({ ...exportAppState(), accounts: accountSnapshot().map((a) => a.id === activeId ? { ...a, char: { ...char }, gallery: [...gallery], posts, following } : a), activeId, char: { ...char }, gallery: [...gallery], posts, following });
+    const editedAccounts = accounts.map((a) => a.id === activeId ? { ...a, char: { ...char }, gallery: [...gallery], posts, following } : a);
+    const nextAccounts = applyRelationshipAutoFollowsToAccounts(editedAccounts);
+    const nextActive = nextAccounts.find((a) => a.id === activeId);
+    const nextFollowing = nextActive?.following || following;
+    setAccounts(nextAccounts);
+    setFollowing(nextFollowing);
+    persistLocalSnapshot({ ...exportAppState(), accounts: nextAccounts, activeId, char: { ...char }, gallery: [...gallery], posts, following: nextFollowing });
+    syncActiveSharedCharacter(nextFollowing, { ...char });
+    syncOwnFollowRows(nextFollowing, { ...char });
     setStep("feed");
   }
 
@@ -2922,6 +2940,75 @@ ${formatRule}${ANTI_REPEAT_RULES}${recentLinesBlock(posts.slice(0, 6).map((p) =>
     const theirLabel = theirHit?.label || "";  // 상대 데이터에 내가 연인으로 있는가 (역검증)
     // 둘 다 충족해야 진짜 상호 연인. 상대 데이터에 내가 없으면(theirLabel 없음) 맞팔 불가.
     return { mutual: isLove(myLabel) && isLove(theirLabel), theirLoves: isLove(theirLabel) };
+  }
+
+  function isLoveRelationLabel(label = "") {
+    return /연인|애인|연애|사랑|부부|배우자|약혼|반려|순애/.test(label || "");
+  }
+
+  function accountToFollowTarget(account) {
+    if (!account?.char?.name) return null;
+    return {
+      ...account.char,
+      id: account.id,
+      localAccountId: account.id,
+      name: account.char.name,
+      handle: account.char.handle || account.char.name.replace(/\s/g, "").toLowerCase(),
+      gallery: account.gallery || [],
+      posts: account.posts || [],
+      following: account.following || [],
+      owner: "내 캐릭터",
+      ownerName: profileName || "내 캐릭터",
+      avatarImg: account.char.avatarImg || "",
+      external: false,
+    };
+  }
+
+  function followTargetForCharacter(targetChar, targetAccountId = "", poolAccounts = accounts) {
+    if (!targetChar?.name) return null;
+    const shared = sharedCharacters.find((c) => nameMatch(c.name, targetChar.name));
+    if (shared) return { ...shared, relations: shared.relations || targetChar.relations || "" };
+    const account = poolAccounts.find((a) => (targetAccountId && a.id === targetAccountId) || nameMatch(a.char.name, targetChar.name));
+    if (account) return accountToFollowTarget(account);
+    return null;
+  }
+
+  function relationAutoFollowsFor(sourceChar, sourceAccountId = "", baseFollowing = [], poolAccounts = accounts) {
+    if (!sourceChar?.relations) return baseFollowing || [];
+    const next = [...(baseFollowing || [])];
+    const addTarget = (target) => {
+      if (!target?.id || nameMatch(target.name, sourceChar.name)) return;
+      if (next.some((f) => f.id === target.id || nameMatch(f.name, target.name))) return;
+      next.push({ ...target, corrections: [], directions: "", relations: target.relations || "", relationAuto: true });
+    };
+    parseRelations(sourceChar.relations)
+      .filter((rel) => rel.who && isLoveRelationLabel(rel.label))
+      .forEach((rel) => {
+        const target = followTargetForCharacter({ name: rel.who }, "", poolAccounts);
+        addTarget(target);
+      });
+    poolAccounts
+      .filter((account) => account.id !== sourceAccountId)
+      .forEach((account) => {
+        const reverseHit = relationFor(account.char, sourceChar, true);
+        if (reverseHit && isLoveRelationLabel(reverseHit.label)) addTarget(accountToFollowTarget(account));
+      });
+    sharedCharacters.forEach((shared) => {
+      const reverseHit = relationFor(shared, sourceChar, true);
+      if (reverseHit && isLoveRelationLabel(reverseHit.label)) addTarget(shared);
+    });
+    return next;
+  }
+
+  function applyRelationshipAutoFollowsToAccounts(accountList) {
+    let changed = false;
+    const next = accountList.map((account) => {
+      const autoFollowing = relationAutoFollowsFor(account.char, account.id, account.following || [], accountList);
+      if (autoFollowing.length === (account.following || []).length) return account;
+      changed = true;
+      return { ...account, following: autoFollowing };
+    });
+    return changed ? next : accountList;
   }
 
   async function toggleFollow(poolChar) {

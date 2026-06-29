@@ -1,6 +1,4 @@
-// ────────────────────────────────────────────────────────────
-//  /api/generate  —  Vercel 서버리스 함수 (최종 수정본)
-// ────────────────────────────────────────────────────────────
+// /api/generate - Vercel serverless handler.
 
 export const maxDuration = 60;
 
@@ -10,7 +8,7 @@ const DAILY_LIMIT = parseInt(process.env.API_DAILY_LIMIT || "50", 10);
 const MONTHLY_COST_LIMIT_USD = parseFloat(process.env.API_MONTHLY_COST_LIMIT_USD || "60");
 const ESTIMATED_CALL_COST_USD = parseFloat(process.env.API_ESTIMATED_CALL_COST_USD || "0.003");
 const GEMINI_TIMEOUT_MS = parseInt(process.env.GEMINI_TIMEOUT_MS || "45000", 10);
-const API_LIMIT_MESSAGE = "오늘 한정된 API는 다 사용했어요! 다음에 만나요.";
+const API_LIMIT_MESSAGE = "오늘 설정된 API 사용량을 모두 사용했어. 다음에 다시 만나자.";
 const usageStore = globalThis.__aliveUsageStore || (globalThis.__aliveUsageStore = {
   daily: new Map(),
   monthly: new Map(),
@@ -136,7 +134,7 @@ export default async function handler(req, res) {
 
   const key = process.env.GEMINI_API_KEY;
   if (!key) {
-    return res.status(500).json({ error: "API_KEY_MISSING", message: "서버에 API 키가 설정되지 않았습니다." });
+    return res.status(500).json({ error: "API_KEY_MISSING", message: "서버에 Gemini API 키가 설정되지 않았습니다." });
   }
 
   try {
@@ -152,7 +150,7 @@ export default async function handler(req, res) {
     }
 
     const geminiModel = pickGeminiModel(model);
-    const wantsJson = /JSON|json 객체|json으로|JSON으로|반드시 JSON/.test(system || "");
+    const wantsJson = /JSON|json|json 객체|json으로|반드시 JSON/i.test(system || "");
 
     const body = {
       contents: toGeminiContents(messages),
@@ -208,9 +206,9 @@ export default async function handler(req, res) {
 
     let data = await readJsonResponse(r);
 
-    // 🚨 여기서 200 OK인 척 하지 않고 확실하게 500 에러를 던지도록 수정했습니다.
+    // Upstream errors should stay visible instead of being treated as empty text.
     if (!r.ok) {
-      console.error("Gemini API 통신 실패:", data);
+      console.error("Gemini API request failed:", data);
       return res.status(500).json({ error: "API_ERROR", status: r.status, detail: data });
     }
 
@@ -237,7 +235,7 @@ export default async function handler(req, res) {
       data = await readJsonResponse(r);
 
       if (!r.ok) {
-        console.error("Gemini API 재시도 실패:", data);
+        console.error("Gemini API retry failed:", data);
         return res.status(500).json({ error: "API_ERROR", status: r.status, detail: data });
       }
 
@@ -263,7 +261,7 @@ export default async function handler(req, res) {
     recordUsage(usage);
     return res.status(200).json({ content: [{ type: "text", text }] });
   } catch (e) {
-    console.error("서버 내부 에러:", e);
+    console.error("Server internal error:", e);
     return res.status(500).json({ error: "SERVER_CRASH", message: String(e) });
   }
 }
