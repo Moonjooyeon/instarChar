@@ -4,11 +4,12 @@
 
 export const maxDuration = 60;
 
-const FAST = process.env.GEMINI_MODEL_FAST || "gemini-3.1-flash-lite";
+const FAST = process.env.GEMINI_MODEL_FAST || "gemini-2.5-flash";
 const GOOD = process.env.GEMINI_MODEL_GOOD || "gemini-2.5-pro";
 const DAILY_LIMIT = parseInt(process.env.API_DAILY_LIMIT || "50", 10);
 const MONTHLY_COST_LIMIT_USD = parseFloat(process.env.API_MONTHLY_COST_LIMIT_USD || "60");
 const ESTIMATED_CALL_COST_USD = parseFloat(process.env.API_ESTIMATED_CALL_COST_USD || "0.003");
+const GEMINI_TIMEOUT_MS = parseInt(process.env.GEMINI_TIMEOUT_MS || "45000", 10);
 const API_LIMIT_MESSAGE = "오늘 한정된 API는 다 사용했어요! 다음에 만나요.";
 const usageStore = globalThis.__aliveUsageStore || (globalThis.__aliveUsageStore = {
   daily: new Map(),
@@ -116,6 +117,20 @@ function recordUsage(usage) {
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+async function readJsonResponse(response) {
+  const raw = await response.text();
+  if (!raw.trim()) return {};
+  try {
+    return JSON.parse(raw);
+  } catch (e) {
+    return {
+      error: "BAD_UPSTREAM_JSON",
+      message: `Gemini가 JSON이 아닌 응답을 보냈습니다. HTTP ${response.status}`,
+      raw: raw.slice(0, 500),
+    };
+  }
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
 
@@ -158,28 +173,40 @@ export default async function handler(req, res) {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent`;
     const callGemini = async (requestBody) => {
       let lastResponse = null;
+      let lastError = null;
       for (let attempt = 0; attempt < 3; attempt++) {
-        const r = await fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-          body: JSON.stringify(requestBody),
-        });
-        lastResponse = r;
-        if (![429, 503].includes(r.status)) return r;
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), GEMINI_TIMEOUT_MS);
+        try {
+          const r = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+            body: JSON.stringify(requestBody),
+            signal: controller.signal,
+          });
+          lastResponse = r;
+          if (![429, 500, 503, 504].includes(r.status)) return r;
+        } catch (e) {
+          lastError = e;
+          if (attempt >= 2) throw e;
+        } finally {
+          clearTimeout(timeout);
+        }
         if (attempt < 2) {
-          const retryAfter = Number(r.headers.get("retry-after"));
+          const retryAfter = Number(lastResponse?.headers?.get("retry-after"));
           const delay = Number.isFinite(retryAfter) && retryAfter > 0
             ? retryAfter * 1000
             : 600 * Math.pow(2, attempt) + Math.floor(Math.random() * 250);
           await wait(delay);
         }
       }
+      if (!lastResponse && lastError) throw lastError;
       return lastResponse;
     };
 
     let r = await callGemini(body);
 
-    let data = await r.json();
+    let data = await readJsonResponse(r);
 
     // 🚨 여기서 200 OK인 척 하지 않고 확실하게 500 에러를 던지도록 수정했습니다.
     if (!r.ok) {
@@ -207,7 +234,7 @@ export default async function handler(req, res) {
         },
       ];
       r = await callGemini(retryBody);
-      data = await r.json();
+      data = await readJsonResponse(r);
 
       if (!r.ok) {
         console.error("Gemini API 재시도 실패:", data);
