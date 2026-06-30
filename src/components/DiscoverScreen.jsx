@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 
 export function DiscoverScreen({
   activeId,
@@ -23,8 +23,12 @@ export function DiscoverScreen({
   toggleFollow,
   WorldChip,
 }) {
-  const q = discoverQuery.trim().toLowerCase();
-  const mergedDiscover = hasSupabaseConfig ? sharedCharacters : discoverPool;
+  const q = (discoverQuery || "").trim().toLowerCase();
+  const safeSharedCharacters = Array.isArray(sharedCharacters) ? sharedCharacters : [];
+  const safeDiscoverPool = Array.isArray(discoverPool) ? discoverPool : [];
+  const safeFollowing = Array.isArray(following) ? following : [];
+  const safeSharedLoadState = sharedLoadState || {};
+  const mergedDiscover = hasSupabaseConfig ? safeSharedCharacters : safeDiscoverPool;
   const isActiveShared = (c) => Boolean(
     (activeSharedId && (c.sharedId === activeSharedId || c.id === `shared_${activeSharedId}`)) ||
     (session?.user?.id && activeId && c.ownerId === session.user.id && c.sourceAccountId === activeId)
@@ -63,21 +67,21 @@ export function DiscoverScreen({
       {hasSupabaseConfig && (
         <div className="al-disc-status">
           <span>
-            {sharedLoadState.loading
+            {safeSharedLoadState.loading
               ? "사용자 캐릭터 불러오는 중"
               : `DB 불러옴 ${mergedDiscover.length}개 · 표시 ${list.length}개${q ? " · 검색 적용" : ""}${hiddenFollowed ? ` · 팔로잉 ${hiddenFollowed}개 포함` : ""}${hiddenActive ? ` · 현재 캐릭터 제외 ${hiddenActive}개` : ""}`}
           </span>
           {(q || sharedFocusId) && (
             <button type="button" onClick={() => { setDiscoverQuery(""); setSharedFocusId(""); }}>전체 보기</button>
           )}
-          <button onClick={loadSharedCharacters} disabled={sharedLoadState.loading}>새로고침</button>
+          <button onClick={loadSharedCharacters} disabled={safeSharedLoadState.loading}>새로고침</button>
         </div>
       )}
-      {sharedLoadState.error && <p className="al-disc-error">탐색 로딩 실패: {sharedLoadState.error}</p>}
+      {safeSharedLoadState.error && <p className="al-disc-error">탐색 로딩 실패: {safeSharedLoadState.error}</p>}
       <div className="al-disc-list">
         {list.length === 0 && (
           <div className="al-disc-none">
-            <p>{sharedFocusId ? "이 공유 링크의 캐릭터를 찾지 못했어." : discoverQuery ? `"${discoverQuery}"에 맞는 새 캐릭터가 없어.` : sharedCharacters.length > 0 ? "팔로우하지 않은 새 캐릭터가 없어." : "아직 공유된 사용자 캐릭터가 없어."}</p>
+            <p>{sharedFocusId ? "이 공유 링크의 캐릭터를 찾지 못했어." : discoverQuery ? `"${discoverQuery}"에 맞는 새 캐릭터가 없어.` : safeSharedCharacters.length > 0 ? "팔로우하지 않은 새 캐릭터가 없어." : "아직 공유된 사용자 캐릭터가 없어."}</p>
           </div>
         )}
         {list.map((c) => {
@@ -107,9 +111,9 @@ export function DiscoverScreen({
           );
         })}
       </div>
-      {following.length > 0 && (
+      {safeFollowing.length > 0 && (
         <div className="al-disc-foot">
-          팔로잉 {following.length} · DM에서 {char.name}(으)로 말 걸 수 있어
+          팔로잉 {safeFollowing.length} · DM에서 {char.name}(으)로 말 걸 수 있어
         </div>
       )}
     </div>
