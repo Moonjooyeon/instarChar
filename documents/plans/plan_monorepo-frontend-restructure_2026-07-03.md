@@ -3,7 +3,7 @@ title: 모노레포 및 프론트엔드 재구성 계획
 author: Codex
 created: 2026-07-03
 updated: 2026-07-03
-version: 0.1.3
+version: 0.1.4
 status: draft
 ---
 
@@ -272,7 +272,7 @@ FastAPI 교체를 바로 진행하기 전에, 프로젝트 전체를 모노레�
 - `npm run build` 성공.
 - 이동 대상 12개 파일의 기존 blob hash와 새 파일 hash 일치 확인.
 
-### Phase 5. `AppView.jsx`를 화면 단위로 분리
+### Phase 5. `AppView.jsx`를 화면 단위로 분리 완료
 
 목표: 1,184줄 `AppView.jsx`를 route/view 조합 계층으로 줄인다.
 
@@ -303,6 +303,13 @@ AppView
 - `wc -l apps/frontend/src/components/AppView.*`가 크게 줄어야 한다.
 - `npm run build`.
 - local mode 핵심 흐름 수동 검증 또는 이미 실행 중인 앱에서 확인.
+
+결과:
+
+- 완료 문서: `documents/reports/report_monorepo-frontend-phase5-review_2026-07-03.md`
+- `AppView.jsx`를 `apps/frontend/src/app/AppView.jsx`로 이동.
+- `AppView.jsx` 라인 수 1,184줄에서 20줄로 감소.
+- `npm run build` 성공.
 
 ### Phase 6. `useAliveAppController`를 domain hook으로 분리
 
@@ -462,7 +469,7 @@ Phase 0
 - [x] **T4 (P1, human: ~2h / CC: ~30min)** — Feature Folders — 기존 components와 utilities를 feature/domain 폴더로 이동한다.
   - 파일: `apps/frontend/src/features/*`, `apps/frontend/src/domain/*`.
   - 검증: body 변경 없이 import 수정 중심, `npm run build`.
-- [ ] **T5 (P1, human: ~4h / CC: ~1h)** — AppView Split — `AppView`를 screen/view 단위로 나눈다.
+- [x] **T5 (P1, human: ~4h / CC: ~1h)** — AppView Split — `AppView`를 screen/view 단위로 나눈다.
   - 파일: `apps/frontend/src/app/*`, `apps/frontend/src/features/*`.
   - 검증: line count 감소, build, local mode 수동 확인.
 - [ ] **T6 (P1, human: ~1-2 days / CC: ~2h)** — Controller Split — `useAliveAppController`를 domain hook으로 나눈다.

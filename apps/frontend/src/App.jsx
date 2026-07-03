@@ -1,5 +1,5 @@
 ﻿import React from "react";
-import { AppView } from "@/components/AppView";
+import { AppView } from "@/app/AppView";
 import { useAliveAppController } from "@/hooks/useAliveAppController.jsx";
 
 function App() {
