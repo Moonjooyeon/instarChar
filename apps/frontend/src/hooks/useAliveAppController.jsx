@@ -37,17 +37,16 @@ import {
   catchphraseGuideLine,
   hasBatchim,
   josa,
-  normalizeSavedStep,
   parseRelations,
-  pathForStep,
   relationMatched,
   relationTargetMatches,
   relationshipBoundaryLine,
   relationshipMatchRuleLine,
   selfSettingPriorityBlock,
   speechGuideLine,
-  stepFromPath,
 } from "@/domain/app/aliveCore";
+import { useAliveLocalPersistence } from "@/hooks/useAliveLocalPersistence";
+import { useAliveNavigation } from "@/hooks/useAliveNavigation";
 
 // ─────────────────────────────────────────────
 //  ALIVE — 내 캐릭터가 자기 SNS를 운영한다
@@ -178,15 +177,16 @@ export function useAliveAppController() {
   const profileTableBrokenRef = useRef(false);
   const saveTimerRef = useRef(null);
   const shareStatusTimerRef = useRef(null);
-  const navInitRef = useRef(false);
-  const navApplyingRef = useRef(false);
-  const navLastKeyRef = useRef("");
   const dmSendingRef = useRef(false);
   const dmRequestSeqRef = useRef(0);
   const dmKeyRef = useRef("");
   const affinityRemainderRef = useRef({});
   const deletedDmKeysRef = useRef(new Set());
-
+  const {
+    hasUsableSavedState,
+    persistLocalSnapshot,
+    readLocalSnapshot,
+  } = useAliveLocalPersistence();
   function flashShareStatus(message, ms = 2200) {
     if (shareStatusTimerRef.current) clearTimeout(shareStatusTimerRef.current);
     setShareStatus(message);
@@ -270,33 +270,6 @@ export function useAliveAppController() {
       discoverQuery: "",
       profileName,
     };
-  }
-
-  function persistLocalSnapshot(snapshot) {
-    try {
-      const oldRaw = localStorage.getItem(LOCAL_STATE_KEY);
-      if ((!snapshot.accounts || snapshot.accounts.length === 0) && oldRaw) {
-        const oldState = JSON.parse(oldRaw);
-        if (Array.isArray(oldState.accounts) && oldState.accounts.length > 0) return;
-      }
-      localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(snapshot));
-    } catch (e) {
-      console.warn("로컬 즉시 저장 실패:", e);
-    }
-  }
-
-  function readLocalSnapshot() {
-    try {
-      const raw = localStorage.getItem(LOCAL_STATE_KEY);
-      return raw ? JSON.parse(raw) : null;
-    } catch (e) {
-      console.warn("로컬 저장 복원 실패:", e);
-      return null;
-    }
-  }
-
-  function hasUsableSavedState(state) {
-    return Boolean(state && Array.isArray(state.accounts) && state.accounts.length > 0);
   }
 
   function compactProfileBackup(snapshot = {}) {
@@ -406,39 +379,6 @@ export function useAliveAppController() {
     setSharedFocusId("");
     setActiveSharedId("");
     setFollowerCounts({});
-  }
-
-  function navStateForHistory() {
-    return {
-      __aliveNav: true,
-      step: RENDERABLE_STEPS.has(step) ? step : "home",
-      pendingDm,
-      dmWorldDraft,
-      followPanel,
-      publicProfile,
-      newChatMode,
-      dmSettingsOpen,
-    };
-  }
-
-  function navKey(state = navStateForHistory()) {
-    return JSON.stringify({
-      step: state.step,
-      pending: Boolean(state.pendingDm),
-      pendingMode: state.pendingDm?.mode || "",
-      followPanel: state.followPanel || "",
-      publicProfile: state.publicProfile?.id || state.publicProfile?.sharedId || state.publicProfile?.name || "",
-      newChatMode: state.newChatMode || "",
-      dmSettingsOpen: Boolean(state.dmSettingsOpen),
-    });
-  }
-
-  function navUrlForState(state = navStateForHistory()) {
-    const url = new URL(window.location.href);
-    url.pathname = pathForStep(state.step);
-    url.search = "";
-    url.hash = "";
-    return `${url.pathname}${url.search}${url.hash}`;
   }
 
   function clearLocalAuthStorage() {
@@ -1254,6 +1194,31 @@ export function useAliveAppController() {
   );
   const hasMainScreen = authBusy || (hasSupabaseConfig && !authLoading && !session) || appScreenVisible;
   const showRecoveryScreen = !hasMainScreen;
+  const {
+    navApplyingRef,
+    navInitRef,
+    navKey,
+    navLastKeyRef,
+    navStateForHistory,
+    navUrlForState,
+  } = useAliveNavigation({
+    activeId,
+    canUseApp,
+    dmSettingsOpen,
+    dmWorldDraft,
+    followPanel,
+    newChatMode,
+    pendingDm,
+    publicProfile,
+    setDmSettingsOpen,
+    setDmWorldDraft,
+    setFollowPanel,
+    setNewChatMode,
+    setPendingDm,
+    setPublicProfile,
+    setStep,
+    step,
+  });
 
   async function recoverAuthScreen() {
     if (supabase) {
@@ -1271,12 +1236,8 @@ export function useAliveAppController() {
 
   useEffect(() => {
     if (!hasSupabaseConfig || !supabase) {
-      try {
-        const raw = localStorage.getItem(LOCAL_STATE_KEY);
-        if (raw) applyAppState(JSON.parse(raw));
-      } catch (e) {
-        console.warn("로컬 저장 복원 실패:", e);
-      }
+      const snapshot = readLocalSnapshot();
+      if (snapshot) applyAppState(snapshot);
       profileLoadedRef.current = true;
       setStateReady(true);
       setProfileLoading(false);
@@ -1688,74 +1649,6 @@ export function useAliveAppController() {
       syncOwnFollowRows(nextFollowingSnapshot, nextChar);
     }
   }, [canUseApp, stateReady, affinity]); // eslint-disable-line
-
-  useEffect(() => {
-    if (!canUseApp) {
-      navInitRef.current = false;
-      navLastKeyRef.current = "";
-      return;
-    }
-    const state = navStateForHistory();
-    const key = navKey(state);
-
-    if (!navInitRef.current) {
-      const routeStep = stepFromPath(window.location.pathname, Boolean(activeId));
-      const shouldUseRouteStep = state.step === "home" && routeStep !== "home";
-      const routedState = { ...state, step: shouldUseRouteStep ? routeStep : state.step };
-      if (shouldUseRouteStep) setStep(routeStep);
-      window.history.replaceState(routedState, "", navUrlForState(routedState));
-      navInitRef.current = true;
-      navLastKeyRef.current = navKey(routedState);
-      return;
-    }
-
-    if (navApplyingRef.current) {
-      window.history.replaceState(state, "", navUrlForState(state));
-      navLastKeyRef.current = key;
-      return;
-    }
-
-    if (key !== navLastKeyRef.current) {
-      window.history.pushState(state, "", navUrlForState(state));
-      navLastKeyRef.current = key;
-    } else {
-      window.history.replaceState(state, "", navUrlForState(state));
-    }
-  }, [canUseApp, step, pendingDm, followPanel, publicProfile, newChatMode, dmSettingsOpen, activeId]); // eslint-disable-line
-
-  useEffect(() => {
-    if (!canUseApp || !navInitRef.current) return;
-    const state = navStateForHistory();
-    window.history.replaceState(state, "", navUrlForState(state));
-  }, [dmWorldDraft]); // eslint-disable-line
-
-  useEffect(() => {
-    if (!canUseApp) return;
-    function handlePopState(event) {
-      const state = event.state;
-      if (!state?.__aliveNav) {
-        const fallback = navStateForHistory();
-        window.history.pushState(fallback, "", navUrlForState(fallback));
-        return;
-      }
-
-      navApplyingRef.current = true;
-      navLastKeyRef.current = navKey(state);
-      setPendingDm(state.pendingDm || null);
-      setDmWorldDraft(state.dmWorldDraft || "");
-      setFollowPanel(state.followPanel || null);
-      setPublicProfile(state.publicProfile || null);
-      setNewChatMode(state.newChatMode || null);
-      setDmSettingsOpen(Boolean(state.dmSettingsOpen));
-      setStep(normalizeSavedStep(state.step, Boolean(activeId)));
-      window.setTimeout(() => {
-        navApplyingRef.current = false;
-      }, 0);
-    }
-
-    window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
-  }, [canUseApp, activeId]); // eslint-disable-line
 
   function fieldText(value) {
     if (value == null) return "";
