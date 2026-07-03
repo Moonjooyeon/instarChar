@@ -3,7 +3,7 @@ title: 모노레포 및 프론트엔드 재구성 계획
 author: Codex
 created: 2026-07-03
 updated: 2026-07-03
-version: 0.1.5
+version: 0.1.6
 status: draft
 ---
 
@@ -344,7 +344,9 @@ AppView
 - 완료 slice 문서: `documents/reports/report_monorepo-frontend-phase6-navigation-persistence_2026-07-03.md`
 - `useAliveNavigation`으로 history/popstate effect 분리.
 - `useAliveLocalPersistence`로 localStorage snapshot helper 분리.
-- `useAliveAppController.jsx` 라인 수 4,658줄에서 4,551줄로 감소.
+- 완료 slice 문서: `documents/reports/report_monorepo-frontend-phase6-ai-generation_2026-07-03.md`
+- `useAliveAiGeneration`으로 AI response parsing helper 분리.
+- `useAliveAppController.jsx` 라인 수 4,658줄에서 4,516줄로 감소.
 - `npm run build` 성공.
 
 ### Phase 7. 상태 관리 방향 결정
@@ -483,7 +485,7 @@ Phase 0
 - [ ] **T6 (P1, human: ~1-2 days / CC: ~2h)** — Controller Split — `useAliveAppController`를 domain hook으로 나눈다.
   - 파일: `apps/frontend/src/hooks/*`, `apps/frontend/src/domain/*`, `apps/frontend/src/features/*`.
   - 검증: 각 slice build, unit test 추가.
-  - 진행: navigation/local persistence slice 완료.
+  - 진행: navigation/local persistence slice, AI generation helper slice 완료.
 - [ ] **T7 (P2, human: ~4h / CC: ~1h)** — Test Harness — pure domain tests와 no-webServer E2E config를 준비한다.
   - 파일: `apps/frontend/tests/*`, `apps/frontend/playwright.config.*`, test setup.
   - 검증: 이미 실행 중인 app 기준 E2E.
