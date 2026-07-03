@@ -1,6 +1,6 @@
 ﻿import React from "react";
-import { AppView } from "./components/AppView";
-import { useAliveAppController } from "./hooks/useAliveAppController.jsx";
+import { AppView } from "@/components/AppView";
+import { useAliveAppController } from "@/hooks/useAliveAppController.jsx";
 
 function App() {
   const appViewCtx = useAliveAppController();

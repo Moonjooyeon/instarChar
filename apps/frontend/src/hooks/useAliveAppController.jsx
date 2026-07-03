@@ -1,25 +1,25 @@
 ﻿import React, { useState, useRef, useEffect } from "react";
-import { hasSupabaseConfig, supabase } from "../supabaseClient";
-import { css } from "../appStyles";
-import { mergeDiscoverCharacters } from "../discoverUtils";
+import { css } from "@/appStyles";
+import { mergeDiscoverCharacters } from "@/domain/discover/discoverUtils";
 import {
   mergeTimelinePosts,
   postTimeMs,
   postsFromFollowedCharacter,
   sanitizePosts,
-} from "../feedUtils";
-import { AuthEntryScreen, AuthLoadingScreen, RecoveryScreen } from "../components/AuthScreens";
-import { DiscoverScreen } from "../components/DiscoverScreen";
-import { DmListScreen } from "../components/DmListScreen";
-import { HomeScreen } from "../components/HomeScreen";
-import { LorePeerSelect } from "../components/LorePeerSelect";
-import { ProposalModal, RelationResultModal } from "../components/RelationshipModals";
-import { ConfirmScreen, DumpScreen } from "../components/SetupScreens";
-import { WorldChip } from "../components/WorldChip";
+} from "@/domain/feed/feedUtils";
+import { AuthEntryScreen, AuthLoadingScreen, RecoveryScreen } from "@/features/auth/AuthScreens";
+import { ConfirmScreen, DumpScreen } from "@/features/character-setup/SetupScreens";
+import { DiscoverScreen } from "@/features/discover/DiscoverScreen";
+import { DmListScreen } from "@/features/dm/DmListScreen";
+import { HomeScreen } from "@/features/home/HomeScreen";
+import { ProposalModal, RelationResultModal } from "@/features/relationships/RelationshipModals";
+import { LorePeerSelect } from "@/components/ui/LorePeerSelect";
+import { WorldChip } from "@/components/ui/WorldChip";
+import { hasSupabaseConfig, supabase } from "@/supabaseClient";
 import {
   applyRelationshipAutoFollowsToAccounts as applyRelationshipAutoFollowsToAccountsUtil,
   relationAutoFollowsFor as relationAutoFollowsForUtil,
-} from "../relationshipFollowUtils";
+} from "@/domain/relationships/relationshipFollowUtils";
 import {
   API_LIMIT_MESSAGE,
   BUILD_MARK,
@@ -47,7 +47,7 @@ import {
   selfSettingPriorityBlock,
   speechGuideLine,
   stepFromPath,
-} from "../aliveCore";
+} from "@/domain/app/aliveCore";
 
 // ─────────────────────────────────────────────
 //  ALIVE — 내 캐릭터가 자기 SNS를 운영한다
