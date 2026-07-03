@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react";
 import generateHandler from "../../api/generate.js";
 
 const repoRoot = new URL("../..", import.meta.url).pathname;
+const srcRoot = new URL("./src", import.meta.url).pathname;
 
 function localApiPlugin() {
   return {
@@ -64,6 +65,11 @@ export default defineConfig(({ mode }) => {
       __ALIVE_BUILD__: JSON.stringify(process.env.VERCEL_GIT_COMMIT_SHA || process.env.VITE_ALIVE_BUILD || "local"),
     },
     plugins: [localApiPlugin(), react()],
+    resolve: {
+      alias: {
+        "@": srcRoot,
+      },
+    },
     server: {
       watch: {
         ignored: ["**/.gradle/**", "../../android/**/build/**"],
