@@ -1,0 +1,200 @@
+import React from "react";
+
+export function FeedTimeline({ ctx }) {
+  const {
+    char,
+    commentAs,
+    commentOn,
+    commentText,
+    deleteComment,
+    deletePost,
+    editingComment,
+    editingPost,
+    feedTopRef,
+    feedView,
+    loading,
+    myPosts,
+    openCommentBox,
+    personas,
+    saveCommentEdit,
+    savePostEdit,
+    setCommentAs,
+    setCommentOn,
+    setCommentText,
+    setEditingComment,
+    setEditingPost,
+    setFeedView,
+    setFixTarget,
+    setFixText,
+    setPersonaDraft,
+    submitUserComment,
+    timeAgo,
+    timelinePosts,
+    toggleLike,
+    visiblePosts,
+  } = ctx;
+  return (
+    <>
+      <div className="al-feed-tabs">
+        <button className={feedView === "mine" ? "on" : ""} onClick={() => setFeedView("mine")}>
+          내 글 <b>{myPosts.length}</b>
+        </button>
+        <button className={feedView === "timeline" ? "on" : ""} onClick={() => setFeedView("timeline")}>
+          타임라인 <b>{timelinePosts.length}</b>
+        </button>
+      </div>
+      <div className="al-feed" ref={feedTopRef}>
+        {visiblePosts.length === 0 && !loading && (
+          <div className="al-empty">
+            <span>{feedView === "mine" ? `${char.name}의 글이 아직 없어.` : "타임라인에 아직 글이 없어."}</span>
+            <p>{feedView === "mine" ? "위에서 직접 시키거나 내가 쓰기로 첫 글을 올려봐." : "내 글과 팔로우한 캐릭터의 글이 여기에 같이 올라와."}</p>
+          </div>
+        )}
+        {visiblePosts.map((post) => (
+          <React.Fragment key={post.id}>
+            <FeedPostCard post={post} ctx={{ char, commentAs, commentOn, commentText, deleteComment, deletePost, editingComment, editingPost, openCommentBox, personas, saveCommentEdit, savePostEdit, setCommentAs, setCommentOn, setCommentText, setEditingComment, setEditingPost, setFixTarget, setFixText, setPersonaDraft, submitUserComment, timeAgo, toggleLike }} />
+          </React.Fragment>
+        ))}
+      </div>
+    </>
+  );
+}
+
+function FeedPostCard({ post, ctx }) {
+  const {
+    char,
+    commentAs,
+    commentOn,
+    commentText,
+    deleteComment,
+    deletePost,
+    editingComment,
+    editingPost,
+    openCommentBox,
+    personas,
+    saveCommentEdit,
+    savePostEdit,
+    setCommentAs,
+    setCommentOn,
+    setCommentText,
+    setEditingComment,
+    setEditingPost,
+    setFixTarget,
+    setFixText,
+    setPersonaDraft,
+    submitUserComment,
+    timeAgo,
+    toggleLike,
+  } = ctx;
+  const isExt = Boolean(post.author);
+  const pName = isExt ? post.author : char.name;
+  const pHandle = isExt ? (post.authorHandle || post.author) : (char.handle || char.name.replace(/\s/g, "").toLowerCase());
+  const pInitial = pName.trim()[0] || "?";
+  const pAvatar = isExt ? post.authorAvatarImg : char.avatarImg;
+  return (
+    <div className="al-post">
+      <div className={`al-post-av ${isExt ? "ext" : ""}`}>{pAvatar ? <img src={pAvatar} alt="" /> : pInitial}</div>
+      <div className="al-post-body">
+        <div className="al-post-head">
+          <span className="al-post-name">{pName}</span>
+          <span className="al-post-handle">@{pHandle}</span>
+          {isExt && <span className="al-post-extbadge">팔로잉</span>}
+          <span className="al-post-time">· {timeAgo(post.time)}</span>
+        </div>
+        {editingPost?.id === post.id ? (
+          <div className="al-editbox">
+            <textarea value={editingPost.text} autoFocus onChange={(event) => setEditingPost((value) => ({ ...value, text: event.target.value }))} />
+            <div className="al-edit-actions">
+              <button onClick={() => setEditingPost(null)}>취소</button>
+              <button className="primary" disabled={!editingPost.text.trim()} onClick={savePostEdit}>저장</button>
+            </div>
+          </div>
+        ) : (
+          <p className="al-post-text">{post.text}{post.edited && <i className="al-edited">수정됨</i>}</p>
+        )}
+        <FeedPostMedia post={post} />
+        <div className="al-post-actions">
+          <button className={`al-like ${post.liked ? "on" : ""}`} onClick={() => toggleLike(post.id)}>{post.liked ? "♥" : "♡"} {post.likes}</button>
+          {!post.byUser && <button className="al-fixbtn" onClick={() => { setFixTarget({ type: "post", id: post.id, text: post.text }); setFixText(""); }}>⚠ 캐해 아님</button>}
+          <span className="al-post-mood">{post.isAuto && <i className="al-auto-badge">자율</i>}{post.byUser && <i className="al-user-badge">내가</i>}{(post.mood || "").split(" / ")[0]}</span>
+          <button className="al-mini-action" onClick={() => setEditingPost({ id: post.id, text: post.text })}>수정</button>
+          <button className="al-mini-action danger" onClick={() => deletePost(post.id)}>삭제</button>
+        </div>
+        <FeedComments post={post} ctx={{ char, commentAs, commentOn, commentText, deleteComment, editingComment, personas, saveCommentEdit, setCommentAs, setCommentOn, setCommentText, setEditingComment, setPersonaDraft, submitUserComment, isExt }} />
+        {commentOn !== post.id && <button className="al-cmt-open" onClick={() => openCommentBox(post.id)}>💬 댓글 달기</button>}
+      </div>
+    </div>
+  );
+}
+
+function FeedPostMedia({ post }) {
+  return (
+    <>
+      {post.quoted && (
+        <div className="al-quoted">
+          <div className="al-quoted-head">
+            <span className="al-quoted-av">{post.quoted.name.trim()[0] || "?"}</span>
+            <span className="al-quoted-name">{post.quoted.name}</span>
+            <span className="al-quoted-handle">@{post.quoted.handle}</span>
+          </div>
+          <p className="al-quoted-text">{post.quoted.text}</p>
+        </div>
+      )}
+      {post.img && <div className="al-post-img"><img src={post.img} alt="" /></div>}
+      {post.photoDesc && !post.img && <div className="al-post-photo"><span className="al-photo-frame">◹</span><span className="al-photo-desc">{post.photoDesc}</span></div>}
+      {post.moodDesc && <div className="al-post-moodcard">♫ {post.moodDesc}</div>}
+    </>
+  );
+}
+
+function FeedComments({ post, ctx }) {
+  const { char, commentAs, commentOn, commentText, deleteComment, editingComment, personas, saveCommentEdit, setCommentAs, setCommentOn, setCommentText, setEditingComment, setPersonaDraft, submitUserComment, isExt } = ctx;
+  return (
+    <>
+      {(post.comments || []).length > 0 && (
+        <div className="al-comments">
+          {post.comments.map((comment, index) => (
+            <div className="al-comment" key={index}>
+              <div className={`al-comment-av ${comment.byUser ? "mine" : ""}`}>{comment.name.trim()[0] || "?"}</div>
+              <div className="al-comment-body">
+                <span className="al-comment-name">{comment.name}{comment.byUser && <i className="al-cmt-mine">나</i>}</span>
+                {comment.replyTo && comment.replyTo !== comment.name && <span className="al-replyto"> @{comment.replyTo}에게 답글</span>}
+                {editingComment?.postId === post.id && editingComment.index === index ? (
+                  <div className="al-comment-editbox">
+                    <input value={editingComment.text} autoFocus onChange={(event) => setEditingComment((value) => ({ ...value, text: event.target.value }))} />
+                    <button onClick={() => setEditingComment(null)}>취소</button>
+                    <button disabled={!editingComment.text.trim()} onClick={saveCommentEdit}>저장</button>
+                  </div>
+                ) : (
+                  <>
+                    <span className="al-comment-text">{comment.text}{comment.edited && <i className="al-edited">수정됨</i>}</span>
+                    <span className="al-comment-tools">
+                      <button onClick={() => setEditingComment({ postId: post.id, index, text: comment.text })}>수정</button>
+                      <button onClick={() => deleteComment(post.id, index)}>삭제</button>
+                    </span>
+                  </>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {commentOn === post.id && (
+        <div className="al-cmtbox">
+          <div className="al-cmtbox-who">
+            <button className={`al-spk-chip ${commentAs === "char" ? "on" : ""}`} onClick={() => setCommentAs("char")}>{char.name}</button>
+            {personas.map((persona) => (
+              <button key={persona.id} className={`al-spk-chip persona ${commentAs === `p:${persona.id}` ? "on" : ""}`} onClick={() => setCommentAs(`p:${persona.id}`)}>🎭 {persona.name}</button>
+            ))}
+            <button className="al-spk-chip add" onClick={() => setPersonaDraft({ name: "", age: "", persona: "", speech: "" })}>+ 페르소나</button>
+          </div>
+          <div className="al-cmtbox-row">
+            <input className="al-cmtbox-input" value={commentText} autoFocus onChange={(event) => setCommentText(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) submitUserComment(post.id, isExt ? post.author : null); }} placeholder={`${commentAs === "char" ? char.name : (personas.find((persona) => `p:${persona.id}` === commentAs)?.name || "")}(으)로 댓글…`} />
+            <button className="al-cmtbox-send" onClick={() => submitUserComment(post.id, isExt ? post.author : null)}>↑</button>
+          </div>
+          <button className="al-cmtbox-cancel" onClick={() => { setCommentOn(null); setCommentText(""); }}>닫기</button>
+        </div>
+      )}
+    </>
+  );
+}

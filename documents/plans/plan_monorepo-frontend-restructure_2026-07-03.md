@@ -519,10 +519,10 @@ Phase 0
   - 파일: `apps/frontend/tests/*`, `apps/frontend/playwright.config.*`, test setup.
   - 검증: `npm run test:domain`, `npm run test:e2e -- --list`, `npm run build`, `git diff --check`.
   - 진행: Node 내장 test runner 기반 domain tests 추가, Playwright webServer 자동 실행 제거, `ALIVE_E2E_BASE_URL` 기반 no-webServer E2E 설정 완료.
-- [ ] **T8 (P2, human: ~1-2 days / CC: ~2h)** — Gradual TypeScript — domain과 API boundary부터 `.ts/.tsx`로 전환한다.
-  - 파일: `apps/frontend/src/domain/*`, `apps/frontend/src/api/*`, `apps/frontend/src/hooks/*`.
-  - 검증: typecheck script 추가 후 실행.
-  - 진행: TypeScript devDependency와 `npm run typecheck` 추가. `asyncUtils`, `textUtils`, `dmKeyUtils`, `feedUtils`, `affinityUtils`, `relationshipFollowUtils`, `discoverUtils`를 `.ts`로 전환. `aliveCore`를 `.ts`로 전환. `/api/generate` 호출과 응답 mapper를 `src/api/generate.ts` 경계로 분리. leaf hooks와 `useCharacterAccounts`, `useAliveFeed`, `useAliveDm`, follow/sync/autosave/navigation/analysis hooks, profile/app-state persistence hooks, auth/session bootstrap hooks, character lifecycle hook, relationship hooks, discover hook, structured persistence hook, memory hook을 `.ts/.tsx`로 전환. `npm run typecheck`, `npm run test:domain`, `npm run test:e2e -- --list`, `npm run build` 성공.
+- [x] **T8 (P2, human: ~1-2 days / CC: ~2h)** — Gradual TypeScript — domain과 API boundary부터 `.ts/.tsx`로 전환한다.
+  - 파일: `apps/frontend/src/domain/*`, `apps/frontend/src/api/*`, `apps/frontend/src/hooks/*`, `apps/frontend/src/app/*`, `apps/frontend/src/features/*`, `apps/frontend/src/components/ui/*`.
+  - 검증: `npm run typecheck`, `npm run test:domain`, `npm run test:e2e -- --list`, `npm run build`, `git diff --check`.
+  - 진행: TypeScript devDependency와 `npm run typecheck` 추가. `asyncUtils`, `textUtils`, `dmKeyUtils`, `feedUtils`, `affinityUtils`, `relationshipFollowUtils`, `discoverUtils`를 `.ts`로 전환. `aliveCore`를 `.ts`로 전환. `/api/generate` 호출과 응답 mapper를 `src/api/generate.ts` 경계로 분리. leaf hooks와 `useCharacterAccounts`, `useAliveFeed`, `useAliveDm`, follow/sync/autosave/navigation/analysis hooks, profile/app-state persistence hooks, auth/session bootstrap hooks, character lifecycle hook, relationship hooks, discover hook, structured persistence hook, memory hook을 `.ts/.tsx`로 전환. `useAliveFeedGeneration`, `useAliveDmGeneration`, `useAliveDmLifecycle`, `useAliveAppController`와 app/feature/shared UI component를 `.ts/.tsx`로 전환. `apps/frontend/src` 아래 `.jsx` 파일 제거 완료. API 교체 전 병목 파일인 `FeedRoute`, `AppModals`, `ExploreDmRoutes`, `SetupScreens`를 route shell과 하위 컴포넌트로 추가 분해해 신규 파일을 200줄 이하로 정리. `npm run typecheck`, `npm run test:domain`, `npm run test:e2e -- --list`, `npm run build`, `git diff --check` 성공.
 
 ## 이전 계획과의 관계
 
