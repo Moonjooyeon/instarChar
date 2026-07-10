@@ -20,6 +20,15 @@
   - `apps/frontend/src/api/generate.ts`
   - Request DTO type, response content mapper, error mapper, and failure-message normalizer use `unknown` at the boundary.
 - Replaced direct `/api/generate` fetches in generation/analysis hooks with the API client.
+- Converted leaf and state hooks to TypeScript:
+  - `apps/frontend/src/hooks/useAliveAiGeneration.ts`
+  - `apps/frontend/src/hooks/useAliveCorrections.ts`
+  - `apps/frontend/src/hooks/useAliveDiscoverActions.ts`
+  - `apps/frontend/src/hooks/useAliveLocalPersistence.ts`
+  - `apps/frontend/src/hooks/useAlivePeerLookup.ts`
+  - `apps/frontend/src/hooks/useCharacterAccounts.ts`
+  - `apps/frontend/src/hooks/useAliveFeed.ts`
+  - `apps/frontend/src/hooks/useAliveDm.ts`
 - Updated domain tests to import converted `.ts` modules through Node type stripping.
 
 ## Verification
@@ -31,6 +40,6 @@
 
 ## Remaining T8 Work
 
-- Continue TypeScript conversion through hooks now that API/domain shapes are stable.
+- Continue TypeScript conversion through generation, lifecycle, sync, discover, relationship, persistence, and bootstrap hooks.
 - Convert feature components and app shell after hook surfaces narrow further.
 - Replace Node experimental type stripping in tests if the project later adopts a dedicated TS-aware test runner.

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ChangeEvent } from "react";
 import {
   canonicalDmKey,
   localRoomIdFromDmThreadKey,
@@ -6,27 +6,67 @@ import {
   scopedLocalDmKey,
 } from "@/domain/dm/dmKeyUtils";
 
-export function useAliveDm({ activeId, char }) {
+type DmCharacter = {
+  name?: string;
+};
+
+type Persona = {
+  id?: string | number;
+  name: string;
+};
+
+type DmPeer = {
+  asOwner?: boolean;
+  dmKey?: string;
+  dmKind?: string;
+  localRoomId?: string;
+  name?: string;
+};
+
+type DmMessage = {
+  text?: string;
+  [key: string]: unknown;
+};
+
+type DmConversation = DmPeer & {
+  asPersona?: string | null;
+  count?: number;
+  key: string;
+  last?: string;
+  peerName?: string;
+};
+
+type EditingDmTitle = {
+  key: string;
+  title: string;
+};
+
+type DmOptions = {
+  activeId?: string | null;
+  char: DmCharacter;
+};
+
+export function useAliveDm({ activeId, char }: DmOptions): Record<string, unknown> {
   const [autoChatting, setAutoChatting] = useState(false);
-  const [dmThreads, setDmThreads] = useState({});
-  const [dmWorldPrefs, setDmWorldPrefs] = useState({});
-  const [deletedDmKeys, setDeletedDmKeys] = useState([]);
-  const [pendingDm, setPendingDm] = useState(null);
+  const [dmThreads, setDmThreads] = useState<Record<string, DmMessage[]>>({});
+  const [dmWorldPrefs, setDmWorldPrefs] = useState<Record<string, unknown>>({});
+  const [deletedDmKeys, setDeletedDmKeys] = useState<string[]>([]);
+  const [pendingDm, setPendingDm] = useState<unknown>(null);
   const [dmWorldDraft, setDmWorldDraft] = useState("");
   const [dmSettingsOpen, setDmSettingsOpen] = useState(false);
   const [dmPrefDraft, setDmPrefDraft] = useState({ mode: "bridge", note: "" });
-  const [peer, setPeer] = useState(null);
+  const [peer, setPeer] = useState<DmPeer | null>(null);
   const [dmInput, setDmInput] = useState("");
-  const [dmImageDraft, setDmImageDraft] = useState(null);
+  const [dmImageDraft, setDmImageDraft] = useState<unknown>(null);
   const [dmSending, setDmSending] = useState(false);
   const [ownerPersona, setOwnerPersona] = useState("");
   const [speakAs, setSpeakAs] = useState("char");
-  const [personas, setPersonas] = useState([]);
-  const [personaDraft, setPersonaDraft] = useState(null);
+  const [personas, setPersonas] = useState<Persona[]>([]);
+  const [personaDraft, setPersonaDraft] = useState<unknown>(null);
   const [newChatSpeaker, setNewChatSpeaker] = useState("char");
-  const [newChatMode, setNewChatMode] = useState(null);
-  const [dmThreadTitles, setDmThreadTitles] = useState({});
-  const [editingDmTitle, setEditingDmTitle] = useState(null);
+  const [newChatMode, setNewChatMode] = useState<string | null>(null);
+  const [dmThreadTitles, setDmThreadTitles] = useState<Record<string, string>>({});
+  const [editingDmTitle, setEditingDmTitle] = useState<EditingDmTitle | null>(null);
   const [chatMode, setChatMode] = useState("talk");
   const ownerLabel = "나";
   const activePersona = speakAs.startsWith("p:") ? personas.find((persona) => `p:${persona.id}` === speakAs) : null;
@@ -35,81 +75,85 @@ export function useAliveDm({ activeId, char }) {
   const dmKey = peer ? dmKeyFor(peer, speakAs) : "";
   const currentWorldPref = dmKey ? dmWorldPrefs[dmKey] : null;
   const dm = (peer && dmThreads[dmKey]) || [];
-  function handleDmImage(event) {
-    const file = Array.from(event.target.files || [])[0];
+  function handleDmImage(event: ChangeEvent<HTMLInputElement>): void {
+    const file = filesFromInput(event.target)[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (readerEvent) => setDmImageDraft(readerEvent.target.result);
+    reader.onload = (readerEvent) => setDmImageDraft(readerEvent.target?.result || null);
     reader.readAsDataURL(file);
     event.target.value = "";
   }
-  function defaultDmTitle(conv) {
+  function defaultDmTitle(conv: DmConversation | null | undefined): string {
     if (!conv) return "대화방";
     if (conv.asOwner) return `${char.name} · 나(오너)와`;
     if (conv.asPersona) return `${conv.peerName} · ${conv.asPersona}로`;
     return conv.peerName || "대화방";
   }
-  function displayDmTitle(conv) {
+  function displayDmTitle(conv: DmConversation): string {
     return dmThreadTitles[conv.key] || defaultDmTitle(conv);
   }
-  function startRenameDm(conv, event) {
+  function startRenameDm(conv: DmConversation, event?: { stopPropagation: () => void }): void {
     event?.stopPropagation();
     setEditingDmTitle({ key: conv.key, title: displayDmTitle(conv) });
   }
-  function saveRenameDm() {
+  function saveRenameDm(): void {
     if (!editingDmTitle) return;
     const title = editingDmTitle.title.trim();
     setDmThreadTitles((prev) => nextThreadTitles(prev, editingDmTitle.key, title));
     setEditingDmTitle(null);
   }
-  function deletePersona(id, commentAs, setCommentAs) {
+  function deletePersona(id: string | number, commentAs: string, setCommentAs: (value: string) => void): void {
     setPersonas((items) => items.filter((item) => item.id !== id));
     if (speakAs === `p:${id}`) setSpeakAs("char");
     if (commentAs === `p:${id}`) setCommentAs("char");
     if (newChatSpeaker === `p:${id}`) setNewChatSpeaker("char");
   }
-  function speakerNameFor(speakerValue = speakAs) {
+  function speakerNameFor(speakerValue = speakAs): string {
     const persona = String(speakerValue || "").startsWith("p:") ? personas.find((item) => `p:${item.id}` === speakerValue) : null;
     if (persona) return persona.name;
     if (speakerValue === "owner") return ownerLabel;
     return char.name || "나";
   }
-  function localDmKey(a, b, roomId = "") {
+  function localDmKey(a: string, b: string, roomId = ""): string {
     return scopedLocalDmKey(activeId || char.name || "new", a, b, roomId);
   }
-  function ownerDmKey() {
+  function ownerDmKey(): string {
     return `owner::${activeId || char.name || "new"}::${ownerLabel}|${char.name || "나"}`;
   }
-  function dmKeyFor(peerObj, speakerValue = speakAs) {
+  function dmKeyFor(peerObj: DmPeer | null, speakerValue = speakAs): string {
     if (!peerObj) return "";
     if (peerObj.asOwner) return ownerDmKey();
     if (peerObj.dmKey) return peerObj.dmKey;
-    if (peerObj.dmKind === "npc") return localDmKey(speakerNameFor(speakerValue), peerObj.name, peerObj.localRoomId || "");
-    return canonicalDmKey(speakerNameFor(speakerValue), peerObj.name);
+    if (peerObj.dmKind === "npc") return localDmKey(speakerNameFor(speakerValue), peerObj.name || "", peerObj.localRoomId || "");
+    return canonicalDmKey(speakerNameFor(speakerValue), peerObj.name || "");
   }
-  function myConversations() {
+  function myConversations(): DmConversation[] {
     const me = char.name || "나";
     const myNames = new Set([me, ...personas.map((persona) => persona.name)]);
-    return Object.entries(dmThreads).filter(([key]) => conversationBelongsToCharacter(key, activeId, char, ownerLabel, myNames)).map(([key, messages]) => conversationFromThread(key, messages, me, ownerLabel, personas));
+    return Object.entries(dmThreads).filter(([key]) => conversationBelongsToCharacter(key, activeId, char, ownerLabel, myNames)).map(([key, messages]) => conversationFromThread(key, messages as DmMessage[], me, ownerLabel, personas));
   }
   return { activePersona, autoChatting, chatMode, currentWorldPref, defaultDmTitle, deletedDmKeys, deletePersona, displayDmTitle, dm, dmImageDraft, dmInput, dmKey, dmKeyFor, dmPrefDraft, dmSending, dmSettingsOpen, dmThreadTitles, dmThreads, dmWorldDraft, dmWorldPrefs, editingDmTitle, handleDmImage, localDmKey, meName, myConversations, newChatMode, newChatSpeaker, ownerDmKey, ownerLabel, ownerPersona, ownerSpeaking, peer, pendingDm, personaDraft, personas, saveRenameDm, setAutoChatting, setChatMode, setDeletedDmKeys, setDmImageDraft, setDmInput, setDmPrefDraft, setDmSending, setDmSettingsOpen, setDmThreadTitles, setDmThreads, setDmWorldDraft, setDmWorldPrefs, setEditingDmTitle, setNewChatMode, setNewChatSpeaker, setOwnerPersona, setPeer, setPendingDm, setPersonaDraft, setPersonas, setSpeakAs, speakAs, speakerNameFor, startRenameDm };
 }
 
-function nextThreadTitles(prev, key, title) {
+function filesFromInput(input: HTMLInputElement): File[] {
+  return Array.from(input.files || []) as File[];
+}
+
+function nextThreadTitles(prev: Record<string, string>, key: string, title: string): Record<string, string> {
   const next = { ...prev };
   if (title) next[key] = title;
   else delete next[key];
   return next;
 }
 
-function currentSpeakerName(peer, activePersona, ownerSpeaking, ownerLabel, char) {
+function currentSpeakerName(peer: DmPeer, activePersona: Persona | null, ownerSpeaking: boolean, ownerLabel: string, char: DmCharacter): string {
   if (peer.asOwner) return ownerLabel;
   if (activePersona) return activePersona.name;
   if (ownerSpeaking) return ownerLabel;
   return char.name || "나";
 }
 
-function conversationBelongsToCharacter(key, activeId, char, ownerLabel, myNames) {
+function conversationBelongsToCharacter(key: string, activeId: string | null | undefined, char: DmCharacter, ownerLabel: string, myNames: Set<string>): boolean {
   const scope = activeId || char.name || "new";
   const roomKey = roomKeyFromDmThreadKey(key);
   const parts = roomKey.split("|");
@@ -119,7 +163,7 @@ function conversationBelongsToCharacter(key, activeId, char, ownerLabel, myNames
   return parts.some((name) => myNames.has(name));
 }
 
-function conversationFromThread(key, messages, me, ownerLabel, personas) {
+function conversationFromThread(key: string, messages: DmMessage[], me: string, ownerLabel: string, personas: Persona[]): DmConversation {
   const parts = roomKeyFromDmThreadKey(key).split("|");
   const isOwnerThread = parts[0] === ownerLabel && parts[1] === me;
   const isNpcThread = key.startsWith("local::");
@@ -129,7 +173,7 @@ function conversationFromThread(key, messages, me, ownerLabel, personas) {
   return { key, peerName, last: last ? last.text : "", count: messages.length, asOwner: isOwnerThread, asPersona: personaSide, dmKind: isNpcThread ? "npc" : "shared", dmKey: key, localRoomId: localRoomIdFromDmThreadKey(key) };
 }
 
-function peerNameFromParts(parts, me, ownerLabel, isOwnerThread, personaSide) {
+function peerNameFromParts(parts: string[], me: string, ownerLabel: string, isOwnerThread: boolean, personaSide: string | null | undefined): string {
   if (isOwnerThread) return ownerLabel;
   if (personaSide) return parts.find((name) => name !== personaSide) || parts[0];
   const mineSide = parts.find((name) => name === me) || me;

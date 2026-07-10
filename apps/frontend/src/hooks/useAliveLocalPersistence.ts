@@ -1,7 +1,15 @@
 import { LOCAL_STATE_KEY } from "@/domain/app/aliveCore";
 
-export function useAliveLocalPersistence() {
-  function persistLocalSnapshot(snapshot) {
+type LocalSnapshot = {
+  accounts?: unknown[];
+};
+
+export function useAliveLocalPersistence(): {
+  hasUsableSavedState: (state: unknown) => boolean;
+  persistLocalSnapshot: (snapshot: LocalSnapshot) => void;
+  readLocalSnapshot: () => unknown | null;
+} {
+  function persistLocalSnapshot(snapshot: LocalSnapshot): void {
     try {
       const oldRaw = localStorage.getItem(LOCAL_STATE_KEY);
       if ((!snapshot.accounts || snapshot.accounts.length === 0) && oldRaw) {
@@ -14,7 +22,7 @@ export function useAliveLocalPersistence() {
     }
   }
 
-  function readLocalSnapshot() {
+  function readLocalSnapshot(): unknown | null {
     try {
       const raw = localStorage.getItem(LOCAL_STATE_KEY);
       return raw ? JSON.parse(raw) : null;
@@ -24,8 +32,9 @@ export function useAliveLocalPersistence() {
     }
   }
 
-  function hasUsableSavedState(state) {
-    return Boolean(state && Array.isArray(state.accounts) && state.accounts.length > 0);
+  function hasUsableSavedState(state: unknown): boolean {
+    const snapshot = state && typeof state === "object" ? state as LocalSnapshot : null;
+    return Boolean(snapshot && Array.isArray(snapshot.accounts) && snapshot.accounts.length > 0);
   }
 
   return {
