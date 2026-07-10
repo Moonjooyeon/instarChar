@@ -3,28 +3,19 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "workspaces": [
+    "apps/frontend"
+  ],
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui",
-    "preview": "vite preview",
-    "app:sync": "npm run build && cap sync",
+    "dev": "npm run dev -w apps/frontend",
+    "build": "npm run build -w apps/frontend",
+    "typecheck": "npm run typecheck -w apps/frontend",
+    "test:domain": "npm run test:domain -w apps/frontend",
+    "test:e2e": "npm --workspace apps/frontend run test:e2e --",
+    "test:e2e:ui": "npm --workspace apps/frontend run test:e2e:ui --",
+    "preview": "npm run preview -w apps/frontend",
+    "app:sync": "npm run build -w apps/frontend && cap sync",
     "app:open:ios": "cap open ios",
     "app:open:android": "cap open android"
-  },
-  "dependencies": {
-    "@supabase/supabase-js": "^2.108.2",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
-  },
-  "devDependencies": {
-    "@capacitor/android": "^8.4.0",
-    "@capacitor/cli": "^8.4.0",
-    "@capacitor/core": "^8.4.0",
-    "@capacitor/ios": "^8.4.0",
-    "@playwright/test": "^1.61.0",
-    "@vitejs/plugin-react": "^4.3.1",
-    "vite": "^5.4.0"
   }
 }

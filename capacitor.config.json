@@ -1,7 +1,7 @@
 {
   "appId": "app.instarcharacterbot.alive",
   "appName": "ALIVE",
-  "webDir": "dist",
+  "webDir": "apps/frontend/dist",
   "server": {
     "androidScheme": "https"
   },

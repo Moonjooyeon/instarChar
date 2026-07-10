@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "declaration": false,
+    "noEmit": false,
+    "outDir": ".tmp/domain-tests",
+    "rootDir": ".",
+    "sourceMap": false
+  },
+  "include": [
+    "src/domain/**/*.ts",
+    "src/types/env.d.ts",
+    "tests/domain/*.test.js"
+  ]
+}
