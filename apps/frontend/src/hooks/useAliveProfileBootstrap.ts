@@ -2,6 +2,58 @@ import { useEffect } from "react";
 import { withRejectTimeout } from "@/domain/app/asyncUtils";
 import { hasSupabaseConfig, supabase } from "@/supabaseClient";
 
+type MutableRef<T> = {
+  current: T;
+};
+
+type UserLike = {
+  email?: string;
+  id: string;
+  user_metadata?: Record<string, unknown>;
+};
+
+type SessionLike = {
+  user?: UserLike;
+};
+
+type AppState = Record<string, unknown> & {
+  profileName?: string;
+};
+
+type ProfileNames = {
+  fallbackName: string;
+  metadataName: string;
+};
+
+type ProfileRow = {
+  app_state?: unknown;
+  display_name?: string;
+  onboarded?: boolean;
+};
+
+type ProfileBootstrapOptions = {
+  applyAppState: (state: AppState) => void;
+  blankAppState: (name?: string) => AppState;
+  cancelled?: () => boolean;
+  hasUsableSavedState: (state: unknown) => boolean;
+  loadStructuredStateFallback: (baseState: AppState, ownerId: string) => Promise<AppState>;
+  profileLoadedRef: MutableRef<boolean>;
+  profileLoadRetry: unknown;
+  profileTableBrokenRef: MutableRef<boolean>;
+  readLocalSnapshot: () => unknown;
+  session: SessionLike | null;
+  setAuthMessage: (value: string) => void;
+  setOnboardingOpen: (value: boolean) => void;
+  setProfileLoading: (value: boolean) => void;
+  setProfileName: (value: string) => void;
+  setSaveStatus: (value: string) => void;
+  setStateReady: (value: boolean) => void;
+};
+
+type LoadProfileOptions = Omit<ProfileBootstrapOptions, "profileLoadRetry"> & {
+  cancelled: () => boolean;
+};
+
 export function useAliveProfileBootstrap({
   applyAppState,
   blankAppState,
@@ -18,7 +70,7 @@ export function useAliveProfileBootstrap({
   setProfileName,
   setSaveStatus,
   setStateReady,
-}) {
+}: ProfileBootstrapOptions): void {
   useEffect(() => {
     if (!hasSupabaseConfig || !supabase) return;
     if (!session?.user) {
@@ -49,8 +101,9 @@ export function useAliveProfileBootstrap({
   }, [session?.user?.id, profileLoadRetry]);
 }
 
-async function loadProfile(options) {
+async function loadProfile(options: LoadProfileOptions): Promise<void> {
   const { profileLoadedRef, profileTableBrokenRef, session } = options;
+  if (!session?.user) return;
   profileTableBrokenRef.current = false;
   profileLoadedRef.current = false;
   const names = profileNames(session.user);
@@ -64,18 +117,19 @@ async function loadProfile(options) {
   }
 }
 
-function profileNames(user) {
-  const metadataName = user.user_metadata?.name || user.user_metadata?.full_name || user.user_metadata?.preferred_username || "";
+function profileNames(user: UserLike): ProfileNames {
+  const metadataName = stringValue(user.user_metadata?.name || user.user_metadata?.full_name || user.user_metadata?.preferred_username);
   return {
     fallbackName: user.email?.split("@")[0] || metadataName || "사용자",
     metadataName,
   };
 }
 
-function applyCachedState(options, cachedState, hasCachedState, fallbackName) {
+function applyCachedState(options: LoadProfileOptions, cachedState: unknown, hasCachedState: boolean, fallbackName: string): void {
   if (hasCachedState) {
-    options.applyAppState(cachedState);
-    options.setProfileName(cachedState.profileName || fallbackName);
+    const state = appStateFromUnknown(cachedState);
+    options.applyAppState(state);
+    options.setProfileName(state.profileName || fallbackName);
     options.setOnboardingOpen(false);
     options.profileLoadedRef.current = true;
     options.setStateReady(true);
@@ -90,13 +144,14 @@ function applyCachedState(options, cachedState, hasCachedState, fallbackName) {
   if (!hasCachedState) options.setAuthMessage("");
 }
 
-async function loadRemoteProfile(options, cachedState, hasCachedState, names) {
+async function loadRemoteProfile(options: LoadProfileOptions, cachedState: unknown, hasCachedState: boolean, names: ProfileNames): Promise<void> {
+  if (!options.session?.user) return;
   const { data, error } = await profileQuery(options.session.user.id);
   if (options.cancelled()) return;
   if (error) throw error;
   const defaultName = data?.display_name || options.session.user.email?.split("@")[0] || names.metadataName || "사용자";
   const profileState = data?.app_state && typeof data.app_state === "object" ? data.app_state : null;
-  const backupState = hasCachedState ? cachedState : (options.hasUsableSavedState(profileState) ? profileState : null);
+  const backupState = hasCachedState ? appStateFromUnknown(cachedState) : (options.hasUsableSavedState(profileState) ? appStateFromUnknown(profileState) : null);
   const baseState = baseProfileState(options.blankAppState, backupState, defaultName);
   const mergedState = await options.loadStructuredStateFallback(baseState, options.session.user.id);
   if (options.cancelled()) return;
@@ -104,21 +159,24 @@ async function loadRemoteProfile(options, cachedState, hasCachedState, names) {
   if (!data) await createProfileShell(options, defaultName);
 }
 
-function profileQuery(userId) {
-  return withRejectTimeout(supabase
+async function profileQuery(userId: string): Promise<{ data: ProfileRow | null; error: { message?: string } | null }> {
+  if (!supabase) throw new Error("Supabase client is not configured.");
+  const query = supabase
     .from("alive_profiles")
     .select("display_name,onboarded,app_state")
     .eq("id", userId)
-    .maybeSingle(), 5000, "프로필 메타 로드");
+    .maybeSingle();
+  const result = await withRejectTimeout(Promise.resolve(query), 5000, "프로필 메타 로드");
+  return profileQueryResult(result);
 }
 
-function baseProfileState(blankAppState, backupState, defaultName) {
+function baseProfileState(blankAppState: (name?: string) => AppState, backupState: AppState | null, defaultName: string): AppState {
   return backupState
     ? { ...blankAppState(defaultName), ...backupState, profileName: backupState.profileName || defaultName }
     : blankAppState(defaultName);
 }
 
-function applyLoadedProfile(options, mergedState, defaultName, data) {
+function applyLoadedProfile(options: LoadProfileOptions, mergedState: AppState, defaultName: string, data: ProfileRow | null): void {
   options.applyAppState(mergedState);
   options.setProfileName(defaultName);
   options.setOnboardingOpen(!data?.onboarded);
@@ -128,7 +186,8 @@ function applyLoadedProfile(options, mergedState, defaultName, data) {
   options.setSaveStatus(data ? "저장됨" : "새 프로필");
 }
 
-async function createProfileShell(options, defaultName) {
+async function createProfileShell(options: LoadProfileOptions, defaultName: string): Promise<void> {
+  if (!supabase || !options.session?.user) return;
   const { error } = await supabase.from("alive_profiles").upsert({
     id: options.session.user.id,
     email: options.session.user.email || "",
@@ -138,12 +197,13 @@ async function createProfileShell(options, defaultName) {
   if (error) options.setSaveStatus(`프로필 생성 실패: ${error.message}`);
 }
 
-async function loadFallbackProfile(options, cachedState, hasCachedState, fallbackName, error) {
+async function loadFallbackProfile(options: LoadProfileOptions, cachedState: unknown, hasCachedState: boolean, fallbackName: string, error: unknown): Promise<void> {
+  if (!options.session?.user) return;
   if (options.cancelled()) return;
   console.warn("프로필 메타 로드 실패:", error);
   try {
     const baseState = hasCachedState
-      ? { ...options.blankAppState(fallbackName), ...cachedState, profileName: cachedState.profileName || fallbackName }
+      ? { ...options.blankAppState(fallbackName), ...appStateFromUnknown(cachedState), profileName: appStateFromUnknown(cachedState).profileName || fallbackName }
       : options.blankAppState(fallbackName);
     const mergedState = await options.loadStructuredStateFallback(baseState, options.session.user.id);
     if (options.cancelled()) return;
@@ -153,7 +213,7 @@ async function loadFallbackProfile(options, cachedState, hasCachedState, fallbac
   }
 }
 
-function applyStructuredFallback(options, mergedState, fallbackName) {
+function applyStructuredFallback(options: LoadProfileOptions, mergedState: AppState, fallbackName: string): void {
   options.applyAppState(mergedState);
   options.setProfileName(fallbackName);
   options.setOnboardingOpen(false);
@@ -164,7 +224,7 @@ function applyStructuredFallback(options, mergedState, fallbackName) {
   options.setAuthMessage("저장된 캐릭터를 불러왔어. 저장 상태는 뒤에서 다시 확인할게.");
 }
 
-function applyTemporaryProfile(options, fallbackName, fallbackError) {
+function applyTemporaryProfile(options: LoadProfileOptions, fallbackName: string, fallbackError: unknown): void {
   if (options.cancelled()) return;
   console.warn("캐릭터 데이터 로드 실패:", fallbackError);
   options.applyAppState(options.blankAppState(fallbackName));
@@ -175,4 +235,19 @@ function applyTemporaryProfile(options, fallbackName, fallbackError) {
   options.setStateReady(true);
   options.setSaveStatus("임시 진입");
   options.setAuthMessage("저장된 캐릭터 로드가 느려서 일단 앱에 들어왔어. 새로고침 대신 다시 불러오기를 눌러줘.");
+}
+
+function appStateFromUnknown(value: unknown): AppState {
+  return value && typeof value === "object" ? value as AppState : {};
+}
+
+function profileQueryResult(value: unknown): { data: ProfileRow | null; error: { message?: string } | null } {
+  const record = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  const data = record.data && typeof record.data === "object" ? record.data as ProfileRow : null;
+  const error = record.error && typeof record.error === "object" ? record.error as { message?: string } : null;
+  return { data, error };
+}
+
+function stringValue(value: unknown): string {
+  return typeof value === "string" ? value : "";
 }

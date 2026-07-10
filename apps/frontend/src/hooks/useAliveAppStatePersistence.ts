@@ -1,5 +1,112 @@
-import { sanitizePosts } from "@/domain/feed/feedUtils";
+import { sanitizePosts, type FeedPost } from "@/domain/feed/feedUtils";
 import { hasSupabaseConfig, supabase } from "@/supabaseClient";
+
+type SetState<T> = (value: T | ((prev: T) => T)) => void;
+
+type MutableRef<T> = {
+  current: T;
+};
+
+type CharacterState = Record<string, unknown> & {
+  name?: string;
+};
+
+type AccountState = {
+  char?: CharacterState;
+  following?: unknown[];
+  gallery?: unknown[];
+  id: string;
+  posts?: FeedPost[];
+  [key: string]: unknown;
+};
+
+type AppState = {
+  accounts?: AccountState[];
+  activeId?: string | null;
+  affinity?: Record<string, unknown>;
+  char?: CharacterState;
+  deletedDmKeys?: string[];
+  discoverQuery?: string;
+  dmThreadTitles?: Record<string, string>;
+  dmThreads?: Record<string, unknown>;
+  dmWorldPrefs?: Record<string, unknown>;
+  following?: unknown[];
+  gallery?: unknown[];
+  ownerPersona?: string;
+  personas?: unknown[];
+  posts?: FeedPost[];
+  profileName?: string;
+  step?: string;
+  version?: number;
+};
+
+type SessionLike = {
+  user?: {
+    email?: string;
+    id: string;
+  };
+};
+
+type ProfilePayload = {
+  app_state?: AppState;
+  display_name: string;
+  email?: string;
+  id: string;
+  onboarded: boolean;
+};
+
+type AppStatePersistenceOptions = {
+  accounts: AccountState[];
+  activeId: string | null;
+  affinity: Record<string, unknown>;
+  blankChar: () => CharacterState;
+  char: CharacterState;
+  deletedDmKeys: string[];
+  deletedDmKeysRef: MutableRef<Set<string>>;
+  dmThreadTitles: Record<string, string>;
+  dmThreads: Record<string, unknown>;
+  dmWorldPrefs: Record<string, unknown>;
+  feedInitRef: MutableRef<boolean>;
+  following: unknown[];
+  gallery: unknown[];
+  hasUsableSavedState: (state: unknown) => boolean;
+  onboardingOpen: boolean;
+  ownerPersona: string;
+  persistLocalSnapshot: (snapshot: AppState) => void;
+  personas: unknown[];
+  posts: FeedPost[];
+  profileName: string;
+  profileTableBrokenRef: MutableRef<boolean>;
+  session: SessionLike | null;
+  syncStructuredState: (snapshot: AppState) => Promise<unknown>;
+  setAccounts: SetState<AccountState[]>;
+  setActiveId: SetState<string | null>;
+  setActiveSharedId: (value: string) => void;
+  setAffinity: SetState<Record<string, unknown>>;
+  setChar: SetState<CharacterState>;
+  setCommentOn: (value: unknown) => void;
+  setCommentText: (value: string) => void;
+  setDeletedDmKeys: SetState<string[]>;
+  setDiscoverQuery: (value: string) => void;
+  setDmInput: (value: string) => void;
+  setDmThreads: SetState<Record<string, unknown>>;
+  setDmThreadTitles: SetState<Record<string, string>>;
+  setDmWorldPrefs: SetState<Record<string, unknown>>;
+  setEditingDmTitle: (value: unknown) => void;
+  setFollowerCounts: (value: Record<string, unknown>) => void;
+  setFollowing: SetState<unknown[]>;
+  setGallery: SetState<unknown[]>;
+  setNewChatMode: (value: unknown) => void;
+  setOwnerPersona: (value: string) => void;
+  setPeer: (value: unknown) => void;
+  setPersonas: SetState<unknown[]>;
+  setPosts: SetState<FeedPost[]>;
+  setProfileName: (value: string) => void;
+  setSaveStatus: (value: string) => void;
+  setSharedFocusId: (value: string) => void;
+  setShareStatus: (value: string) => void;
+  setStep: (value: string) => void;
+};
 
 export function useAliveAppStatePersistence({
   accounts,
@@ -52,8 +159,8 @@ export function useAliveAppStatePersistence({
   setSharedFocusId,
   setShareStatus,
   setStep,
-}) {
-  function blankAppState(name = "") {
+}: AppStatePersistenceOptions): Record<string, unknown> {
+  function blankAppState(name = ""): AppState {
     return {
       version: 1,
       step: "home",
@@ -74,7 +181,7 @@ export function useAliveAppStatePersistence({
       profileName: name,
     };
   }
-  function sanitizeSavedState(saved = {}) {
+  function sanitizeSavedState(saved: AppState = {}): AppState {
     return {
       ...saved,
       accounts: Array.isArray(saved.accounts)
@@ -83,10 +190,10 @@ export function useAliveAppStatePersistence({
       posts: sanitizePosts(saved.posts),
     };
   }
-  function accountSnapshot() {
+  function accountSnapshot(): AccountState[] {
     return accounts.map((a) => a.id === activeId ? { ...a, char, gallery, posts: sanitizePosts(posts), following } : { ...a, posts: sanitizePosts(a.posts) });
   }
-  function exportAppState() {
+  function exportAppState(): AppState {
     return {
       version: 1,
       step: "home",
@@ -107,7 +214,7 @@ export function useAliveAppStatePersistence({
       profileName,
     };
   }
-  function compactProfileBackup(snapshot = {}) {
+  function compactProfileBackup(snapshot: AppState = {}): AppState {
     return {
       ...snapshot,
       accounts: (snapshot.accounts || []).map(compactAccountBackup),
@@ -117,8 +224,8 @@ export function useAliveAppStatePersistence({
       dmThreads: compactThreads(snapshot.dmThreads),
     };
   }
-  function profileUpsertPayload(snapshot) {
-    const payload = {
+  function profileUpsertPayload(snapshot: AppState): ProfilePayload {
+    const payload: ProfilePayload = {
       id: session.user.id,
       email: session.user.email,
       display_name: profileName.trim() || session.user.email?.split("@")[0] || "",
@@ -127,7 +234,7 @@ export function useAliveAppStatePersistence({
     if (hasUsableSavedState(snapshot)) payload.app_state = compactProfileBackup(snapshot);
     return payload;
   }
-  async function saveAppStateSnapshot(snapshot) {
+  async function saveAppStateSnapshot(snapshot: AppState | null | undefined): Promise<void> {
     if (!snapshot) return;
     if (!hasSupabaseConfig || !supabase || !session?.user) {
       persistLocalSnapshot(snapshot);
@@ -148,7 +255,7 @@ export function useAliveAppStatePersistence({
     syncStructuredState(snapshot).catch((e) => console.warn("분리 테이블 동기화 실패:", e));
     setSaveStatus("저장됨");
   }
-  function applyAppState(saved = {}) {
+  function applyAppState(saved: AppState = {}): void {
     const cleanSaved = sanitizeSavedState(saved);
     const nextAccounts = Array.isArray(cleanSaved.accounts) ? cleanSaved.accounts : [];
     const active = saved.activeId ? nextAccounts.find((a) => a.id === saved.activeId) : null;
@@ -156,7 +263,7 @@ export function useAliveAppStatePersistence({
     applyDmState(cleanSaved);
     applyProfileState(cleanSaved, active);
   }
-  function resetRuntimeState(name = "") {
+  function resetRuntimeState(name = ""): void {
     applyAppState(blankAppState(name));
     setProfileName(name);
     setPeer(null);
@@ -171,7 +278,7 @@ export function useAliveAppStatePersistence({
     setActiveSharedId("");
     setFollowerCounts({});
   }
-  function applyAccountState(cleanSaved, nextAccounts, active) {
+  function applyAccountState(cleanSaved: AppState, nextAccounts: AccountState[], active: AccountState | null): void {
     setAccounts(nextAccounts);
     setActiveId(active ? active.id : null);
     setChar(active?.char || cleanSaved.char || blankChar());
@@ -180,7 +287,7 @@ export function useAliveAppStatePersistence({
     setFollowing(active?.following || cleanSaved.following || []);
     setPersonas(Array.isArray(cleanSaved.personas) ? cleanSaved.personas : []);
   }
-  function applyDmState(cleanSaved) {
+  function applyDmState(cleanSaved: AppState): void {
     setDmThreads(cleanSaved.dmThreads || {});
     setDmThreadTitles(cleanSaved.dmThreadTitles || {});
     setDmWorldPrefs(cleanSaved.dmWorldPrefs || {});
@@ -188,7 +295,7 @@ export function useAliveAppStatePersistence({
     setDeletedDmKeys(nextDeletedKeys);
     deletedDmKeysRef.current = new Set(nextDeletedKeys);
   }
-  function applyProfileState(cleanSaved, active) {
+  function applyProfileState(cleanSaved: AppState, active: AccountState | null): void {
     setOwnerPersona(cleanSaved.ownerPersona || "");
     setAffinity(cleanSaved.affinity || {});
     setDiscoverQuery("");
@@ -200,7 +307,7 @@ export function useAliveAppStatePersistence({
   return { accountSnapshot, applyAppState, blankAppState, compactProfileBackup, exportAppState, profileUpsertPayload, resetRuntimeState, sanitizeSavedState, saveAppStateSnapshot };
 }
 
-function compactAccountBackup(account) {
+function compactAccountBackup(account: AccountState): AccountState {
   return {
     ...account,
     gallery: compactGallery(account.gallery),
@@ -209,18 +316,18 @@ function compactAccountBackup(account) {
   };
 }
 
-function compactGallery(items) {
+function compactGallery(items: unknown): unknown[] {
   return Array.isArray(items) ? items.slice(-12) : [];
 }
 
-function compactPosts(items) {
+function compactPosts(items: unknown): FeedPost[] {
   return sanitizePosts(items).slice(0, 40).map((post) => ({ ...post, comments: Array.isArray(post.comments) ? post.comments.slice(-20) : [] }));
 }
 
-function compactFollowing(items) {
+function compactFollowing(items: unknown): unknown[] {
   return Array.isArray(items) ? items.slice(0, 120) : [];
 }
 
-function compactThreads(threads = {}) {
+function compactThreads(threads: Record<string, unknown> = {}): Record<string, unknown> {
   return Object.fromEntries(Object.entries(threads).map(([key, value]) => [key, Array.isArray(value) ? value.slice(-80) : value]));
 }
