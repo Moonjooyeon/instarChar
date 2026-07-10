@@ -87,20 +87,24 @@ PostgreSQL
 
 작업:
 
-- `profiles.ts`
-  - `upsertProfile` -> `PUT /api/profile/state` 또는 `POST /api/profile/onboarding`으로 분기한다.
-  - `loadProfileRow` -> `GET /api/profile/state`를 호출하고, 기존 `ProfileRow` shape로 adapter한다.
-  - `createProfileShell`은 onboarding/profile state API로 연결한다.
-- `structured.ts`
-  - `syncStructuredRows` -> `POST /api/profile/structured-state`
-  - `loadStructuredRows` -> `GET /api/profile/state` 결과를 기존 settled query 결과 형태로 adapter하거나, 호출 hook을 새 응답 shape에 맞게 단순화한다.
-  - `deleteStructuredCharacterData` -> `DELETE /api/characters/{source_account_id}`로 전환한다. 이 endpoint는 프론트 전환 전에 먼저 추가하고, 캐릭터 row, 공개 row, follow row, owner DM row를 트랜잭션 안에서 정리한다.
+- [x] `profiles.ts`
+  - [x] `upsertProfile` -> `PUT /api/profile/state` 또는 `POST /api/profile/onboarding`으로 분기한다.
+  - [x] `loadProfileRow` -> `GET /api/profile/state`를 호출하고, 기존 `ProfileRow` shape로 adapter한다.
+  - [x] `createProfileShell`은 onboarding/profile state API로 연결한다.
+- [x] `structured.ts`
+  - [x] `syncStructuredRows` -> `POST /api/profile/structured-state`
+  - [x] `loadStructuredRows` -> `GET /api/profile/state` 결과를 기존 settled query 결과 형태로 adapter하거나, 호출 hook을 새 응답 shape에 맞게 단순화한다.
+  - [x] `deleteStructuredCharacterData` -> `DELETE /api/characters/{source_account_id}`로 전환한다. 이 endpoint는 프론트 전환 전에 먼저 추가하고, 캐릭터 row, 공개 row, follow row, owner DM row를 트랜잭션 안에서 정리한다.
 
 검증:
 
-- 저장 후 복원 domain fixture 테스트 추가 또는 기존 hook 경로 최소 테스트.
-- `npm run typecheck`
-- `npm run test:domain`
+- [x] 저장 후 복원 domain fixture 테스트 추가 또는 기존 hook 경로 최소 테스트.
+- [x] `npm run typecheck`
+- [x] `npm run test:domain`
+- [x] `npm run build`
+- [x] `npm run test:e2e -- --list`
+- [x] `PYTHONPYCACHEPREFIX=/private/tmp/instarChar-pycache backend/.venv/bin/python -m compileall -q backend/app backend/tests backend/migrations`
+- [x] `PYTHONPATH=backend backend/.venv/bin/pytest backend/tests`
 
 ## Phase 4. Discover/share/follow 전환
 

@@ -9,6 +9,8 @@
   },
   "include": [
     "src/api/client.ts",
+    "src/api/profiles.ts",
+    "src/api/structured.ts",
     "src/domain/**/*.ts",
     "src/types/env.d.ts",
     "tests/domain/*.test.js"
