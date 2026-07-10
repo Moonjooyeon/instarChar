@@ -516,7 +516,6 @@ export function useAliveAppController() {
     proposal,
     proposalCooldownRef,
     proposingRef,
-    readApiContent,
     relationBaseFor,
     relationMatched,
     relLabelFor,
@@ -545,7 +544,6 @@ export function useAliveAppController() {
     bumpRoomAffinity,
     cleanMemItems,
     isPersonaName,
-    readApiContent,
     saveMemories,
   });
   const {
@@ -571,7 +569,6 @@ export function useAliveAppController() {
     myFollowers,
     personas,
     posts,
-    readApiContent,
     relLabelFor,
     setCommentOn,
     setCommentText,
@@ -923,7 +920,6 @@ export function useAliveAppController() {
     processSession,
     proposalRef,
     proposingRef,
-    readApiContent,
     relationHintFor,
     relationMatched,
     roomAffOf,
@@ -941,7 +937,6 @@ export function useAliveAppController() {
   } = useAliveCharacterAnalysis({
     cleanApiFailureMessage,
     dump,
-    readApiContent,
     rpLog,
     setChar,
     setLoading,

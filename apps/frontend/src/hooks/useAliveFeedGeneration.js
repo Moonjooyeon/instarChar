@@ -1,3 +1,4 @@
+import { postGenerateContent } from "@/api/generate";
 import { ANTI_REPEAT_RULES, recentLinesBlock, worldBridgeBlock } from "@/domain/app/textUtils";
 import {
   API_LIMIT_MESSAGE,
@@ -27,7 +28,6 @@ export function useAliveFeedGeneration({
   myFollowers,
   personas,
   posts,
-  readApiContent,
   relLabelFor,
   setCommentOn,
   setCommentText,
@@ -47,8 +47,7 @@ export function useAliveFeedGeneration({
     const userMsg = mood === "랜덤 / 알아서" ? "지금 이 순간 떠오른 걸 자유롭게 한 줄 올려줘." : `다음 느낌으로 글을 올려줘: ${mood}`;
     const userContent = attachedImg ? [{ type: "text", text: `${userMsg}\n첨부된 이미지를 보고 이미지 속 상황과 시선, 표정, 분위기에 맞춰 써.` }, { type: "image_url", image_url: { url: attachedImg } }] : userMsg;
     try {
-      const res = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model: MODEL_AUTO, max_tokens: 400, system: sys, messages: [{ role: "user", content: userContent }] }) });
-      const parsed = parseGeneratedPost(await readApiContent(res, "게시글 생성 API"), mood, attachedImg);
+      const parsed = parseGeneratedPost(await postGenerateContent({ model: MODEL_AUTO, max_tokens: 400, system: sys, messages: [{ role: "user", content: userContent }] }, "게시글 생성 API"), mood, attachedImg);
       const newPostId = Date.now();
       setPosts((items) => [generatedPostFromParsed(parsed, mood, attachedImg, isAuto, newPostId), ...items]);
       if (following.length > 0) setTimeout(() => followersReactTo(newPostId, parsed.text), 1800 + Math.random() * 2000);
@@ -74,8 +73,7 @@ export function useAliveFeedGeneration({
     const postAuthorChar = findPeerChar(postAuthorName) || (postAuthorName === char.name ? char : { name: postAuthorName });
     const sys = commentSystemPrompt({ commenter, postAuthorChar, postAuthorName, postText, priorComments, relBlock, replyTo, targetImage });
     try {
-      const res = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model: MODEL_AUTO, max_tokens: 150, system: sys, messages: [{ role: "user", content: commentUserContent(commenter, targetImage) }] }) });
-      const text = stripQuotes(await readApiContent(res, "댓글 생성 API"));
+      const text = stripQuotes(await postGenerateContent({ model: MODEL_AUTO, max_tokens: 150, system: sys, messages: [{ role: "user", content: commentUserContent(commenter, targetImage) }] }, "댓글 생성 API"));
       if (!text) return null;
       appendGeneratedComment(setPosts, postId, commenter, text, replyTo);
       return text;
@@ -120,8 +118,7 @@ export function useAliveFeedGeneration({
     const sys = followerPostSystemPrompt({ char, poster, posterImg, quoteTarget });
     let text = "";
     try {
-      const res = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model: MODEL_AUTO, max_tokens: 200, system: sys, messages: [{ role: "user", content: followerPostUserContent(char, posterImg, quoteTarget) }] }) });
-      text = stripQuotes(await readApiContent(res, "팔로잉 글 생성 API"));
+      text = stripQuotes(await postGenerateContent({ model: MODEL_AUTO, max_tokens: 200, system: sys, messages: [{ role: "user", content: followerPostUserContent(char, posterImg, quoteTarget) }] }, "팔로잉 글 생성 API"));
     } catch (e) {
       text = "";
     }

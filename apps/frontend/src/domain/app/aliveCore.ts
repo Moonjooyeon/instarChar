@@ -6,8 +6,59 @@ export const BUILD_MARK = typeof __ALIVE_BUILD__ !== "undefined" ? __ALIVE_BUILD
 export const LOCAL_STATE_KEY = "alive_app_state_v1";
 export const API_LIMIT_MESSAGE = "오늘 한정된 API는 다 사용했어요! 다음에 만나요.";
 
-export const RENDERABLE_STEPS = new Set(["home", "dump", "confirm", "feed", "discover", "dmlist", "dm"]);
-export const STEP_TO_PATH = {
+export type AppStep = "home" | "dump" | "confirm" | "feed" | "discover" | "dmlist" | "dm";
+
+export type RelationEntry = {
+  who: string;
+  label: string;
+};
+
+export type CharacterLike = {
+  age?: unknown;
+  catchphrase?: unknown;
+  handle?: unknown;
+  inner?: unknown;
+  interests?: unknown;
+  name?: unknown;
+  persona?: unknown;
+  relation?: unknown;
+  relations?: unknown;
+  situational?: unknown;
+  speech?: unknown;
+  surface?: unknown;
+  tags?: unknown[];
+  triggers?: unknown;
+  world?: unknown;
+};
+
+type IdentityLike = {
+  name?: string;
+  relation?: string;
+};
+
+type TonePreset = {
+  id: string;
+  label: string;
+  hint: string;
+};
+
+type DiscoverCharacter = CharacterLike & {
+  id: string;
+  name: string;
+  handle: string;
+  owner: string;
+  age: string;
+  persona: string;
+  speech: string;
+  surface: string;
+  inner: string;
+  interests: string;
+  catchphrase: string;
+  tags: string[];
+};
+
+export const RENDERABLE_STEPS = new Set<AppStep>(["home", "dump", "confirm", "feed", "discover", "dmlist", "dm"]);
+export const STEP_TO_PATH: Record<AppStep, string> = {
   home: "/app",
   dump: "/app/new",
   confirm: "/app/confirm",
@@ -16,7 +67,7 @@ export const STEP_TO_PATH = {
   dmlist: "/app/dm",
   dm: "/app/dm/thread",
 };
-export const PATH_TO_STEP = {
+export const PATH_TO_STEP: Record<string, AppStep> = {
   "/app": "home",
   "/app/": "home",
   "/app/new": "dump",
@@ -27,15 +78,15 @@ export const PATH_TO_STEP = {
   "/app/dm/thread": "dm",
 };
 
-export function normalizeSavedStep(savedStep, hasActiveAccount) {
-  if (!RENDERABLE_STEPS.has(savedStep)) return "home";
+export function normalizeSavedStep(savedStep: unknown, hasActiveAccount: boolean): AppStep {
+  if (!isAppStep(savedStep)) return "home";
   if (["dump", "confirm"].includes(savedStep)) return "home";
   if (!hasActiveAccount && savedStep !== "home") return "home";
   if (savedStep === "dm") return "dmlist";
   return savedStep;
 }
 
-export function stepFromPath(pathname, hasActiveAccount) {
+export function stepFromPath(pathname: string, hasActiveAccount: boolean): AppStep {
   const routeStep = PATH_TO_STEP[pathname] || "home";
   if (!RENDERABLE_STEPS.has(routeStep)) return "home";
   if (["feed", "discover", "dmlist", "dm"].includes(routeStep) && !hasActiveAccount) return "home";
@@ -43,11 +94,15 @@ export function stepFromPath(pathname, hasActiveAccount) {
   return routeStep;
 }
 
-export function pathForStep(stepName) {
-  return STEP_TO_PATH[RENDERABLE_STEPS.has(stepName) ? stepName : "home"] || "/app";
+export function pathForStep(stepName: unknown): string {
+  return STEP_TO_PATH[isAppStep(stepName) ? stepName : "home"] || "/app";
 }
 
-export const TONE_PRESETS = [
+function isAppStep(value: unknown): value is AppStep {
+  return typeof value === "string" && RENDERABLE_STEPS.has(value as AppStep);
+}
+
+export const TONE_PRESETS: TonePreset[] = [
   { id: "calm", label: "차분/시크", hint: "말수 적고 담담함" },
   { id: "bright", label: "밝음/수다", hint: "감탄사 많고 활기참" },
   { id: "soft", label: "다정/여림", hint: "따뜻하고 조심스러움" },
@@ -55,11 +110,11 @@ export const TONE_PRESETS = [
   { id: "chaos", label: "4차원/엉뚱", hint: "예측불가 드립" },
 ];
 
-export function toneText(id) {
+export function toneText(id: unknown): string {
   return TONE_PRESETS.find((tone) => tone.id === id)?.label || "";
 }
 
-export const POST_MOODS = [
+export const POST_MOODS: string[] = [
   "일상 / 방금 있었던 일",
   "혼잣말 / 생각",
   "셀카 찍은 척 (사진 묘사)",
@@ -68,7 +123,7 @@ export const POST_MOODS = [
   "랜덤 / 알아서",
 ];
 
-export const EXAMPLES = [
+export const EXAMPLES: Array<{ name: string; short: string; text: string }> = [
   {
     name: "리안", short: "시크·까칠 / 마법사",
     text: "이름은 리안. 21살, 마법학교 다님. 겉으론 시크하고 까칠한데 단 거 앞에선 무너짐. 고양이 키우고 밤에 글 쓰는 거 좋아함. 반말 쓰고 문장 끝에 '…' 자주 붙임. 현대 판타지 세계관.",
@@ -79,10 +134,10 @@ export const EXAMPLES = [
   },
 ];
 
-export function parseRelations(relStr) {
+export function parseRelations(relStr: string | null | undefined): RelationEntry[] {
   if (!relStr) return [];
   const pieces = relStr.split(/[,，]/).map((s) => s.trim()).filter(Boolean);
-  const out = [];
+  const out: RelationEntry[] = [];
   for (const p of pieces) {
     if (/[—\-–:]/.test(p)) {
       const m = p.split(/[—\-–:]/);
@@ -98,25 +153,30 @@ export function parseRelations(relStr) {
   return out;
 }
 
-export function compactName(value) {
+export function compactName(value: unknown): string {
   return String(value || "").replace(/\s/g, "").toLowerCase();
 }
 
-export function identityText(c) {
-  if (!c) return "";
-  return [c.name, c.handle, c.age, c.persona, c.surface, c.inner, c.world, c.interests, ...(c.tags || [])]
+export function identityText(c: CharacterLike | string | null | undefined): string {
+  if (!c || typeof c === "string") return "";
+  const tags = Array.isArray(c.tags) ? c.tags : [];
+  return [c.name, c.handle, c.age, c.persona, c.surface, c.inner, c.world, c.interests, ...tags]
     .filter(Boolean)
     .join(" ")
     .toLowerCase();
 }
 
-export function isSpecialRelation(label) {
-  return /연인|애인|연애|사랑|부부|배우자|약혼|반려|짝사랑|흠모|연모|썸|운명|순애/.test(label || "");
+export function isSpecialRelation(label: unknown): boolean {
+  return /연인|애인|연애|사랑|부부|배우자|약혼|반려|짝사랑|흠모|연모|썸|운명|순애/.test(String(label || ""));
 }
 
-export function relationTargetMatches(rel, targetChar, strictSpecial = false) {
+export function relationTargetMatches(
+  rel: RelationEntry | null | undefined,
+  targetChar: CharacterLike | string | null | undefined,
+  strictSpecial = false,
+): boolean {
   const who = String(rel?.who || "").trim();
-  const targetName = String(targetChar?.name || targetChar || "").trim();
+  const targetName = targetNameFor(targetChar);
   if (!who || !targetName) return false;
   const nw = compactName(who);
   const nt = compactName(targetName);
@@ -138,9 +198,14 @@ export function relationTargetMatches(rel, targetChar, strictSpecial = false) {
   return false;
 }
 
+function targetNameFor(targetChar: CharacterLike | string | null | undefined): string {
+  if (typeof targetChar === "string") return targetChar.trim();
+  return String(targetChar?.name || "").trim();
+}
+
 export const QUICK_FIXES = ["말투가 아님", "성격이 아님", "이런 말 안 함", "너무 오버함", "관계 반영 안 됨", "이모지 안 씀"];
 
-export const DISCOVER_POOL = [
+export const DISCOVER_POOL: DiscoverCharacter[] = [
   { id: "d1", name: "세인", handle: "sein_", owner: "@morgse", age: "23", persona: "냉정한 검사. 말이 짧고 핵심만. 속은 의외로 정 많음.",
     speech: "건조한 반말, 군더더기 없음", surface: "무표정, 검은 코트", inner: "지킬 사람 앞에선 약해짐",
     interests: "검술, 비 오는 날", catchphrase: "…쓸데없는 소리.", tags: ["냉미남", "검사", "느와르"] },
@@ -167,12 +232,12 @@ export const DISCOVER_POOL = [
     interests: "별자리, 타로, 새벽", catchphrase: "오늘 밤, 당신의 별이 흔들리네요.", tags: ["점성술", "신비", "힐링"] },
 ];
 
-export function relationMatched(char, ident) {
+export function relationMatched(char: CharacterLike, ident: IdentityLike): string {
   const myName = (ident.name || "").trim();
   if (!myName) return ident.relation ? `${myName} — ${ident.relation}` : "";
-  const norm = (s) => s.replace(/\s/g, "");
+  const norm = (s: string): string => s.replace(/\s/g, "");
   const myNorm = norm(myName);
-  if (char.relations) {
+  if (typeof char.relations === "string") {
     const hit = parseRelations(char.relations)
       .find((r) => relationTargetMatches(r, { name: myName, relation: ident.relation }, true) || (norm(r.who).includes(myNorm) && myNorm.length >= 2));
     if (hit) return `${hit.who}${hit.label ? ` — ${hit.label}` : ""}`;
@@ -181,12 +246,12 @@ export function relationMatched(char, ident) {
   return "";
 }
 
-export function relationshipMatchRuleLine(targetName, matchedRelation) {
+export function relationshipMatchRuleLine(targetName: string, matchedRelation: string): string {
   if (!matchedRelation) return "";
   return `관계 매칭 확정: 관계망의 "${matchedRelation}" 항목은 현재 상대 "${targetName}"에게 직접 적용된다. 짧게 "애인", "연인", "라이벌", "동생"처럼만 적혀 있어도 그 한 단어를 핵심 관계 설정으로 삼아 말투·거리감·질투·다정함·경계심을 조절하라. 단, 그 관계 전용 태도는 이 상대에게만 적용하고 다른 사람에게 흘리지 마라.`;
 }
 
-export function speechGuideLine(value, label = "말투 참고") {
+export function speechGuideLine(value: unknown, label = "말투 참고"): string {
   const text = Array.isArray(value)
     ? value.filter(Boolean).join(", ")
     : value && typeof value === "object"
@@ -196,7 +261,7 @@ export function speechGuideLine(value, label = "말투 참고") {
   return `${label}: ${text} (스타일 참고용. 이 문구나 예시 문장을 그대로 출력하지 말고, 어조·리듬·호칭·문장 길이만 자연스럽게 반영)`;
 }
 
-export function catchphraseGuideLine(value) {
+export function catchphraseGuideLine(value: unknown): string {
   const text = Array.isArray(value)
     ? value.filter(Boolean).join(", ")
     : value && typeof value === "object"
@@ -206,7 +271,7 @@ export function catchphraseGuideLine(value) {
   return `캐치프레이즈/말버릇 참고: ${text} (상황에 맞을 때만 아주 가끔 변형해서 사용. 매번 반복하거나 그대로 복붙 금지)`;
 }
 
-export function selfSettingPriorityBlock(c, label = "자기 설정") {
+export function selfSettingPriorityBlock(c: CharacterLike | null | undefined, label = "자기 설정"): string {
   if (!c) return "";
   const lines = [
     c.persona ? `성격/핵심 설정: ${c.persona}` : "",
@@ -231,7 +296,7 @@ ${lines}
 - 설정에 없는 급격한 스킨십·집착·연애 진전·캐붕 행동을 임의로 만들지 마라.`;
 }
 
-export function relationshipBoundaryLine(c, audience = "public") {
+export function relationshipBoundaryLine(c: CharacterLike | null | undefined, audience = "public"): string {
   const rels = Array.isArray(c?.relations)
     ? c.relations.filter(Boolean).join(", ")
     : c?.relations && typeof c.relations === "object"
@@ -245,7 +310,7 @@ export function relationshipBoundaryLine(c, audience = "public") {
 관계 적용 규칙: ${scope}. 관계망의 "이름 — 관계" 항목은 짧아도 확정 설정이다. 대상 이름이 현재 상대와 매칭되면 "애인", "연인", "라이벌" 같은 한 단어를 중심축으로 삼아 거리감과 반응을 조절한다. "A 한정 다정함", "B에게만 약함" 같은 관계 전용 태도는 그 이름의 상대에게 말할 때만 쓴다. 불특정 독자나 다른 인물에게 그 다정함/집착/애정을 흘리지 마라.`;
 }
 
-export function hasBatchim(text) {
+export function hasBatchim(text: unknown): boolean {
   const ch = String(text || "").trim().replace(/[^\uAC00-\uD7A3A-Za-z0-9]/g, "").slice(-1);
   if (!ch) return false;
   const code = ch.charCodeAt(0);
@@ -253,7 +318,7 @@ export function hasBatchim(text) {
   return (code - 0xac00) % 28 !== 0;
 }
 
-export function josa(text, pair) {
+export function josa(text: unknown, pair: string): string {
   const value = String(text || "").trim();
   const [withBatchim, withoutBatchim] = pair.split("/");
   return `${value}${hasBatchim(value) ? withBatchim : withoutBatchim}`;

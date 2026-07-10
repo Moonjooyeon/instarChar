@@ -1,10 +1,10 @@
+import { postGenerateContent } from "@/api/generate";
 import { fieldText, normalizeHandle } from "@/domain/app/textUtils";
 import { MODEL_CHAT } from "@/domain/app/aliveCore";
 
 export function useAliveCharacterAnalysis({
   cleanApiFailureMessage,
   dump,
-  readApiContent,
   rpLog,
   setChar,
   setLoading,
@@ -21,13 +21,17 @@ export function useAliveCharacterAnalysis({
     setParseFailed(false);
     setParseError("");
     try {
-      const res = await fetch("/api/generate", {
-        method: "POST",
+      const raw = await postGenerateContent({
+        flow: "character-analysis-v2",
+        model: MODEL_CHAT,
+        max_tokens: 2048,
+        system: characterAnalysisSystemPrompt(),
+        messages: [{ role: "user", content: textRaw }],
+      }, "캐릭터 분석 API", {
         cache: "no-store",
-        headers: { "Content-Type": "application/json", "X-ALIVE-Flow": "character-analysis-v2" },
-        body: JSON.stringify({ flow: "character-analysis-v2", model: MODEL_CHAT, max_tokens: 2048, system: characterAnalysisSystemPrompt(), messages: [{ role: "user", content: textRaw }] }),
+        headers: { "X-ALIVE-Flow": "character-analysis-v2" },
       });
-      const obj = JSON.parse(extractJsonObject(await readApiContent(res, "캐릭터 분석 API")));
+      const obj = JSON.parse(extractJsonObject(raw));
       if (!obj.name) throw new Error("이름 필드가 없습니다.");
       setChar((prev) => characterFromAnalysis(prev, obj));
       setStep("confirm");

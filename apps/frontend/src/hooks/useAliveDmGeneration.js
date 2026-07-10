@@ -1,3 +1,4 @@
+import { postGenerateContent } from "@/api/generate";
 import { chatSafetyRules, worldBridgeBlock } from "@/domain/app/textUtils";
 import {
   MODEL_AUTO,
@@ -39,7 +40,6 @@ export function useAliveDmGeneration({
   processSession,
   proposalRef,
   proposingRef,
-  readApiContent,
   relationHintFor,
   relationMatched,
   roomAffOf,
@@ -72,8 +72,7 @@ export function useAliveDmGeneration({
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 55000);
     try {
-      const res = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, signal: controller.signal, body: JSON.stringify({ model: MODEL_DIRECT, max_tokens: 2048, system: context.sys, messages: apiMsgs }) });
-      const text = await readApiContent(res, "DM 답장 API");
+      const text = await postGenerateContent({ model: MODEL_DIRECT, max_tokens: 2048, system: context.sys, messages: apiMsgs }, "DM 답장 API", { signal: controller.signal });
       if (dmRequestSeqRef.current !== requestId || dmKeyRef.current !== requestKey) return;
       setDmThread((items) => [...items, { from: context.peerName, text }]);
       applyDmAffinity({ bumpAffinity, bumpMutual, bumpRoomAffinity, bumpRoomMutual, context, meName, newHist, ownerLabel, peer, relationHintFor, requestKey, text });
@@ -95,8 +94,7 @@ export function useAliveDmGeneration({
     const sys = autoLineSystemPrompt({ correctionBlockFor, dmAffOf, history, listener, loreBlockFor, mode, relationHint, roomAffOf, roomKey, roomLoreBlockFor, speaker, worldPref });
     const apiMsgs = autoLineMessages(history, speaker, listener);
     try {
-      const res = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model: MODEL_AUTO, max_tokens: 2048, system: sys, messages: apiMsgs }) });
-      return await readApiContent(res, "자동대화 API");
+      return await postGenerateContent({ model: MODEL_AUTO, max_tokens: 2048, system: sys, messages: apiMsgs }, "자동대화 API");
     } catch (e) {
       console.error("자동대화 생성 실패:", e);
       return null;

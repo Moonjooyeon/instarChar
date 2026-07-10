@@ -1,3 +1,4 @@
+import { postGenerateContent } from "@/api/generate";
 import { MODEL_UTIL } from "@/domain/app/aliveCore";
 
 export function useAliveSessionAnalysis({
@@ -5,7 +6,6 @@ export function useAliveSessionAnalysis({
   bumpRoomAffinity,
   cleanMemItems,
   isPersonaName,
-  readApiContent,
   saveMemories,
 }) {
   const OWNER = "나";
@@ -14,7 +14,7 @@ export function useAliveSessionAnalysis({
     if (!log) return;
     const transcript = transcriptFromLog(log, 12);
     const judgeOne = async (from, to) => {
-      const delta = await judgeAffinityDelta(from, to, transcript, readApiContent);
+      const delta = await judgeAffinityDelta(from, to, transcript);
       if (delta !== 0) bumpAffinity(from, to, delta, log.map((item) => `${item.who}: ${item.text}`));
     };
     if (aName === OWNER || bName === OWNER) {
@@ -33,7 +33,7 @@ export function useAliveSessionAnalysis({
     if (!log) return;
     const flags = sessionFlags(aName, bName, isPersonaName);
     try {
-      const obj = await analyzeSessionSummary(aName, bName, transcriptFromLog(log, 16), readApiContent);
+      const obj = await analyzeSessionSummary(aName, bName, transcriptFromLog(log, 16));
       applySessionAffinity({ bName, bumpAffinity, bumpRoomAffinity, flags, log, memOnly, obj, roomKey, aName });
       if (flags.aMem) saveMemories(aName, bName, cleanMemItems(obj.mem_a || []), roomKey);
       if (flags.bMem) saveMemories(bName, aName, cleanMemItems(obj.mem_b || []), roomKey);
@@ -53,19 +53,14 @@ function transcriptFromLog(log, limit) {
   return log.slice(-limit).map((message) => `${message.who}: ${message.text}`).join("\n");
 }
 
-async function judgeAffinityDelta(from, to, transcript, readApiContent) {
+async function judgeAffinityDelta(from, to, transcript) {
   const sys = `아래는 "${from}"와(과) "${to}"의 대화다. 이 대화를 거치며 "${from}"가 "${to}"에게 느끼는 호감·친밀감이 어떻게 변했는지 "${from}" 입장에서만 판정하라.
 - ${from}가 ${to}에게 더 끌렸으면 +, 실망·서먹·거리감이 들었으면 -.
 - 한쪽만 좋아하는 짝사랑 상황도 그대로 반영하라(상대 반응이 시큰둥하면 낮게).
 - 보통의 어색함·삐침은 작게(-1~-4). 하지만 ${to}가 ${from}에게 바람·불륜·배신·심한 모욕·일부러 상처주기 같은 과한 행동을 했다면 크게 떨어뜨려라(-12 ~ -30). 그런 게 없으면 작은 범위로.
 - 숫자 하나만 출력. -30 ~ +8 범위 정수. 설명·기호 금지. 예: 5 또는 -20`;
   try {
-    const res = await fetch("/api/generate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model: MODEL_UTIL, max_tokens: 10, system: sys, messages: [{ role: "user", content: transcript }] }),
-    });
-    const raw = (await readApiContent(res, "호감도 판정 API")).trim();
+    const raw = (await postGenerateContent({ model: MODEL_UTIL, max_tokens: 10, system: sys, messages: [{ role: "user", content: transcript }] }, "호감도 판정 API")).trim();
     const match = raw.match(/-?\d+/);
     return match ? Math.max(-30, Math.min(8, parseInt(match[0], 10))) : 0;
   } catch (e) {
@@ -82,7 +77,7 @@ function sessionFlags(aName, bName, isPersonaName) {
   return { aIsOwner, aMem: !aPersona && !aIsOwner, aPersona, bIsOwner, bMem: !bPersona && !bIsOwner, bPersona };
 }
 
-async function analyzeSessionSummary(aName, bName, transcript, readApiContent) {
+async function analyzeSessionSummary(aName, bName, transcript) {
   const sys = `아래는 "${aName}"와(과) "${bName}"의 DM 대화다. 이 대화를 분석해 JSON으로만 답하라. 설명·코드블록 없이 JSON 객체 하나만.
 
 판정할 것:
@@ -99,12 +94,7 @@ async function analyzeSessionSummary(aName, bName, transcript, readApiContent) {
 출력 형식(반드시 이 형태의 유효한 JSON으로 작성할 것):
 {"aff_a_to_b": 0, "aff_b_to_a": 0, "mem_a": [{"content":"감정 변화와 원인 또는 기억할 사건","importance":3}], "mem_b": []}
 기억할 게 없으면 빈 배열.`;
-  const res = await fetch("/api/generate", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ model: MODEL_UTIL, max_tokens: 2048, system: sys, messages: [{ role: "user", content: transcript }] }),
-  });
-  const raw = await readApiContent(res, "기억 통합 API");
+  const raw = await postGenerateContent({ model: MODEL_UTIL, max_tokens: 2048, system: sys, messages: [{ role: "user", content: transcript }] }, "기억 통합 API");
   return JSON.parse(extractJsonObject(raw));
 }
 
