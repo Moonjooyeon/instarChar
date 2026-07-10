@@ -50,6 +50,8 @@
   - `apps/frontend/src/hooks/useAliveRelationshipMutations.ts`
 - Converted discover hook to TypeScript:
   - `apps/frontend/src/hooks/useAliveDiscover.ts`
+- Converted structured persistence hook to TypeScript:
+  - `apps/frontend/src/hooks/useAliveStructuredPersistence.ts`
 - Updated domain tests to import converted `.ts` modules through Node type stripping.
 
 ## Verification
@@ -61,6 +63,6 @@
 
 ## Remaining T8 Work
 
-- Continue TypeScript conversion through generation and structured persistence hooks.
+- Continue TypeScript conversion through generation hooks, DM lifecycle, memory hook, and app shell/controller surfaces.
 - Convert feature components and app shell after hook surfaces narrow further.
 - Replace Node experimental type stripping in tests if the project later adopts a dedicated TS-aware test runner.
