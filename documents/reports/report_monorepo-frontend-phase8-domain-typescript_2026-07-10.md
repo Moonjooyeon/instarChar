@@ -40,6 +40,9 @@
 - Converted profile and app-state persistence hooks to TypeScript:
   - `apps/frontend/src/hooks/useAliveProfileBootstrap.ts`
   - `apps/frontend/src/hooks/useAliveAppStatePersistence.ts`
+- Converted auth/session bootstrap hooks to TypeScript:
+  - `apps/frontend/src/hooks/useAliveAuthActions.ts`
+  - `apps/frontend/src/hooks/useAliveSessionBootstrap.ts`
 - Updated domain tests to import converted `.ts` modules through Node type stripping.
 
 ## Verification
@@ -51,6 +54,6 @@
 
 ## Remaining T8 Work
 
-- Continue TypeScript conversion through generation, lifecycle, discover, relationship, structured persistence, and session/auth bootstrap hooks.
+- Continue TypeScript conversion through generation, lifecycle, discover, relationship, and structured persistence hooks.
 - Convert feature components and app shell after hook surfaces narrow further.
 - Replace Node experimental type stripping in tests if the project later adopts a dedicated TS-aware test runner.
