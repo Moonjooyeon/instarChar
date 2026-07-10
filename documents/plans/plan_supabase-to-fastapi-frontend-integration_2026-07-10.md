@@ -133,15 +133,15 @@ PostgreSQL
 
 작업:
 
-- `dm.ts`의 `deleteDmThreadRow`를 FastAPI query endpoint로 전환한다.
-- `thread_key`가 `dm::`이면 `DELETE /api/shared-dm-threads?thread_key=...`
-- 아니면 `DELETE /api/dm-threads?thread_key=...`
-- `ownerId` 인자는 API 계층 내부에서 무시하고, 후속 정리에서 호출부 인자를 제거한다.
+- [x] `dm.ts`의 `deleteDmThreadRow`를 FastAPI query endpoint로 전환한다.
+- [x] `thread_key`가 `dm::`이면 `DELETE /api/shared-dm-threads?thread_key=...`
+- [x] 아니면 `DELETE /api/dm-threads?thread_key=...`
+- [x] `ownerId` 인자는 API 계층 내부에서 무시하고, 후속 정리에서 호출부 인자를 제거한다.
 
 검증:
 
-- backend DM tests.
-- DM 삭제 관련 frontend typecheck와 E2E 목록.
+- [x] backend DM tests.
+- [x] DM 삭제 관련 frontend typecheck와 E2E 목록.
 
 ## Phase 6. AI generate 이관
 
