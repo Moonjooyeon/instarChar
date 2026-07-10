@@ -1,6 +1,18 @@
 import { useEffect, useRef, useState, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
+import {
+  deleteFollowRow as deleteRemoteFollowRow,
+  listFollowerTargetRows,
+  listSharedFollowers,
+  loadSharedCharacterRow,
+  saveRelationshipFollowBack,
+  sharedCharacterResults as loadSharedCharacterResults,
+  updateSharedCharacter,
+  upsertFollowRow as upsertRemoteFollowRow,
+  upsertOwnFollowRows,
+  upsertSharedCharacter,
+} from "@/api/discover";
+import { hasRemoteApiClient, hasRemoteApiConfig as hasSupabaseConfig } from "@/api/client";
 import { mergeDiscoverCharacters, sharedRowToChar, type CharacterRow, type DiscoverCharacter, type SharedCharacterRow } from "@/domain/discover/discoverUtils";
-import { hasSupabaseConfig, supabase } from "@/supabaseClient";
 
 type SetState<T> = Dispatch<SetStateAction<T>>;
 
@@ -47,12 +59,12 @@ type SharedLoadState = {
 };
 
 type SharedCharacterQueryResult = PromiseSettledResult<{
-  data: CharacterRow[] | null;
+  data?: CharacterRow[] | null;
   error: { message?: string } | null;
 }>;
 
 type SharedRowsQueryResult = PromiseSettledResult<{
-  data: SharedCharacterRow[] | null;
+  data?: SharedCharacterRow[] | null;
   error: { message?: string } | null;
 }>;
 
@@ -177,10 +189,10 @@ export function useAliveDiscover({ activeId = null, char = null, profileName = "
     return hasSupabaseConfig ? 0 : baseFollowerCount(target?.name || "");
   };
   async function loadFollowerCountsFor(rows: Array<{ id?: string }>): Promise<void> {
-    if (!supabase || !rows?.length) return;
+    if (!hasRemoteApiClient() || !rows?.length) return;
     const ids = rows.map((row) => row.id).filter(Boolean);
     if (!ids.length) return;
-    const { data, error } = await supabase.from("alive_character_follows").select("target_shared_character_id").in("target_shared_character_id", ids);
+    const { data, error } = await listFollowerTargetRows(ids);
     if (error) {
       console.warn("팔로워 수 불러오기 실패:", error);
       return;
@@ -188,12 +200,12 @@ export function useAliveDiscover({ activeId = null, char = null, profileName = "
     setFollowerCounts((prev) => ({ ...prev, ...followerCountsForRows(ids, data || []) }));
   }
   async function loadSharedFollowers(sharedId = activeSharedId): Promise<void> {
-    if (!supabase || !sharedId) {
+    if (!hasRemoteApiClient() || !sharedId) {
       setSharedFollowers({ loading: false, rows: [], error: "" });
       return;
     }
     setSharedFollowers({ loading: true, rows: [], error: "" });
-    const { data, error } = await supabase.from("alive_character_follows").select("id,follower_id,follower_name,follower_account_id,follower_character,created_at").eq("target_shared_character_id", sharedId).order("created_at", { ascending: false });
+    const { data, error } = await listSharedFollowers(sharedId);
     if (error) {
       console.warn("팔로워 목록 불러오기 실패:", error);
       setSharedFollowers({ loading: false, rows: [], error: error.message || "팔로워를 불러오지 못했어." });
@@ -204,9 +216,9 @@ export function useAliveDiscover({ activeId = null, char = null, profileName = "
     loadFollowerCountsFor(rows.filter((row) => row.sharedId).map((row) => ({ id: row.sharedId })));
   }
   async function loadSharedCharacters(): Promise<void> {
-    if (!supabase) return;
+    if (!hasRemoteApiClient()) return;
     setSharedLoadState({ loading: true, error: "" });
-    const [characterResult, sharedResult] = await sharedCharacterResults();
+    const [characterResult, sharedResult] = await loadSharedCharacterResults();
     const { characterError, sharedError, characterRows, sharedRows } = sharedResultRows(characterResult, sharedResult);
     if (characterError) console.warn("alive_characters 탐색 불러오기 실패:", characterError);
     if (sharedError) console.warn("공유 정보 불러오기 실패:", sharedError);
@@ -216,9 +228,9 @@ export function useAliveDiscover({ activeId = null, char = null, profileName = "
     loadFollowerCountsFor(sharedRows);
   }
   async function loadSharedCharacterById(sharedId: string): Promise<DiscoverCharacter | null> {
-    if (!supabase || !sharedId) return null;
+    if (!hasRemoteApiClient() || !sharedId) return null;
     setSharedLoadState({ loading: true, error: "" });
-    const { data, error } = await supabase.from("alive_shared_characters").select("id,owner_id,owner_name,source_account_id,name,handle,persona,tags,character,created_at").eq("id", sharedId).maybeSingle();
+    const { data, error } = await loadSharedCharacterRow(sharedId);
     if (error) {
       console.warn("공유 링크 캐릭터 불러오기 실패:", error);
       setSharedLoadState({ loading: false, error: error.message || "공유 캐릭터를 불러오지 못했어." });
@@ -236,11 +248,11 @@ export function useAliveDiscover({ activeId = null, char = null, profileName = "
   }
   async function shareCurrentCharacter(publicPostSnapshot: PostSnapshotProvider): Promise<void> {
     if (!activeId || !char?.name?.trim()) return;
-    if (!supabase || !session?.user) {
+    if (!hasRemoteApiClient() || !session?.user) {
       flashShareStatus("로그인 후 공유할 수 있어.");
       return;
     }
-    const { data, error } = await supabase.from("alive_shared_characters").upsert(sharedCharacterPayload({ activeId, char, following, profileName, publicPostSnapshot, session }), { onConflict: "owner_id,source_account_id" }).select("id").single();
+    const { data, error } = await upsertSharedCharacter(sharedCharacterPayload({ activeId, char, following, profileName, publicPostSnapshot, session }));
     if (error) {
       flashShareStatus(`공유 실패: ${error.message}`, 3600);
       return;
@@ -250,27 +262,27 @@ export function useAliveDiscover({ activeId = null, char = null, profileName = "
     loadSharedCharacters();
   }
   async function syncActiveSharedCharacter(publicPostSnapshot: PostSnapshotProvider, nextFollowing = following, nextChar = char): Promise<void> {
-    if (!supabase || !session?.user || !activeId || !activeSharedId || !nextChar?.name?.trim()) return;
-    const { error } = await supabase.from("alive_shared_characters").update(sharedCharacterUpdatePayload(nextChar, nextFollowing, publicPostSnapshot)).eq("owner_id", session.user.id).eq("source_account_id", activeId);
+    if (!hasRemoteApiClient() || !session?.user || !activeId || !activeSharedId || !nextChar?.name?.trim()) return;
+    const { error } = await updateSharedCharacter(session.user.id, activeId, sharedCharacterUpdatePayload(nextChar, nextFollowing, publicPostSnapshot));
     if (error) console.warn("공유 캐릭터 스냅샷 갱신 실패:", error);
   }
   async function syncOwnFollowRows(publicPostSnapshot: PostSnapshotProvider, nextFollowing = following, nextChar = char): Promise<void> {
-    if (!supabase || !session?.user || !activeId || !nextChar?.name?.trim()) return;
+    if (!hasRemoteApiClient() || !session?.user || !activeId || !nextChar?.name?.trim()) return;
     const rows = ownFollowRows({ activeId, nextChar, nextFollowing, profileName, publicPostSnapshot, session });
     if (!rows.length) return;
-    const { error } = await supabase.from("alive_character_follows").upsert(rows, { onConflict: "follower_id,follower_account_id,target_shared_character_id" });
+    const { error } = await upsertOwnFollowRows(rows);
     if (error) console.warn("팔로우 캐릭터 스냅샷 갱신 실패:", error);
   }
   async function recordFollowChange(poolChar: DiscoverCharacter, wasFollowing: boolean): Promise<boolean | undefined> {
-    if (!supabase || !session?.user || !activeId || !poolChar?.sharedId) return;
+    if (!hasRemoteApiClient() || !session?.user || !activeId || !poolChar?.sharedId) return;
     const ok = wasFollowing ? await deleteFollowRow(session.user.id, activeId, poolChar.sharedId) : await upsertFollowRow({ activeId, char, poolChar, profileName, session });
     if (ok) updateFollowerCount(poolChar.sharedId, wasFollowing);
     loadFollowerCountsFor([{ id: poolChar.sharedId }]);
     return ok;
   }
   async function recordRelationshipFollowBack(poolChar: DiscoverCharacter): Promise<boolean> {
-    if (!supabase || !session?.user || !activeSharedId || !poolChar?.sharedId) return false;
-    const { error } = await supabase.rpc("alive_relationship_follow_back", { p_follower_shared_character_id: poolChar.sharedId, p_target_shared_character_id: activeSharedId });
+    if (!hasRemoteApiClient() || !session?.user || !activeSharedId || !poolChar?.sharedId) return false;
+    const { error } = await saveRelationshipFollowBack(poolChar.sharedId, activeSharedId);
     if (error) {
       console.warn("연인 맞팔 저장 실패:", error);
       return false;
@@ -316,14 +328,6 @@ function followerRowToChar(row: FollowRow, sharedCharacters: DiscoverCharacter[]
   return { ...(shared || {}), ...character, external: shared?.external ?? true, id: shared?.id || `follower_${row.id}`, shared: Boolean(shared), sharedId: shared?.sharedId || "", ownerId: row.follower_id, sourceAccountId: row.follower_account_id, name: character.name || row.follower_name || "이름 없음", handle: character.handle || "", owner: shared?.owner || `@${row.follower_name || "user"}`, ownerName: shared?.ownerName || row.follower_name || "user", persona: character.persona || shared?.persona || "", tags: character.tags || shared?.tags || [], posts: character.posts || shared?.posts || [], followerAccountId: row.follower_account_id, followedAt: row.created_at };
 }
 
-function sharedCharacterResults(): Promise<[SharedCharacterQueryResult, SharedRowsQueryResult]> {
-  if (!supabase) return Promise.resolve([rejectedQueryResult(), rejectedQueryResult()]);
-  return Promise.allSettled([
-    supabase.from("alive_characters").select("owner_id,source_account_id,name,handle,character,gallery,posts,following,updated_at").order("updated_at", { ascending: false }).limit(120),
-    supabase.from("alive_shared_characters").select("id,owner_id,owner_name,source_account_id,name,handle,persona,tags,character,created_at").order("created_at", { ascending: false }).limit(80),
-  ]) as Promise<[SharedCharacterQueryResult, SharedRowsQueryResult]>;
-}
-
 function sharedResultRows(characterResult: SharedCharacterQueryResult, sharedResult: SharedRowsQueryResult): SharedResultRows {
   const characterError = characterResult.status === "fulfilled" ? characterResult.value.error : characterResult.reason;
   const sharedError = sharedResult.status === "fulfilled" ? sharedResult.value.error : sharedResult.reason;
@@ -355,22 +359,16 @@ function ownFollowRows({ activeId, nextChar, nextFollowing, profileName, publicP
 }
 
 async function deleteFollowRow(userId: string, activeId: string, sharedId: string): Promise<boolean> {
-  if (!supabase) return false;
-  const { error } = await supabase.from("alive_character_follows").delete().eq("follower_id", userId).eq("follower_account_id", activeId).eq("target_shared_character_id", sharedId);
+  const { error } = await deleteRemoteFollowRow(userId, activeId, sharedId);
   if (error) console.warn("언팔로우 저장 실패:", error);
   return !error;
 }
 
 async function upsertFollowRow({ activeId, char, poolChar, profileName, session }: UpsertFollowRowOptions): Promise<boolean> {
-  if (!supabase) return false;
   const payload = { follower_id: session.user.id, follower_name: profileName || session.user.email?.split("@")[0] || "user", follower_account_id: activeId, follower_character: { ...char }, target_shared_character_id: poolChar.sharedId };
-  const { error } = await supabase.from("alive_character_follows").upsert(payload, { onConflict: "follower_id,follower_account_id,target_shared_character_id" });
+  const { error } = await upsertRemoteFollowRow(payload);
   if (error) console.warn("팔로우 저장 실패:", error);
   return !error;
-}
-
-function rejectedQueryResult<T>(): PromiseRejectedResult {
-  return { reason: "supabase unavailable", status: "rejected" };
 }
 
 function errorMessage(error: unknown): string {

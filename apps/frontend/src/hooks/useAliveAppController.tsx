@@ -26,7 +26,7 @@ import { DmListScreen } from "@/features/dm/DmListScreen";
 import { HomeScreen } from "@/features/home/HomeScreen";
 import { ProposalModal, RelationResultModal } from "@/features/relationships/RelationshipModals";
 import { WorldChip } from "@/components/ui/WorldChip";
-import { hasSupabaseConfig, supabase } from "@/supabaseClient";
+import { hasRemoteApiConfig as hasSupabaseConfig } from "@/api/client";
 import {
   RELATION_BASE,
   LOVE_RELATIONS,

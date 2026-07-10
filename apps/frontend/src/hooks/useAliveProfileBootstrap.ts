@@ -1,6 +1,6 @@
 import { useEffect } from "react";
-import { withRejectTimeout } from "@/domain/app/asyncUtils";
-import { hasSupabaseConfig, supabase } from "@/supabaseClient";
+import { createProfileShell as createRemoteProfileShell, loadProfileRow } from "@/api/profiles";
+import { hasRemoteApiConfig as hasSupabaseConfig } from "@/api/client";
 
 type MutableRef<T> = {
   current: T;
@@ -72,7 +72,7 @@ export function useAliveProfileBootstrap({
   setStateReady,
 }: ProfileBootstrapOptions): void {
   useEffect(() => {
-    if (!hasSupabaseConfig || !supabase) return;
+    if (!hasSupabaseConfig) return;
     if (!session?.user) {
       profileLoadedRef.current = false;
       setStateReady(false);
@@ -146,7 +146,7 @@ function applyCachedState(options: LoadProfileOptions, cachedState: unknown, has
 
 async function loadRemoteProfile(options: LoadProfileOptions, cachedState: unknown, hasCachedState: boolean, names: ProfileNames): Promise<void> {
   if (!options.session?.user) return;
-  const { data, error } = await profileQuery(options.session.user.id);
+  const { data, error } = await loadProfileRow(options.session.user.id);
   if (options.cancelled()) return;
   if (error) throw error;
   const defaultName = data?.display_name || options.session.user.email?.split("@")[0] || names.metadataName || "사용자";
@@ -157,17 +157,6 @@ async function loadRemoteProfile(options: LoadProfileOptions, cachedState: unkno
   if (options.cancelled()) return;
   applyLoadedProfile(options, mergedState, defaultName, data);
   if (!data) await createProfileShell(options, defaultName);
-}
-
-async function profileQuery(userId: string): Promise<{ data: ProfileRow | null; error: { message?: string } | null }> {
-  if (!supabase) throw new Error("Supabase client is not configured.");
-  const query = supabase
-    .from("alive_profiles")
-    .select("display_name,onboarded,app_state")
-    .eq("id", userId)
-    .maybeSingle();
-  const result = await withRejectTimeout(Promise.resolve(query), 5000, "프로필 메타 로드");
-  return profileQueryResult(result);
 }
 
 function baseProfileState(blankAppState: (name?: string) => AppState, backupState: AppState | null, defaultName: string): AppState {
@@ -187,8 +176,8 @@ function applyLoadedProfile(options: LoadProfileOptions, mergedState: AppState, 
 }
 
 async function createProfileShell(options: LoadProfileOptions, defaultName: string): Promise<void> {
-  if (!supabase || !options.session?.user) return;
-  const { error } = await supabase.from("alive_profiles").upsert({
+  if (!options.session?.user) return;
+  const { error } = await createRemoteProfileShell({
     id: options.session.user.id,
     email: options.session.user.email || "",
     display_name: defaultName,
@@ -239,13 +228,6 @@ function applyTemporaryProfile(options: LoadProfileOptions, fallbackName: string
 
 function appStateFromUnknown(value: unknown): AppState {
   return value && typeof value === "object" ? value as AppState : {};
-}
-
-function profileQueryResult(value: unknown): { data: ProfileRow | null; error: { message?: string } | null } {
-  const record = value && typeof value === "object" ? value as Record<string, unknown> : {};
-  const data = record.data && typeof record.data === "object" ? record.data as ProfileRow : null;
-  const error = record.error && typeof record.error === "object" ? record.error as { message?: string } : null;
-  return { data, error };
 }
 
 function stringValue(value: unknown): string {

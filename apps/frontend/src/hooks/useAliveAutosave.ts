@@ -1,5 +1,6 @@
 import { useEffect } from "react";
-import { hasSupabaseConfig, supabase } from "@/supabaseClient";
+import { hasRemoteApiClient, hasRemoteApiConfig as hasSupabaseConfig } from "@/api/client";
+import { upsertProfile } from "@/api/profiles";
 
 type MutableRef<T> = {
   current: T;
@@ -71,7 +72,7 @@ export function useAliveAutosave({
   useEffect(() => {
     if (!profileLoadedRef.current || !stateReady) return;
     const snapshot = exportAppState();
-    if (!hasSupabaseConfig || !supabase || !session?.user) {
+    if (!hasSupabaseConfig || !hasRemoteApiClient() || !session?.user) {
       saveLocalSnapshot(snapshot, persistLocalSnapshot, setSaveStatus);
       return;
     }
@@ -119,8 +120,7 @@ async function saveRemoteSnapshot(options: {
     setSaveStatus("저장됨");
     return;
   }
-  if (!supabase) return;
-  const { error } = await supabase.from("alive_profiles").upsert(profileUpsertPayload(snapshot));
+  const { error } = await upsertProfile(profileUpsertPayload(snapshot));
   if (error) {
     console.warn("프로필 메타 저장 실패:", error.message);
     await syncStructuredState(snapshot);

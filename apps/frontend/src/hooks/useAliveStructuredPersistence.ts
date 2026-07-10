@@ -1,7 +1,13 @@
 import type { MutableRefObject } from "react";
-import { withRejectTimeout } from "@/domain/app/asyncUtils";
+import {
+  deleteStructuredCharacterData,
+  loadStructuredRows,
+  syncStructuredRows,
+  type QueryResult,
+  type SettledQueryResult,
+} from "@/api/structured";
+import { hasRemoteApiClient } from "@/api/client";
 import { roomKeyFromDmThreadKey } from "@/domain/dm/dmKeyUtils";
-import { supabase } from "@/supabaseClient";
 
 type SessionLike = {
   user?: {
@@ -81,17 +87,6 @@ type StructuredRows = {
   sharedDmRows: SharedDmRow[];
 };
 
-type QueryError = {
-  message?: string;
-};
-
-type QueryResult = {
-  data?: Record<string, unknown>[] | null;
-  error?: QueryError | null;
-};
-
-type SettledQueryResult = PromiseSettledResult<QueryResult>;
-
 type DeletedDmKeysRef = MutableRefObject<Set<string>>;
 
 type StructuredPersistenceOptions = {
@@ -108,30 +103,21 @@ type StructuredPersistenceReturn = {
 
 export function useAliveStructuredPersistence({ deletedDmKeysRef, session, sharedCharacters }: StructuredPersistenceOptions): StructuredPersistenceReturn {
   async function deleteStructuredCharacterAccount(targetId: string): Promise<boolean | undefined> {
-    if (!supabase || !session?.user || !targetId) return;
+    if (!hasRemoteApiClient() || !session?.user || !targetId) return;
     const ownerId = session.user.id;
-    const jobs = [
-      supabase.from("alive_characters").delete().eq("owner_id", ownerId).eq("source_account_id", targetId),
-      supabase.from("alive_shared_characters").delete().eq("owner_id", ownerId).eq("source_account_id", targetId),
-      supabase.from("alive_character_follows").delete().eq("follower_id", ownerId).eq("follower_account_id", targetId),
-      supabase.from("alive_dm_threads").delete().eq("owner_id", ownerId).like("thread_key", `owner::${targetId}::%`),
-    ];
-    const results = await Promise.allSettled(jobs);
+    const results = await deleteStructuredCharacterData(ownerId, targetId);
     return structuredDeleteSucceeded(results);
   }
   async function syncStructuredState(snapshot: AppSnapshot | null | undefined): Promise<void> {
-    if (!supabase || !session?.user || !snapshot) return;
+    if (!hasRemoteApiClient() || !session?.user || !snapshot) return;
     const ownerId = session.user.id;
     const rows = structuredRows(snapshot, ownerId, sharedCharacters, deletedDmKeysRef);
-    const jobs = structuredUpsertJobs(rows);
-    if (!jobs.length) return;
-    const results = await Promise.allSettled(jobs.map((job, index) =>
-      withRejectTimeout(job, 7000, `분리 테이블 동기화 ${index + 1}`)
-    ));
+    const results = await syncStructuredRows(rows);
+    if (!results.length) return;
     warnStructuredSyncFailures(results);
   }
   async function loadStructuredStateFallback(baseState: AppSnapshot, ownerId: string): Promise<AppSnapshot> {
-    if (!supabase || !ownerId) return baseState;
+    if (!hasRemoteApiClient() || !ownerId) return baseState;
     try {
       return await loadStructuredState(baseState, ownerId, deletedDmKeysRef);
     } catch (e) {
@@ -256,16 +242,6 @@ function participantIdsForThread(threadKey: string, ownerId: string, snapshot: A
   return [...ids];
 }
 
-function structuredUpsertJobs({ characterRows, ownerDmRows, personaRows, sharedDmRows }: StructuredRows): Array<Promise<QueryResult>> {
-  if (!supabase) return [];
-  const jobs: Array<Promise<QueryResult>> = [];
-  if (characterRows.length) jobs.push(queryPromise(supabase.from("alive_characters").upsert(characterRows, { onConflict: "owner_id,source_account_id" })));
-  if (personaRows.length) jobs.push(queryPromise(supabase.from("alive_personas").upsert(personaRows, { onConflict: "owner_id,persona_id" })));
-  if (ownerDmRows.length) jobs.push(queryPromise(supabase.from("alive_dm_threads").upsert(ownerDmRows, { onConflict: "owner_id,thread_key" })));
-  if (sharedDmRows.length) jobs.push(queryPromise(supabase.from("alive_shared_dm_threads").upsert(sharedDmRows, { onConflict: "thread_key" })));
-  return jobs;
-}
-
 function warnStructuredSyncFailures(results: SettledQueryResult[]): void {
   const failed = results.find((result) => result.status === "fulfilled" && result.value.error);
   if (failed?.status === "fulfilled" && failed.value.error) console.warn("분리 테이블 동기화 실패:", failed.value.error.message);
@@ -274,25 +250,13 @@ function warnStructuredSyncFailures(results: SettledQueryResult[]): void {
 }
 
 async function loadStructuredState(baseState: AppSnapshot, ownerId: string, deletedDmKeysRef: DeletedDmKeysRef): Promise<AppSnapshot> {
-  const [charsResult, charDetailsResult, personasResult, dmResult, sharedDmResult] = await structuredStateQueries(ownerId);
+  const [charsResult, charDetailsResult, personasResult, dmResult, sharedDmResult] = await loadStructuredRows(ownerId);
   const next = { ...baseState };
   warnStructuredLoadFailures(charsResult, charDetailsResult);
   applyCharacterRows(next, baseState, charsResult, charDetailsResult);
   applyPersonaRows(next, personasResult);
   applyDmRows(next, dmResult, sharedDmResult, deletedDmKeysRef);
   return next;
-}
-
-function structuredStateQueries(ownerId: string): Promise<SettledQueryResult[]> {
-  if (!supabase) return Promise.resolve([]);
-  const timedQuery = (query: unknown, label: string, ms = 4500): Promise<QueryResult> => withRejectTimeout(queryPromise(query), ms, label);
-  return Promise.allSettled([
-    timedQuery(supabase.from("alive_characters").select("source_account_id,name,handle,character,updated_at").eq("owner_id", ownerId).limit(80), "캐릭터 목록 로드"),
-    timedQuery(supabase.from("alive_characters").select("source_account_id,gallery,posts,following").eq("owner_id", ownerId).limit(80), "캐릭터 세부 데이터 로드", 3500),
-    timedQuery(supabase.from("alive_personas").select("persona_id,name,persona,updated_at").eq("owner_id", ownerId).limit(80), "페르소나 데이터 로드", 3500),
-    timedQuery(supabase.from("alive_dm_threads").select("thread_key,messages,world_pref,updated_at").eq("owner_id", ownerId).limit(80), "개인 DM 데이터 로드", 3500),
-    timedQuery(supabase.from("alive_shared_dm_threads").select("thread_key,messages,world_pref,updated_at").contains("participant_user_ids", [ownerId]).limit(80), "공유 DM 데이터 로드", 3500),
-  ]);
 }
 
 function warnStructuredLoadFailures(charsResult: SettledQueryResult, charDetailsResult: SettledQueryResult): void {
@@ -385,10 +349,6 @@ function compactCharacter(account: AccountState): CharacterData {
 
 function compactMessages(messages: unknown): unknown[] {
   return Array.isArray(messages) ? messages.slice(-160) : [];
-}
-
-function queryPromise(query: unknown): Promise<QueryResult> {
-  return Promise.resolve(query) as Promise<QueryResult>;
 }
 
 function personaFromRow(row: Record<string, unknown>): PersonaState {

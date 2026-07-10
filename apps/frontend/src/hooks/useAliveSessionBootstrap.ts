@@ -1,5 +1,13 @@
 import { useEffect } from "react";
-import { hasSupabaseConfig, supabase } from "@/supabaseClient";
+import {
+  exchangeOAuthCodeForSession,
+  getAuthSession,
+  isAuthApiAvailable,
+  setHashAuthSession,
+  signOutAuthSession,
+  subscribeAuthState,
+} from "@/api/auth";
+import { hasRemoteApiConfig as hasSupabaseConfig } from "@/api/client";
 
 type MutableRef<T> = {
   current: T;
@@ -40,16 +48,6 @@ type SessionBootstrapOptions = {
 
 type RuntimeOptions = Omit<SessionBootstrapOptions, "applyAppState" | "authBusy" | "readLocalSnapshot" | "setSaveStatus">;
 
-type AuthSubscription = {
-  unsubscribe: () => void;
-};
-
-declare global {
-  interface Window {
-    __aliveOAuthExchanges?: Record<string, Promise<{ error?: { message?: string } | null }>>;
-  }
-}
-
 export function useAliveSessionBootstrap({
   applyAppState,
   authBusy,
@@ -68,7 +66,7 @@ export function useAliveSessionBootstrap({
   setStateReady,
 }: SessionBootstrapOptions): void {
   useEffect(() => {
-    if (!hasSupabaseConfig || !supabase) {
+    if (!hasSupabaseConfig || !isAuthApiAvailable()) {
       const snapshot = readLocalSnapshot();
       if (snapshot) applyAppState(snapshot);
       profileLoadedRef.current = true;
@@ -92,7 +90,7 @@ export function useAliveSessionBootstrap({
     });
   }, []);
   useEffect(() => {
-    if (!hasSupabaseConfig || !supabase || !authBusy) return;
+    if (!hasSupabaseConfig || !isAuthApiAvailable() || !authBusy) return;
     const timer = setTimeout(() => {
       refreshSlowSession({ profileLoadedRef, setAuthLoading, setAuthMessage, setProfileLoading, setSaveStatus, setSession, setStateReady });
     }, 8000);
@@ -126,7 +124,7 @@ function startSessionBootstrap(options: RuntimeOptions): (() => void) | undefine
     options.setProfileLoading(false);
   });
   const initFallback = sessionFallbackTimer(aliveRef(() => alive), options, callback);
-  const subscription = subscribeAuthState(options, callback);
+  const subscription = subscribeAuthStateChange(options, callback);
   return () => {
     alive = false;
     clearTimeout(initFallback.initFallback);
@@ -154,7 +152,7 @@ function authCallbackState(): AuthCallbackState {
 
 function resetAuthState({ authResolvedRef, clearLocalAuthStorage, resetRuntimeState, setAuthLoading, setAuthMessage, setProfileLoading, setSession, setStateReady }: RuntimeOptions): void {
   clearLocalAuthStorage();
-  supabase.auth.signOut().catch(() => {});
+  signOutAuthSession().catch(() => {});
   window.history.replaceState({}, "", window.location.pathname);
   authResolvedRef.current = true;
   setSession(null);
@@ -166,7 +164,7 @@ function resetAuthState({ authResolvedRef, clearLocalAuthStorage, resetRuntimeSt
 }
 
 async function resolveInitialSession({ hashAccessToken, hashRefreshToken, oauthCode }: AuthCallbackState): Promise<SessionLike | null> {
-  const existing = await supabase.auth.getSession();
+  const existing = await getAuthSession();
   if (existing.data.session) {
     window.history.replaceState({}, "", "/app");
     return existing.data.session;
@@ -176,21 +174,17 @@ async function resolveInitialSession({ hashAccessToken, hashRefreshToken, oauthC
   } else if (oauthCode) {
     await exchangeOAuthCode(oauthCode);
   }
-  const { data } = await supabase.auth.getSession();
+  const { data } = await getAuthSession();
   return data.session || null;
 }
 
 async function setHashSession(hashAccessToken: string, hashRefreshToken: string): Promise<void> {
-  const { error } = await supabase.auth.setSession({ access_token: hashAccessToken, refresh_token: hashRefreshToken });
-  if (error) throw error;
+  await setHashAuthSession(hashAccessToken, hashRefreshToken);
   window.history.replaceState({}, "", "/app");
 }
 
 async function exchangeOAuthCode(oauthCode: string): Promise<void> {
-  window.__aliveOAuthExchanges ||= {};
-  window.__aliveOAuthExchanges[oauthCode] ||= supabase.auth.exchangeCodeForSession(oauthCode);
-  const { error } = await window.__aliveOAuthExchanges[oauthCode];
-  if (error) throw error;
+  await exchangeOAuthCodeForSession(oauthCode);
   window.history.replaceState({}, "", "/app");
 }
 
@@ -221,15 +215,14 @@ function sessionFallbackTimer(isAlive: () => boolean, options: RuntimeOptions, c
   return { initFallback, oauthFallback };
 }
 
-function subscribeAuthState(options: RuntimeOptions, callback: AuthCallbackState): AuthSubscription {
-  const { data: sub } = supabase.auth.onAuthStateChange((event, nextSession) => {
+function subscribeAuthStateChange(options: RuntimeOptions, callback: AuthCallbackState): { unsubscribe: () => void } {
+  return subscribeAuthState((event, nextSession) => {
     options.authResolvedRef.current = true;
     if (event === "PASSWORD_RECOVERY") options.setPasswordRecoveryOpen(true);
     if (nextSession && callback.hasOAuthCallback) window.history.replaceState({}, "", "/app");
     options.setSession((prevSession) => nextSessionState(prevSession, nextSession, options));
     options.setAuthLoading(false);
   });
-  return sub.subscription;
 }
 
 function nextSessionState(prevSession: SessionLike | null, nextSession: SessionLike | null, { profileLoadedRef, setProfileLoading, setStateReady }: RuntimeOptions): SessionLike | null {
@@ -250,7 +243,7 @@ function nextSessionState(prevSession: SessionLike | null, nextSession: SessionL
 }
 
 async function refreshSlowSession({ profileLoadedRef, setAuthLoading, setAuthMessage, setProfileLoading, setSaveStatus, setSession, setStateReady }: Pick<SessionBootstrapOptions, "profileLoadedRef" | "setAuthLoading" | "setAuthMessage" | "setProfileLoading" | "setSaveStatus" | "setSession" | "setStateReady">): Promise<void> {
-  const { data, error } = await supabase.auth.getSession();
+  const { data, error } = await getAuthSession();
   if (error) {
     setAuthMessage(error.message || "로그인 상태 확인에 실패했어.");
     setAuthLoading(false);

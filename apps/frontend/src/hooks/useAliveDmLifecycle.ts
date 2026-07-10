@@ -4,8 +4,9 @@ import {
   makeLocalDmRoomId,
   roomKeyFromDmThreadKey,
 } from "@/domain/dm/dmKeyUtils";
+import { deleteDmThreadRow } from "@/api/dm";
+import { hasRemoteApiClient } from "@/api/client";
 import { dirKey } from "@/domain/relationships/affinityUtils";
-import { supabase } from "@/supabaseClient";
 
 export function useAliveDmLifecycle({
   accounts,
@@ -152,7 +153,7 @@ export function useAliveDmLifecycle({
     const nextState = deleteDmState({ deletedDmKeys, dmKeyRef, dmThreadTitles, dmThreads, dmWorldPrefs, key, resetAffinityForDmThread, setDeletedDmKeys, setDmThreadTitles, setDmThreads, setDmWorldPrefs, setPeer, setStep });
     deletedDmKeysRef.current = new Set(nextState.nextDeletedKeys);
     const nextSnapshot = { ...exportAppState(), ...nextState.snapshotPatch };
-    if (supabase && session?.user) await deleteRemoteDmThread(key, session, nextSnapshot, syncStructuredState);
+    if (hasRemoteApiClient() && session?.user) await deleteRemoteDmThread(key, session, nextSnapshot, syncStructuredState);
     await saveAppStateSnapshot(nextSnapshot);
   }
   return { chooseDmWorldMode, deleteDmThread, enterDm, finishDmChatKind, finishDmWorldSetup, openDmSettings, requestDmEntry, resetAffinityForDmThread, saveDmSettings, setDmThread };
@@ -275,10 +276,7 @@ function deleteDmState({ deletedDmKeys, dmKeyRef, dmThreadTitles, dmThreads, dmW
 }
 
 async function deleteRemoteDmThread(key, session, nextSnapshot, syncStructuredState) {
-  const table = key.startsWith("dm::") ? "alive_shared_dm_threads" : "alive_dm_threads";
-  let query = supabase.from(table).delete().eq("thread_key", key);
-  if (table === "alive_dm_threads") query = query.eq("owner_id", session.user.id);
-  const { error } = await query;
+  const { error } = await deleteDmThreadRow(key, session.user.id);
   if (error) console.warn("DM방 삭제 동기화 실패:", error);
   await syncStructuredState(nextSnapshot);
 }

@@ -1,5 +1,6 @@
 import { useEffect } from "react";
-import { supabase } from "@/supabaseClient";
+import { loadActiveSharedCharacterId } from "@/api/discover";
+import { hasRemoteApiClient } from "@/api/client";
 
 type SessionLike = {
   user?: {
@@ -62,7 +63,7 @@ export function useAliveDiscoverSync({
     if (canUseApp && ["discover", "dmlist", "dm"].includes(step)) loadSharedCharacters();
   }, [canUseApp, step, session?.user?.id]);
   useEffect(() => {
-    if (!canUseApp || !supabase || !session?.user || !activeId) {
+    if (!canUseApp || !hasRemoteApiClient() || !session?.user || !activeId) {
       setActiveSharedId("");
       return;
     }
@@ -83,7 +84,7 @@ export function useAliveDiscoverSync({
     window.history.replaceState({}, "", window.location.pathname);
   }, [canUseApp]);
   useEffect(() => {
-    if (!canUseApp || !supabase || !session?.user || !activeSharedId || !following.length) return;
+    if (!canUseApp || !hasRemoteApiClient() || !session?.user || !activeSharedId || !following.length) return;
     following.forEach((f) => syncRelationshipFollowBack({ activeSharedId, char, f, followBackSyncRef, recordRelationshipFollowBack, verifyMutualLove }));
   }, [canUseApp, activeSharedId, following, char.relations, session?.user?.id]);
 }
@@ -96,13 +97,8 @@ async function loadActiveShare(options: {
   setActiveSharedId: (value: string) => void;
 }): Promise<void> {
   const { activeId, cancelled, loadFollowerCountsFor, session, setActiveSharedId } = options;
-  if (!supabase || !session.user?.id) return;
-  const { data, error } = await supabase
-    .from("alive_shared_characters")
-    .select("id")
-    .eq("owner_id", session.user.id)
-    .eq("source_account_id", activeId)
-    .maybeSingle();
+  if (!session.user?.id) return;
+  const { data, error } = await loadActiveSharedCharacterId(session.user.id, activeId);
   if (cancelled()) return;
   if (error) {
     console.warn("내 공유 캐릭터 확인 실패:", error);

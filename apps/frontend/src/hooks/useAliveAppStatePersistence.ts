@@ -1,5 +1,6 @@
 import { sanitizePosts, type FeedPost } from "@/domain/feed/feedUtils";
-import { hasSupabaseConfig, supabase } from "@/supabaseClient";
+import { hasRemoteApiClient, hasRemoteApiConfig as hasSupabaseConfig } from "@/api/client";
+import { upsertProfile } from "@/api/profiles";
 
 type SetState<T> = (value: T | ((prev: T) => T)) => void;
 
@@ -236,7 +237,7 @@ export function useAliveAppStatePersistence({
   }
   async function saveAppStateSnapshot(snapshot: AppState | null | undefined): Promise<void> {
     if (!snapshot) return;
-    if (!hasSupabaseConfig || !supabase || !session?.user) {
+    if (!hasSupabaseConfig || !hasRemoteApiClient() || !session?.user) {
       persistLocalSnapshot(snapshot);
       return;
     }
@@ -245,7 +246,7 @@ export function useAliveAppStatePersistence({
       setSaveStatus("저장됨");
       return;
     }
-    const { error } = await supabase.from("alive_profiles").upsert(profileUpsertPayload(snapshot));
+    const { error } = await upsertProfile(profileUpsertPayload(snapshot));
     if (error) {
       console.warn("프로필 메타 저장 실패:", error.message);
       await syncStructuredState(snapshot);

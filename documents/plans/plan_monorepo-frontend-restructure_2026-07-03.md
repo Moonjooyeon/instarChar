@@ -538,6 +538,8 @@ Phase 0
 
 이 순서를 지키면 API 교체 시 변경 지점이 `features/*`, `domain/*`, `api/*` 경계에 묶인다. 반대로 지금 상태에서 API 교체를 먼저 하면 5천 줄 hook 안에서 네트워크 변경과 UI state 변경이 섞일 가능성이 크다.
 
+2026-07-10 업데이트: 2단계는 `apps/frontend/src/api/*`에 `auth`, `profiles`, `discover`, `structured`, `dm` client를 추가하고 hook/app/feature 계층의 직접 Supabase 호출을 제거하는 방식으로 완료했다. Supabase 구현은 아직 `src/api/*` 내부에 남겨두었고, FastAPI 교체와 dependency 제거는 다음 단계로 유지한다.
+
 ## 열린 결정
 
 1. 프론트 앱 폴더 이름을 `apps/frontend`로 할지 `front`로 할지?
