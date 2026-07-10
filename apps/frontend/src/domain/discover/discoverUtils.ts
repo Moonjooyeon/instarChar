@@ -1,4 +1,53 @@
-export function sharedRowToChar(row) {
+type CharacterData = {
+  name?: string;
+  handle?: string;
+  persona?: string;
+  tags?: unknown[];
+  posts?: unknown[];
+  following?: unknown[];
+  gallery?: unknown[];
+  ownerName?: string;
+  age?: string;
+  surface?: string;
+  interests?: string;
+  [key: string]: unknown;
+};
+
+type SharedCharacterRow = {
+  id?: string;
+  owner_id?: string;
+  owner_name?: string;
+  source_account_id?: string;
+  name?: string;
+  handle?: string;
+  persona?: string;
+  tags?: unknown[];
+  character?: CharacterData;
+};
+
+type CharacterRow = SharedCharacterRow & {
+  posts?: unknown[];
+  following?: unknown[];
+  gallery?: unknown[];
+};
+
+type DiscoverCharacter = CharacterData & {
+  id: string;
+  sharedId: string;
+  ownerId?: string;
+  sourceAccountId?: string;
+  owner: string;
+  ownerName: string;
+  external: boolean;
+  shared: boolean;
+  name: string;
+  handle: string;
+  persona: string;
+  tags: unknown[];
+  posts: unknown[];
+};
+
+export function sharedRowToChar(row: SharedCharacterRow): DiscoverCharacter {
   const base = row.character || {};
   return {
     ...base,
@@ -18,7 +67,7 @@ export function sharedRowToChar(row) {
   };
 }
 
-export function characterRowToDiscoverChar(row) {
+export function characterRowToDiscoverChar(row: CharacterRow): DiscoverCharacter {
   const base = row.character || {};
   return {
     ...base,
@@ -41,8 +90,8 @@ export function characterRowToDiscoverChar(row) {
   };
 }
 
-export function mergeDiscoverCharacters(sharedRows = [], characterRows = []) {
-  const byOwnerSource = new Map();
+export function mergeDiscoverCharacters(sharedRows: SharedCharacterRow[] = [], characterRows: CharacterRow[] = []): DiscoverCharacter[] {
+  const byOwnerSource = new Map<string, DiscoverCharacter>();
   characterRows.map(characterRowToDiscoverChar).forEach((item) => {
     byOwnerSource.set(`${item.ownerId || ""}:${item.sourceAccountId || item.id}`, item);
   });

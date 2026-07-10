@@ -9,7 +9,7 @@ import {
   relationBaseFromLabel,
   relationLabelFromAffinity,
   symmetricRelationBaseFromLabel,
-} from "../../src/domain/relationships/affinityUtils.js";
+} from "../../src/domain/relationships/affinityUtils.ts";
 
 test("nameMatch ignores whitespace and supports single-token aliases", () => {
   assert.equal(nameMatch("세 인", "세인"), true);

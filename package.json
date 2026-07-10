@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "npm run dev -w apps/frontend",
     "build": "npm run build -w apps/frontend",
+    "typecheck": "npm run typecheck -w apps/frontend",
     "test:domain": "npm run test:domain -w apps/frontend",
     "test:e2e": "npm run test:e2e -w apps/frontend",
     "test:e2e:ui": "npm run test:e2e:ui -w apps/frontend",

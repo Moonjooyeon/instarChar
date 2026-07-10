@@ -1,8 +1,78 @@
-export function isLoveRelationLabel(label = "") {
+type CharacterLike = {
+  id?: string;
+  name?: string;
+  handle?: string;
+  avatarImg?: string;
+  gallery?: unknown[];
+  posts?: unknown[];
+  following?: FollowTarget[];
+  relations?: string;
+  [key: string]: unknown;
+};
+
+type AccountLike = {
+  id: string;
+  char: CharacterLike;
+  gallery?: unknown[];
+  posts?: unknown[];
+  following?: FollowTarget[];
+};
+
+type RelationLike = {
+  who?: string;
+  label?: string;
+};
+
+type FollowTarget = CharacterLike & {
+  id?: string;
+  localAccountId?: string;
+  owner?: string;
+  ownerName?: string;
+  external?: boolean;
+  corrections?: string[];
+  directions?: string;
+  relationAuto?: boolean;
+};
+
+type NameMatcher = (a: string | null | undefined, b: string | null | undefined) => boolean;
+type ParseRelations = (relations: string) => RelationLike[];
+type RelationFor = (fromChar: CharacterLike, toChar: CharacterLike, strictSpecial?: boolean) => RelationLike | null | undefined;
+
+type FollowTargetOptions = {
+  targetChar: CharacterLike;
+  targetAccountId?: string;
+  poolAccounts?: AccountLike[];
+  sharedCharacters?: FollowTarget[];
+  nameMatch: NameMatcher;
+  profileName?: string;
+};
+
+type AutoFollowOptions = {
+  sourceChar: CharacterLike;
+  sourceAccountId?: string;
+  baseFollowing?: FollowTarget[];
+  poolAccounts?: AccountLike[];
+  sharedCharacters?: FollowTarget[];
+  nameMatch: NameMatcher;
+  parseRelations: ParseRelations;
+  relationFor: RelationFor;
+  profileName?: string;
+};
+
+type ApplyAutoFollowOptions = {
+  accountList: AccountLike[];
+  sharedCharacters?: FollowTarget[];
+  nameMatch: NameMatcher;
+  parseRelations: ParseRelations;
+  relationFor: RelationFor;
+  profileName?: string;
+};
+
+export function isLoveRelationLabel(label = ""): boolean {
   return /연인|애인|연애|사랑|부부|배우자|약혼|반려|순애|썸/.test(label || "");
 }
 
-export function accountToFollowTarget(account, profileName = "") {
+export function accountToFollowTarget(account: AccountLike, profileName = ""): FollowTarget | null {
   if (!account?.char?.name) return null;
   return {
     ...account.char,
@@ -27,7 +97,7 @@ export function followTargetForCharacter({
   sharedCharacters = [],
   nameMatch,
   profileName = "",
-}) {
+}: FollowTargetOptions): FollowTarget | null {
   if (!targetChar?.name) return null;
   const shared = sharedCharacters.find((c) => nameMatch(c.name, targetChar.name));
   if (shared) return { ...shared, relations: shared.relations || targetChar.relations || "" };
@@ -46,10 +116,10 @@ export function relationAutoFollowsFor({
   parseRelations,
   relationFor,
   profileName = "",
-}) {
+}: AutoFollowOptions): FollowTarget[] {
   if (!sourceChar?.relations) return baseFollowing || [];
   const next = [...(baseFollowing || [])];
-  const addTarget = (target) => {
+  const addTarget = (target: FollowTarget | null) => {
     if (!target?.id || nameMatch(target.name, sourceChar.name)) return;
     if (next.some((f) => f.id === target.id || nameMatch(f.name, target.name))) return;
     next.push({ ...target, corrections: [], directions: "", relations: target.relations || "", relationAuto: true });
@@ -86,7 +156,7 @@ export function applyRelationshipAutoFollowsToAccounts({
   parseRelations,
   relationFor,
   profileName = "",
-}) {
+}: ApplyAutoFollowOptions): AccountLike[] {
   let changed = false;
   const next = accountList.map((account) => {
     const autoFollowing = relationAutoFollowsFor({

@@ -1,4 +1,32 @@
-export function isFailedGeneratedPost(post) {
+export type FeedPost = {
+  id?: string | number;
+  originalPostId?: string | number;
+  text?: string;
+  time?: string | number | Date;
+  createdAt?: string | number | Date;
+  created_at?: string | number | Date;
+  likes?: number;
+  liked?: boolean;
+  comments?: unknown[];
+  importedFromFollow?: boolean;
+  author?: string;
+  authorHandle?: string;
+  authorAvatarImg?: string;
+  authorSharedId?: string;
+  mood?: string;
+  [key: string]: unknown;
+};
+
+export type FollowedCharacter = {
+  id?: string;
+  sharedId?: string;
+  name?: string;
+  handle?: string;
+  avatarImg?: string;
+  posts?: FeedPost[];
+};
+
+export function isFailedGeneratedPost(post: FeedPost | null | undefined): boolean {
   const text = String(post?.text || "").trim();
   if (!text) return false;
   const normalized = text.replace(/[\s()[\]{}"'`.,!?!]/g, "");
@@ -10,21 +38,21 @@ export function isFailedGeneratedPost(post) {
   );
 }
 
-export function sanitizePosts(items) {
+export function sanitizePosts(items: unknown): FeedPost[] {
   return Array.isArray(items) ? items.filter((post) => !isFailedGeneratedPost(post)) : [];
 }
 
-export function postTimeMs(post) {
+export function postTimeMs(post: FeedPost): number {
   const raw = post?.time || post?.createdAt || post?.created_at || post?.id;
   const ms = raw instanceof Date ? raw.getTime() : (typeof raw === "number" ? raw : Date.parse(raw));
   return Number.isFinite(ms) ? ms : 0;
 }
 
-export function followedPostId(sourceId, postId, index) {
+export function followedPostId(sourceId: string | undefined, postId: string | number | undefined, index: number): string {
   return `followed:${sourceId || "local"}:${postId || index}`;
 }
 
-export function postsFromFollowedCharacter(poolChar) {
+export function postsFromFollowedCharacter(poolChar: FollowedCharacter): FeedPost[] {
   const sourceId = poolChar.sharedId || poolChar.id || poolChar.name;
   return sanitizePosts(poolChar.posts)
     .filter((post) => post?.text)
@@ -45,7 +73,7 @@ export function postsFromFollowedCharacter(poolChar) {
     }));
 }
 
-export function mergeTimelinePosts(current, incoming) {
+export function mergeTimelinePosts(current: FeedPost[], incoming: FeedPost[]): FeedPost[] {
   const incomingById = new Map(incoming.map((post) => [String(post.id), post]));
   const refreshedCurrent = current.map((post) => {
     const fresh = incomingById.get(String(post.id));

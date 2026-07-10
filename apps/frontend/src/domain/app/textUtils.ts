@@ -1,23 +1,34 @@
-export function fieldText(value) {
+type CharacterWorldLike = {
+  name?: string;
+  world?: unknown;
+};
+
+type WorldPreference = {
+  mode?: "their" | "mine" | string;
+  note?: string;
+  chatKind?: string;
+};
+
+export function fieldText(value: unknown): string {
   if (value == null) return "";
   if (Array.isArray(value)) return value.map(fieldText).filter(Boolean).join(", ");
-  if (typeof value === "object") return objectFieldText(value);
+  if (typeof value === "object") return objectFieldText(value as Record<string, unknown>);
   return String(value).trim();
 }
 
-function objectFieldText(value) {
+function objectFieldText(value: Record<string, unknown>): string {
   return Object.entries(value)
     .map(([key, item]) => `${key}: ${fieldText(item)}`)
     .filter((line) => line.trim())
     .join(" / ");
 }
 
-export function normalizeHandle(value, fallback) {
+export function normalizeHandle(value: unknown, fallback: unknown): string {
   const raw = fieldText(value || fallback).replace(/^@+/, "").split(/[,，\s/|]+/).find(Boolean) || fieldText(fallback) || "character";
   return raw.toLowerCase().replace(/^@+/, "").replace(/[^a-z0-9._-]/g, "").replace(/^[._-]+|[._-]+$/g, "").slice(0, 24) || "character";
 }
 
-export function worldBridgeBlock(a, b, pref = null) {
+export function worldBridgeBlock(a: CharacterWorldLike | null | undefined, b: CharacterWorldLike | null | undefined, pref: WorldPreference | null = null): string {
   const aWorld = fieldText(a?.world);
   const bWorld = fieldText(b?.world);
   if (!aWorld && !bWorld) return "";
@@ -27,7 +38,7 @@ export function worldBridgeBlock(a, b, pref = null) {
   return neutralWorldBlock(a, b, aWorld, bWorld);
 }
 
-export function shuffled(list) {
+export function shuffled<T>(list: T[]): T[] {
   const items = [...list];
   for (let index = items.length - 1; index > 0; index -= 1) {
     const swapIndex = Math.floor(Math.random() * (index + 1));
@@ -51,24 +62,24 @@ export const OOC_GUARD_RULE = `
 
 export const ANTI_REPEAT_RULES = `${ANTI_REPEAT_BASE_RULES}${OOC_GUARD_RULE}`;
 
-export function chatSafetyRules(pref = null) {
+export function chatSafetyRules(pref: WorldPreference | null = null): string {
   return pref?.chatKind === "npc" ? ANTI_REPEAT_BASE_RULES : ANTI_REPEAT_RULES;
 }
 
-export function recentLinesBlock(lines, count = 6) {
+export function recentLinesBlock(lines: unknown[], count = 6): string {
   const items = (lines || []).slice(-count).map((text) => `- ${String(text).slice(0, 80)}`);
   if (!items.length) return "";
   return `\n\n[이미 나온 말 — 표현·내용 반복 금지, 새로 말해라]\n${items.join("\n")}`;
 }
 
-function theirWorldBlock(a, b, aWorld, bWorld, note) {
+function theirWorldBlock(a: CharacterWorldLike | null | undefined, b: CharacterWorldLike | null | undefined, aWorld: string, bWorld: string, note: string): string {
   return `\n\n[세계관 진입 — 상대 세계관]\n- 현재 장면은 ${a?.name || "상대"}의 세계관 쪽으로 들어간 상태다.\n- ${a?.name || "상대"}의 세계관: ${aWorld || "명시 없음"}\n- ${b?.name || "내 쪽"}의 원래 세계관: ${bWorld || "명시 없음"}\n- ${b?.name || "내 쪽"}는 자기 정체성·말투·기억은 유지하되, 이 방에서는 ${a?.name || "상대"}의 세계관 규칙과 장소에 맞춰 반응한다.${note}`;
 }
 
-function myWorldBlock(a, b, aWorld, bWorld, note) {
+function myWorldBlock(a: CharacterWorldLike | null | undefined, b: CharacterWorldLike | null | undefined, aWorld: string, bWorld: string, note: string): string {
   return `\n\n[세계관 진입 — 내 세계관]\n- 현재 장면은 ${b?.name || "내 쪽"}의 세계관 쪽으로 들어간 상태다.\n- ${b?.name || "내 쪽"}의 세계관: ${bWorld || "명시 없음"}\n- ${a?.name || "상대"}의 원래 세계관: ${aWorld || "명시 없음"}\n- ${a?.name || "상대"}는 자기 정체성·말투·기억은 유지하되, 이 방에서는 ${b?.name || "내 쪽"}의 세계관 규칙과 장소에 맞춰 반응한다.${note}`;
 }
 
-function neutralWorldBlock(a, b, aWorld, bWorld) {
+function neutralWorldBlock(a: CharacterWorldLike | null | undefined, b: CharacterWorldLike | null | undefined, aWorld: string, bWorld: string): string {
   return `\n\n[세계관 처리 — 중요]\n- ${a?.name || "한쪽 캐릭터"}의 세계관: ${aWorld || "명시 없음"}\n- ${b?.name || "상대"}의 세계관: ${bWorld || "명시 없음"}\n- 서로 세계관이 달라도 한쪽 세계관으로 덮어쓰지 마라. 각자의 출신·상식·말투·능력·기억은 유지한다.\n- 두 캐릭터가 만나는 공간은 ALIVE의 DM/공유 타임라인 같은 중립 교차점이다. 필요하면 '서로 다른 세계에서 온 사람끼리 대화한다'는 전제로 자연스럽게 반응하라.\n- 상대를 자기 세계관의 주민으로 착각하지 마라. 원피스 캐릭터를 마법학교 학생으로 만들거나, 마법학교 캐릭터를 해적으로 바꾸지 마라.`;
 }
