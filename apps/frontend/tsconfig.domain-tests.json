@@ -9,6 +9,7 @@
   },
   "include": [
     "src/api/client.ts",
+    "src/api/discover.ts",
     "src/api/profiles.ts",
     "src/api/structured.ts",
     "src/domain/**/*.ts",

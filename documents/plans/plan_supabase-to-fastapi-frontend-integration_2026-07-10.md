@@ -110,24 +110,24 @@ PostgreSQL
 
 작업:
 
-- `discover.ts` 함수들을 FastAPI 라우터에 매핑한다.
-- `sharedCharacterResults()`는 `GET /api/discover/characters` 단일 응답으로 단순화한다.
-- `listFollowerTargetRows(ids)`는 가능하면 `GET /api/shared-characters/follower-counts?ids=...`로 대체한다.
-- `listSharedFollowers(sharedId)` -> `GET /api/shared-characters/{id}/followers`
-- `loadSharedCharacterRow(sharedId)` -> `GET /api/shared-characters/{id}`
-- `upsertSharedCharacter(payload)` -> `PUT /api/shared-characters/by-source/{source_account_id}`. payload에서 `source_account_id`를 꺼내는 adapter가 필요하다.
-- `updateSharedCharacter(ownerId, sourceAccountId, payload)` -> `PATCH /api/shared-characters/by-source/{sourceAccountId}`. `ownerId`는 프론트에서 넘기지 않도록 점진 정리한다.
-- `deleteFollowRow` -> `DELETE /api/shared-characters/{id}/follow?follower_account_id=...`
-- `upsertFollowRow` -> `PUT /api/shared-characters/{id}/follow`
-- `saveRelationshipFollowBack(poolSharedId, activeSharedId)` -> `POST /api/shared-characters/{activeSharedId}/relationship-follow-back`
-- `loadActiveSharedCharacterId` -> `GET /api/characters/{source_account_id}/share`
-- `upsertOwnFollowRows` -> `POST /api/follows/sync-owned-snapshot`
+- [x] `discover.ts` 함수들을 FastAPI 라우터에 매핑한다.
+- [x] `sharedCharacterResults()`는 `GET /api/discover/characters` 단일 응답으로 단순화한다.
+- [x] `listFollowerTargetRows(ids)`는 가능하면 `GET /api/shared-characters/follower-counts?ids=...`로 대체한다.
+- [x] `listSharedFollowers(sharedId)` -> `GET /api/shared-characters/{id}/followers`
+- [x] `loadSharedCharacterRow(sharedId)` -> `GET /api/shared-characters/{id}`
+- [x] `upsertSharedCharacter(payload)` -> `PUT /api/shared-characters/by-source/{source_account_id}`. payload에서 `source_account_id`를 꺼내는 adapter가 필요하다.
+- [x] `updateSharedCharacter(ownerId, sourceAccountId, payload)` -> `PATCH /api/shared-characters/by-source/{sourceAccountId}`. `ownerId`는 프론트에서 넘기지 않도록 점진 정리한다.
+- [x] `deleteFollowRow` -> `DELETE /api/shared-characters/{id}/follow?follower_account_id=...`
+- [x] `upsertFollowRow` -> `PUT /api/shared-characters/{id}/follow`
+- [x] `saveRelationshipFollowBack(poolSharedId, activeSharedId)` -> `POST /api/shared-characters/{activeSharedId}/relationship-follow-back`
+- [x] `loadActiveSharedCharacterId` -> `GET /api/characters/{source_account_id}/share`
+- [x] `upsertOwnFollowRows` -> `POST /api/follows/sync-owned-snapshot`
 
 검증:
 
-- backend shared character/follow tests.
-- frontend typecheck/domain tests.
-- discover/follow E2E는 현재 mock 기반이면 route mock을 FastAPI shape로 갱신한다.
+- [x] backend shared character/follow tests.
+- [x] frontend typecheck/domain tests.
+- [x] discover/follow E2E는 현재 mock 기반이면 route mock을 FastAPI shape로 갱신한다.
 
 ## Phase 5. DM API 전환
 
