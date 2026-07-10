@@ -1,6 +1,43 @@
 import { useEffect } from "react";
 import { supabase } from "@/supabaseClient";
 
+type SessionLike = {
+  user?: {
+    id?: string;
+  };
+};
+
+type DiscoverCharacter = {
+  relations?: string;
+  sharedId?: string;
+  [key: string]: unknown;
+};
+
+type FollowBackSyncRef = {
+  current: Set<string>;
+};
+
+type DiscoverSyncOptions = {
+  activeId: string | null;
+  activeSharedId: string;
+  canUseApp: boolean;
+  char: DiscoverCharacter;
+  following: DiscoverCharacter[];
+  followBackSyncRef: FollowBackSyncRef;
+  loadFollowerCountsFor: (items: Array<{ id: string }>) => unknown;
+  loadSharedCharacterById: (sharedId: string) => Promise<unknown>;
+  loadSharedCharacters: () => unknown;
+  recordRelationshipFollowBack: (poolChar: DiscoverCharacter) => unknown;
+  session: SessionLike | null;
+  setActiveSharedId: (value: string) => void;
+  setDiscoverQuery: (value: string) => void;
+  setPublicProfile: (value: unknown) => void;
+  setSharedFocusId: (value: string) => void;
+  setStep: (value: string) => void;
+  step: string;
+  verifyMutualLove: (char: DiscoverCharacter, other: DiscoverCharacter) => { mutual: boolean };
+};
+
 export function useAliveDiscoverSync({
   activeId,
   activeSharedId,
@@ -20,7 +57,7 @@ export function useAliveDiscoverSync({
   setStep,
   step,
   verifyMutualLove,
-}) {
+}: DiscoverSyncOptions): void {
   useEffect(() => {
     if (canUseApp && ["discover", "dmlist", "dm"].includes(step)) loadSharedCharacters();
   }, [canUseApp, step, session?.user?.id]);
@@ -51,7 +88,15 @@ export function useAliveDiscoverSync({
   }, [canUseApp, activeSharedId, following, char.relations, session?.user?.id]);
 }
 
-async function loadActiveShare({ activeId, cancelled, loadFollowerCountsFor, session, setActiveSharedId }) {
+async function loadActiveShare(options: {
+  activeId: string;
+  cancelled: () => boolean;
+  loadFollowerCountsFor: (items: Array<{ id: string }>) => unknown;
+  session: SessionLike;
+  setActiveSharedId: (value: string) => void;
+}): Promise<void> {
+  const { activeId, cancelled, loadFollowerCountsFor, session, setActiveSharedId } = options;
+  if (!supabase || !session.user?.id) return;
   const { data, error } = await supabase
     .from("alive_shared_characters")
     .select("id")
@@ -68,7 +113,15 @@ async function loadActiveShare({ activeId, cancelled, loadFollowerCountsFor, ses
   if (data?.id) loadFollowerCountsFor([{ id: data.id }]);
 }
 
-function syncRelationshipFollowBack({ activeSharedId, char, f, followBackSyncRef, recordRelationshipFollowBack, verifyMutualLove }) {
+function syncRelationshipFollowBack(options: {
+  activeSharedId: string;
+  char: DiscoverCharacter;
+  f: DiscoverCharacter;
+  followBackSyncRef: FollowBackSyncRef;
+  recordRelationshipFollowBack: (poolChar: DiscoverCharacter) => unknown;
+  verifyMutualLove: (char: DiscoverCharacter, other: DiscoverCharacter) => { mutual: boolean };
+}): void {
+  const { activeSharedId, char, f, followBackSyncRef, recordRelationshipFollowBack, verifyMutualLove } = options;
   if (!f?.sharedId) return;
   const key = `${activeSharedId}:${f.sharedId}:${char.relations || ""}:${f.relations || ""}`;
   if (followBackSyncRef.current.has(key)) return;

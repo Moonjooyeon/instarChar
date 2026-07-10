@@ -29,6 +29,14 @@
   - `apps/frontend/src/hooks/useCharacterAccounts.ts`
   - `apps/frontend/src/hooks/useAliveFeed.ts`
   - `apps/frontend/src/hooks/useAliveDm.ts`
+- Converted follow, sync, autosave, navigation, and analysis hooks to TypeScript:
+  - `apps/frontend/src/hooks/useAliveFollowActions.ts`
+  - `apps/frontend/src/hooks/useAliveRelationshipSync.ts`
+  - `apps/frontend/src/hooks/useAliveDiscoverSync.ts`
+  - `apps/frontend/src/hooks/useAliveAutosave.ts`
+  - `apps/frontend/src/hooks/useAliveNavigation.ts`
+  - `apps/frontend/src/hooks/useAliveCharacterAnalysis.ts`
+  - `apps/frontend/src/hooks/useAliveSessionAnalysis.ts`
 - Updated domain tests to import converted `.ts` modules through Node type stripping.
 
 ## Verification
@@ -40,6 +48,6 @@
 
 ## Remaining T8 Work
 
-- Continue TypeScript conversion through generation, lifecycle, sync, discover, relationship, persistence, and bootstrap hooks.
+- Continue TypeScript conversion through generation, lifecycle, discover, relationship, persistence, and bootstrap hooks.
 - Convert feature components and app shell after hook surfaces narrow further.
 - Replace Node experimental type stripping in tests if the project later adopts a dedicated TS-aware test runner.

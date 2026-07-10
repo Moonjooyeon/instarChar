@@ -2,6 +2,30 @@ import { postGenerateContent } from "@/api/generate";
 import { fieldText, normalizeHandle } from "@/domain/app/textUtils";
 import { MODEL_CHAT } from "@/domain/app/aliveCore";
 
+type SetState<T> = (value: T | ((prev: T) => T)) => void;
+
+type JsonRecord = Record<string, unknown>;
+
+type CharacterDraft = {
+  corrections?: unknown[];
+  directions?: string;
+  lorebook?: unknown[];
+  tone?: string;
+  [key: string]: unknown;
+};
+
+type CharacterAnalysisOptions = {
+  cleanApiFailureMessage: (error: unknown, fallback?: string) => string;
+  dump: string;
+  rpLog: string;
+  setChar: SetState<CharacterDraft>;
+  setLoading: (value: boolean) => void;
+  setParseError: (value: string) => void;
+  setParseFailed: (value: boolean) => void;
+  setParsing: (value: boolean) => void;
+  setStep: (value: string) => void;
+};
+
 export function useAliveCharacterAnalysis({
   cleanApiFailureMessage,
   dump,
@@ -12,8 +36,10 @@ export function useAliveCharacterAnalysis({
   setParseFailed,
   setParsing,
   setStep,
-}) {
-  async function parseDump() {
+}: CharacterAnalysisOptions): {
+  parseDump: () => Promise<void>;
+} {
+  async function parseDump(): Promise<void> {
     const textRaw = characterAnalysisInput(dump, rpLog);
     if (!textRaw) return;
     setParsing(true);
@@ -31,7 +57,7 @@ export function useAliveCharacterAnalysis({
         cache: "no-store",
         headers: { "X-ALIVE-Flow": "character-analysis-v2" },
       });
-      const obj = JSON.parse(extractJsonObject(raw));
+      const obj = parseJsonRecord(extractJsonObject(raw));
       if (!obj.name) throw new Error("이름 필드가 없습니다.");
       setChar((prev) => characterFromAnalysis(prev, obj));
       setStep("confirm");
@@ -48,14 +74,14 @@ export function useAliveCharacterAnalysis({
   return { parseDump };
 }
 
-function characterAnalysisInput(dump, rpLog) {
+function characterAnalysisInput(dump: string, rpLog: string): string {
   return [
     dump.trim() ? `[캐릭터 설명]\n${dump.trim()}` : "",
     rpLog.trim() ? `[역극/대사 로그]\n${rpLog.trim()}` : "",
   ].filter(Boolean).join("\n\n");
 }
 
-function characterAnalysisSystemPrompt() {
+function characterAnalysisSystemPrompt(): string {
   return `TASK_ID: character-analysis-v2
 다음 텍스트는 사용자의 "오너 페르소나"나 "내 페르소나"가 아니라, SNS 계정으로 깨울 "캐릭터" 설정이다.
 절대 사용자/오너/페르소나 생성용으로 해석하지 마라. 결과는 반드시 캐릭터 프로필 JSON 하나여야 한다.
@@ -79,14 +105,19 @@ function characterAnalysisSystemPrompt() {
     }`;
 }
 
-function extractJsonObject(rawText) {
+function extractJsonObject(rawText: unknown): string {
   const raw = String(rawText || "");
   const first = raw.indexOf("{");
   const last = raw.lastIndexOf("}");
   return first !== -1 && last !== -1 && last > first ? raw.slice(first, last + 1) : raw;
 }
 
-function characterFromAnalysis(prev, obj) {
+function parseJsonRecord(rawText: string): JsonRecord {
+  const parsed = JSON.parse(rawText) as unknown;
+  return parsed && typeof parsed === "object" ? parsed as JsonRecord : {};
+}
+
+function characterFromAnalysis(prev: CharacterDraft, obj: JsonRecord): CharacterDraft {
   return {
     ...prev,
     name: fieldText(obj.name),
@@ -103,9 +134,13 @@ function characterFromAnalysis(prev, obj) {
     triggers: fieldText(obj.triggers),
     interests: fieldText(obj.interests),
     relations: fieldText(obj.relations),
-    warmth: ["slow", "normal", "fast"].includes(obj.warmth) ? obj.warmth : "normal",
+    warmth: warmthValue(obj.warmth),
     corrections: prev.corrections || [],
     directions: prev.directions || "",
     lorebook: prev.lorebook || [],
   };
+}
+
+function warmthValue(value: unknown): string {
+  return typeof value === "string" && ["slow", "normal", "fast"].includes(value) ? value : "normal";
 }

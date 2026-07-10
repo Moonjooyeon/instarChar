@@ -1,6 +1,45 @@
 import { useEffect } from "react";
 import { hasSupabaseConfig, supabase } from "@/supabaseClient";
 
+type MutableRef<T> = {
+  current: T;
+};
+
+type SessionLike = {
+  user?: {
+    id?: string;
+  };
+};
+
+type AutosaveOptions = {
+  accounts: unknown;
+  activeId: unknown;
+  affinity: unknown;
+  char: unknown;
+  deletedDmKeys: unknown;
+  discoverQuery: unknown;
+  dmThreadTitles: unknown;
+  dmThreads: unknown;
+  dmWorldPrefs: unknown;
+  exportAppState: () => unknown;
+  following: unknown;
+  gallery: unknown;
+  onboardingOpen: unknown;
+  ownerPersona: unknown;
+  personas: unknown;
+  persistLocalSnapshot: (snapshot: unknown) => void;
+  posts: unknown;
+  profileLoadedRef: MutableRef<boolean>;
+  profileName: unknown;
+  profileTableBrokenRef: MutableRef<boolean>;
+  profileUpsertPayload: (snapshot: unknown) => unknown;
+  saveTimerRef: MutableRef<ReturnType<typeof setTimeout> | null>;
+  session: SessionLike | null;
+  setSaveStatus: (value: string) => void;
+  stateReady: boolean;
+  syncStructuredState: (snapshot: unknown) => Promise<unknown>;
+};
+
 export function useAliveAutosave({
   accounts,
   activeId,
@@ -28,7 +67,7 @@ export function useAliveAutosave({
   setSaveStatus,
   stateReady,
   syncStructuredState,
-}) {
+}: AutosaveOptions): void {
   useEffect(() => {
     if (!profileLoadedRef.current || !stateReady) return;
     const snapshot = exportAppState();
@@ -58,7 +97,7 @@ export function useAliveAutosave({
   }, [accounts, activeId, char, gallery, posts, personas, dmThreads, dmThreadTitles, dmWorldPrefs, deletedDmKeys, ownerPersona, following, affinity, discoverQuery, profileName, onboardingOpen, stateReady]);
 }
 
-function saveLocalSnapshot(snapshot, persistLocalSnapshot, setSaveStatus) {
+function saveLocalSnapshot(snapshot: unknown, persistLocalSnapshot: (snapshot: unknown) => void, setSaveStatus: (value: string) => void): void {
   try {
     persistLocalSnapshot(snapshot);
     setSaveStatus("로컬 저장");
@@ -67,12 +106,20 @@ function saveLocalSnapshot(snapshot, persistLocalSnapshot, setSaveStatus) {
   }
 }
 
-async function saveRemoteSnapshot({ profileTableBrokenRef, profileUpsertPayload, setSaveStatus, snapshot, syncStructuredState }) {
+async function saveRemoteSnapshot(options: {
+  profileTableBrokenRef: MutableRef<boolean>;
+  profileUpsertPayload: (snapshot: unknown) => unknown;
+  setSaveStatus: (value: string) => void;
+  snapshot: unknown;
+  syncStructuredState: (snapshot: unknown) => Promise<unknown>;
+}): Promise<void> {
+  const { profileTableBrokenRef, profileUpsertPayload, setSaveStatus, snapshot, syncStructuredState } = options;
   if (profileTableBrokenRef.current) {
     await syncStructuredState(snapshot);
     setSaveStatus("저장됨");
     return;
   }
+  if (!supabase) return;
   const { error } = await supabase.from("alive_profiles").upsert(profileUpsertPayload(snapshot));
   if (error) {
     console.warn("프로필 메타 저장 실패:", error.message);
