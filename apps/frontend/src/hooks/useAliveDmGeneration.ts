@@ -76,7 +76,7 @@ export function useAliveDmGeneration({
       if (dmRequestSeqRef.current !== requestId || dmKeyRef.current !== requestKey) return;
       setDmThread((items) => [...items, { from: context.peerName, text }]);
       applyDmAffinity({ bumpAffinity, bumpMutual, bumpRoomAffinity, bumpRoomMutual, context, meName, newHist, ownerLabel, peer, relationHintFor, requestKey, text });
-      maybeProcessDmSession({ context, dmKeyRef, meName, newHist, peer, processSession, requestKey, text });
+      maybeProcessDmSession({ context, meName, newHist, peer, processSession, requestKey, text });
     } catch (e) {
       console.error("DM 답장 생성 실패:", e);
       if (dmRequestSeqRef.current !== requestId || dmKeyRef.current !== requestKey) return;

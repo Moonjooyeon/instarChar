@@ -68,13 +68,13 @@ export function useAliveDmLifecycle({
     dmKeyRef.current = dmKey;
   }, [dmKey]);
   useEffect(() => {
-    migrateLegacyDmThreads({ canonicalDmKey, dmThreads, dmWorldPrefs, ownerLabel, setDmThreads, setDmWorldPrefs });
+    migrateLegacyDmThreads({ dmThreads, dmWorldPrefs, ownerLabel, setDmThreads, setDmWorldPrefs });
   }, [dmThreads, dmWorldPrefs]);
   useEffect(() => {
     dmSendingRef.current = dmSending;
   }, [dmSending]);
   useEffect(() => {
-    repairLocalRoomAffinity({ accounts, activePersona, char, dmKey, findPeerChar, following, peer, relationHintFor, repairRoomAffinityBase, step });
+    repairLocalRoomAffinity({ activePersona, char, dmKey, findPeerChar, peer, relationHintFor, repairRoomAffinityBase, step });
   }, [step, dmKey, peer?.name, peer?.relation, char.name, char.relations, activePersona?.name, following, accounts]);
   useEffect(() => {
     if (step !== "dm" || !peer) {

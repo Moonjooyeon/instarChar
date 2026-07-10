@@ -1,4 +1,4 @@
-import { postGenerateContent } from "@/api/generate";
+import { postGenerateContent, type GenerateMessage } from "@/api/generate";
 import { ANTI_REPEAT_RULES, recentLinesBlock, worldBridgeBlock } from "@/domain/app/textUtils";
 import {
   API_LIMIT_MESSAGE,
@@ -45,7 +45,7 @@ export function useAliveFeedGeneration({
     const formatRule = postFormatRule(mood, attachedImg);
     const sys = postSystemPrompt({ char, correctionBlock, formatRule, posts });
     const userMsg = mood === "랜덤 / 알아서" ? "지금 이 순간 떠오른 걸 자유롭게 한 줄 올려줘." : `다음 느낌으로 글을 올려줘: ${mood}`;
-    const userContent = attachedImg ? [{ type: "text", text: `${userMsg}\n첨부된 이미지를 보고 이미지 속 상황과 시선, 표정, 분위기에 맞춰 써.` }, { type: "image_url", image_url: { url: attachedImg } }] : userMsg;
+    const userContent: GenerateMessage["content"] = attachedImg ? [{ type: "text", text: `${userMsg}\n첨부된 이미지를 보고 이미지 속 상황과 시선, 표정, 분위기에 맞춰 써.` }, { type: "image_url", image_url: { url: attachedImg } }] : userMsg;
     try {
       const parsed = parseGeneratedPost(await postGenerateContent({ model: MODEL_AUTO, max_tokens: 400, system: sys, messages: [{ role: "user", content: userContent }] }, "게시글 생성 API"), mood, attachedImg);
       const newPostId = Date.now();
@@ -230,7 +230,7 @@ function commentThread(priorComments, replyTo, commenterName) {
   return (priorComments || []).filter((comment) => !replyTo || comment.name === replyTo || comment.replyTo === commenterName).map((comment) => `${comment.name}: ${comment.text}`).join("\n");
 }
 
-function commentUserContent(commenter, targetImage) {
+function commentUserContent(commenter, targetImage): GenerateMessage["content"] {
   if (!targetImage) return `(${commenter.name}가 댓글을 단다.)`;
   return [{ type: "text", text: `(${commenter.name}가 첨부 이미지가 있는 글에 댓글을 단다. 이미지를 보고 반응한다.)` }, { type: "image_url", image_url: { url: targetImage } }];
 }
@@ -282,7 +282,7 @@ ${posterImg ? "\n[첨부 이미지]\n네가 올리는 글에는 네 캐릭터 �
 - 본문만 출력.${ANTI_REPEAT_RULES}`;
 }
 
-function followerPostUserContent(char, posterImg, quoteTarget) {
+function followerPostUserContent(char, posterImg, quoteTarget): GenerateMessage["content"] {
   if (!posterImg) return quoteTarget ? `(${char.name}의 글을 인용하며 글을 올린다.)` : "지금 떠오른 걸 한 줄 올려줘.";
   const text = quoteTarget ? `(${char.name}의 글을 인용하며, 첨부된 네 이미지에 어울리는 글을 올린다.)` : "첨부된 네 이미지를 보고 지금 떠오른 걸 한 줄 올려줘.";
   return [{ type: "text", text }, { type: "image_url", image_url: { url: posterImg } }];

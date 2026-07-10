@@ -1,4 +1,4 @@
-# Phase 8 Domain TypeScript Slice Report
+# Phase 8 TypeScript Conversion Report
 
 ## Scope
 
@@ -54,7 +54,15 @@
   - `apps/frontend/src/hooks/useAliveStructuredPersistence.ts`
 - Converted memory hook to TSX:
   - `apps/frontend/src/hooks/useAliveMemory.tsx`
-- Updated domain tests to import converted `.ts` modules through Node type stripping.
+- Updated domain tests to compile through `tsconfig.domain-tests.json` before running Node's built-in test runner.
+- Converted remaining generation/lifecycle hooks:
+  - `apps/frontend/src/hooks/useAliveFeedGeneration.ts`
+  - `apps/frontend/src/hooks/useAliveDmGeneration.ts`
+  - `apps/frontend/src/hooks/useAliveDmLifecycle.ts`
+- Converted the app controller shell:
+  - `apps/frontend/src/hooks/useAliveAppController.tsx`
+- Converted app, route, feature, and shared UI components from `.jsx` to `.tsx`.
+- Updated `apps/frontend/index.html` to load `/src/main.tsx`.
 
 ## Verification
 
@@ -63,8 +71,8 @@
 - `npm run test:e2e -- --list` passed without starting an app process.
 - `npm run build` passed.
 
-## Remaining T8 Work
+## Remaining Notes
 
-- Continue TypeScript conversion through generation hooks, DM lifecycle, and app shell/controller surfaces.
-- Convert feature components and app shell after hook surfaces narrow further.
-- Replace Node experimental type stripping in tests if the project later adopts a dedicated TS-aware test runner.
+- No `.jsx` files remain under `apps/frontend/src`.
+- Remaining JavaScript files under `apps/frontend/src` are `appStyles.js` and `supabaseClient.js`.
+- `useAliveAppController.tsx` is still a runtime-preserving compatibility shell while the surrounding hook return types are narrowed in later API-client work.

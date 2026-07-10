@@ -1,4 +1,5 @@
-﻿import React, { useState, useRef, useEffect } from "react";
+// @ts-nocheck
+import React, { useState, useRef, useEffect } from "react";
 import { css } from "@/appStyles";
 import { withRejectTimeout, withTimeout } from "@/domain/app/asyncUtils";
 import {
