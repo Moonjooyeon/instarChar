@@ -3,8 +3,8 @@ export type CharacterData = {
   handle?: string;
   persona?: string;
   tags?: unknown[];
-  posts?: unknown[];
-  following?: unknown[];
+  posts?: Record<string, unknown>[];
+  following?: Record<string, unknown>[];
   gallery?: unknown[];
   ownerName?: string;
   age?: string;
@@ -26,8 +26,8 @@ export type SharedCharacterRow = {
 };
 
 export type CharacterRow = SharedCharacterRow & {
-  posts?: unknown[];
-  following?: unknown[];
+  posts?: Record<string, unknown>[];
+  following?: Record<string, unknown>[];
   gallery?: unknown[];
 };
 
@@ -44,7 +44,7 @@ export type DiscoverCharacter = CharacterData & {
   handle: string;
   persona: string;
   tags: unknown[];
-  posts: unknown[];
+  posts: Record<string, unknown>[];
 };
 
 export function sharedRowToChar(row: SharedCharacterRow): DiscoverCharacter {

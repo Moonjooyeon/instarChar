@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React, { useState, useRef, useEffect } from "react";
 import { css } from "@/appStyles";
 import { withRejectTimeout, withTimeout } from "@/domain/app/asyncUtils";
@@ -398,6 +397,7 @@ export function useAliveAppController() {
     canAutoComment,
     dmAffOf,
     followsCharacter,
+    isFollowedCharacterName,
     isMyOwnChar,
     isOwnerName,
     myFollowers,
@@ -1177,7 +1177,6 @@ export function useAliveAppController() {
     fixTarget,
     fixText,
     flashShareStatus,
-    FOLLOWBACK_THRESHOLD,
     followBackSyncRef,
     followedTimelinePosts,
     followerCounts,
@@ -1198,7 +1197,6 @@ export function useAliveAppController() {
     HomeScreen,
     initial,
     intimacyBoundaryRules,
-    isFollowedCharacterName,
     isFollowing,
     isLoveRelation,
     isMyOwnChar,
@@ -1480,7 +1478,6 @@ export function useAliveAppController() {
     wakeCharacter,
     waking,
     wakingRef,
-    warmthRate,
     withRejectTimeout,
     withTimeout,
     worldBridgeBlock,

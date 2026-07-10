@@ -13,7 +13,7 @@ type CharacterState = Record<string, unknown> & {
 };
 
 type AccountState = {
-  char?: CharacterState;
+  char: CharacterState;
   following?: unknown[];
   gallery?: unknown[];
   id: string;
@@ -79,7 +79,7 @@ type AppStatePersistenceOptions = {
   profileName: string;
   profileTableBrokenRef: MutableRef<boolean>;
   session: SessionLike | null;
-  syncStructuredState: (snapshot: AppState) => Promise<unknown>;
+  syncStructuredState: (snapshot: unknown) => Promise<unknown>;
   setAccounts: SetState<AccountState[]>;
   setActiveId: SetState<string | null>;
   setActiveSharedId: (value: string) => void;
@@ -160,7 +160,7 @@ export function useAliveAppStatePersistence({
   setSharedFocusId,
   setShareStatus,
   setStep,
-}: AppStatePersistenceOptions): Record<string, unknown> {
+}: AppStatePersistenceOptions) {
   function blankAppState(name = ""): AppState {
     return {
       version: 1,

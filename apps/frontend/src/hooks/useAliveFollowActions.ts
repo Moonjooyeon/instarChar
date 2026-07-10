@@ -35,13 +35,13 @@ type FollowActionsOptions = {
   recordFollowChange: (poolChar: FollowCharacter, wasFollowing: boolean) => Promise<unknown>;
   recordRelationshipFollowBack: (poolChar: FollowCharacter) => Promise<unknown>;
   relationBaseFor: (from: string, to: string) => number | null | undefined;
-  relationFor: (source: FollowCharacter, target: FollowCharacter, strictSpecial?: boolean) => RelationEntry | null | undefined;
+  relationFor: (source: unknown, target: unknown, strictSpecial?: boolean) => RelationEntry | null | undefined;
   setAffinity: SetState<Record<string, number>>;
   setFollowing: SetState<FollowCharacter[]>;
   setPosts: SetState<FeedPost[]>;
   sharedCharacters: FollowCharacter[];
-  syncActiveSharedCharacter: (nextFollowing: FollowCharacter[]) => unknown;
-  syncOwnFollowRows: (nextFollowing: FollowCharacter[]) => unknown;
+  syncActiveSharedCharacter: (nextFollowing?: FollowCharacter[], nextChar?: FollowCharacter | null) => unknown;
+  syncOwnFollowRows: (nextFollowing?: FollowCharacter[], nextChar?: FollowCharacter | null) => unknown;
 };
 
 export function useAliveFollowActions({

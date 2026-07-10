@@ -64,7 +64,7 @@ export function useAliveRelationships({
   relationMatched,
   relationTargetMatches,
   setDmWorldPrefs,
-}: RelationshipsOptions): Record<string, unknown> {
+}: RelationshipsOptions) {
   const [affinity, setAffinity] = useState<Record<string, number>>({});
   const [proposal, setProposal] = useState<unknown>(null);
   const [relationResult, setRelationResult] = useState<unknown>(null);
@@ -180,7 +180,7 @@ export function useAliveRelationships({
   function stageLabelFor(from: string, value: number): string {
     return isOwnerName(from) ? attachStage(value) : affinityStage(value);
   }
-  return { affOf, affinity, affinityOpen, canActivateSpecialRelation, canAutoComment, dmAffOf, followsCharacter, isMyOwnChar, isOwnerName, myFollowers, proposal, relationBaseFor, relationFor, relationHintFor, relationResult, relLabelFor, repairRoomAffinityBase, roomAffOf, roomInitialAffinity, bumpRoomAffinity, bumpRoomMutual, setAffinity, setAffinityOpen, setProposal, setRelationResult, stageLabelFor };
+  return { affOf, affinity, affinityOpen, canActivateSpecialRelation, canAutoComment, dmAffOf, followsCharacter, isFollowedCharacterName, isMyOwnChar, isOwnerName, myFollowers, proposal, relationBaseFor, relationFor, relationHintFor, relationResult, relLabelFor, repairRoomAffinityBase, roomAffOf, roomInitialAffinity, bumpRoomAffinity, bumpRoomMutual, setAffinity, setAffinityOpen, setProposal, setRelationResult, stageLabelFor };
 }
 
 function relationCandidate(fromChar: CharacterLike | string | null | undefined, findPeerChar: (name: string) => CharacterLike | null): CharacterLike | null {

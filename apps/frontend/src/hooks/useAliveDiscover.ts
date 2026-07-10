@@ -12,7 +12,7 @@ import {
   upsertSharedCharacter,
 } from "@/api/discover";
 import { hasRemoteApiClient, hasRemoteApiConfig as hasSupabaseConfig } from "@/api/client";
-import { mergeDiscoverCharacters, sharedRowToChar, type CharacterRow, type DiscoverCharacter, type SharedCharacterRow } from "@/domain/discover/discoverUtils";
+import { mergeDiscoverCharacters, sharedRowToChar, type CharacterData, type CharacterRow, type DiscoverCharacter, type SharedCharacterRow } from "@/domain/discover/discoverUtils";
 
 type SetState<T> = Dispatch<SetStateAction<T>>;
 
@@ -23,7 +23,7 @@ type SessionLike = {
   };
 };
 
-type AliveCharacter = DiscoverCharacter & {
+type AliveCharacter = CharacterData & {
   age?: string;
   handle?: string;
   interests?: string;

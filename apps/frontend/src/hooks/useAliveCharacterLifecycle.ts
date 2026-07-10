@@ -8,8 +8,8 @@ type MutableRef<T> = {
 
 type CharacterState = Record<string, unknown> & {
   handle?: string;
-  name: string;
-  persona?: string;
+  name?: string;
+  persona?: unknown;
 };
 
 type AccountState = {
@@ -112,7 +112,7 @@ export function useAliveCharacterLifecycle({
   syncActiveSharedCharacter,
   syncOwnFollowRows,
   wakingRef,
-}: CharacterLifecycleOptions): Record<string, unknown> {
+}: CharacterLifecycleOptions) {
   function syncActive(next: Record<string, unknown>): void {
     if (!activeId) return;
     setAccounts((accs) => accs.map((a) => a.id === activeId ? { ...a, char, gallery, posts, ...next } : a));
@@ -252,6 +252,10 @@ export function useAliveCharacterLifecycle({
 }
 
 function findExistingCharacter(accounts: AccountState[], char: CharacterState): AccountState | undefined {
-  const charKey = `${char.name.trim()}|${char.handle.trim()}|${char.persona.trim()}`;
-  return accounts.find((x) => `${x.char.name.trim()}|${(x.char.handle || "").trim()}|${x.char.persona.trim()}` === charKey);
+  const charKey = `${textValue(char.name).trim()}|${textValue(char.handle).trim()}|${textValue(char.persona).trim()}`;
+  return accounts.find((x) => `${textValue(x.char.name).trim()}|${textValue(x.char.handle).trim()}|${textValue(x.char.persona).trim()}` === charKey);
+}
+
+function textValue(value: unknown): string {
+  return typeof value === "string" ? value : "";
 }

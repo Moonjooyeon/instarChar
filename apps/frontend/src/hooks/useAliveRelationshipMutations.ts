@@ -26,7 +26,7 @@ type MutableRef<T> = {
 type CharacterLike = {
   directions?: string;
   inner?: string;
-  name: string;
+  name?: string;
   persona?: string;
   relations?: string;
   situational?: string;
@@ -61,7 +61,7 @@ type RelationshipMutationsOptions = {
   proposingRef: MutableRef<boolean>;
   relationBaseFor: (from: string, to: string) => number | null | undefined;
   relationMatched: (char: CharacterLike, ident: { name: string; relation?: string }) => string;
-  relLabelFor: (fromChar: CharacterLike, toName: string) => string;
+  relLabelFor: (fromChar: unknown, toName: string) => string;
   setAccounts: SetState<AccountLike[]>;
   setAffinity: SetState<Record<string, number>>;
   setChar: SetState<CharacterLike>;
@@ -94,7 +94,7 @@ export function useAliveRelationshipMutations({
   setProposal,
   setRelationResult,
   update,
-}: RelationshipMutationsOptions): Record<string, unknown> {
+}: RelationshipMutationsOptions) {
   function normalizedRelationLabelFor(fromName: string, otherName: string, current = ""): string {
     const value = affOf(fromName, otherName);
     const counterpart = relLabelFor(findPeerChar(otherName) || { name: otherName }, fromName);

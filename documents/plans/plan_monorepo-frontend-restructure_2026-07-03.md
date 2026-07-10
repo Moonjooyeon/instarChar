@@ -540,6 +540,8 @@ Phase 0
 
 2026-07-10 업데이트: 2단계는 `apps/frontend/src/api/*`에 `auth`, `profiles`, `discover`, `structured`, `dm` client를 추가하고 hook/app/feature 계층의 직접 Supabase 호출을 제거하는 방식으로 완료했다. Supabase 구현은 아직 `src/api/*` 내부에 남겨두었고, FastAPI 교체와 dependency 제거는 다음 단계로 유지한다.
 
+2026-07-10 추가 업데이트: `useAliveAppController.tsx`의 `@ts-nocheck`를 제거하고 하위 hook 반환 타입 추론/최소 경계 타입을 정리했다. `appStyles.js`는 `appStyles.ts`로 전환했다. `apps/frontend/src` 아래 남은 JavaScript 파일은 Supabase 구현 경계인 `supabaseClient.js`뿐이다.
+
 ## 열린 결정
 
 1. 프론트 앱 폴더 이름을 `apps/frontend`로 할지 `front`로 할지?

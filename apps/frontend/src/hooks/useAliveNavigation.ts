@@ -31,16 +31,16 @@ type NavigationOptions = {
   canUseApp: boolean;
   dmSettingsOpen: boolean;
   dmWorldDraft: unknown;
-  followPanel: NavTarget | null;
+  followPanel: unknown;
   newChatMode: unknown;
-  pendingDm: NavTarget | null;
-  publicProfile: NavTarget | null;
+  pendingDm: unknown;
+  publicProfile: unknown;
   setDmSettingsOpen: (value: boolean) => void;
   setDmWorldDraft: (value: string) => void;
-  setFollowPanel: (value: NavTarget | null) => void;
+  setFollowPanel: (value: unknown) => void;
   setNewChatMode: (value: unknown) => void;
-  setPendingDm: (value: NavTarget | null) => void;
-  setPublicProfile: (value: NavTarget | null) => void;
+  setPendingDm: (value: unknown) => void;
+  setPublicProfile: (value: unknown) => void;
   setStep: (value: AppStep) => void;
   step: AppStep;
 };
@@ -78,10 +78,10 @@ export function useAliveNavigation({
     return {
       __aliveNav: true,
       step: RENDERABLE_STEPS.has(step) ? step : "home",
-      pendingDm,
+      pendingDm: navTargetOrNull(pendingDm),
       dmWorldDraft,
-      followPanel,
-      publicProfile,
+      followPanel: navTargetOrNull(followPanel),
+      publicProfile: navTargetOrNull(publicProfile),
       newChatMode,
       dmSettingsOpen,
     };
@@ -185,4 +185,9 @@ function navStateFromUnknown(value: unknown): NavState | null {
   const state = value as Partial<NavState>;
   if (!state.__aliveNav) return null;
   return { ...state, step: normalizeSavedStep(state.step, true) } as NavState;
+}
+
+function navTargetOrNull(value: unknown): NavTarget | null {
+  if (!value || typeof value !== "object") return null;
+  return value as NavTarget;
 }

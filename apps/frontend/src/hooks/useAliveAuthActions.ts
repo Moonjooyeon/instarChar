@@ -69,7 +69,7 @@ export function useAliveAuthActions({
   setSession,
   setStateReady,
   setStep,
-}: AuthActionsOptions): Record<string, unknown> {
+}: AuthActionsOptions) {
   function clearLocalAuthStorage(): void {
     try {
       clearStorage(localStorage, true);

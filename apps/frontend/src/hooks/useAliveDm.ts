@@ -46,7 +46,7 @@ type DmOptions = {
   char: DmCharacter;
 };
 
-export function useAliveDm({ activeId, char }: DmOptions): Record<string, unknown> {
+export function useAliveDm({ activeId, char }: DmOptions) {
   const [autoChatting, setAutoChatting] = useState(false);
   const [dmThreads, setDmThreads] = useState<Record<string, DmMessage[]>>({});
   const [dmWorldPrefs, setDmWorldPrefs] = useState<Record<string, unknown>>({});

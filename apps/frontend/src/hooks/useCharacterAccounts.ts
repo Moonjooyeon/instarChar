@@ -3,16 +3,33 @@ import { useState, type ChangeEvent, type Dispatch, type SetStateAction } from "
 type CharacterDraft = {
   [key: string]: unknown;
   corrections: string[];
+  handle?: string;
   lorebook: unknown[];
   name: string;
+  persona: string;
+  relations?: string;
+};
+
+type AccountDraft = {
+  [key: string]: unknown;
+  char: CharacterDraft;
+  following?: Record<string, unknown>[];
+  gallery?: unknown[];
+  id: string;
+  posts?: Record<string, unknown>[];
+};
+
+type DeleteTarget = {
+  id: string;
+  [key: string]: unknown;
 };
 
 type CharacterAccountsReturn = {
-  accounts: unknown[];
+  accounts: AccountDraft[];
   activeId: string | null;
   blankChar: () => CharacterDraft;
   char: CharacterDraft;
-  deleteTarget: unknown;
+  deleteTarget: DeleteTarget | null;
   dump: string;
   gallery: string[];
   handleProfileImage: (kind: string, event: ChangeEvent<HTMLInputElement>) => void;
@@ -21,10 +38,10 @@ type CharacterAccountsReturn = {
   parseFailed: boolean;
   parsing: boolean;
   rpLog: string;
-  setAccounts: Dispatch<SetStateAction<unknown[]>>;
+  setAccounts: Dispatch<SetStateAction<AccountDraft[]>>;
   setActiveId: Dispatch<SetStateAction<string | null>>;
   setChar: Dispatch<SetStateAction<CharacterDraft>>;
-  setDeleteTarget: Dispatch<SetStateAction<unknown>>;
+  setDeleteTarget: Dispatch<SetStateAction<DeleteTarget | null>>;
   setDump: Dispatch<SetStateAction<string>>;
   setGallery: Dispatch<SetStateAction<string[]>>;
   setParseError: Dispatch<SetStateAction<string>>;
@@ -37,7 +54,7 @@ type CharacterAccountsReturn = {
 };
 
 export function useCharacterAccounts(): CharacterAccountsReturn {
-  const [accounts, setAccounts] = useState<unknown[]>([]);
+  const [accounts, setAccounts] = useState<AccountDraft[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [dump, setDump] = useState("");
   const [rpLog, setRpLog] = useState("");
@@ -47,7 +64,7 @@ export function useCharacterAccounts(): CharacterAccountsReturn {
   const [waking, setWaking] = useState(false);
   const [char, setChar] = useState(blankChar());
   const [gallery, setGallery] = useState<string[]>([]);
-  const [deleteTarget, setDeleteTarget] = useState<unknown>(null);
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const update = (key: string, value: unknown): void => setChar((current) => ({ ...current, [key]: value }));
   function handleUpload(event: ChangeEvent<HTMLInputElement>): void {
     const files = filesFromInput(event.target);

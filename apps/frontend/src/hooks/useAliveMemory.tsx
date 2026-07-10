@@ -67,7 +67,7 @@ type UseAliveMemoryOptions = {
   setFollowPanel: SetState<string | null>;
 };
 
-export function useAliveMemory({ activeId, activeSharedId, accounts, char, following, isPersonaName, loadSharedFollowers, myConversations, ownerName = "나", parseRelations, setAccounts, setChar, setDmWorldPrefs, setFollowing, setFollowPanel }: UseAliveMemoryOptions): Record<string, unknown> {
+export function useAliveMemory({ activeId, activeSharedId, accounts, char, following, isPersonaName, loadSharedFollowers, myConversations, ownerName = "나", parseRelations, setAccounts, setChar, setDmWorldPrefs, setFollowing, setFollowPanel }: UseAliveMemoryOptions) {
   const [showMemory, setShowMemory] = useState(false);
   const [showMemoryAdd, setShowMemoryAdd] = useState(false);
   const [memFilter, setMemFilter] = useState<string | null>(null);
