@@ -1,101 +1,78 @@
-import type { AuthChangeEvent, Provider, Session } from "@supabase/supabase-js";
-import { supabase } from "@/supabaseClient";
-import { type ApiError } from "@/api/client";
+import { apiNoContent, apiResult, apiUrl, type ApiError } from "@/api/client";
 
-type AuthData = {
-  session?: unknown;
+export type AuthProvider = "apple" | "google";
+
+type BackendUser = {
+  email?: string;
+  id: string;
+  provider?: string;
+};
+
+type MeResponse = {
+  display_name?: string;
+  onboarded?: boolean;
+  user?: BackendUser;
+};
+
+export type BackendSession = {
+  user: {
+    email?: string;
+    id: string;
+    user_metadata: {
+      full_name?: string;
+      name?: string;
+      preferred_username?: string;
+      provider?: string;
+    };
+  };
 };
 
 type AuthResult = {
-  data: AuthData;
+  data: {
+    session: BackendSession | null;
+  };
   error: ApiError | null;
 };
 
-type AuthSubscription = {
+export type AuthSubscription = {
   unsubscribe: () => void;
 };
 
-declare global {
-  interface Window {
-    __aliveOAuthExchanges?: Record<string, Promise<{ error?: ApiError | null }>>;
-  }
-}
-
 export function isAuthApiAvailable(): boolean {
-  return Boolean(supabase);
+  return true;
 }
 
-export function signUpWithEmail(email: string, password: string, redirectUrl: string): Promise<AuthResult> {
-  if (!supabase) return Promise.resolve(unavailableAuthResult());
-  return supabase.auth.signUp({
-    email,
-    password,
-    options: { emailRedirectTo: redirectUrl, data: { display_name: email.split("@")[0] } },
-  }) as Promise<AuthResult>;
-}
-
-export function signInWithPassword(email: string, password: string): Promise<AuthResult> {
-  if (!supabase) return Promise.resolve(unavailableAuthResult());
-  return supabase.auth.signInWithPassword({ email, password }) as Promise<AuthResult>;
-}
-
-export function signInWithMagicLink(email: string, redirectUrl: string): Promise<{ error: ApiError | null }> {
-  if (!supabase) return Promise.resolve(unavailableErrorResult());
-  return supabase.auth.signInWithOtp({
-    email,
-    options: { emailRedirectTo: redirectUrl, shouldCreateUser: true, data: { display_name: email.split("@")[0] } },
-  }) as Promise<{ error: ApiError | null }>;
-}
-
-export function sendPasswordResetEmail(email: string, redirectUrl: string): Promise<{ error: ApiError | null }> {
-  if (!supabase) return Promise.resolve(unavailableErrorResult());
-  return supabase.auth.resetPasswordForEmail(email, { redirectTo: redirectUrl }) as Promise<{ error: ApiError | null }>;
-}
-
-export function signInWithOAuthProvider(provider: Provider, redirectUrl: string): Promise<{ error: ApiError | null }> {
-  if (!supabase) return Promise.resolve(unavailableErrorResult());
-  return supabase.auth.signInWithOAuth({ provider, options: { redirectTo: redirectUrl } }) as Promise<{ error: ApiError | null }>;
-}
-
-export function updateCurrentUserPassword(password: string): Promise<{ error: ApiError | null }> {
-  if (!supabase) return Promise.resolve(unavailableErrorResult());
-  return supabase.auth.updateUser({ password }) as Promise<{ error: ApiError | null }>;
+export async function signInWithOAuthProvider(provider: AuthProvider): Promise<{ error: ApiError | null }> {
+  window.location.assign(apiUrl(`/auth/${provider}/start`));
+  return { error: null };
 }
 
 export function signOutAuthSession(): Promise<{ error: ApiError | null }> {
-  if (!supabase) return Promise.resolve({ error: null });
-  return supabase.auth.signOut() as Promise<{ error: ApiError | null }>;
+  return apiNoContent("/auth/logout", { method: "POST" });
 }
 
-export async function getAuthSession(): Promise<{ data: { session: Session | null }; error: ApiError | null }> {
-  if (!supabase) return { data: { session: null }, error: null };
-  return supabase.auth.getSession() as Promise<{ data: { session: Session | null }; error: ApiError | null }>;
+export async function getAuthSession(): Promise<AuthResult> {
+  const result = await apiResult<MeResponse>("/auth/me");
+  if (result.error) return { data: { session: null }, error: result.error };
+  return { data: { session: sessionFromMe(result.data || null) }, error: null };
 }
 
-export async function setHashAuthSession(accessToken: string, refreshToken: string): Promise<void> {
-  if (!supabase) return;
-  const { error } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
-  if (error) throw error;
+export function subscribeAuthState(): AuthSubscription {
+  return { unsubscribe: () => {} };
 }
 
-export async function exchangeOAuthCodeForSession(oauthCode: string): Promise<void> {
-  if (!supabase) return;
-  window.__aliveOAuthExchanges ||= {};
-  window.__aliveOAuthExchanges[oauthCode] ||= supabase.auth.exchangeCodeForSession(oauthCode);
-  const { error } = await window.__aliveOAuthExchanges[oauthCode];
-  if (error) throw error;
-}
-
-export function subscribeAuthState(handler: (event: AuthChangeEvent, session: Session | null) => void): AuthSubscription {
-  if (!supabase) return { unsubscribe: () => {} };
-  const { data } = supabase.auth.onAuthStateChange(handler);
-  return data.subscription;
-}
-
-function unavailableAuthResult(): AuthResult {
-  return { data: {}, error: { message: "Auth client is not configured." } };
-}
-
-function unavailableErrorResult(): { error: ApiError } {
-  return { error: { message: "Auth client is not configured." } };
+function sessionFromMe(data: MeResponse | null): BackendSession | null {
+  if (!data?.user?.id) return null;
+  return {
+    user: {
+      email: data.user.email,
+      id: data.user.id,
+      user_metadata: {
+        full_name: data.display_name,
+        name: data.display_name,
+        preferred_username: data.display_name,
+        provider: data.user.provider,
+      },
+    },
+  };
 }

@@ -107,12 +107,7 @@ import { useCharacterAccounts } from "@/hooks/useCharacterAccounts";
 
 export function useAliveAppController() {
   const [session, setSession] = useState(null);
-  const [authMode, setAuthMode] = useState("signup");
-  const [authEmail, setAuthEmail] = useState("");
-  const [authPassword, setAuthPassword] = useState("");
   const [authMessage, setAuthMessage] = useState("");
-  const [passwordRecoveryOpen, setPasswordRecoveryOpen] = useState(false);
-  const [newPassword, setNewPassword] = useState("");
   const [authLoading, setAuthLoading] = useState(Boolean(hasSupabaseConfig));
   const [profileLoading, setProfileLoading] = useState(Boolean(hasSupabaseConfig));
   const [profileLoadRetry, setProfileLoadRetry] = useState(0);
@@ -642,31 +637,20 @@ export function useAliveAppController() {
   });
 
   const {
-    authRedirectUrl,
     clearLocalAuthStorage,
     completeOnboarding,
     readableAuthError,
     recoverAuthScreen,
-    sendMagicLoginLink,
-    sendPasswordReset,
     signInWithProvider,
     signOut,
-    submitAuth,
-    updateRecoveredPassword,
   } = useAliveAuthActions({
-    authEmail,
-    authMode,
-    authPassword,
-    newPassword,
     profileName,
     profileTableBrokenRef,
     resetRuntimeState,
     session,
     setAuthLoading,
     setAuthMessage,
-    setNewPassword,
     setOnboardingOpen,
-    setPasswordRecoveryOpen,
     setProfileLoading,
     setProfileName,
     setSaveStatus,
@@ -747,7 +731,6 @@ export function useAliveAppController() {
     resetRuntimeState,
     setAuthLoading,
     setAuthMessage,
-    setPasswordRecoveryOpen,
     setProfileLoading,
     setSaveStatus,
     setSession,
@@ -1071,14 +1054,10 @@ export function useAliveAppController() {
     appScreenVisible,
     attachStage,
     authBusy,
-    authEmail,
     AuthEntryScreen,
     authLoading,
     AuthLoadingScreen,
     authMessage,
-    authMode,
-    authPassword,
-    authRedirectUrl,
     authResolvedRef,
     auto,
     AUTO_MOODS,
@@ -1239,7 +1218,6 @@ export function useAliveAppController() {
     navUrlForState,
     newChatMode,
     newChatSpeaker,
-    newPassword,
     nextIn,
     nextRelationLabel,
     normalizedRelationLabelFor,
@@ -1260,7 +1238,6 @@ export function useAliveAppController() {
     parseFailed,
     parseRelations,
     parsing,
-    passwordRecoveryOpen,
     peer,
     pendingDm,
     persistLocalSnapshot,
@@ -1329,8 +1306,6 @@ export function useAliveAppController() {
     saveStatus,
     saveTimerRef,
     sendDM,
-    sendMagicLoginLink,
-    sendPasswordReset,
     session,
     setAccounts,
     setActiveId,
@@ -1338,11 +1313,8 @@ export function useAliveAppController() {
     setAffinity,
     setAffinityManual,
     setAffinityOpen,
-    setAuthEmail,
     setAuthLoading,
     setAuthMessage,
-    setAuthMode,
-    setAuthPassword,
     setAuto,
     setAutoChatting,
     setChar,
@@ -1385,14 +1357,12 @@ export function useAliveAppController() {
     setMoodOpen,
     setNewChatMode,
     setNewChatSpeaker,
-    setNewPassword,
     setNextIn,
     setOnboardingOpen,
     setOwnerPersona,
     setParseError,
     setParseFailed,
     setParsing,
-    setPasswordRecoveryOpen,
     setPeer,
     setPendingDm,
     setPersonaDraft,
@@ -1450,7 +1420,6 @@ export function useAliveAppController() {
     stateReady,
     step,
     stopAutoChat,
-    submitAuth,
     submitUserComment,
     switchAccount,
     SYMMETRIC_RELATION_BASE,
@@ -1471,7 +1440,6 @@ export function useAliveAppController() {
     update,
     updateLorebook,
     updateMemory,
-    updateRecoveredPassword,
     updateRoomMemory,
     verifyMutualLove,
     visiblePosts,

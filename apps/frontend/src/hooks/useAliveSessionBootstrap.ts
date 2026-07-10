@@ -1,9 +1,7 @@
 import { useEffect } from "react";
 import {
-  exchangeOAuthCodeForSession,
   getAuthSession,
   isAuthApiAvailable,
-  setHashAuthSession,
   signOutAuthSession,
   subscribeAuthState,
 } from "@/api/auth";
@@ -20,10 +18,7 @@ type SessionLike = {
 };
 
 type AuthCallbackState = {
-  hashAccessToken: string | null;
-  hashRefreshToken: string | null;
   hasOAuthCallback: boolean;
-  oauthCode: string | null;
   oauthError: string | null;
   wantsAuthReset: boolean;
 };
@@ -39,7 +34,6 @@ type SessionBootstrapOptions = {
   resetRuntimeState: (name?: string) => void;
   setAuthLoading: (value: boolean) => void;
   setAuthMessage: (value: string | ((current: string) => string)) => void;
-  setPasswordRecoveryOpen: (value: boolean) => void;
   setProfileLoading: (value: boolean) => void;
   setSaveStatus: (value: string) => void;
   setSession: (value: SessionLike | null | ((prev: SessionLike | null) => SessionLike | null)) => void;
@@ -59,7 +53,6 @@ export function useAliveSessionBootstrap({
   resetRuntimeState,
   setAuthLoading,
   setAuthMessage,
-  setPasswordRecoveryOpen,
   setProfileLoading,
   setSaveStatus,
   setSession,
@@ -83,7 +76,6 @@ export function useAliveSessionBootstrap({
       resetRuntimeState,
       setAuthLoading,
       setAuthMessage,
-      setPasswordRecoveryOpen,
       setProfileLoading,
       setSession,
       setStateReady,
@@ -111,7 +103,7 @@ function startSessionBootstrap(options: RuntimeOptions): (() => void) | undefine
   }
   if (callback.hasOAuthCallback) options.setAuthLoading(true);
   options.authResolvedRef.current = false;
-  resolveInitialSession(callback).then((resolvedSession) => {
+  resolveInitialSession().then((resolvedSession) => {
     if (!alive) return;
     if (resolvedSession || !callback.hasOAuthCallback) options.authResolvedRef.current = true;
     options.setSession(resolvedSession);
@@ -135,17 +127,9 @@ function startSessionBootstrap(options: RuntimeOptions): (() => void) | undefine
 
 function authCallbackState(): AuthCallbackState {
   const url = new URL(window.location.href);
-  const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
-  const oauthCode = url.searchParams.get("code");
-  const hashAccessToken = hashParams.get("access_token");
-  const hashRefreshToken = hashParams.get("refresh_token");
-  const hasOAuthHash = Boolean(hashAccessToken || hashParams.get("error"));
   return {
-    hashAccessToken,
-    hashRefreshToken,
-    hasOAuthCallback: Boolean(oauthCode || hasOAuthHash),
-    oauthCode,
-    oauthError: url.searchParams.get("error_description") || url.searchParams.get("error") || hashParams.get("error_description") || hashParams.get("error"),
+    hasOAuthCallback: false,
+    oauthError: url.searchParams.get("error_description") || url.searchParams.get("error"),
     wantsAuthReset: url.searchParams.get("resetAuth") === "1" || url.searchParams.get("clearAuth") === "1",
   };
 }
@@ -163,29 +147,9 @@ function resetAuthState({ authResolvedRef, clearLocalAuthStorage, resetRuntimeSt
   setAuthMessage("꼬인 로그인 저장값을 지웠어. 다시 로그인해줘.");
 }
 
-async function resolveInitialSession({ hashAccessToken, hashRefreshToken, oauthCode }: AuthCallbackState): Promise<SessionLike | null> {
-  const existing = await getAuthSession();
-  if (existing.data.session) {
-    window.history.replaceState({}, "", "/app");
-    return existing.data.session;
-  }
-  if (hashAccessToken && hashRefreshToken) {
-    await setHashSession(hashAccessToken, hashRefreshToken);
-  } else if (oauthCode) {
-    await exchangeOAuthCode(oauthCode);
-  }
+async function resolveInitialSession(): Promise<SessionLike | null> {
   const { data } = await getAuthSession();
   return data.session || null;
-}
-
-async function setHashSession(hashAccessToken: string, hashRefreshToken: string): Promise<void> {
-  await setHashAuthSession(hashAccessToken, hashRefreshToken);
-  window.history.replaceState({}, "", "/app");
-}
-
-async function exchangeOAuthCode(oauthCode: string): Promise<void> {
-  await exchangeOAuthCodeForSession(oauthCode);
-  window.history.replaceState({}, "", "/app");
 }
 
 function sessionFallbackTimer(isAlive: () => boolean, options: RuntimeOptions, callback: AuthCallbackState): {
@@ -216,13 +180,7 @@ function sessionFallbackTimer(isAlive: () => boolean, options: RuntimeOptions, c
 }
 
 function subscribeAuthStateChange(options: RuntimeOptions, callback: AuthCallbackState): { unsubscribe: () => void } {
-  return subscribeAuthState((event, nextSession) => {
-    options.authResolvedRef.current = true;
-    if (event === "PASSWORD_RECOVERY") options.setPasswordRecoveryOpen(true);
-    if (nextSession && callback.hasOAuthCallback) window.history.replaceState({}, "", "/app");
-    options.setSession((prevSession) => nextSessionState(prevSession, nextSession, options));
-    options.setAuthLoading(false);
-  });
+  return subscribeAuthState();
 }
 
 function nextSessionState(prevSession: SessionLike | null, nextSession: SessionLike | null, { profileLoadedRef, setProfileLoading, setStateReady }: RuntimeOptions): SessionLike | null {

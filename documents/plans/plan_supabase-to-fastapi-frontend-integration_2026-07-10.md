@@ -62,21 +62,21 @@ PostgreSQL
 
 작업:
 
-- [ ] `apps/frontend/src/api/auth.ts`에서 `@supabase/supabase-js` 타입 import를 제거한다.
-- [ ] Google/Apple OAuth start는 `window.location.assign(apiUrl("/auth/google/start"))` 또는 호출자가 URL을 열 수 있는 함수로 제공한다.
-- [ ] `GET /api/auth/me`를 `getAuthSession` 대체 경로로 사용한다.
-- [ ] `POST /api/auth/logout`을 `signOutAuthSession`에 연결한다.
-- [ ] 이메일/비밀번호, magic link, password reset, password recovery 함수는 제거하거나 호출부 UI와 함께 정리한다.
-- [ ] `AuthChangeEvent`, `Session` 중심 흐름을 backend user DTO 중심으로 바꾼다.
-- [ ] `useAliveSessionBootstrap`, `useAliveAuthActions`, `AuthScreens`에서 Supabase callback/hash/session 복원 의존을 걷어낸다.
+- [x] `apps/frontend/src/api/auth.ts`에서 `@supabase/supabase-js` 타입 import를 제거한다.
+- [x] Google/Apple OAuth start는 `window.location.assign(apiUrl("/auth/google/start"))` 또는 호출자가 URL을 열 수 있는 함수로 제공한다.
+- [x] `GET /api/auth/me`를 `getAuthSession` 대체 경로로 사용한다.
+- [x] `POST /api/auth/logout`을 `signOutAuthSession`에 연결한다.
+- [x] 이메일/비밀번호, magic link, password reset, password recovery 함수는 제거하거나 호출부 UI와 함께 정리한다.
+- [x] `AuthChangeEvent`, `Session` 중심 흐름을 backend user DTO 중심으로 바꾼다.
+- [x] `useAliveSessionBootstrap`, `useAliveAuthActions`, `AuthScreens`에서 Supabase callback/hash/session 복원 의존을 걷어낸다.
 
 검증:
 
-- [ ] 백엔드 auth 테스트: `PYTHONPATH=backend backend/.venv/bin/pytest backend/tests`
-- [ ] 프론트 typecheck: `npm run typecheck`
-- [ ] 프론트 domain tests: `npm run test:domain`
-- [ ] E2E 목록: `npm run test:e2e -- --list`
-- [ ] 프론트 build: `npm run build`
+- [x] 백엔드 auth 테스트: `PYTHONPATH=backend backend/.venv/bin/pytest backend/tests`
+- [x] 프론트 typecheck: `npm run typecheck`
+- [x] 프론트 domain tests: `npm run test:domain`
+- [x] E2E 목록: `npm run test:e2e -- --list`
+- [x] 프론트 build: `npm run build`
 
 주의:
 
