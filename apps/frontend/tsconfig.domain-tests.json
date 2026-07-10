@@ -8,6 +8,7 @@
     "sourceMap": false
   },
   "include": [
+    "src/api/client.ts",
     "src/domain/**/*.ts",
     "src/types/env.d.ts",
     "tests/domain/*.test.js"
