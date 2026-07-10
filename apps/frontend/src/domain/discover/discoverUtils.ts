@@ -1,4 +1,4 @@
-type CharacterData = {
+export type CharacterData = {
   name?: string;
   handle?: string;
   persona?: string;
@@ -13,7 +13,7 @@ type CharacterData = {
   [key: string]: unknown;
 };
 
-type SharedCharacterRow = {
+export type SharedCharacterRow = {
   id?: string;
   owner_id?: string;
   owner_name?: string;
@@ -25,13 +25,13 @@ type SharedCharacterRow = {
   character?: CharacterData;
 };
 
-type CharacterRow = SharedCharacterRow & {
+export type CharacterRow = SharedCharacterRow & {
   posts?: unknown[];
   following?: unknown[];
   gallery?: unknown[];
 };
 
-type DiscoverCharacter = CharacterData & {
+export type DiscoverCharacter = CharacterData & {
   id: string;
   sharedId: string;
   ownerId?: string;

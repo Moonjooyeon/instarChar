@@ -1,30 +1,182 @@
-import { useEffect, useRef, useState } from "react";
-import { mergeDiscoverCharacters, sharedRowToChar } from "@/domain/discover/discoverUtils";
+import { useEffect, useRef, useState, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
+import { mergeDiscoverCharacters, sharedRowToChar, type CharacterRow, type DiscoverCharacter, type SharedCharacterRow } from "@/domain/discover/discoverUtils";
 import { hasSupabaseConfig, supabase } from "@/supabaseClient";
 
-export function useAliveDiscover({ activeId, char, profileName, session } = {}) {
-  const [publicProfile, setPublicProfile] = useState(null);
-  const [worldModal, setWorldModal] = useState(null);
-  const [followPanel, setFollowPanel] = useState(null);
-  const [following, setFollowing] = useState([]);
+type SetState<T> = Dispatch<SetStateAction<T>>;
+
+type SessionLike = {
+  user?: {
+    email?: string;
+    id?: string;
+  };
+};
+
+type AliveCharacter = DiscoverCharacter & {
+  age?: string;
+  handle?: string;
+  interests?: string;
+  name?: string;
+  persona?: string;
+  surface?: string;
+};
+
+type FollowerCharacter = DiscoverCharacter & {
+  followedAt?: string;
+  followerAccountId?: string;
+};
+
+type FollowRow = {
+  created_at?: string;
+  follower_account_id?: string;
+  follower_character?: Partial<FollowerCharacter> | null;
+  follower_id?: string;
+  follower_name?: string;
+  id?: string;
+  target_shared_character_id?: string;
+};
+
+type SharedFollowersState = {
+  error: string;
+  loading: boolean;
+  rows: FollowerCharacter[];
+};
+
+type SharedLoadState = {
+  error: string;
+  loading: boolean;
+};
+
+type SharedCharacterQueryResult = PromiseSettledResult<{
+  data: CharacterRow[] | null;
+  error: { message?: string } | null;
+}>;
+
+type SharedRowsQueryResult = PromiseSettledResult<{
+  data: SharedCharacterRow[] | null;
+  error: { message?: string } | null;
+}>;
+
+type QueryErrorLike = {
+  message?: string;
+};
+
+type UseAliveDiscoverOptions = {
+  activeId?: string | null;
+  char?: AliveCharacter | null;
+  profileName?: string;
+  session?: SessionLike | null;
+};
+
+type UseAliveDiscoverReturn = {
+  activeSharedId: string;
+  baseFollowerCount: (name?: string) => number;
+  discoverQuery: string;
+  discoverShowFollowed: boolean;
+  flashShareStatus: (message: string, ms?: number) => void;
+  followerCounts: Record<string, number>;
+  followPanel: unknown;
+  following: DiscoverCharacter[];
+  isFollowing: (id: string) => boolean;
+  loadFollowerCountsFor: (rows: Array<{ id?: string }>) => Promise<void>;
+  loadSharedCharacterById: (sharedId: string) => Promise<DiscoverCharacter | null>;
+  loadSharedCharacters: () => Promise<void>;
+  loadSharedFollowers: (sharedId?: string) => Promise<void>;
+  publicFollowerCount: (char?: DiscoverCharacter | null) => number;
+  publicFollowingCount: (char?: { following?: unknown[] } | null) => number;
+  publicProfile: unknown;
+  recordFollowChange: (poolChar: DiscoverCharacter, wasFollowing: boolean) => Promise<boolean | undefined>;
+  recordRelationshipFollowBack: (poolChar: DiscoverCharacter) => Promise<boolean>;
+  setActiveSharedId: SetState<string>;
+  setDiscoverQuery: SetState<string>;
+  setDiscoverShowFollowed: SetState<boolean>;
+  setFollowerCounts: SetState<Record<string, number>>;
+  setFollowPanel: SetState<unknown>;
+  setFollowing: SetState<DiscoverCharacter[]>;
+  setPublicProfile: SetState<unknown>;
+  setSharedCharacters: SetState<DiscoverCharacter[]>;
+  setSharedFocusId: SetState<string>;
+  setSharedFollowers: SetState<SharedFollowersState>;
+  setSharedLoadState: SetState<SharedLoadState>;
+  setShareStatus: SetState<string>;
+  setWorldModal: SetState<unknown>;
+  shareCurrentCharacter: (publicPostSnapshot: PostSnapshotProvider) => Promise<void>;
+  sharedCharacters: DiscoverCharacter[];
+  sharedFocusId: string;
+  sharedFollowers: SharedFollowersState;
+  sharedLoadState: SharedLoadState;
+  shareStatus: string;
+  shareStatusTimerRef: MutableRefObject<ReturnType<typeof setTimeout> | null>;
+  syncActiveSharedCharacter: (publicPostSnapshot: PostSnapshotProvider, nextFollowing?: DiscoverCharacter[], nextChar?: AliveCharacter | null) => Promise<void>;
+  syncOwnFollowRows: (publicPostSnapshot: PostSnapshotProvider, nextFollowing?: DiscoverCharacter[], nextChar?: AliveCharacter | null) => Promise<void>;
+  worldModal: unknown;
+};
+
+type PostSnapshotProvider = () => unknown[];
+
+type SharedResultRows = {
+  characterError: QueryErrorLike | unknown;
+  characterRows: CharacterRow[];
+  sharedError: QueryErrorLike | unknown;
+  sharedRows: SharedCharacterRow[];
+};
+
+type SharedPayloadOptions = {
+  activeId: string;
+  char: AliveCharacter;
+  following: DiscoverCharacter[];
+  profileName: string;
+  publicPostSnapshot: PostSnapshotProvider;
+  session: SessionLike;
+};
+
+type OwnFollowRowsOptions = {
+  activeId: string;
+  nextChar: AliveCharacter;
+  nextFollowing: DiscoverCharacter[];
+  profileName: string;
+  publicPostSnapshot: PostSnapshotProvider;
+  session: SessionLike;
+};
+
+type FollowRowPayload = {
+  follower_account_id: string;
+  follower_character: Record<string, unknown>;
+  follower_id: string | undefined;
+  follower_name: string;
+  target_shared_character_id: string;
+};
+
+type UpsertFollowRowOptions = {
+  activeId: string;
+  char: AliveCharacter | null;
+  poolChar: DiscoverCharacter;
+  profileName: string;
+  session: SessionLike;
+};
+
+export function useAliveDiscover({ activeId = null, char = null, profileName = "", session = null }: UseAliveDiscoverOptions = {}): UseAliveDiscoverReturn {
+  const [publicProfile, setPublicProfile] = useState<unknown>(null);
+  const [worldModal, setWorldModal] = useState<unknown>(null);
+  const [followPanel, setFollowPanel] = useState<unknown>(null);
+  const [following, setFollowing] = useState<DiscoverCharacter[]>([]);
   const [discoverQuery, setDiscoverQuery] = useState("");
-  const [sharedCharacters, setSharedCharacters] = useState([]);
-  const [sharedLoadState, setSharedLoadState] = useState({ loading: false, error: "" });
+  const [sharedCharacters, setSharedCharacters] = useState<DiscoverCharacter[]>([]);
+  const [sharedLoadState, setSharedLoadState] = useState<SharedLoadState>({ loading: false, error: "" });
   const [discoverShowFollowed, setDiscoverShowFollowed] = useState(false);
   const [sharedFocusId, setSharedFocusId] = useState("");
-  const [followerCounts, setFollowerCounts] = useState({});
-  const [sharedFollowers, setSharedFollowers] = useState({ loading: false, rows: [], error: "" });
+  const [followerCounts, setFollowerCounts] = useState<Record<string, number>>({});
+  const [sharedFollowers, setSharedFollowers] = useState<SharedFollowersState>({ loading: false, rows: [], error: "" });
   const [activeSharedId, setActiveSharedId] = useState("");
-  const [shareStatus, setShareStatus] = useState("");
-  const shareStatusTimerRef = useRef(null);
-  const isFollowing = (id) => following.some((item) => item.id === id);
-  const baseFollowerCount = (name = "") => deterministicFollowerCount(name);
-  const publicFollowingCount = (char) => Array.isArray(char?.following) ? char.following.length : 0;
-  const publicFollowerCount = (char) => {
-    if (char?.sharedId) return followerCounts[char.sharedId] ?? 0;
-    return hasSupabaseConfig ? 0 : baseFollowerCount(char?.name || "");
+  const [shareStatus, setShareStatus] = useState<string>("");
+  const shareStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isFollowing = (id: string): boolean => following.some((item) => item.id === id);
+  const baseFollowerCount = (name = ""): number => deterministicFollowerCount(name);
+  const publicFollowingCount = (target?: { following?: unknown[] } | null): number => Array.isArray(target?.following) ? target.following.length : 0;
+  const publicFollowerCount = (target?: DiscoverCharacter | null): number => {
+    if (target?.sharedId) return followerCounts[target.sharedId] ?? 0;
+    return hasSupabaseConfig ? 0 : baseFollowerCount(target?.name || "");
   };
-  async function loadFollowerCountsFor(rows) {
+  async function loadFollowerCountsFor(rows: Array<{ id?: string }>): Promise<void> {
     if (!supabase || !rows?.length) return;
     const ids = rows.map((row) => row.id).filter(Boolean);
     if (!ids.length) return;
@@ -35,7 +187,7 @@ export function useAliveDiscover({ activeId, char, profileName, session } = {}) 
     }
     setFollowerCounts((prev) => ({ ...prev, ...followerCountsForRows(ids, data || []) }));
   }
-  async function loadSharedFollowers(sharedId = activeSharedId) {
+  async function loadSharedFollowers(sharedId = activeSharedId): Promise<void> {
     if (!supabase || !sharedId) {
       setSharedFollowers({ loading: false, rows: [], error: "" });
       return;
@@ -51,7 +203,7 @@ export function useAliveDiscover({ activeId, char, profileName, session } = {}) 
     setSharedFollowers({ loading: false, rows, error: "" });
     loadFollowerCountsFor(rows.filter((row) => row.sharedId).map((row) => ({ id: row.sharedId })));
   }
-  async function loadSharedCharacters() {
+  async function loadSharedCharacters(): Promise<void> {
     if (!supabase) return;
     setSharedLoadState({ loading: true, error: "" });
     const [characterResult, sharedResult] = await sharedCharacterResults();
@@ -60,10 +212,10 @@ export function useAliveDiscover({ activeId, char, profileName, session } = {}) 
     if (sharedError) console.warn("공유 정보 불러오기 실패:", sharedError);
     const merged = mergeDiscoverCharacters(sharedRows, characterRows);
     setSharedCharacters(merged);
-    setSharedLoadState({ loading: false, error: characterError && !merged.length ? (characterError.message || "alive_characters를 불러오지 못했어.") : "" });
+    setSharedLoadState({ loading: false, error: characterError && !merged.length ? (errorMessage(characterError) || "alive_characters를 불러오지 못했어.") : "" });
     loadFollowerCountsFor(sharedRows);
   }
-  async function loadSharedCharacterById(sharedId) {
+  async function loadSharedCharacterById(sharedId: string): Promise<DiscoverCharacter | null> {
     if (!supabase || !sharedId) return null;
     setSharedLoadState({ loading: true, error: "" });
     const { data, error } = await supabase.from("alive_shared_characters").select("id,owner_id,owner_name,source_account_id,name,handle,persona,tags,character,created_at").eq("id", sharedId).maybeSingle();
@@ -82,7 +234,7 @@ export function useAliveDiscover({ activeId, char, profileName, session } = {}) 
     loadFollowerCountsFor([data]);
     return next;
   }
-  async function shareCurrentCharacter(publicPostSnapshot) {
+  async function shareCurrentCharacter(publicPostSnapshot: PostSnapshotProvider): Promise<void> {
     if (!activeId || !char?.name?.trim()) return;
     if (!supabase || !session?.user) {
       flashShareStatus("로그인 후 공유할 수 있어.");
@@ -97,26 +249,26 @@ export function useAliveDiscover({ activeId, char, profileName, session } = {}) 
     await writeShareUrl(data.id, flashShareStatus);
     loadSharedCharacters();
   }
-  async function syncActiveSharedCharacter(publicPostSnapshot, nextFollowing = following, nextChar = char) {
+  async function syncActiveSharedCharacter(publicPostSnapshot: PostSnapshotProvider, nextFollowing = following, nextChar = char): Promise<void> {
     if (!supabase || !session?.user || !activeId || !activeSharedId || !nextChar?.name?.trim()) return;
     const { error } = await supabase.from("alive_shared_characters").update(sharedCharacterUpdatePayload(nextChar, nextFollowing, publicPostSnapshot)).eq("owner_id", session.user.id).eq("source_account_id", activeId);
     if (error) console.warn("공유 캐릭터 스냅샷 갱신 실패:", error);
   }
-  async function syncOwnFollowRows(publicPostSnapshot, nextFollowing = following, nextChar = char) {
+  async function syncOwnFollowRows(publicPostSnapshot: PostSnapshotProvider, nextFollowing = following, nextChar = char): Promise<void> {
     if (!supabase || !session?.user || !activeId || !nextChar?.name?.trim()) return;
     const rows = ownFollowRows({ activeId, nextChar, nextFollowing, profileName, publicPostSnapshot, session });
     if (!rows.length) return;
     const { error } = await supabase.from("alive_character_follows").upsert(rows, { onConflict: "follower_id,follower_account_id,target_shared_character_id" });
     if (error) console.warn("팔로우 캐릭터 스냅샷 갱신 실패:", error);
   }
-  async function recordFollowChange(poolChar, wasFollowing) {
+  async function recordFollowChange(poolChar: DiscoverCharacter, wasFollowing: boolean): Promise<boolean | undefined> {
     if (!supabase || !session?.user || !activeId || !poolChar?.sharedId) return;
     const ok = wasFollowing ? await deleteFollowRow(session.user.id, activeId, poolChar.sharedId) : await upsertFollowRow({ activeId, char, poolChar, profileName, session });
     if (ok) updateFollowerCount(poolChar.sharedId, wasFollowing);
     loadFollowerCountsFor([{ id: poolChar.sharedId }]);
     return ok;
   }
-  async function recordRelationshipFollowBack(poolChar) {
+  async function recordRelationshipFollowBack(poolChar: DiscoverCharacter): Promise<boolean> {
     if (!supabase || !session?.user || !activeSharedId || !poolChar?.sharedId) return false;
     const { error } = await supabase.rpc("alive_relationship_follow_back", { p_follower_shared_character_id: poolChar.sharedId, p_target_shared_character_id: activeSharedId });
     if (error) {
@@ -126,7 +278,7 @@ export function useAliveDiscover({ activeId, char, profileName, session } = {}) 
     loadFollowerCountsFor([{ id: activeSharedId }, { id: poolChar.sharedId }]);
     return true;
   }
-  function flashShareStatus(message, ms = 2200) {
+  function flashShareStatus(message: string, ms = 2200): void {
     if (shareStatusTimerRef.current) clearTimeout(shareStatusTimerRef.current);
     setShareStatus(message);
     shareStatusTimerRef.current = setTimeout(() => {
@@ -137,40 +289,42 @@ export function useAliveDiscover({ activeId, char, profileName, session } = {}) 
   useEffect(() => () => {
     if (shareStatusTimerRef.current) clearTimeout(shareStatusTimerRef.current);
   }, []);
-  function updateFollowerCount(sharedId, wasFollowing) {
+  function updateFollowerCount(sharedId: string, wasFollowing: boolean): void {
     setFollowerCounts((prev) => ({ ...prev, [sharedId]: Math.max(0, (prev[sharedId] || 0) + (wasFollowing ? -1 : 1)) }));
   }
   return { activeSharedId, baseFollowerCount, discoverQuery, discoverShowFollowed, flashShareStatus, followerCounts, followPanel, following, isFollowing, loadFollowerCountsFor, loadSharedCharacterById, loadSharedCharacters, loadSharedFollowers, publicFollowerCount, publicFollowingCount, publicProfile, recordFollowChange, recordRelationshipFollowBack, setActiveSharedId, setDiscoverQuery, setDiscoverShowFollowed, setFollowerCounts, setFollowPanel, setFollowing, setPublicProfile, setSharedCharacters, setSharedFocusId, setSharedFollowers, setSharedLoadState, setShareStatus, setWorldModal, shareCurrentCharacter, sharedCharacters, sharedFocusId, sharedFollowers, sharedLoadState, shareStatus, shareStatusTimerRef, syncActiveSharedCharacter, syncOwnFollowRows, worldModal };
 }
 
-function deterministicFollowerCount(name) {
+function deterministicFollowerCount(name: string): number {
   let hash = 0;
   for (let index = 0; index < name.length; index += 1) hash = (hash * 31 + name.charCodeAt(index)) % 9000;
   return 800 + hash;
 }
 
-function followerCountsForRows(ids, rows) {
+function followerCountsForRows(ids: string[], rows: FollowRow[]): Record<string, number> {
   const counts = Object.fromEntries(ids.map((id) => [id, 0]));
   rows.forEach((row) => {
+    if (!row.target_shared_character_id) return;
     counts[row.target_shared_character_id] = (counts[row.target_shared_character_id] || 0) + 1;
   });
   return counts;
 }
 
-function followerRowToChar(row, sharedCharacters) {
+function followerRowToChar(row: FollowRow, sharedCharacters: DiscoverCharacter[]): FollowerCharacter {
   const character = row.follower_character || {};
   const shared = sharedCharacters.find((item) => item.ownerId === row.follower_id && item.sourceAccountId === row.follower_account_id);
-  return { ...(shared || {}), ...character, id: shared?.id || `follower_${row.id}`, shared: Boolean(shared), sharedId: shared?.sharedId || "", ownerId: row.follower_id, sourceAccountId: row.follower_account_id, name: character.name || row.follower_name || "이름 없음", handle: character.handle || "", owner: shared?.owner || `@${row.follower_name || "user"}`, ownerName: shared?.ownerName || row.follower_name || "user", followerAccountId: row.follower_account_id, followedAt: row.created_at };
+  return { ...(shared || {}), ...character, external: shared?.external ?? true, id: shared?.id || `follower_${row.id}`, shared: Boolean(shared), sharedId: shared?.sharedId || "", ownerId: row.follower_id, sourceAccountId: row.follower_account_id, name: character.name || row.follower_name || "이름 없음", handle: character.handle || "", owner: shared?.owner || `@${row.follower_name || "user"}`, ownerName: shared?.ownerName || row.follower_name || "user", persona: character.persona || shared?.persona || "", tags: character.tags || shared?.tags || [], posts: character.posts || shared?.posts || [], followerAccountId: row.follower_account_id, followedAt: row.created_at };
 }
 
-function sharedCharacterResults() {
+function sharedCharacterResults(): Promise<[SharedCharacterQueryResult, SharedRowsQueryResult]> {
+  if (!supabase) return Promise.resolve([rejectedQueryResult(), rejectedQueryResult()]);
   return Promise.allSettled([
     supabase.from("alive_characters").select("owner_id,source_account_id,name,handle,character,gallery,posts,following,updated_at").order("updated_at", { ascending: false }).limit(120),
     supabase.from("alive_shared_characters").select("id,owner_id,owner_name,source_account_id,name,handle,persona,tags,character,created_at").order("created_at", { ascending: false }).limit(80),
-  ]);
+  ]) as Promise<[SharedCharacterQueryResult, SharedRowsQueryResult]>;
 }
 
-function sharedResultRows(characterResult, sharedResult) {
+function sharedResultRows(characterResult: SharedCharacterQueryResult, sharedResult: SharedRowsQueryResult): SharedResultRows {
   const characterError = characterResult.status === "fulfilled" ? characterResult.value.error : characterResult.reason;
   const sharedError = sharedResult.status === "fulfilled" ? sharedResult.value.error : sharedResult.reason;
   const characterRows = characterResult.status === "fulfilled" && !characterResult.value.error ? (characterResult.value.data || []) : [];
@@ -178,15 +332,15 @@ function sharedResultRows(characterResult, sharedResult) {
   return { characterError, sharedError, characterRows, sharedRows };
 }
 
-function sharedCharacterPayload({ activeId, char, following, profileName, publicPostSnapshot, session }) {
+function sharedCharacterPayload({ activeId, char, following, profileName, publicPostSnapshot, session }: SharedPayloadOptions): Record<string, unknown> {
   return { owner_id: session.user.id, owner_name: profileName || session.user.email?.split("@")[0] || "user", source_account_id: activeId, name: char.name, handle: char.handle || "", persona: char.persona || "", tags: [char.age, char.surface, char.interests].filter(Boolean).slice(0, 6), character: { ...char, following, posts: publicPostSnapshot() } };
 }
 
-function sharedCharacterUpdatePayload(char, following, publicPostSnapshot) {
+function sharedCharacterUpdatePayload(char: AliveCharacter, following: DiscoverCharacter[], publicPostSnapshot: PostSnapshotProvider): Record<string, unknown> {
   return { name: char.name, handle: char.handle || "", persona: char.persona || "", tags: [char.age, char.surface, char.interests].filter(Boolean).slice(0, 6), character: { ...char, following, posts: publicPostSnapshot() } };
 }
 
-async function writeShareUrl(sharedId, flashShareStatus) {
+async function writeShareUrl(sharedId: string, flashShareStatus: (message: string, ms?: number) => void): Promise<void> {
   const url = `${window.location.origin}/?shared=${sharedId}`;
   try {
     await navigator.clipboard.writeText(url);
@@ -196,19 +350,31 @@ async function writeShareUrl(sharedId, flashShareStatus) {
   }
 }
 
-function ownFollowRows({ activeId, nextChar, nextFollowing, profileName, publicPostSnapshot, session }) {
+function ownFollowRows({ activeId, nextChar, nextFollowing, profileName, publicPostSnapshot, session }: OwnFollowRowsOptions): FollowRowPayload[] {
   return (nextFollowing || []).filter((item) => item?.sharedId).map((item) => ({ follower_id: session.user.id, follower_name: profileName || session.user.email?.split("@")[0] || "user", follower_account_id: activeId, follower_character: { ...nextChar, following: nextFollowing, posts: publicPostSnapshot() }, target_shared_character_id: item.sharedId }));
 }
 
-async function deleteFollowRow(userId, activeId, sharedId) {
+async function deleteFollowRow(userId: string, activeId: string, sharedId: string): Promise<boolean> {
+  if (!supabase) return false;
   const { error } = await supabase.from("alive_character_follows").delete().eq("follower_id", userId).eq("follower_account_id", activeId).eq("target_shared_character_id", sharedId);
   if (error) console.warn("언팔로우 저장 실패:", error);
   return !error;
 }
 
-async function upsertFollowRow({ activeId, char, poolChar, profileName, session }) {
+async function upsertFollowRow({ activeId, char, poolChar, profileName, session }: UpsertFollowRowOptions): Promise<boolean> {
+  if (!supabase) return false;
   const payload = { follower_id: session.user.id, follower_name: profileName || session.user.email?.split("@")[0] || "user", follower_account_id: activeId, follower_character: { ...char }, target_shared_character_id: poolChar.sharedId };
   const { error } = await supabase.from("alive_character_follows").upsert(payload, { onConflict: "follower_id,follower_account_id,target_shared_character_id" });
   if (error) console.warn("팔로우 저장 실패:", error);
   return !error;
+}
+
+function rejectedQueryResult<T>(): PromiseRejectedResult {
+  return { reason: "supabase unavailable", status: "rejected" };
+}
+
+function errorMessage(error: unknown): string {
+  if (!error || typeof error !== "object") return "";
+  const message = (error as QueryErrorLike).message;
+  return typeof message === "string" ? message : "";
 }
