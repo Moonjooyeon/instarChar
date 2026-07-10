@@ -5,6 +5,7 @@ import {
   josa,
   parseRelations,
   speechGuideLine,
+  type RelationEntry,
 } from "@/domain/app/aliveCore";
 import {
   affinityWithBase,
@@ -14,7 +15,61 @@ import {
 } from "@/domain/relationships/affinityUtils";
 
 const PROPOSAL_THRESHOLD = 60;
-const RELATION_STEP = { "": "썸", "아는 사이": "썸", "친구": "썸", "썸": "연인", "짝사랑": "연인", "연인": "약혼", "약혼": "부부" };
+const RELATION_STEP: Record<string, string> = { "": "썸", "아는 사이": "썸", "친구": "썸", "썸": "연인", "짝사랑": "연인", "연인": "약혼", "약혼": "부부" };
+
+type SetState<T> = (value: T | ((prev: T) => T)) => void;
+
+type MutableRef<T> = {
+  current: T;
+};
+
+type CharacterLike = {
+  directions?: string;
+  inner?: string;
+  name: string;
+  persona?: string;
+  relations?: string;
+  situational?: string;
+  speech?: unknown;
+  surface?: string;
+  warmth?: string;
+  [key: string]: unknown;
+};
+
+type AccountLike = {
+  char: CharacterLike;
+};
+
+type ProposalState = {
+  asker: string;
+  other: string;
+  pairKey: string;
+};
+
+type RelationshipMutationsOptions = {
+  accounts: AccountLike[];
+  affOf: (from: string, to: string) => number;
+  affinityRemainderRef: MutableRef<Record<string, number>>;
+  char: CharacterLike;
+  findPeerChar: (name: string) => CharacterLike | null;
+  following: CharacterLike[];
+  isOwnerName: (name: string) => boolean;
+  isPersonaName: (name: string) => boolean;
+  personas: CharacterLike[];
+  proposal: ProposalState | null;
+  proposalCooldownRef: MutableRef<Record<string, boolean>>;
+  proposingRef: MutableRef<boolean>;
+  relationBaseFor: (from: string, to: string) => number | null | undefined;
+  relationMatched: (char: CharacterLike, ident: { name: string; relation?: string }) => string;
+  relLabelFor: (fromChar: CharacterLike, toName: string) => string;
+  setAccounts: SetState<AccountLike[]>;
+  setAffinity: SetState<Record<string, number>>;
+  setChar: SetState<CharacterLike>;
+  setFollowing: SetState<CharacterLike[]>;
+  setProposal: (value: unknown) => void;
+  setRelationResult: (value: unknown) => void;
+  update: (key: string, value: unknown) => void;
+};
 
 export function useAliveRelationshipMutations({
   accounts,
@@ -39,28 +94,28 @@ export function useAliveRelationshipMutations({
   setProposal,
   setRelationResult,
   update,
-}) {
-  function normalizedRelationLabelFor(fromName, otherName, current = "") {
+}: RelationshipMutationsOptions): Record<string, unknown> {
+  function normalizedRelationLabelFor(fromName: string, otherName: string, current = ""): string {
     const value = affOf(fromName, otherName);
     const counterpart = relLabelFor(findPeerChar(otherName) || { name: otherName }, fromName);
     if (/서운함|미움|혐오|증오|관심|호감|아는 사이/.test(current || "") && value >= 35 && /연인|애인|연애|사랑|부부|배우자|약혼|반려/.test(counterpart || "")) return counterpart;
     return relationLabelFromAffinity(value, current);
   }
-  function setRelationLabelFor(fromName, otherName, label) {
+  function setRelationLabelFor(fromName: string, otherName: string, label: string): void {
     if (!fromName || !otherName || isOwnerName(fromName) || isPersonaName(fromName)) return;
     const apply = relationLabelApplier(otherName, label);
     if (char.name === fromName) setChar((c) => apply(c));
     setAccounts((accs) => accs.map((a) => a.char.name === fromName ? { ...a, char: apply(a.char) } : a));
     setFollowing((items) => items.map((f) => f.name === fromName ? apply(f) : f));
   }
-  function deleteRelationAt(index) {
+  function deleteRelationAt(index: number): void {
     const rels = parseRelations(char.relations);
     const target = rels[index];
     update("relations", relationListWithoutIndex(rels, index));
     if (!target?.who) return;
     clearDeletedRelation(target.who);
   }
-  function normalizeRelationLabelsForChar(targetChar) {
+  function normalizeRelationLabelsForChar(targetChar: CharacterLike): CharacterLike {
     if (!targetChar?.relations) return targetChar;
     let changed = false;
     const next = parseRelations(targetChar.relations).map((relation) => {
@@ -71,7 +126,7 @@ export function useAliveRelationshipMutations({
     if (!changed) return targetChar;
     return { ...targetChar, relations: relationText(next) };
   }
-  function bumpAffinity(from, to, amount, ctxLines) {
+  function bumpAffinity(from: string, to: string, amount: number, ctxLines: string[]): void {
     if (!from || !to || from === to) return;
     const key = dirKey(from, to);
     const adjusted = adjustedAffinityAmount({ amount, affinityRemainderRef, from, isOwnerName, isPersonaName, key, warmthRate });
@@ -79,7 +134,7 @@ export function useAliveRelationshipMutations({
     const seed = relationBaseFor(from, to);
     setAffinity((prev) => nextAffinityState({ char, ctxLines, findPeerChar, from, key, proposalCooldownRef, proposingRef, relLabelFor, seed, setRelationLabelFor, to, triggerProposal, value: adjusted, prev }));
   }
-  function setAffinityManual(from, to, value) {
+  function setAffinityManual(from: string, to: string, value: unknown): void {
     if (!from || !to || from === to) return;
     const nextValue = Math.max(-100, Math.min(100, Number(value) || 0));
     setAffinity((prev) => ({ ...prev, [dirKey(from, to)]: nextValue }));
@@ -87,7 +142,7 @@ export function useAliveRelationshipMutations({
     const nextRel = relationLabelFromAffinity(nextValue, currentRel);
     if (nextRel !== currentRel) setRelationLabelFor(from, to, nextRel);
   }
-  function bumpMutual(a, b, amount, ctx) {
+  function bumpMutual(a: string, b: string, amount: number, ctx: string[]): void {
     const aPersona = isPersonaName(a);
     const bPersona = isPersonaName(b);
     const jitter = () => amount + Math.floor(Math.random() * 2 - 0.5);
@@ -96,7 +151,7 @@ export function useAliveRelationshipMutations({
     bumpAffinity(a, b, jitter(), ctx);
     bumpAffinity(b, a, jitter(), ctx);
   }
-  async function triggerProposal(askerName, otherName) {
+  async function triggerProposal(askerName: string, otherName: string): Promise<void> {
     const askerChar = askerCharacter({ accounts, askerName, char, personas });
     const key = dirKey(askerName, otherName);
     const curRel = relationMatched(askerChar, { name: otherName });
@@ -111,12 +166,12 @@ export function useAliveRelationshipMutations({
     setProposal({ asker: askerName, other: otherName, line, pairKey: key });
     proposingRef.current = false;
   }
-  function nextRelationLabel(askerName, otherName) {
+  function nextRelationLabel(askerName: string, otherName: string): string {
     const targetChar = findPeerChar(askerName) || char;
     const current = relLabelFor(targetChar, otherName);
     return RELATION_STEP[current] || "연인";
   }
-  async function resolveProposal(approve) {
+  async function resolveProposal(approve: boolean): Promise<void> {
     if (!proposal) return;
     const { asker, other, pairKey } = proposal;
     proposalCooldownRef.current[pairKey] = true;
@@ -134,7 +189,7 @@ export function useAliveRelationshipMutations({
     if (accepted) acceptLoveProposal({ asker, other, setAffinity, setRelationResult, advanceRelation });
     else rejectLoveProposal({ asker, other, pairKey, setAffinity, setRelationResult, setRelationToLove });
   }
-  async function judgeAcceptance(askerName, otherName) {
+  async function judgeAcceptance(askerName: string, otherName: string): Promise<boolean> {
     const otherChar = findPeerChar(otherName);
     const back = affOf(otherName, askerName);
     try {
@@ -144,17 +199,17 @@ export function useAliveRelationshipMutations({
       return back >= 50;
     }
   }
-  function setRelationToLove(askerName, otherName, label) {
+  function setRelationToLove(askerName: string, otherName: string, label: string): void {
     const apply = relationLabelApplier(otherName, label, true);
     if (char.name === askerName) setChar((c) => apply(c));
     setAccounts((accs) => accs.map((a) => a.char.name === askerName ? { ...a, char: apply(a.char) } : a));
   }
-  function advanceRelation(askerName, otherName) {
+  function advanceRelation(askerName: string, otherName: string): void {
     const apply = relationAdvancer(otherName);
     if (char.name === askerName) setChar((c) => apply(c));
     setAccounts((accs) => accs.map((a) => a.char.name === askerName ? { ...a, char: apply(a.char) } : a));
   }
-  function warmthRate(name) {
+  function warmthRate(name: string): number {
     const targetChar = name === char.name ? char : (findPeerChar(name) || null);
     const warmth = targetChar && targetChar.warmth;
     const profileText = targetChar ? [targetChar.persona, targetChar.surface, targetChar.inner, targetChar.situational, targetChar.speech, targetChar.directions].filter(Boolean).join(" ") : "";
@@ -163,7 +218,7 @@ export function useAliveRelationshipMutations({
     if (warmth === "fast") return 1.5;
     return 1;
   }
-  function clearDeletedRelation(otherName) {
+  function clearDeletedRelation(otherName: string): void {
     setAffinity((prev) => {
       const next = { ...prev };
       delete next[dirKey(char.name, otherName)];
@@ -177,9 +232,9 @@ export function useAliveRelationshipMutations({
   return { advanceRelation, bumpAffinity, bumpMutual, deleteRelationAt, judgeAcceptance, nextRelationLabel, normalizeRelationLabelsForChar, normalizedRelationLabelFor, resolveProposal, setAffinityManual, setRelationLabelFor, setRelationToLove, triggerProposal };
 }
 
-function relationLabelApplier(otherName, label, alwaysPush = false) {
-  const norm = (value) => value.replace(/\s/g, "");
-  return (targetChar) => {
+function relationLabelApplier(otherName: string, label: string, alwaysPush = false): (targetChar: CharacterLike) => CharacterLike {
+  const norm = (value: string): string => value.replace(/\s/g, "");
+  return (targetChar: CharacterLike): CharacterLike => {
     const rels = parseRelations(targetChar.relations);
     let found = false;
     const next = rels.map((relation) => {
@@ -194,9 +249,9 @@ function relationLabelApplier(otherName, label, alwaysPush = false) {
   };
 }
 
-function relationAdvancer(otherName) {
-  const norm = (value) => value.replace(/\s/g, "");
-  return (targetChar) => {
+function relationAdvancer(otherName: string): (targetChar: CharacterLike) => CharacterLike {
+  const norm = (value: string): string => value.replace(/\s/g, "");
+  return (targetChar: CharacterLike): CharacterLike => {
     const rels = parseRelations(targetChar.relations);
     let found = false;
     const next = rels.map((relation) => {
@@ -211,15 +266,15 @@ function relationAdvancer(otherName) {
   };
 }
 
-function relationListWithoutIndex(rels, index) {
+function relationListWithoutIndex(rels: RelationEntry[], index: number): string {
   return relationText(rels.filter((_, itemIndex) => itemIndex !== index));
 }
 
-function relationText(rels) {
+function relationText(rels: RelationEntry[]): string {
   return rels.filter((relation) => relation.who && relation.label).map((relation) => `${relation.who} — ${relation.label}`).join(", ");
 }
 
-function withoutTargetRelation(targetChar, otherName) {
+function withoutTargetRelation(targetChar: CharacterLike, otherName: string): CharacterLike {
   const next = parseRelations(targetChar.relations).filter((relation) => {
     const who = String(relation.who || "").replace(/\s/g, "");
     const other = String(otherName || "").replace(/\s/g, "");
@@ -228,7 +283,16 @@ function withoutTargetRelation(targetChar, otherName) {
   return { ...targetChar, relations: relationText(next) };
 }
 
-function adjustedAffinityAmount({ amount, affinityRemainderRef, from, isOwnerName, isPersonaName, key, warmthRate }) {
+function adjustedAffinityAmount(options: {
+  amount: number;
+  affinityRemainderRef: MutableRef<Record<string, number>>;
+  from: string;
+  isOwnerName: (name: string) => boolean;
+  isPersonaName: (name: string) => boolean;
+  key: string;
+  warmthRate: (name: string) => number;
+}): number | null {
+  const { amount, affinityRemainderRef, from, isOwnerName, isPersonaName, key, warmthRate } = options;
   if (amount <= 0 || isPersonaName(from) || isOwnerName(from)) return amount;
   const scaled = amount * warmthRate(from);
   if (scaled >= 1) return Math.max(1, Math.round(scaled));
@@ -238,7 +302,23 @@ function adjustedAffinityAmount({ amount, affinityRemainderRef, from, isOwnerNam
   return adjusted <= 0 ? null : adjusted;
 }
 
-function nextAffinityState({ char, ctxLines, findPeerChar, from, key, proposalCooldownRef, proposingRef, relLabelFor, seed, setRelationLabelFor, to, triggerProposal, value, prev }) {
+function nextAffinityState(options: {
+  char: CharacterLike;
+  ctxLines: string[];
+  findPeerChar: (name: string) => CharacterLike | null;
+  from: string;
+  key: string;
+  prev: Record<string, number>;
+  proposalCooldownRef: MutableRef<Record<string, boolean>>;
+  proposingRef: MutableRef<boolean>;
+  relLabelFor: (fromChar: CharacterLike, toName: string) => string;
+  seed: number | null | undefined;
+  setRelationLabelFor: (fromName: string, otherName: string, label: string) => void;
+  to: string;
+  triggerProposal: (askerName: string, otherName: string, ctxLines?: string[]) => void;
+  value: number;
+}): Record<string, number> {
+  const { char, ctxLines, findPeerChar, from, key, prev, proposalCooldownRef, proposingRef, relLabelFor, seed, setRelationLabelFor, to, triggerProposal, value } = options;
   const before = affinityWithBase(key in prev ? prev[key] : null, seed);
   const after = Math.max(-100, Math.min(100, before + value));
   const currentRel = relLabelFor(findPeerChar(from) || (from === char.name ? char : { name: from }), to);
@@ -253,13 +333,13 @@ function nextAffinityState({ char, ctxLines, findPeerChar, from, key, proposalCo
   return { ...prev, [key]: after };
 }
 
-function askerCharacter({ accounts, askerName, char, personas }) {
+function askerCharacter({ accounts, askerName, char, personas }: { accounts: AccountLike[]; askerName: string; char: CharacterLike; personas: CharacterLike[] }): CharacterLike {
   const askerPersona = personas.find((persona) => persona.name === askerName);
   const askerAcc = accounts.find((account) => account.char.name === askerName);
   return askerPersona || (askerAcc ? askerAcc.char : char);
 }
 
-function proposalSystemPrompt({ askerChar, askerName, curRel, otherName }) {
+function proposalSystemPrompt({ askerChar, askerName, curRel, otherName }: { askerChar: CharacterLike; askerName: string; curRel: string; otherName: string }): string {
   return `너는 "${askerName}"이다. 너를 만든 오너(나)에게 말한다.
 ${askerChar.persona ? `너: ${askerChar.persona}` : ""}
 ${speechGuideLine(askerChar.speech, "말투")}
@@ -277,27 +357,46 @@ ${speechGuideLine(askerChar.speech, "말투")}
 - 본문만 출력.`;
 }
 
-function acceptFriendshipProposal({ asker, other, setAffinity, setRelationResult, advanceRelation }) {
+function acceptFriendshipProposal({ asker, other, setAffinity, setRelationResult, advanceRelation }: {
+  advanceRelation: (askerName: string, otherName: string) => void;
+  asker: string;
+  other: string;
+  setAffinity: SetState<Record<string, number>>;
+  setRelationResult: (value: unknown) => void;
+}): void {
   setAffinity((prev) => ({ ...prev, [dirKey(asker, other)]: Math.max(prev[dirKey(asker, other)] || 0, 70), [dirKey(other, asker)]: Math.max(prev[dirKey(other, asker)] || 0, 55) }));
   advanceRelation(asker, other);
   advanceRelation(other, asker);
   setRelationResult({ asker, other, accepted: true, friendship: true });
 }
 
-function acceptLoveProposal({ asker, other, setAffinity, setRelationResult, advanceRelation }) {
+function acceptLoveProposal({ asker, other, setAffinity, setRelationResult, advanceRelation }: {
+  advanceRelation: (askerName: string, otherName: string) => void;
+  asker: string;
+  other: string;
+  setAffinity: SetState<Record<string, number>>;
+  setRelationResult: (value: unknown) => void;
+}): void {
   setAffinity((prev) => ({ ...prev, [dirKey(asker, other)]: Math.max(prev[dirKey(asker, other)] || 0, 88), [dirKey(other, asker)]: Math.max(prev[dirKey(other, asker)] || 0, 80) }));
   advanceRelation(asker, other);
   advanceRelation(other, asker);
   setRelationResult({ asker, other, accepted: true });
 }
 
-function rejectLoveProposal({ asker, other, pairKey, setAffinity, setRelationResult, setRelationToLove }) {
+function rejectLoveProposal({ asker, other, pairKey, setAffinity, setRelationResult, setRelationToLove }: {
+  asker: string;
+  other: string;
+  pairKey: string;
+  setAffinity: SetState<Record<string, number>>;
+  setRelationResult: (value: unknown) => void;
+  setRelationToLove: (askerName: string, otherName: string, label: string) => void;
+}): void {
   setAffinity((prev) => ({ ...prev, [pairKey]: Math.max(35, (prev[pairKey] || 60) - 18) }));
   setRelationToLove(asker, other, "짝사랑");
   setRelationResult({ asker, other, accepted: false });
 }
 
-function acceptancePrompt({ askerName, back, otherChar, otherName }) {
+function acceptancePrompt({ askerName, back, otherChar, otherName }: { askerName: string; back: number; otherChar: CharacterLike | null; otherName: string }): string {
   return `"${otherName}"가 "${askerName}"에게 고백(또는 관계 진전 제안)을 받았다. 받아들일지 판정하라.
 ${otherChar && otherChar.persona ? `${otherName}: ${otherChar.persona}` : ""}
 ${otherChar && otherChar.relations ? `${otherName}의 관계망: ${otherChar.relations}` : ""}
