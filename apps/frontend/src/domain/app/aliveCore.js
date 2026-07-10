@@ -55,6 +55,10 @@ export const TONE_PRESETS = [
   { id: "chaos", label: "4차원/엉뚱", hint: "예측불가 드립" },
 ];
 
+export function toneText(id) {
+  return TONE_PRESETS.find((tone) => tone.id === id)?.label || "";
+}
+
 export const POST_MOODS = [
   "일상 / 방금 있었던 일",
   "혼잣말 / 생각",

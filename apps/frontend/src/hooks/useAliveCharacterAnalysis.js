@@ -1,0 +1,107 @@
+import { fieldText, normalizeHandle } from "@/domain/app/textUtils";
+import { MODEL_CHAT } from "@/domain/app/aliveCore";
+
+export function useAliveCharacterAnalysis({
+  cleanApiFailureMessage,
+  dump,
+  readApiContent,
+  rpLog,
+  setChar,
+  setLoading,
+  setParseError,
+  setParseFailed,
+  setParsing,
+  setStep,
+}) {
+  async function parseDump() {
+    const textRaw = characterAnalysisInput(dump, rpLog);
+    if (!textRaw) return;
+    setParsing(true);
+    setLoading(true);
+    setParseFailed(false);
+    setParseError("");
+    try {
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json", "X-ALIVE-Flow": "character-analysis-v2" },
+        body: JSON.stringify({ flow: "character-analysis-v2", model: MODEL_CHAT, max_tokens: 2048, system: characterAnalysisSystemPrompt(), messages: [{ role: "user", content: textRaw }] }),
+      });
+      const obj = JSON.parse(extractJsonObject(await readApiContent(res, "캐릭터 분석 API")));
+      if (!obj.name) throw new Error("이름 필드가 없습니다.");
+      setChar((prev) => characterFromAnalysis(prev, obj));
+      setStep("confirm");
+    } catch (e) {
+      console.error("분석 중 에러:", e);
+      setParseError(cleanApiFailureMessage(e, "AI 응답이 잠깐 비었어. 다시 분석해줘."));
+      setParseFailed(true);
+      setStep("confirm");
+    } finally {
+      setLoading(false);
+      setParsing(false);
+    }
+  }
+  return { parseDump };
+}
+
+function characterAnalysisInput(dump, rpLog) {
+  return [
+    dump.trim() ? `[캐릭터 설명]\n${dump.trim()}` : "",
+    rpLog.trim() ? `[역극/대사 로그]\n${rpLog.trim()}` : "",
+  ].filter(Boolean).join("\n\n");
+}
+
+function characterAnalysisSystemPrompt() {
+  return `TASK_ID: character-analysis-v2
+다음 텍스트는 사용자의 "오너 페르소나"나 "내 페르소나"가 아니라, SNS 계정으로 깨울 "캐릭터" 설정이다.
+절대 사용자/오너/페르소나 생성용으로 해석하지 마라. 결과는 반드시 캐릭터 프로필 JSON 하나여야 한다.
+아래 항목을 갖춘 JSON 객체로만 답해. 절대 마크다운 백틱(\`\`\`)을 쓰지 마라.
+    {
+      "target_type": "character",
+      "name": "캐릭터 이름",
+      "handle": "아이디 1개만. @ 없이, 공백/쉼표/여러 후보 없이",
+      "age": "나이 또는 한 줄 설정. 알 수 없으면 빈 문자열",
+      "persona": "캐릭터의 성격/정체성 요약",
+      "world": "세계관/배경. 알 수 없으면 빈 문자열",
+      "speech": "말투, 어미, 자주 쓰는 표현",
+      "catchphrase": "캐치프레이즈나 명대사. 없으면 빈 문자열",
+      "surface": "겉모습/첫인상",
+      "inner": "겉과 다른 속마음/숨은 면",
+      "situational": "상황별 반응",
+      "triggers": "무너지거나 발끈하는 점",
+      "interests": "좋아하는 것/관심사",
+      "relations": "관계망. 예: 이름 — 관계, 이름 — 관계. 없으면 빈 문자열",
+      "warmth": "slow | normal | fast 중 하나"
+    }`;
+}
+
+function extractJsonObject(rawText) {
+  const raw = String(rawText || "");
+  const first = raw.indexOf("{");
+  const last = raw.lastIndexOf("}");
+  return first !== -1 && last !== -1 && last > first ? raw.slice(first, last + 1) : raw;
+}
+
+function characterFromAnalysis(prev, obj) {
+  return {
+    ...prev,
+    name: fieldText(obj.name),
+    handle: normalizeHandle(obj.handle || obj.id || obj.username || obj.account_id, obj.name),
+    age: fieldText(obj.age),
+    tone: prev.tone || "calm",
+    persona: fieldText(obj.persona) || "성격 요약 없음",
+    world: fieldText(obj.world),
+    speech: fieldText(obj.speech),
+    catchphrase: fieldText(obj.catchphrase),
+    surface: fieldText(obj.surface),
+    inner: fieldText(obj.inner),
+    situational: fieldText(obj.situational),
+    triggers: fieldText(obj.triggers),
+    interests: fieldText(obj.interests),
+    relations: fieldText(obj.relations),
+    warmth: ["slow", "normal", "fast"].includes(obj.warmth) ? obj.warmth : "normal",
+    corrections: prev.corrections || [],
+    directions: prev.directions || "",
+    lorebook: prev.lorebook || [],
+  };
+}

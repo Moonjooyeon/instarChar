@@ -3,7 +3,7 @@ title: 모노레포 및 프론트엔드 재구성 계획
 author: Codex
 created: 2026-07-03
 updated: 2026-07-03
-version: 0.1.6
+version: 0.1.22
 status: draft
 ---
 
@@ -348,6 +348,35 @@ AppView
 - `useAliveAiGeneration`으로 AI response parsing helper 분리.
 - `useAliveAppController.jsx` 라인 수 4,658줄에서 4,516줄로 감소.
 - `npm run build` 성공.
+- 완료 slice 문서: `documents/reports/report_monorepo-frontend-phase6-domain-hooks_2026-07-03.md`
+- `useCharacterAccounts`, `useAliveFeed`, `useAliveDm`, `useAliveDiscover`, `useAliveMemory`, `useAliveRelationships` 도메인 훅 생성.
+- memory CRUD/room memory/prompt memory helper, feed 댓글/편집/좋아요/정렬 helper, DM 이미지/방 제목 helper, character image/factory helper, discover follower count/helper와 Supabase 조회 helper를 도메인 훅으로 분리.
+- relationship affinity 조회/room affinity helper, profile panel helper, DM key 순수 helper, app text/prompt/async helper를 domain utility와 도메인 훅으로 분리.
+- DM 현재 방 파생값, 대화 목록 helper, persona 삭제 helper를 `useAliveDm`으로 분리.
+- discover 공유/팔로우 Supabase 저장 helper와 follower follow-back 저장 helper를 `useAliveDiscover`로 분리.
+- 구조화 테이블 저장/복원/삭제 helper를 `useAliveStructuredPersistence`로 분리.
+- auth submit/magic link/password recovery/sign-out/onboarding/recovery action을 `useAliveAuthActions`로 분리.
+- app state snapshot/apply/reset/save helper를 `useAliveAppStatePersistence`로 분리.
+- autosave/pagehide 저장 effect를 `useAliveAutosave`로 분리.
+- session/OAuth bootstrap과 auth watchdog effect를 `useAliveSessionBootstrap`으로 분리.
+- profile/cache/structured-state bootstrap effect를 `useAliveProfileBootstrap`으로 분리.
+- discover shared-character sync/deep-link/follow-back effect를 `useAliveDiscoverSync`로 분리.
+- relationship auto-follow normalization effect를 `useAliveRelationshipSync`로 분리.
+- DM room lifecycle/settings/delete/migration effect를 `useAliveDmLifecycle`로 분리.
+- character account lifecycle/switch/edit/delete/start/wake helper를 `useAliveCharacterLifecycle`로 분리.
+- relationship label/affinity/proposal mutation helper를 `useAliveRelationshipMutations`로 분리.
+- session affinity/memory analysis helper를 `useAliveSessionAnalysis`로 분리.
+- feed post/comment/auto-post generation helper를 `useAliveFeedGeneration`으로 분리.
+- DM send/auto-chat generation helper를 `useAliveDmGeneration`으로 분리.
+- character correction prompt helper를 `useAliveCorrections`로 분리.
+- character setup analysis helper를 `useAliveCharacterAnalysis`로 분리.
+- discover share/follow action wrapper를 `useAliveDiscoverActions`로 분리.
+- peer lookup helper를 `useAlivePeerLookup`으로 분리.
+- relationship auto-follow/toggle-follow helper를 `useAliveFollowActions`로 분리.
+- share status flash timer를 `useAliveDiscover` 내부로 이동.
+- `useAliveRelationships`에서 `relationBaseFor`를 명시 반환해 런타임 참조 누락 가능성을 정리.
+- `useAliveAppController.jsx` 라인 수 4,516줄에서 1,498줄로 감소.
+- `npm run build` 성공.
 
 ### Phase 7. 상태 관리 방향 결정
 
@@ -482,10 +511,10 @@ Phase 0
 - [x] **T5 (P1, human: ~4h / CC: ~1h)** — AppView Split — `AppView`를 screen/view 단위로 나눈다.
   - 파일: `apps/frontend/src/app/*`, `apps/frontend/src/features/*`.
   - 검증: line count 감소, build, local mode 수동 확인.
-- [ ] **T6 (P1, human: ~1-2 days / CC: ~2h)** — Controller Split — `useAliveAppController`를 domain hook으로 나눈다.
+- [x] **T6 (P1, human: ~1-2 days / CC: ~2h)** — Controller Split — `useAliveAppController`를 domain hook으로 나눈다.
   - 파일: `apps/frontend/src/hooks/*`, `apps/frontend/src/domain/*`, `apps/frontend/src/features/*`.
-  - 검증: 각 slice build, unit test 추가.
-  - 진행: navigation/local persistence slice, AI generation helper slice 완료.
+  - 검증: 각 slice build, 최종 `npm run build`, `git diff --check`. unit/domain test 하네스는 T7에서 준비.
+  - 진행: navigation/local persistence slice, AI generation helper slice, domain state hook slice, discover persistence slice, structured persistence slice, auth action slice, app state persistence slice, autosave slice, session/profile bootstrap slice, discover sync slice, relationship sync slice, DM lifecycle slice, character lifecycle slice, relationship mutation slice, session analysis slice, feed generation slice, DM generation slice, correction helper slice, character analysis slice, discover action wrapper slice, peer lookup slice, follow action slice 완료. `deletePersona`는 DM persona와 feed comment identity를 잇는 의도적 브릿지로 유지.
 - [ ] **T7 (P2, human: ~4h / CC: ~1h)** — Test Harness — pure domain tests와 no-webServer E2E config를 준비한다.
   - 파일: `apps/frontend/tests/*`, `apps/frontend/playwright.config.*`, test setup.
   - 검증: 이미 실행 중인 app 기준 E2E.
