@@ -9,3 +9,5 @@ dist
 .env*
 .venv/
 .pytest_cache/
+apps/frontend/.tmp/
+apps/frontend/test-results/

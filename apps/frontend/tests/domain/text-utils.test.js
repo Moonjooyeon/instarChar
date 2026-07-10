@@ -6,7 +6,7 @@ import {
   normalizeHandle,
   recentLinesBlock,
   worldBridgeBlock,
-} from "../../src/domain/app/textUtils.ts";
+} from "../../src/domain/app/textUtils.js";
 
 test("fieldText normalizes arrays and object fields", () => {
   assert.equal(fieldText([" 차분함 ", "", "단호함"]), "차분함, 단호함");

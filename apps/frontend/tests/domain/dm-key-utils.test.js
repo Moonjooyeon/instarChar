@@ -5,7 +5,7 @@ import {
   localRoomIdFromDmThreadKey,
   roomKeyFromDmThreadKey,
   scopedLocalDmKey,
-} from "../../src/domain/dm/dmKeyUtils.ts";
+} from "../../src/domain/dm/dmKeyUtils.js";
 
 test("canonicalDmKey sorts participants into a stable room key", () => {
   assert.equal(canonicalDmKey("세인", "하루"), "dm::세인|하루");

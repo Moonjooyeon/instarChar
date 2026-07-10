@@ -6,7 +6,7 @@ import {
   postTimeMs,
   postsFromFollowedCharacter,
   sanitizePosts,
-} from "../../src/domain/feed/feedUtils.ts";
+} from "../../src/domain/feed/feedUtils.js";
 
 test("sanitizePosts removes generated failure placeholders", () => {
   const posts = [
