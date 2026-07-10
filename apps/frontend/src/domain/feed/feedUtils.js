@@ -1,7 +1,7 @@
 export function isFailedGeneratedPost(post) {
   const text = String(post?.text || "").trim();
   if (!text) return false;
-  const normalized = text.replace(/[()\[\]{}竊덌펹"'`.,!??╉?s]/g, "");
+  const normalized = text.replace(/[\s()[\]{}"'`.,!?!]/g, "");
   return (
     (normalized.includes("\uC5F0\uACB0\uC774\uB04A\uACBC") && normalized.includes("\uC7A0\uC2DC\uD6C4\uB2E4\uC2DC")) ||
     normalized.includes("Gemini/API\uC751\uB2F5\uC774\uB04A\uACBC") ||

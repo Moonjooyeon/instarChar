@@ -3,7 +3,7 @@ title: 모노레포 및 프론트엔드 재구성 계획
 author: Codex
 created: 2026-07-03
 updated: 2026-07-03
-version: 0.1.22
+version: 0.1.23
 status: draft
 ---
 
@@ -440,11 +440,11 @@ CODE PATHS                                      USER FLOWS
   └── [GAP] dm route                              └── [GAP] DM duplicate send guard
 
 [+] Controller split                             [+] Persistence
-  ├── [GAP] navigation hook                       ├── [GAP] back/forward modal state
-  ├── [GAP] local persistence hook                ├── [GAP] page reload
-  ├── [GAP] feed domain functions                 ├── [GAP] edit/delete post
-  ├── [GAP] DM domain functions                   ├── [GAP] send DM once
-  └── [GAP] relationship domain functions         └── [GAP] relationship modal outcome
+  ├── [COVERED] navigation hook                   ├── [COVERED] back/forward modal state
+  ├── [COVERED] local persistence hook            ├── [COVERED] page reload
+  ├── [COVERED] feed domain functions             ├── [GAP] edit/delete post
+  ├── [COVERED] DM domain functions               ├── [COVERED] send DM once
+  └── [COVERED] relationship domain functions     └── [GAP] relationship modal outcome
 ```
 
 필수 검증:
@@ -515,9 +515,10 @@ Phase 0
   - 파일: `apps/frontend/src/hooks/*`, `apps/frontend/src/domain/*`, `apps/frontend/src/features/*`.
   - 검증: 각 slice build, 최종 `npm run build`, `git diff --check`. unit/domain test 하네스는 T7에서 준비.
   - 진행: navigation/local persistence slice, AI generation helper slice, domain state hook slice, discover persistence slice, structured persistence slice, auth action slice, app state persistence slice, autosave slice, session/profile bootstrap slice, discover sync slice, relationship sync slice, DM lifecycle slice, character lifecycle slice, relationship mutation slice, session analysis slice, feed generation slice, DM generation slice, correction helper slice, character analysis slice, discover action wrapper slice, peer lookup slice, follow action slice 완료. `deletePersona`는 DM persona와 feed comment identity를 잇는 의도적 브릿지로 유지.
-- [ ] **T7 (P2, human: ~4h / CC: ~1h)** — Test Harness — pure domain tests와 no-webServer E2E config를 준비한다.
+- [x] **T7 (P2, human: ~4h / CC: ~1h)** — Test Harness — pure domain tests와 no-webServer E2E config를 준비한다.
   - 파일: `apps/frontend/tests/*`, `apps/frontend/playwright.config.*`, test setup.
-  - 검증: 이미 실행 중인 app 기준 E2E.
+  - 검증: `npm run test:domain`, `npm run test:e2e -- --list`, `npm run build`, `git diff --check`.
+  - 진행: Node 내장 test runner 기반 domain tests 추가, Playwright webServer 자동 실행 제거, `ALIVE_E2E_BASE_URL` 기반 no-webServer E2E 설정 완료.
 - [ ] **T8 (P2, human: ~1-2 days / CC: ~2h)** — Gradual TypeScript — domain과 API boundary부터 `.ts/.tsx`로 전환한다.
   - 파일: `apps/frontend/src/domain/*`, `apps/frontend/src/api/*`, `apps/frontend/src/hooks/*`.
   - 검증: typecheck script 추가 후 실행.
