@@ -147,17 +147,17 @@ PostgreSQL
 
 작업:
 
-- `backend/app/api/v1/ai.py`를 추가해 `/api/ai/generate`를 구현한다.
-- 기존 `api/generate.js`의 request/response/error shape를 유지한다.
-- provider key, model, limit 설정은 backend settings로 옮긴다.
-- 프론트 `generate.ts`의 기본 경로를 `/api/ai/generate`로 바꾼다.
-- Vercel/serverless용 `api/generate.js`는 FastAPI 전환이 검증되면 제거한다.
+- [x] `backend/app/api/v1/ai.py`를 추가해 `/api/ai/generate`를 구현한다.
+- [x] 기존 `api/generate.js`의 request/response/error shape를 유지한다.
+- [x] provider key, model, limit 설정은 backend settings로 옮긴다.
+- [x] 프론트 `generate.ts`의 기본 경로를 `/api/ai/generate`로 바꾼다.
+- [x] Vercel/serverless용 `api/generate.js`는 FastAPI 전환이 검증되면 제거한다.
 
 검증:
 
-- backend AI route 테스트: 성공, 빈 응답, provider error, limit exceeded.
-- frontend generate parser 테스트가 있으면 경로만 교체.
-- `npm run build`
+- [x] backend AI route 테스트: 성공, 빈 응답, provider error, limit exceeded.
+- [x] frontend generate parser 테스트가 있으면 경로만 교체.
+- [x] `npm run build`
 
 ## Phase 7. Supabase 제거
 

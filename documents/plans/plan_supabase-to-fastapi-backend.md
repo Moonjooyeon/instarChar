@@ -328,11 +328,15 @@ React discover screen
 
 ### Phase 7. AI generate 이관
 
-- [ ] 기존 `api/generate.js`를 FastAPI `/api/ai/generate`로 이관
+- [x] 기존 `api/generate.js`를 FastAPI `/api/ai/generate`로 이관
 - [ ] 일일/월간 사용량 제한을 메모리 기반에서 DB 기반으로 변경
-- [ ] 프론트 fetch 경로를 새 API로 통일하거나 Vite proxy를 추가
+- [x] 프론트 fetch 경로를 새 API로 통일하거나 Vite proxy를 추가
 
 검증: Playwright에서 `/api/generate` route mock을 새 경로로 바꾸고 기존 E2E가 유지되는지 확인한다.
+
+검증 기록:
+
+- [x] 2026-07-10: FastAPI `/api/ai/generate`와 frontend `/api/ai/generate` 호출 전환 후 `npm run test:domain`, `npm run typecheck`, `npm run build`, `npm run test:e2e -- --list`, `PYTHONPATH=backend backend/.venv/bin/pytest backend/tests` 통과. 결과: frontend domain 36 passed, backend 38 passed.
 
 ### Phase 8. Supabase 제거
 

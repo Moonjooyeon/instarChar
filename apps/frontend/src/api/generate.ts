@@ -1,4 +1,5 @@
-import { API_LIMIT_MESSAGE } from "@/domain/app/aliveCore";
+import { API_LIMIT_MESSAGE } from "../domain/app/aliveCore.js";
+import { apiUrl } from "./client.js";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -34,8 +35,9 @@ type GenerateOptions = {
 };
 
 export async function postGenerate(body: GenerateRequest, options: GenerateOptions = {}): Promise<Response> {
-  return fetch("/api/generate", {
+  return fetch(apiUrl("/ai/generate"), {
     method: "POST",
+    credentials: "include",
     cache: options.cache,
     headers: { "Content-Type": "application/json", ...(options.headers || {}) },
     signal: options.signal,
@@ -49,7 +51,7 @@ export async function postGenerateContent(body: GenerateRequest, label: string, 
 
 export async function readApiJson(res: Response, label: string): Promise<unknown> {
   const text = await res.text();
-  if (!text.trim()) throw new Error(`${label} 응답이 비어 있습니다. HTTP ${res.status}. 로컬 개발 서버에서 /api/generate 연결이 끊겼을 수 있습니다.`);
+  if (!text.trim()) throw new Error(`${label} 응답이 비어 있습니다. HTTP ${res.status}. 로컬 개발 서버에서 /api/ai/generate 연결이 끊겼을 수 있습니다.`);
   try {
     return JSON.parse(text) as unknown;
   } catch (error) {

@@ -19,6 +19,13 @@ class Settings(BaseSettings):
     apple_client_id: str = ""
     apple_client_secret: str = ""
     apple_redirect_uri: str = "http://localhost:8000/api/auth/apple/callback"
+    gemini_api_key: str = ""
+    gemini_model_fast: str = "gemini-2.5-flash"
+    gemini_model_good: str = "gemini-2.5-pro"
+    api_daily_limit: int = 50
+    api_monthly_cost_limit_usd: float = 60.0
+    api_estimated_call_cost_usd: float = 0.003
+    gemini_timeout_ms: int = 45000
 
     @computed_field
     @property

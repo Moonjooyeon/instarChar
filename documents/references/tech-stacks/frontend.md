@@ -2,8 +2,8 @@
 title: Frontend Tech Stack
 author: black (black@ashwoodfriends.com)
 created: 2026-05-07
-updated: 2026-06-26
-version: 2.1.0
+updated: 2026-07-10
+version: 2.1.1
 status: approved
 ---
 
@@ -36,7 +36,7 @@ alive's frontend is currently a JavaScript React app built with Vite and wrapped
 - The main React surface is `src/App.jsx`.
 - Shared app constants and helper functions live in `src/aliveCore.js`.
 - CSS is currently defined as a JavaScript string in `src/appStyles.js` and injected by the app.
-- The Vite config includes a local `/api/generate` development middleware in `vite.config.js`.
+- AI generation requests are routed through the FastAPI `/api/ai/generate` endpoint.
 
 ## Not Currently Used
 
