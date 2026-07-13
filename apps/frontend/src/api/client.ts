@@ -8,7 +8,7 @@ type ApiRequestOptions = RequestInit & {
 
 const API_BASE_URL = normalizeBaseUrl(import.meta.env?.VITE_API_BASE_URL || "/api");
 
-export const hasRemoteApiConfig = true;
+export const hasBackendApiConfig = true;
 
 export function hasRemoteApiClient(): boolean {
   return true;

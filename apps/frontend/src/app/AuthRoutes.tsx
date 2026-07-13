@@ -7,7 +7,7 @@ export function AuthRoutes({ ctx }) {
     authLoading,
     AuthLoadingScreen,
     authMessage,
-    hasSupabaseConfig,
+    hasBackendApiConfig,
     session,
     setAuthMessage,
     setProfileLoading,
@@ -29,7 +29,7 @@ export function AuthRoutes({ ctx }) {
         />
       )}
 
-      {hasSupabaseConfig && !authLoading && !session && (
+      {hasBackendApiConfig && !authLoading && !session && (
         <AuthEntryScreen
           authLoading={authLoading}
           authMessage={authMessage}

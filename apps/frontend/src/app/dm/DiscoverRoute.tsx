@@ -9,7 +9,7 @@ export function DiscoverRoute({ ctx }) {
     DiscoverScreen,
     DISCOVER_POOL,
     following,
-    hasSupabaseConfig,
+    hasBackendApiConfig,
     isFollowing,
     loadSharedCharacters,
     publicFollowerCount,
@@ -34,7 +34,7 @@ export function DiscoverRoute({ ctx }) {
       discoverPool={DISCOVER_POOL}
       discoverQuery={discoverQuery}
       following={following}
-      hasSupabaseConfig={hasSupabaseConfig}
+      hasBackendApiConfig={hasBackendApiConfig}
       isFollowing={isFollowing}
       loadSharedCharacters={loadSharedCharacters}
       publicFollowerCount={publicFollowerCount}

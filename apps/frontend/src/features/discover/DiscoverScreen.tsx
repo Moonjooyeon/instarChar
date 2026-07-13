@@ -7,7 +7,7 @@ export function DiscoverScreen({
   discoverPool,
   discoverQuery,
   following,
-  hasSupabaseConfig,
+  hasBackendApiConfig,
   isFollowing,
   loadSharedCharacters,
   publicFollowerCount,
@@ -28,7 +28,7 @@ export function DiscoverScreen({
   const safeDiscoverPool = Array.isArray(discoverPool) ? discoverPool : [];
   const safeFollowing = Array.isArray(following) ? following : [];
   const safeSharedLoadState = sharedLoadState || {};
-  const mergedDiscover = hasSupabaseConfig ? safeSharedCharacters : safeDiscoverPool;
+  const mergedDiscover = hasBackendApiConfig ? safeSharedCharacters : safeDiscoverPool;
   const isActiveShared = (c) => Boolean(
     (activeSharedId && (c.sharedId === activeSharedId || c.id === `shared_${activeSharedId}`)) ||
     (session?.user?.id && activeId && c.ownerId === session.user.id && c.sourceAccountId === activeId)
@@ -64,7 +64,7 @@ export function DiscoverScreen({
           <button onClick={() => setSharedFocusId("")}>전체 탐색 보기</button>
         </div>
       )}
-      {hasSupabaseConfig && (
+      {hasBackendApiConfig && (
         <div className="al-disc-status">
           <span>
             {safeSharedLoadState.loading

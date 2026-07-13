@@ -51,4 +51,4 @@ PYTHONPATH=backend backend/.venv/bin/pytest backend/tests
 
 ## Migration Status
 
-Supabase runtime calls have been moved behind FastAPI for auth, profile/state, discover/share/follow, and DM deletion. Remaining cleanup is tracked in `documents/plans/plan_supabase-to-fastapi-frontend-integration_2026-07-10.md`, including removal of `@supabase/supabase-js`, `supabaseClient.js`, and legacy Supabase env types.
+Previous runtime calls and the old frontend data-client dependency have been removed. The old SQL schema file remains only as a legacy migration reference; the active app path is FastAPI + PostgreSQL.

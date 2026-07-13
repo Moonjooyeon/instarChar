@@ -5,7 +5,7 @@ import {
   signOutAuthSession,
   subscribeAuthState,
 } from "@/api/auth";
-import { hasRemoteApiConfig as hasSupabaseConfig } from "@/api/client";
+import { hasBackendApiConfig } from "@/api/client";
 
 type MutableRef<T> = {
   current: T;
@@ -59,7 +59,7 @@ export function useAliveSessionBootstrap({
   setStateReady,
 }: SessionBootstrapOptions): void {
   useEffect(() => {
-    if (!hasSupabaseConfig || !isAuthApiAvailable()) {
+    if (!hasBackendApiConfig || !isAuthApiAvailable()) {
       const snapshot = readLocalSnapshot();
       if (snapshot) applyAppState(snapshot);
       profileLoadedRef.current = true;
@@ -82,7 +82,7 @@ export function useAliveSessionBootstrap({
     });
   }, []);
   useEffect(() => {
-    if (!hasSupabaseConfig || !isAuthApiAvailable() || !authBusy) return;
+    if (!hasBackendApiConfig || !isAuthApiAvailable() || !authBusy) return;
     const timer = setTimeout(() => {
       refreshSlowSession({ profileLoadedRef, setAuthLoading, setAuthMessage, setProfileLoading, setSaveStatus, setSession, setStateReady });
     }, 8000);

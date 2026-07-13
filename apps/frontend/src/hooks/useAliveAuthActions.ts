@@ -114,7 +114,7 @@ export function useAliveAuthActions({
 
 function clearStorage(storage: Storage, includeLocalState: boolean): void {
   Object.keys(storage).forEach((key) => {
-    if (key.startsWith("sb-") || key.includes("supabase") || (includeLocalState && key === LOCAL_STATE_KEY)) storage.removeItem(key);
+    if (key.startsWith("sb-") || (includeLocalState && key === LOCAL_STATE_KEY)) storage.removeItem(key);
   });
 }
 

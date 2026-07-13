@@ -2,14 +2,14 @@
 title: Frontend Tech Stack
 author: black (black@ashwoodfriends.com)
 created: 2026-05-07
-updated: 2026-07-10
-version: 2.1.1
+updated: 2026-07-13
+version: 2.1.2
 status: approved
 ---
 
 # Tech Stack
 
-alive's frontend is currently a JavaScript React app built with Vite and wrapped with Capacitor for iOS and Android mobile app shells.
+alive's frontend is currently a TypeScript React app built with Vite and wrapped with Capacitor for iOS and Android mobile app shells.
 
 ## Runtime
 
@@ -32,18 +32,17 @@ alive's frontend is currently a JavaScript React app built with Vite and wrapped
 
 ## Source Shape
 
-- The app entry point is `src/main.jsx`.
-- The main React surface is `src/App.jsx`.
-- Shared app constants and helper functions live in `src/aliveCore.js`.
-- CSS is currently defined as a JavaScript string in `src/appStyles.js` and injected by the app.
+- The app entry point is `src/main.tsx`.
+- The main React surface is split across `src/app`, `src/features`, `src/hooks`, and `src/domain`.
+- Shared app constants and helper functions live in `src/domain/app/aliveCore.ts`.
+- CSS is currently defined in `src/appStyles.ts` and injected by the app.
 - AI generation requests are routed through the FastAPI `/api/ai/generate` endpoint.
 
 ## Not Currently Used
 
-- TypeScript is not configured in the current frontend source.
 - Tailwind CSS is not installed or configured.
 - Lucide React is not installed.
 
-## Planned Removal
+## Removed Runtime Dependencies
 
-`@supabase/supabase-js` and `src/supabaseClient.js` are still present in the current frontend, but Supabase-related code is scheduled for removal as the project moves to the FastAPI and PostgreSQL backend.
+`@supabase/supabase-js` and `src/supabaseClient.js` have been removed from the frontend runtime. Supabase schema files remain only as legacy migration references.

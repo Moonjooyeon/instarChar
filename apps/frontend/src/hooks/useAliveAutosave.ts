@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { hasRemoteApiClient, hasRemoteApiConfig as hasSupabaseConfig } from "@/api/client";
+import { hasRemoteApiClient, hasBackendApiConfig } from "@/api/client";
 import { upsertProfile } from "@/api/profiles";
 
 type MutableRef<T> = {
@@ -72,7 +72,7 @@ export function useAliveAutosave({
   useEffect(() => {
     if (!profileLoadedRef.current || !stateReady) return;
     const snapshot = exportAppState();
-    if (!hasSupabaseConfig || !hasRemoteApiClient() || !session?.user) {
+    if (!hasBackendApiConfig || !hasRemoteApiClient() || !session?.user) {
       saveLocalSnapshot(snapshot, persistLocalSnapshot, setSaveStatus);
       return;
     }
@@ -87,7 +87,7 @@ export function useAliveAutosave({
     if (!stateReady) return;
     function saveBeforeLeave() {
       const snapshot = exportAppState();
-      if (!hasSupabaseConfig) persistLocalSnapshot(snapshot);
+      if (!hasBackendApiConfig) persistLocalSnapshot(snapshot);
     }
     window.addEventListener("pagehide", saveBeforeLeave);
     window.addEventListener("beforeunload", saveBeforeLeave);

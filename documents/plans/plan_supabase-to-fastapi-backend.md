@@ -340,12 +340,16 @@ React discover screen
 
 ### Phase 8. Supabase 제거
 
-- [ ] `src/supabaseClient.js` 삭제
-- [ ] `@supabase/supabase-js` 제거
-- [ ] `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` 제거
-- [ ] Supabase 전용 README/스키마 문구 갱신
+- [x] `src/supabaseClient.js` 삭제
+- [x] `@supabase/supabase-js` 제거
+- [x] `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` 제거
+- [x] Supabase 전용 README/스키마 문구 갱신
 
 검증: `rg "supabase|VITE_SUPABASE|auth.uid|auth.users"`가 의도한 마이그레이션 참고 문서 외에는 남지 않아야 한다.
+
+검증 기록:
+
+- [x] 2026-07-13: frontend Supabase dependency와 env type 제거 후 `npm run typecheck`, `npm run test:domain`, `npm run build`, `npm run test:e2e -- --list`, `PYTHONPATH=backend backend/.venv/bin/pytest backend/tests`로 검증.
 
 ## 테스트 계획
 

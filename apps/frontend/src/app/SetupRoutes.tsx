@@ -14,7 +14,7 @@ export function SetupRoutes({ ctx }) {
     DumpScreen,
     editAccount,
     EXAMPLES,
-    hasSupabaseConfig,
+    hasBackendApiConfig,
     HomeScreen,
     parseDump,
     parseError,
@@ -48,7 +48,7 @@ export function SetupRoutes({ ctx }) {
           buildMark={BUILD_MARK}
           deletePersona={deletePersona}
           editAccount={editAccount}
-          hasSupabaseConfig={hasSupabaseConfig}
+          hasBackendApiConfig={hasBackendApiConfig}
           personas={personas}
           profileName={profileName}
           saveStatus={saveStatus}

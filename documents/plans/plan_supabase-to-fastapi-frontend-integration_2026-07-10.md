@@ -163,21 +163,21 @@ PostgreSQL
 
 작업:
 
-- `apps/frontend/src/supabaseClient.js` 삭제.
-- `apps/frontend/package.json`에서 `@supabase/supabase-js` 제거.
-- `package-lock.json` 갱신.
-- `apps/frontend/src/types/env.d.ts`에서 `VITE_SUPABASE_*` 제거, 필요한 경우 `VITE_API_BASE_URL` 추가.
-- `rg "supabase|VITE_SUPABASE|@supabase|auth.uid|auth.users"`로 남은 참조를 점검한다.
-- `supabase-schema.sql`은 역사/참고 자료로 둘지 삭제할지 결정한다. 삭제하지 않는다면 문서에서 legacy reference로 명확히 표시한다.
+- [x] `apps/frontend/src/supabaseClient.js` 삭제.
+- [x] `apps/frontend/package.json`에서 `@supabase/supabase-js` 제거.
+- [x] `package-lock.json` 갱신.
+- [x] `apps/frontend/src/types/env.d.ts`에서 `VITE_SUPABASE_*` 제거, 필요한 경우 `VITE_API_BASE_URL` 추가.
+- [x] `rg "supabase|VITE_SUPABASE|@supabase|auth.uid|auth.users"`로 남은 참조를 점검한다.
+- [x] `supabase-schema.sql`은 역사/참고 자료로 둘지 삭제할지 결정한다. 삭제하지 않는다면 문서에서 legacy reference로 명확히 표시한다.
 
 검증:
 
-- `npm run typecheck`
-- `npm run test:domain`
-- `npm run test:e2e -- --list`
-- `npm run build`
-- `PYTHONPYCACHEPREFIX=/private/tmp/instarChar-pycache backend/.venv/bin/python -m compileall -q backend/app backend/tests backend/migrations`
-- `PYTHONPATH=backend backend/.venv/bin/pytest backend/tests`
+- [x] `npm run typecheck`
+- [x] `npm run test:domain`
+- [x] `npm run test:e2e -- --list`
+- [x] `npm run build`
+- [x] `PYTHONPYCACHEPREFIX=/private/tmp/instarChar-pycache backend/.venv/bin/python -m compileall -q backend/app backend/tests backend/migrations`
+- [x] `PYTHONPATH=backend backend/.venv/bin/pytest backend/tests`
 
 ## 누락 항목 결정사항
 

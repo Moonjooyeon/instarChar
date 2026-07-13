@@ -25,7 +25,7 @@ import { DmListScreen } from "@/features/dm/DmListScreen";
 import { HomeScreen } from "@/features/home/HomeScreen";
 import { ProposalModal, RelationResultModal } from "@/features/relationships/RelationshipModals";
 import { WorldChip } from "@/components/ui/WorldChip";
-import { hasRemoteApiConfig as hasSupabaseConfig } from "@/api/client";
+import { hasBackendApiConfig } from "@/api/client";
 import {
   RELATION_BASE,
   LOVE_RELATIONS,
@@ -108,13 +108,13 @@ import { useCharacterAccounts } from "@/hooks/useCharacterAccounts";
 export function useAliveAppController() {
   const [session, setSession] = useState(null);
   const [authMessage, setAuthMessage] = useState("");
-  const [authLoading, setAuthLoading] = useState(Boolean(hasSupabaseConfig));
-  const [profileLoading, setProfileLoading] = useState(Boolean(hasSupabaseConfig));
+  const [authLoading, setAuthLoading] = useState(Boolean(hasBackendApiConfig));
+  const [profileLoading, setProfileLoading] = useState(Boolean(hasBackendApiConfig));
   const [profileLoadRetry, setProfileLoadRetry] = useState(0);
   const [profileName, setProfileName] = useState("");
   const [onboardingOpen, setOnboardingOpen] = useState(false);
-  const [saveStatus, setSaveStatus] = useState(hasSupabaseConfig ? "로그인 대기" : "로컬 저장");
-  const [stateReady, setStateReady] = useState(!hasSupabaseConfig);
+  const [saveStatus, setSaveStatus] = useState(hasBackendApiConfig ? "로그인 대기" : "로컬 저장");
+  const [stateReady, setStateReady] = useState(!hasBackendApiConfig);
   const [step, setStep] = useState("home"); // home | dump | confirm | feed | dm
   const {
     accounts,
@@ -687,13 +687,13 @@ export function useAliveAppController() {
     syncStructuredState,
   });
 
-  const canUseApp = !hasSupabaseConfig || (session && stateReady);
-  const authBusy = hasSupabaseConfig && (authLoading || profileLoading || (session && !stateReady));
+  const canUseApp = !hasBackendApiConfig || (session && stateReady);
+  const authBusy = hasBackendApiConfig && (authLoading || profileLoading || (session && !stateReady));
   const appScreenVisible = canUseApp && (
     ["home", "dump", "confirm", "feed", "discover", "dmlist"].includes(step)
     || (step === "dm" && peer)
   );
-  const hasMainScreen = authBusy || (hasSupabaseConfig && !authLoading && !session) || appScreenVisible;
+  const hasMainScreen = authBusy || (hasBackendApiConfig && !authLoading && !session) || appScreenVisible;
   const showRecoveryScreen = !hasMainScreen;
   const {
     navApplyingRef,
