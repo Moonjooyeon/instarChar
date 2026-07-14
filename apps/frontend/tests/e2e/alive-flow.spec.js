@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 async function mockAliveApi(page) {
-  await page.route("**/api/generate", async (route) => {
+  await page.route("**/api/ai/generate", async (route) => {
     const body = route.request().postDataJSON();
     const system = body?.system || "";
     const isAnalysis = system.includes("character-analysis-v2") || body?.flow === "character-analysis-v2";

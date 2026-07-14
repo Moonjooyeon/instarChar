@@ -5,7 +5,7 @@ export function HomeScreen({
   buildMark,
   deletePersona,
   editAccount,
-  hasSupabaseConfig,
+  hasBackendApiConfig,
   personas,
   profileName,
   saveStatus,
@@ -20,9 +20,9 @@ export function HomeScreen({
     <div className="al-phone">
       <div className="al-home">
         <div className="al-accountbar">
-          <span>{hasSupabaseConfig ? (profileName || session?.user?.email || "로그인됨") : "로컬 모드"}</span>
+          <span>{hasBackendApiConfig ? (profileName || session?.user?.email || "로그인됨") : "로컬 모드"}</span>
           <b>{saveStatus}</b>
-          {hasSupabaseConfig && <button onClick={signOut}>로그아웃</button>}
+          {hasBackendApiConfig && <button onClick={signOut}>로그아웃</button>}
         </div>
         <div className="al-home-head">
           <span className="al-spark">✶</span>

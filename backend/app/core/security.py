@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import binascii
 import hashlib
 import hmac
 import json
@@ -48,13 +49,16 @@ def verify_session(token: str, secret_key: str) -> SessionPayload | None:
 
 
 def _payload_from_token(encoded: str) -> SessionPayload | None:
-    raw = json.loads(_decode_bytes(encoded))
-    if not isinstance(raw, dict):
+    try:
+        raw = json.loads(_decode_bytes(encoded))
+        if not isinstance(raw, dict):
+            return None
+        expires_at = int(raw.get("exp", 0))
+        if expires_at < int(time.time()):
+            return None
+        return SessionPayload(user_id=UUID(str(raw.get("sub"))), expires_at=expires_at)
+    except (binascii.Error, TypeError, ValueError, UnicodeDecodeError):
         return None
-    expires_at = int(raw.get("exp", 0))
-    if expires_at < int(time.time()):
-        return None
-    return SessionPayload(user_id=UUID(str(raw.get("sub"))), expires_at=expires_at)
 
 
 def sign_oauth_state(provider: str, ttl_seconds: int, secret_key: str) -> str:
@@ -74,8 +78,11 @@ def verify_oauth_state(token: str, provider: str, secret_key: str) -> bool:
 
 
 def _state_matches_provider(encoded: str, provider: str) -> bool:
-    raw = json.loads(_decode_bytes(encoded))
-    if not isinstance(raw, dict):
+    try:
+        raw = json.loads(_decode_bytes(encoded))
+        if not isinstance(raw, dict):
+            return False
+        expires_at = int(raw.get("exp", 0))
+        return raw.get("provider") == provider and expires_at >= int(time.time())
+    except (binascii.Error, TypeError, ValueError, UnicodeDecodeError):
         return False
-    expires_at = int(raw.get("exp", 0))
-    return raw.get("provider") == provider and expires_at >= int(time.time())

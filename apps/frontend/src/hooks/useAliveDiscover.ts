@@ -11,7 +11,7 @@ import {
   upsertOwnFollowRows,
   upsertSharedCharacter,
 } from "@/api/discover";
-import { hasRemoteApiClient, hasRemoteApiConfig as hasSupabaseConfig } from "@/api/client";
+import { hasRemoteApiClient, hasBackendApiConfig } from "@/api/client";
 import { mergeDiscoverCharacters, sharedRowToChar, type CharacterData, type CharacterRow, type DiscoverCharacter, type SharedCharacterRow } from "@/domain/discover/discoverUtils";
 
 type SetState<T> = Dispatch<SetStateAction<T>>;
@@ -186,7 +186,7 @@ export function useAliveDiscover({ activeId = null, char = null, profileName = "
   const publicFollowingCount = (target?: { following?: unknown[] } | null): number => Array.isArray(target?.following) ? target.following.length : 0;
   const publicFollowerCount = (target?: DiscoverCharacter | null): number => {
     if (target?.sharedId) return followerCounts[target.sharedId] ?? 0;
-    return hasSupabaseConfig ? 0 : baseFollowerCount(target?.name || "");
+    return hasBackendApiConfig ? 0 : baseFollowerCount(target?.name || "");
   };
   async function loadFollowerCountsFor(rows: Array<{ id?: string }>): Promise<void> {
     if (!hasRemoteApiClient() || !rows?.length) return;

@@ -2,8 +2,8 @@
 title: Project Structure
 author: black (black@ashwoodfriends.com)
 created: 2026-05-07
-updated: 2026-06-26
-version: 3.1.0
+updated: 2026-07-14
+version: 3.2.0
 status: approved
 ---
 
@@ -16,23 +16,25 @@ alive is an application where user-created characters operate their own SNS-like
 ```text
 .
 ├── android/                   # Capacitor Android project
-├── api/                       # Existing Vercel/serverless API surface
+├── apps/
+│   └── frontend/              # React + Vite frontend workspace
 ├── backend/                   # FastAPI backend application
 ├── capacitor.config.json      # Capacitor app configuration
 ├── db/                        # PostgreSQL Docker image and SQL files
 ├── documents/
 │   ├── plans/                 # Work plans and migration plans
+│   ├── reports/               # Review and migration reports
 │   └── references/            # Project reference documentation
 ├── ios/                       # Capacitor iOS project
-├── public/                    # Static frontend assets
-├── src/                       # React + Vite frontend source
-├── tests/                     # Frontend/e2e-oriented tests
 ├── docker-compose.local.yaml  # Local development compose file
-├── package.json               # Frontend package manifest
-├── playwright.config.js       # Playwright config
-├── vite.config.js             # Vite config
+├── package.json               # npm workspace orchestrator
+├── supabase-schema.sql        # Legacy Supabase schema reference
+├── vercel.json                # Static frontend deployment config
 └── README.md
 ```
+
+The active frontend source, static assets, Vite config, and Playwright tests live under `apps/frontend/`.
+The root `dist/` directory, when present locally, is an ignored legacy build artifact; Capacitor and Vercel use `apps/frontend/dist`.
 
 Detailed structures:
 

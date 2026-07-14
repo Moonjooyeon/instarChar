@@ -1,6 +1,4 @@
-import { withRejectTimeout } from "@/domain/app/asyncUtils";
-import { queryResult, resultWithError, type ApiResult } from "@/api/client";
-import { supabase } from "@/supabaseClient";
+import { apiNoContent, apiResult, type ApiResult } from "./client.js";
 
 export type ProfileRow = {
   app_state?: unknown;
@@ -8,22 +6,42 @@ export type ProfileRow = {
   onboarded?: boolean;
 };
 
+type ProfilePayload = Record<string, unknown> & {
+  app_state?: unknown;
+  display_name?: string;
+  onboarded?: boolean;
+};
+
 export function upsertProfile(payload: unknown): Promise<{ error: { message?: string } | null }> {
-  if (!supabase) return Promise.resolve({ error: { message: "Profile client is not configured." } });
-  return Promise.resolve(supabase.from("alive_profiles").upsert(payload)).then(resultWithError);
+  const profile = profilePayload(payload);
+  if (profile.onboarded && profile.app_state == null) {
+    return apiNoContent("/profile/onboarding", {
+      method: "POST",
+      body: JSON.stringify({ display_name: profile.display_name || "" }),
+    });
+  }
+  return apiNoContent("/profile/state", {
+    method: "PUT",
+    body: JSON.stringify({
+      display_name: profile.display_name || "",
+      onboarded: Boolean(profile.onboarded),
+      app_state: recordValue(profile.app_state),
+    }),
+  });
 }
 
-export async function loadProfileRow(userId: string): Promise<ApiResult<ProfileRow>> {
-  if (!supabase) throw new Error("Profile client is not configured.");
-  const query = supabase
-    .from("alive_profiles")
-    .select("display_name,onboarded,app_state")
-    .eq("id", userId)
-    .maybeSingle();
-  const result = await withRejectTimeout(Promise.resolve(query), 5000, "프로필 메타 로드");
-  return queryResult<ProfileRow>(result);
+export function loadProfileRow(_userId: string): Promise<ApiResult<ProfileRow>> {
+  return apiResult<ProfileRow>("/profile/state");
 }
 
 export function createProfileShell(payload: unknown): Promise<{ error: { message?: string } | null }> {
   return upsertProfile(payload);
+}
+
+function profilePayload(value: unknown): ProfilePayload {
+  return value && typeof value === "object" ? value as ProfilePayload : {};
+}
+
+function recordValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" ? value as Record<string, unknown> : {};
 }

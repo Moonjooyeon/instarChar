@@ -1,5 +1,5 @@
 import { sanitizePosts, type FeedPost } from "@/domain/feed/feedUtils";
-import { hasRemoteApiClient, hasRemoteApiConfig as hasSupabaseConfig } from "@/api/client";
+import { hasRemoteApiClient, hasBackendApiConfig } from "@/api/client";
 import { upsertProfile } from "@/api/profiles";
 
 type SetState<T> = (value: T | ((prev: T) => T)) => void;
@@ -237,7 +237,7 @@ export function useAliveAppStatePersistence({
   }
   async function saveAppStateSnapshot(snapshot: AppState | null | undefined): Promise<void> {
     if (!snapshot) return;
-    if (!hasSupabaseConfig || !hasRemoteApiClient() || !session?.user) {
+    if (!hasBackendApiConfig || !hasRemoteApiClient() || !session?.user) {
       persistLocalSnapshot(snapshot);
       return;
     }

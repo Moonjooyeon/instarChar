@@ -2,8 +2,8 @@
 title: Backend Structure
 author: black (black@ashwoodfriends.com)
 created: 2026-05-07
-updated: 2026-06-26
-version: 3.2.0
+updated: 2026-07-14
+version: 3.3.0
 status: approved
 ---
 
@@ -30,7 +30,9 @@ backend/
 │   │   ├── deps.py
 │   │   └── v1/
 │   │       ├── __init__.py
+│   │       ├── ai.py
 │   │       ├── auth.py
+│   │       ├── characters.py
 │   │       ├── dm_threads.py
 │   │       ├── profiles.py
 │   │       └── shared_characters.py
@@ -49,14 +51,18 @@ backend/
 │   │   ├── shared_characters.py
 │   │   └── users.py
 │   ├── schemas/
+│   │   ├── ai.py
 │   │   ├── auth.py
 │   │   ├── dm_threads.py
 │   │   ├── profile.py
 │   │   └── shared_characters.py
 │   └── services/
+│       ├── ai.py
 │       └── oauth.py
 └── tests/
+    ├── test_ai_api.py
     ├── test_auth_api.py
+    ├── test_characters_api.py
     ├── test_dm_threads_api.py
     ├── test_profile_api.py
     ├── test_security.py
@@ -77,7 +83,7 @@ backend/
 | Models | `backend/app/models/entities.py` | SQLAlchemy ORM entities for users, profiles, characters, follows, DM threads |
 | Repositories | `backend/app/repositories/` | Database operations and authorization-sensitive data access |
 | Schemas | `backend/app/schemas/` | Pydantic request/response contracts |
-| Services | `backend/app/services/oauth.py` | Google and Apple OAuth URL/token/profile flow |
+| Services | `backend/app/services/` | Google and Apple OAuth flow plus Gemini-backed AI generation |
 | Migrations | `backend/migrations/` | Alembic schema migration files |
 | Tests | `backend/tests/` | FastAPI route and core security tests |
 
@@ -98,6 +104,7 @@ All API routes are mounted under `/api` except the system health check.
 | `PUT` | `/api/profile/state` | `profiles.py` | Save compact profile backup |
 | `POST` | `/api/profile/structured-state` | `profiles.py` | Upsert characters, personas, owner DM, shared DM rows |
 | `POST` | `/api/profile/onboarding` | `profiles.py` | Save display name and mark onboarding complete |
+| `POST` | `/api/ai/generate` | `ai.py` | Generate character, feed, DM, or analysis text through Gemini |
 | `GET` | `/api/discover/characters` | `shared_characters.py` | Return discover character DTOs |
 | `GET` | `/api/shared-characters/follower-counts` | `shared_characters.py` | Batch follower counts |
 | `GET` | `/api/shared-characters/{shared_character_id}` | `shared_characters.py` | Load a shared character by ID |
@@ -106,6 +113,7 @@ All API routes are mounted under `/api` except the system health check.
 | `DELETE` | `/api/shared-characters/{shared_character_id}/follow` | `shared_characters.py` | Unfollow a shared character |
 | `POST` | `/api/shared-characters/{shared_character_id}/relationship-follow-back` | `shared_characters.py` | Apply relationship-based follow-back |
 | `GET` | `/api/characters/{source_account_id}/share` | `shared_characters.py` | Find the current user's share ID for a character |
+| `DELETE` | `/api/characters/{source_account_id}` | `characters.py` | Delete structured state for one local character |
 | `PUT` | `/api/shared-characters/by-source/{source_account_id}` | `shared_characters.py` | Upsert a shared character by local source account ID |
 | `PATCH` | `/api/shared-characters/by-source/{source_account_id}` | `shared_characters.py` | Update a shared character snapshot |
 | `DELETE` | `/api/shared-characters/by-source/{source_account_id}` | `shared_characters.py` | Delete a shared character snapshot |
@@ -147,5 +155,5 @@ PYTHONPATH=backend backend/.venv/bin/pytest backend/tests
 Current expected result:
 
 ```text
-32 passed
+45 passed
 ```

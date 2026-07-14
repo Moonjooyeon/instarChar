@@ -25,7 +25,7 @@ import { DmListScreen } from "@/features/dm/DmListScreen";
 import { HomeScreen } from "@/features/home/HomeScreen";
 import { ProposalModal, RelationResultModal } from "@/features/relationships/RelationshipModals";
 import { WorldChip } from "@/components/ui/WorldChip";
-import { hasRemoteApiConfig as hasSupabaseConfig } from "@/api/client";
+import { hasBackendApiConfig } from "@/api/client";
 import {
   RELATION_BASE,
   LOVE_RELATIONS,
@@ -107,19 +107,14 @@ import { useCharacterAccounts } from "@/hooks/useCharacterAccounts";
 
 export function useAliveAppController() {
   const [session, setSession] = useState(null);
-  const [authMode, setAuthMode] = useState("signup");
-  const [authEmail, setAuthEmail] = useState("");
-  const [authPassword, setAuthPassword] = useState("");
   const [authMessage, setAuthMessage] = useState("");
-  const [passwordRecoveryOpen, setPasswordRecoveryOpen] = useState(false);
-  const [newPassword, setNewPassword] = useState("");
-  const [authLoading, setAuthLoading] = useState(Boolean(hasSupabaseConfig));
-  const [profileLoading, setProfileLoading] = useState(Boolean(hasSupabaseConfig));
+  const [authLoading, setAuthLoading] = useState(Boolean(hasBackendApiConfig));
+  const [profileLoading, setProfileLoading] = useState(Boolean(hasBackendApiConfig));
   const [profileLoadRetry, setProfileLoadRetry] = useState(0);
   const [profileName, setProfileName] = useState("");
   const [onboardingOpen, setOnboardingOpen] = useState(false);
-  const [saveStatus, setSaveStatus] = useState(hasSupabaseConfig ? "로그인 대기" : "로컬 저장");
-  const [stateReady, setStateReady] = useState(!hasSupabaseConfig);
+  const [saveStatus, setSaveStatus] = useState(hasBackendApiConfig ? "로그인 대기" : "로컬 저장");
+  const [stateReady, setStateReady] = useState(!hasBackendApiConfig);
   const [step, setStep] = useState("home"); // home | dump | confirm | feed | dm
   const {
     accounts,
@@ -642,31 +637,20 @@ export function useAliveAppController() {
   });
 
   const {
-    authRedirectUrl,
     clearLocalAuthStorage,
     completeOnboarding,
     readableAuthError,
     recoverAuthScreen,
-    sendMagicLoginLink,
-    sendPasswordReset,
     signInWithProvider,
     signOut,
-    submitAuth,
-    updateRecoveredPassword,
   } = useAliveAuthActions({
-    authEmail,
-    authMode,
-    authPassword,
-    newPassword,
     profileName,
     profileTableBrokenRef,
     resetRuntimeState,
     session,
     setAuthLoading,
     setAuthMessage,
-    setNewPassword,
     setOnboardingOpen,
-    setPasswordRecoveryOpen,
     setProfileLoading,
     setProfileName,
     setSaveStatus,
@@ -703,13 +687,13 @@ export function useAliveAppController() {
     syncStructuredState,
   });
 
-  const canUseApp = !hasSupabaseConfig || (session && stateReady);
-  const authBusy = hasSupabaseConfig && (authLoading || profileLoading || (session && !stateReady));
+  const canUseApp = !hasBackendApiConfig || (session && stateReady);
+  const authBusy = hasBackendApiConfig && (authLoading || profileLoading || (session && !stateReady));
   const appScreenVisible = canUseApp && (
     ["home", "dump", "confirm", "feed", "discover", "dmlist"].includes(step)
     || (step === "dm" && peer)
   );
-  const hasMainScreen = authBusy || (hasSupabaseConfig && !authLoading && !session) || appScreenVisible;
+  const hasMainScreen = authBusy || (hasBackendApiConfig && !authLoading && !session) || appScreenVisible;
   const showRecoveryScreen = !hasMainScreen;
   const {
     navApplyingRef,
@@ -747,7 +731,6 @@ export function useAliveAppController() {
     resetRuntimeState,
     setAuthLoading,
     setAuthMessage,
-    setPasswordRecoveryOpen,
     setProfileLoading,
     setSaveStatus,
     setSession,
@@ -1071,14 +1054,10 @@ export function useAliveAppController() {
     appScreenVisible,
     attachStage,
     authBusy,
-    authEmail,
     AuthEntryScreen,
     authLoading,
     AuthLoadingScreen,
     authMessage,
-    authMode,
-    authPassword,
-    authRedirectUrl,
     authResolvedRef,
     auto,
     AUTO_MOODS,
@@ -1191,6 +1170,7 @@ export function useAliveAppController() {
     goHome,
     handleDmImage,
     handleProfileImage,
+    hasBackendApiConfig,
     handleUpload,
     hasMainScreen,
     hasUsableSavedState,
@@ -1239,7 +1219,6 @@ export function useAliveAppController() {
     navUrlForState,
     newChatMode,
     newChatSpeaker,
-    newPassword,
     nextIn,
     nextRelationLabel,
     normalizedRelationLabelFor,
@@ -1260,7 +1239,6 @@ export function useAliveAppController() {
     parseFailed,
     parseRelations,
     parsing,
-    passwordRecoveryOpen,
     peer,
     pendingDm,
     persistLocalSnapshot,
@@ -1329,8 +1307,6 @@ export function useAliveAppController() {
     saveStatus,
     saveTimerRef,
     sendDM,
-    sendMagicLoginLink,
-    sendPasswordReset,
     session,
     setAccounts,
     setActiveId,
@@ -1338,11 +1314,8 @@ export function useAliveAppController() {
     setAffinity,
     setAffinityManual,
     setAffinityOpen,
-    setAuthEmail,
     setAuthLoading,
     setAuthMessage,
-    setAuthMode,
-    setAuthPassword,
     setAuto,
     setAutoChatting,
     setChar,
@@ -1385,14 +1358,12 @@ export function useAliveAppController() {
     setMoodOpen,
     setNewChatMode,
     setNewChatSpeaker,
-    setNewPassword,
     setNextIn,
     setOnboardingOpen,
     setOwnerPersona,
     setParseError,
     setParseFailed,
     setParsing,
-    setPasswordRecoveryOpen,
     setPeer,
     setPendingDm,
     setPersonaDraft,
@@ -1450,7 +1421,6 @@ export function useAliveAppController() {
     stateReady,
     step,
     stopAutoChat,
-    submitAuth,
     submitUserComment,
     switchAccount,
     SYMMETRIC_RELATION_BASE,
@@ -1471,7 +1441,6 @@ export function useAliveAppController() {
     update,
     updateLorebook,
     updateMemory,
-    updateRecoveredPassword,
     updateRoomMemory,
     verifyMutualLove,
     visiblePosts,

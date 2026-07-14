@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { createProfileShell as createRemoteProfileShell, loadProfileRow } from "@/api/profiles";
-import { hasRemoteApiConfig as hasSupabaseConfig } from "@/api/client";
+import { hasBackendApiConfig } from "@/api/client";
 
 type MutableRef<T> = {
   current: T;
@@ -72,7 +72,7 @@ export function useAliveProfileBootstrap({
   setStateReady,
 }: ProfileBootstrapOptions): void {
   useEffect(() => {
-    if (!hasSupabaseConfig) return;
+    if (!hasBackendApiConfig) return;
     if (!session?.user) {
       profileLoadedRef.current = false;
       setStateReady(false);

@@ -107,7 +107,10 @@ class OAuthService:
 
     def _verify_jwt(self, token: str, audience: str, issuer: str, jwks_url: str) -> dict[str, object]:
         key = PyJWKClient(jwks_url).get_signing_key_from_jwt(token)
-        return jwt.decode(token, key.key, algorithms=["RS256"], audience=audience, issuer=issuer)
+        try:
+            return jwt.decode(token, key.key, algorithms=["RS256"], audience=audience, issuer=issuer, leeway=self.settings.oauth_jwt_leeway_seconds)
+        except jwt.PyJWTError as exc:
+            raise BadRequestError("OAuth identity verification failed") from exc
 
     def _identity_from_claims(self, provider: UserProvider, claims: dict[str, object]) -> ProviderIdentity:
         subject = str(claims.get("sub") or "")

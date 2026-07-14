@@ -1,10 +1,10 @@
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Character, DmThread, Profile, SharedDmThread, User, UserPersona
+from app.models import Character, CharacterFollow, DmThread, Profile, SharedCharacter, SharedDmThread, User, UserPersona
 from app.schemas.profile import ProfileStateResponse, ProfileStateUpdate, StructuredStateUpdate
 
 
@@ -42,6 +42,13 @@ class ProfileStateRepository:
         await self._upsert_personas(user.id, payload)
         await self._upsert_dm_threads(user.id, payload)
         await self._upsert_shared_dm_threads(user.id, payload)
+        await self._commit()
+
+    async def delete_character_data(self, user: User, source_account_id: str) -> None:
+        await self.session.execute(delete(Character).where(Character.owner_id == user.id, Character.source_account_id == source_account_id))
+        await self.session.execute(delete(SharedCharacter).where(SharedCharacter.owner_id == user.id, SharedCharacter.source_account_id == source_account_id))
+        await self.session.execute(delete(CharacterFollow).where(CharacterFollow.follower_id == user.id, CharacterFollow.follower_account_id == source_account_id))
+        await self.session.execute(delete(DmThread).where(DmThread.owner_id == user.id, DmThread.thread_key.like(f"owner::{source_account_id}::%")))
         await self._commit()
 
     def _ensure_profile(self, user: User) -> Profile:

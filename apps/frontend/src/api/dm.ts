@@ -1,10 +1,12 @@
-import { resultWithError, type ApiError } from "@/api/client";
-import { supabase } from "@/supabaseClient";
+import { apiNoContent, type ApiError } from "./client.js";
 
-export function deleteDmThreadRow(key: string, ownerId: string): Promise<{ error: ApiError | null }> {
-  if (!supabase) return Promise.resolve({ error: { message: "DM client is not configured." } });
-  const table = key.startsWith("dm::") ? "alive_shared_dm_threads" : "alive_dm_threads";
-  let query = supabase.from(table).delete().eq("thread_key", key);
-  if (table === "alive_dm_threads") query = query.eq("owner_id", ownerId);
-  return Promise.resolve(query).then(resultWithError);
+export function deleteDmThreadRow(key: string, _ownerId: string): Promise<{ error: ApiError | null }> {
+  return apiNoContent(dmThreadPath(key), {
+    method: "DELETE",
+    query: { thread_key: key },
+  });
+}
+
+function dmThreadPath(key: string): string {
+  return key.startsWith("dm::") ? "/shared-dm-threads" : "/dm-threads";
 }
