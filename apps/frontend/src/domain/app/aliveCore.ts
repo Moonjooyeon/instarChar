@@ -77,6 +77,7 @@ export const PATH_TO_STEP: Record<string, AppStep> = {
   "/app/dm": "dmlist",
   "/app/dm/thread": "dm",
 };
+export const SHARED_LINK_PATH = "/app/discover";
 
 export function normalizeSavedStep(savedStep: unknown, hasActiveAccount: boolean): AppStep {
   if (!isAppStep(savedStep)) return "home";
@@ -96,6 +97,19 @@ export function stepFromPath(pathname: string, hasActiveAccount: boolean): AppSt
 
 export function pathForStep(stepName: unknown): string {
   return STEP_TO_PATH[isAppStep(stepName) ? stepName : "home"] || "/app";
+}
+
+export function sharedCharacterUrl(origin: string, sharedId: string): string {
+  return `${origin}${SHARED_LINK_PATH}?shared=${encodeURIComponent(sharedId)}`;
+}
+
+export function sharedIdFromSearch(search: string): string {
+  return new URLSearchParams(search).get("shared") || "";
+}
+
+export function sharedSearchForNavigation(search: string): string {
+  const sharedId = sharedIdFromSearch(search);
+  return sharedId ? `?shared=${encodeURIComponent(sharedId)}` : "";
 }
 
 function isAppStep(value: unknown): value is AppStep {

@@ -12,6 +12,7 @@ import {
   upsertSharedCharacter,
 } from "@/api/discover";
 import { hasRemoteApiClient, hasBackendApiConfig } from "@/api/client";
+import { sharedCharacterUrl } from "@/domain/app/aliveCore";
 import { mergeDiscoverCharacters, sharedRowToChar, type CharacterData, type CharacterRow, type DiscoverCharacter, type SharedCharacterRow } from "@/domain/discover/discoverUtils";
 
 type SetState<T> = Dispatch<SetStateAction<T>>;
@@ -345,7 +346,7 @@ function sharedCharacterUpdatePayload(char: AliveCharacter, following: DiscoverC
 }
 
 async function writeShareUrl(sharedId: string, flashShareStatus: (message: string, ms?: number) => void): Promise<void> {
-  const url = `${window.location.origin}/?shared=${sharedId}`;
+  const url = sharedCharacterUrl(window.location.origin, sharedId);
   try {
     await navigator.clipboard.writeText(url);
     flashShareStatus("공유 링크를 복사했어.");

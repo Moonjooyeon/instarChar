@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { loadActiveSharedCharacterId } from "@/api/discover";
 import { hasRemoteApiClient } from "@/api/client";
+import { sharedIdFromSearch } from "@/domain/app/aliveCore";
 
 type SessionLike = {
   user?: {
@@ -72,7 +73,7 @@ export function useAliveDiscoverSync({
     return () => { cancelled = true; };
   }, [canUseApp, activeId, session?.user?.id]);
   useEffect(() => {
-    const sharedId = new URLSearchParams(window.location.search).get("shared");
+    const sharedId = sharedIdFromSearch(window.location.search);
     if (!canUseApp || !sharedId) return;
     setSharedFocusId(sharedId);
     setDiscoverQuery("");

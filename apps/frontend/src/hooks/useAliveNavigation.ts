@@ -3,6 +3,7 @@ import {
   RENDERABLE_STEPS,
   normalizeSavedStep,
   pathForStep,
+  sharedSearchForNavigation,
   stepFromPath,
   type AppStep,
 } from "@/domain/app/aliveCore";
@@ -102,7 +103,7 @@ export function useAliveNavigation({
   function navUrlForState(state = navStateForHistory()): string {
     const url = new URL(window.location.href);
     url.pathname = pathForStep(state.step);
-    url.search = "";
+    url.search = sharedSearchForNavigation(url.search);
     url.hash = "";
     return `${url.pathname}${url.search}${url.hash}`;
   }

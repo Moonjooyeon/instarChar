@@ -3,11 +3,13 @@ from dataclasses import dataclass
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
+from sqlalchemy import select
+from sqlalchemy.dialects import postgresql
 
 from app.api.deps import get_current_user
 from app.db.session import get_db_session
 from app.main import app
-from app.models import UserProvider
+from app.models import SharedDmThread, UserProvider
 from app.repositories.profile_state import ProfileStateRepository
 from app.schemas.profile import ProfileStateResponse
 
@@ -91,6 +93,12 @@ def test_update_onboarding_sets_display_name(monkeypatch) -> None:
         response = client.post("/api/profile/onboarding", json={"display_name": "alive"})
     assert response.status_code == 204
     assert calls == ["alive"]
+
+
+def test_shared_dm_thread_participant_lookup_uses_postgresql_array() -> None:
+    stmt = select(SharedDmThread).where(SharedDmThread.participant_user_ids.contains([uuid4()]))
+    compiled = str(stmt.compile(dialect=postgresql.dialect()))
+    assert "@>" in compiled
 
 
 def make_test_client() -> TestClient:
