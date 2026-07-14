@@ -7,15 +7,26 @@
     "apps/frontend"
   ],
   "scripts": {
-    "dev": "npm run dev -w apps/frontend",
+    "dev": "npm run dev -w apps/frontend -- --host 0.0.0.0",
     "build": "npm run build -w apps/frontend",
     "typecheck": "npm run typecheck -w apps/frontend",
     "test:domain": "npm run test:domain -w apps/frontend",
     "test:e2e": "npm --workspace apps/frontend run test:e2e --",
     "test:e2e:ui": "npm --workspace apps/frontend run test:e2e:ui --",
     "preview": "npm run preview -w apps/frontend",
-    "app:sync": "npm run build -w apps/frontend && cap sync",
-    "app:open:ios": "cap open ios",
-    "app:open:android": "cap open android"
+    "web:dev": "make web-dev",
+    "web:build": "make web-build",
+    "web:preview": "make web-preview",
+    "cap:doctor": "make cap-doctor",
+    "cap:build": "make cap-build",
+    "cap:sync": "make cap-sync",
+    "cap:open:ios": "make cap-open-ios",
+    "cap:open:android": "make cap-open-android",
+    "cap:run:ios": "make cap-run-ios",
+    "cap:run:android": "make cap-run-android",
+    "cap:checklist": "make cap-checklist",
+    "app:sync": "make cap-sync",
+    "app:open:ios": "make cap-open-ios",
+    "app:open:android": "make cap-open-android"
   }
 }
