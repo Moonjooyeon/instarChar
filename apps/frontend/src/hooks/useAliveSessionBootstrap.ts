@@ -6,6 +6,7 @@ import {
   subscribeAuthState,
 } from "@/api/auth";
 import { hasBackendApiConfig } from "@/api/client";
+import { nextSessionState } from "@/domain/sessionBootstrap";
 
 type MutableRef<T> = {
   current: T;
@@ -106,7 +107,7 @@ function startSessionBootstrap(options: RuntimeOptions): (() => void) | undefine
   resolveInitialSession().then((resolvedSession) => {
     if (!alive) return;
     if (resolvedSession || !callback.hasOAuthCallback) options.authResolvedRef.current = true;
-    options.setSession(resolvedSession);
+    options.setSession((prevSession) => nextSessionState(prevSession, resolvedSession, options));
     if (!callback.hasOAuthCallback || resolvedSession) options.setAuthLoading(false);
   }).catch((error) => {
     if (!alive) return;
@@ -181,23 +182,6 @@ function sessionFallbackTimer(isAlive: () => boolean, options: RuntimeOptions, c
 
 function subscribeAuthStateChange(options: RuntimeOptions, callback: AuthCallbackState): { unsubscribe: () => void } {
   return subscribeAuthState();
-}
-
-function nextSessionState(prevSession: SessionLike | null, nextSession: SessionLike | null, { profileLoadedRef, setProfileLoading, setStateReady }: RuntimeOptions): SessionLike | null {
-  const sameUser = prevSession?.user?.id && nextSession?.user?.id === prevSession.user.id;
-  if (!nextSession) {
-    profileLoadedRef.current = false;
-    setStateReady(false);
-    setProfileLoading(false);
-  } else if (sameUser && profileLoadedRef.current) {
-    setStateReady(true);
-    setProfileLoading(false);
-  } else {
-    profileLoadedRef.current = false;
-    setStateReady(false);
-    setProfileLoading(true);
-  }
-  return nextSession;
 }
 
 async function refreshSlowSession({ profileLoadedRef, setAuthLoading, setAuthMessage, setProfileLoading, setSaveStatus, setSession, setStateReady }: Pick<SessionBootstrapOptions, "profileLoadedRef" | "setAuthLoading" | "setAuthMessage" | "setProfileLoading" | "setSaveStatus" | "setSession" | "setStateReady">): Promise<void> {

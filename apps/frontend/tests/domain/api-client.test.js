@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { apiFetch, apiNoContent, apiResult } from "../../src/api/client.js";
+import { apiFetch, apiNoContent, apiResult, normalizeApiBaseUrl } from "../../src/api/client.js";
 
 test("apiFetch sends same-origin api requests with credentials", async () => {
   const restoreFetch = stubFetch(new Response(null, { status: 204 }));
@@ -11,6 +11,13 @@ test("apiFetch sends same-origin api requests with credentials", async () => {
   } finally {
     restoreFetch();
   }
+});
+
+test("normalizeApiBaseUrl adds the backend api prefix to origin-only urls", () => {
+  assert.equal(normalizeApiBaseUrl("http://localhost:8000"), "http://localhost:8000/api");
+  assert.equal(normalizeApiBaseUrl("http://localhost:8000/"), "http://localhost:8000/api");
+  assert.equal(normalizeApiBaseUrl("http://localhost:8000/api"), "http://localhost:8000/api");
+  assert.equal(normalizeApiBaseUrl("/api"), "/api");
 });
 
 test("apiResult reads JSON responses", async () => {

@@ -1170,6 +1170,7 @@ export function useAliveAppController() {
     goHome,
     handleDmImage,
     handleProfileImage,
+    hasBackendApiConfig,
     handleUpload,
     hasMainScreen,
     hasUsableSavedState,

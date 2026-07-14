@@ -6,7 +6,7 @@ type ApiRequestOptions = RequestInit & {
   query?: ApiQuery;
 };
 
-const API_BASE_URL = normalizeBaseUrl(import.meta.env?.VITE_API_BASE_URL || "/api");
+const API_BASE_URL = normalizeApiBaseUrl(import.meta.env?.VITE_API_BASE_URL || "/api");
 
 export const hasBackendApiConfig = true;
 
@@ -128,6 +128,14 @@ function detailMessage(detail: unknown): string {
   return typeof message === "string" ? message : "";
 }
 
-function normalizeBaseUrl(value: string): string {
-  return value.replace(/\/+$/, "") || "/api";
+export function normalizeApiBaseUrl(value: string): string {
+  const baseUrl = value.replace(/\/+$/, "") || "/api";
+  if (!isAbsoluteUrl(baseUrl)) return baseUrl;
+  const url = new URL(baseUrl);
+  if (url.pathname && url.pathname !== "/") return baseUrl;
+  return `${baseUrl}/api`;
+}
+
+function isAbsoluteUrl(value: string): boolean {
+  return /^https?:\/\//i.test(value);
 }
