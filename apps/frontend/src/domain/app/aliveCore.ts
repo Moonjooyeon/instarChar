@@ -148,8 +148,8 @@ export const EXAMPLES: Array<{ name: string; short: string; text: string }> = [
   },
 ];
 
-export function parseRelations(relStr: string | null | undefined): RelationEntry[] {
-  if (!relStr) return [];
+export function parseRelations(relStr: unknown): RelationEntry[] {
+  if (typeof relStr !== "string" || !relStr) return [];
   const pieces = relStr.split(/[,，]/).map((s) => s.trim()).filter(Boolean);
   const out: RelationEntry[] = [];
   for (const p of pieces) {
