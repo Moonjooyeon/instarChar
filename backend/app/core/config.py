@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     app_name: str = "alive"
     database_url: str = "postgresql+asyncpg://instarchat:instarchat@localhost:7555/instarchat"
     frontend_origins: str = "http://localhost:5173"
+    frontend_redirect_url: str = "http://localhost:5173"
     auth_cookie_name: str = "alive_session"
     auth_cookie_secure: bool = False
     auth_secret_key: str = "change-me-in-env"
@@ -16,6 +17,7 @@ class Settings(BaseSettings):
     google_client_id: str = ""
     google_client_secret: str = ""
     google_redirect_uri: str = "http://localhost:8000/api/auth/google/callback"
+    oauth_jwt_leeway_seconds: int = 60
     apple_client_id: str = ""
     apple_client_secret: str = ""
     apple_redirect_uri: str = "http://localhost:8000/api/auth/apple/callback"

@@ -6,6 +6,7 @@ Create Date: 2026-06-26
 """
 
 from collections.abc import Sequence
+from typing import Optional, Union
 
 from alembic import op
 import sqlalchemy as sa
@@ -13,9 +14,9 @@ from sqlalchemy.dialects import postgresql
 
 
 revision: str = "20260626_0001"
-down_revision: str | None = None
-branch_labels: str | Sequence[str] | None = None
-depends_on: str | Sequence[str] | None = None
+down_revision: Optional[str] = None
+branch_labels: Optional[Union[str, Sequence[str]]] = None
+depends_on: Optional[Union[str, Sequence[str]]] = None
 
 
 def upgrade() -> None:

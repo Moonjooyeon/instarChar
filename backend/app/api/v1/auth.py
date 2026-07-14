@@ -43,10 +43,12 @@ async def logout(response: Response, settings: Settings = Depends(get_settings))
 @router.get("/me", response_model=MeResponse, summary="Get current user")
 async def get_me(user: User = Depends(get_current_user)) -> MeResponse:
     profile = user.profile
-    return MeResponse(user=UserResponse.model_validate(user), display_name=profile.display_name, onboarded=profile.onboarded)
+    display_name = profile.display_name if profile else ""
+    onboarded = profile.onboarded if profile else False
+    return MeResponse(user=UserResponse.model_validate(user), display_name=display_name, onboarded=onboarded)
 
 
 def _session_redirect(token: str, settings: Settings) -> RedirectResponse:
-    response = RedirectResponse("/app", status_code=status.HTTP_307_TEMPORARY_REDIRECT)
+    response = RedirectResponse(settings.frontend_redirect_url, status_code=status.HTTP_307_TEMPORARY_REDIRECT)
     response.set_cookie(settings.auth_cookie_name, token, httponly=True, secure=settings.auth_cookie_secure, samesite="lax", max_age=settings.auth_session_ttl_seconds, path="/")
     return response
