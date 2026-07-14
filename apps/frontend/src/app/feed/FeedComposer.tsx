@@ -3,6 +3,7 @@ import React from "react";
 export function FeedComposer({ ctx }) {
   const {
     auto,
+    autoPost,
     char,
     fast,
     generatePost,
@@ -28,14 +29,17 @@ export function FeedComposer({ ctx }) {
           <span className="al-autodot" />
           {auto ? `자율 모드 ON · ${josa(char.name, "이/가")} 알아서 올리는 중` : "자율 모드 OFF"}
         </button>
-        {auto && (
-          <div className="al-autometa">
-            <span className="al-nextin">{fast ? "" : "다음 글 "}~{Math.floor(nextIn / 60)}:{String(nextIn % 60).padStart(2, "0")}</span>
+        <div className="al-autometa">
+          {auto && <span className="al-nextin">{fast ? "" : "다음 글 "}~{Math.floor(nextIn / 60)}:{String(nextIn % 60).padStart(2, "0")}</span>}
+          <button className="al-fast" onClick={autoPost} disabled={loading}>
+            {loading ? "생성 중" : "테스트 즉시 생성"}
+          </button>
+          {auto && (
             <button className={`al-fast ${fast ? "on" : ""}`} onClick={() => setFast((value) => !value)}>
               {fast ? "빠름(30초)" : "15분"}
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
       <div className="al-directive">
         <span className="al-directive-lbl">▸ {josa(char.name, "에게/에게")} 지시</span>
