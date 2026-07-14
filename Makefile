@@ -13,6 +13,7 @@ WEB_PREVIEW_PORT ?= 4173
 ANDROID_PROJECT_DIR ?= android
 ANDROID_SDK_ROOT ?= $(HOME)/Library/Android/sdk
 ANDROID_JAVA_HOME ?= $(shell /usr/libexec/java_home -v 21 2>/dev/null)
+ANDROID_GRADLE_USER_HOME ?= $(ANDROID_PROJECT_DIR)/.gradle-user-home
 WEB_API_URL ?=
 CAP_API_URL ?=
 FRONTEND_WEB_ENV = $(if $(WEB_API_URL),VITE_API_BASE_URL=$(WEB_API_URL) )
@@ -49,6 +50,7 @@ help:
 		'  WEB_HOST=0.0.0.0 WEB_API_URL=http://localhost:8000/api make web-dev' \
 		'  ANDROID_JAVA_HOME=$$(/usr/libexec/java_home -v 21) make cap-run-android' \
 		'  ANDROID_SDK_ROOT=$$HOME/Library/Android/sdk make cap-run-android' \
+		'  ANDROID_GRADLE_USER_HOME=android/.gradle-user-home make cap-run-android' \
 		'  CAP_API_URL=http://YOUR_LAN_IP:8000/api make cap-sync' \
 		'  CAP_API_URL=https://api.example.com make cap-sync'
 
@@ -106,7 +108,7 @@ cap-run-ios:
 	$(CAP) run ios
 
 cap-run-android: android-java-home android-local-properties
-	JAVA_HOME=$(ANDROID_JAVA_HOME) ANDROID_HOME=$(ANDROID_SDK_ROOT) ANDROID_SDK_ROOT=$(ANDROID_SDK_ROOT) $(CAP) run android
+	JAVA_HOME=$(ANDROID_JAVA_HOME) ANDROID_HOME=$(ANDROID_SDK_ROOT) ANDROID_SDK_ROOT=$(ANDROID_SDK_ROOT) GRADLE_USER_HOME=$(ANDROID_GRADLE_USER_HOME) $(CAP) run android
 
 cap-checklist:
 	@printf '%s\n' \

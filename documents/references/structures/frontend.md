@@ -2,63 +2,79 @@
 title: Frontend Structure
 author: black (black@ashwoodfriends.com)
 created: 2026-05-07
-updated: 2026-05-07
-version: 3.0.0
+updated: 2026-07-14
+version: 3.1.0
 status: approved
 ---
 
-# frontend.md
+# Frontend Structure
 
-This file describes the target React+Vite frontend structure for Novelvity.
+This file describes the current React + Vite frontend workspace for alive.
 
-```
-front/
-├── Dockerfile
+```text
+apps/frontend/
 ├── index.html
-├── package-lock.json
 ├── package.json
+├── playwright.config.js
+├── tsconfig.domain-tests.json
 ├── tsconfig.json
 ├── vite.config.ts
+├── public/
+│   ├── icon.svg
+│   └── manifest.webmanifest
+├── tests/
+│   ├── domain/
+│   └── e2e/
 └── src/
     ├── App.tsx
-    ├── index.css
+    ├── appStyles.ts
     ├── main.tsx
-    ├── types.ts
-    ├── vite-env.d.ts
     ├── api/
-    |   ├── ai.ts
-    |   ├── auth.ts
-    |   ├── chapters.ts
-    |   ├── characters.ts
-    |   ├── client.ts
-    |   ├── ideas.ts
-    |   ├── novels.ts
-    |   ├── plotCards.ts
-    |   └── worldItems.ts
-    ├── assets/
-    |   ├── logo-icon.svg
-    |   └── logo.svg
+    │   ├── auth.ts
+    │   ├── client.ts
+    │   ├── discover.ts
+    │   ├── dm.ts
+    │   ├── generate.ts
+    │   ├── profiles.ts
+    │   └── structured.ts
+    ├── app/
+    │   ├── dm/
+    │   ├── feed/
+    │   └── modals/
     ├── components/
-    |   ├── GoogleLoginButton.tsx
-    |   └── Sidebar.tsx
-    ├── context/
-    |   ├── AuthContext.tsx
-    |   └── ThemeContext.tsx
-    ├── data/
-    |   └── mockData.ts
-    ├── utils/
-    |   └── time.ts
-    └── views/
-        ├── AIGuideView.tsx
-        ├── ArchiveView.tsx
-        ├── CharactersView.tsx
-        ├── EditorView.tsx
-        ├── HomeView.tsx
-        ├── IdeasView.tsx
-        ├── LandingView.tsx
-        ├── NovelsView.tsx
-        ├── PlotView.tsx
-        ├── SettingsView.tsx
-        ├── StatsView.tsx
-        └── WorldView.tsx
+    │   └── ui/
+    ├── domain/
+    │   ├── app/
+    │   ├── discover/
+    │   ├── dm/
+    │   ├── feed/
+    │   ├── relationships/
+    │   └── sessionBootstrap.ts
+    ├── features/
+    │   ├── auth/
+    │   ├── character-setup/
+    │   ├── discover/
+    │   ├── dm/
+    │   ├── home/
+    │   └── relationships/
+    ├── hooks/
+    └── types/
 ```
+
+## Layers
+
+| Layer | Path | Responsibility |
+|-------|------|----------------|
+| Entry | `apps/frontend/src/main.tsx` | React DOM bootstrap |
+| App shell | `apps/frontend/src/app/` | Route-level composition, feed/DM panels, shared modals |
+| Features | `apps/frontend/src/features/` | Screen-level UI grouped by product area |
+| Hooks | `apps/frontend/src/hooks/` | Stateful app behavior and persistence orchestration |
+| Domain | `apps/frontend/src/domain/` | Pure helpers for app state, feed, DM, discover, relationships, and session state |
+| API client | `apps/frontend/src/api/` | FastAPI fetch boundary and response adapters |
+| Shared UI | `apps/frontend/src/components/ui/` | Small reusable UI controls |
+| Tests | `apps/frontend/tests/` | Domain unit tests and Playwright E2E tests |
+
+## Build Output
+
+Vite writes the frontend build to `apps/frontend/dist`.
+Capacitor and Vercel both use that directory as the active web artifact.
