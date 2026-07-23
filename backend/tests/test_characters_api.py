@@ -95,7 +95,7 @@ def test_auto_post_accepts_only_supported_intervals(monkeypatch: MonkeyPatch) ->
 
 
 def test_generate_character_post_uses_backend_service(monkeypatch: MonkeyPatch) -> None:
-    async def generate(self: object, user: StubUser, source_account_id: str, payload: object) -> GenerateApiResult:
+    async def generate(self: object, owner_id: object, source_account_id: str, payload: object) -> GenerateApiResult:
         return GenerateApiResult(200, {"post": {"text": "새 글"}})
 
     monkeypatch.setattr(FeedGenerationService, "generate", generate)

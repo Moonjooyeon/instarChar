@@ -34,7 +34,7 @@ async def update_auto_post(source_account_id: str, payload: AutoPostUpdate, user
 @router.post("/{source_account_id}/posts/generate")
 async def generate_character_post(source_account_id: str, payload: FeedPostGenerateRequest, user: User = Depends(get_current_user), session: AsyncSession = Depends(get_db_session), settings: Settings = Depends(get_settings)) -> JSONResponse:
     service = FeedGenerationService(CharacterPostsRepository(session), AiUsageRepository(session), settings)
-    result = await service.generate(user, source_account_id, payload)
+    result = await service.generate(user.id, source_account_id, payload)
     return JSONResponse(status_code=result.status_code, content=result.body)
 
 

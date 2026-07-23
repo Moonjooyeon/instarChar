@@ -19,11 +19,7 @@ class StubCharacter:
     name: str = "세인"
     character: dict[str, object] = None
     posts: list[object] = None
-
-
-@dataclass
-class StubUser:
-    id: object
+    auto_post_failure_count: int = 0
 
 
 class StubPosts:
@@ -54,7 +50,7 @@ def test_feed_generation_parses_and_saves_provider_result(monkeypatch: MonkeyPat
     monkeypatch.setattr(GeminiGenerateService, "generate", generate)
     posts = StubPosts()
     service = FeedGenerationService(posts, StubUsage(), Settings(gemini_api_key="test"))
-    result = run(service.generate(StubUser(uuid4()), "char-1", FeedPostGenerateRequest(mood="일상")))
+    result = run(service.generate(uuid4(), "char-1", FeedPostGenerateRequest(mood="일상")))
     assert result.status_code == 200
     assert posts.saved is not None
     assert posts.saved["text"] == "바람이 좋다"
@@ -68,7 +64,7 @@ def test_feed_generation_does_not_save_failure_placeholder(monkeypatch: MonkeyPa
     monkeypatch.setattr(GeminiGenerateService, "generate", generate)
     posts = StubPosts()
     service = FeedGenerationService(posts, StubUsage(), Settings(gemini_api_key="test"))
-    result = run(service.generate(StubUser(uuid4()), "char-1", FeedPostGenerateRequest()))
+    result = run(service.generate(uuid4(), "char-1", FeedPostGenerateRequest()))
     assert result.status_code == 500
     assert posts.saved is None
 
@@ -80,7 +76,7 @@ def test_feed_generation_does_not_save_when_usage_is_blocked(monkeypatch: Monkey
     monkeypatch.setattr(GeminiGenerateService, "generate", generate)
     posts = StubPosts()
     service = FeedGenerationService(posts, StubUsage(), Settings(gemini_api_key="test"))
-    result = run(service.generate(StubUser(uuid4()), "char-1", FeedPostGenerateRequest(), is_auto=True))
+    result = run(service.generate(uuid4(), "char-1", FeedPostGenerateRequest(), is_auto=True))
     assert result.status_code == 429
     assert posts.saved is None
     assert posts.error.startswith("DAILY_LIMIT_EXCEEDED")
