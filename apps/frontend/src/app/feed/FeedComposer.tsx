@@ -3,6 +3,7 @@ import React from "react";
 export function FeedComposer({ ctx }) {
   const {
     auto,
+    autoIntervalSeconds,
     char,
     generatePost,
     josa,
@@ -12,6 +13,7 @@ export function FeedComposer({ ctx }) {
     nextIn,
     POST_MOODS,
     setAuto,
+    setAutoInterval,
     setMoodOpen,
     setWriteOpen,
     setWriteText,
@@ -22,12 +24,17 @@ export function FeedComposer({ ctx }) {
   return (
     <>
       <div className="al-autobar">
-        <button className={`al-autotoggle ${auto ? "on" : ""}`} onClick={() => setAuto((value) => !value)}>
+        <button className={`al-autotoggle ${auto ? "on" : ""}`} onClick={() => setAuto(!auto)}>
           <span className="al-autodot" />
           {auto ? `자율 모드 ON · ${josa(char.name, "이/가")} 알아서 올리는 중` : "자율 모드 OFF"}
         </button>
         <div className="al-autometa">
-          {auto && <span className="al-nextin">다음 글 ~{Math.floor(nextIn / 60)}:{String(nextIn % 60).padStart(2, "0")}</span>}
+          <select aria-label="자율 생성 주기" value={autoIntervalSeconds} onChange={(event) => setAutoInterval(Number(event.target.value))}>
+            <option value={900}>15분</option>
+            <option value={1800}>30분</option>
+            <option value={3600}>1시간</option>
+          </select>
+          {auto && <span className="al-nextin">다음 글 ~{countdownText(nextIn)}</span>}
         </div>
       </div>
       <div className="al-directive">
@@ -67,4 +74,11 @@ export function FeedComposer({ ctx }) {
       </div>
     </>
   );
+}
+
+function countdownText(seconds) {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const remaining = String(seconds % 60).padStart(2, "0");
+  return hours > 0 ? `${hours}:${String(minutes).padStart(2, "0")}:${remaining}` : `${minutes}:${remaining}`;
 }

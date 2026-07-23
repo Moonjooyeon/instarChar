@@ -1,0 +1,82 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import {
+  CharacterPostsApiError,
+  getCharacterPosts,
+  saveCharacterPosts,
+  updateCharacterAutoPost,
+} from "../../src/api/characterPosts.js";
+
+const state = {
+  posts: [],
+  revision: 3,
+  auto_post_enabled: true,
+  auto_post_interval_seconds: 1800,
+  next_auto_post_at: null,
+  last_auto_post_at: null,
+  last_auto_post_error: "",
+  auto_post_failure_count: 0,
+};
+
+test("getCharacterPosts reads the authoritative character feed", async () => {
+  const restoreFetch = stubFetch(jsonResponse(state));
+  try {
+    assert.deepEqual(await getCharacterPosts("char 1"), state);
+    assert.equal(globalThis.fetch.calls[0].input, "/api/characters/char%201/posts");
+  } finally {
+    restoreFetch();
+  }
+});
+
+test("saveCharacterPosts sends posts with their expected revision", async () => {
+  const restoreFetch = stubFetch(jsonResponse({ ...state, revision: 4 }));
+  try {
+    await saveCharacterPosts("char-1", [{ id: "post-1" }], 3);
+    const request = globalThis.fetch.calls[0];
+    assert.equal(request.init.method, "PUT");
+    assert.deepEqual(JSON.parse(request.init.body), { posts: [{ id: "post-1" }], revision: 3 });
+  } finally {
+    restoreFetch();
+  }
+});
+
+test("updateCharacterAutoPost persists one of the supported intervals", async () => {
+  const restoreFetch = stubFetch(jsonResponse(state));
+  try {
+    await updateCharacterAutoPost("char-1", true, 1800);
+    assert.deepEqual(JSON.parse(globalThis.fetch.calls[0].init.body), { enabled: true, interval_seconds: 1800 });
+  } finally {
+    restoreFetch();
+  }
+});
+
+test("post API exposes revision conflicts for one retry", async () => {
+  const restoreFetch = stubFetch(jsonResponse({ error: "CONFLICT", message: "Post revision is stale" }, 409));
+  try {
+    await assert.rejects(() => saveCharacterPosts("char-1", [], 2), (error) => {
+      assert.equal(error instanceof CharacterPostsApiError, true);
+      assert.equal(error.status, 409);
+      assert.equal(error.code, "CONFLICT");
+      return true;
+    });
+  } finally {
+    restoreFetch();
+  }
+});
+
+function jsonResponse(body, status = 200) {
+  return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+}
+
+function stubFetch(response) {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (input, init = {}) => {
+    calls.push({ input, init });
+    return response.clone();
+  };
+  globalThis.fetch.calls = calls;
+  return () => {
+    globalThis.fetch = originalFetch;
+  };
+}

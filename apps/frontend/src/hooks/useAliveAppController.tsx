@@ -270,6 +270,7 @@ export function useAliveAppController() {
     commentAs,
     commentOn,
     commentText,
+    autoIntervalSeconds,
     defaultCommentAs,
     deleteComment,
     deletePost,
@@ -281,6 +282,7 @@ export function useAliveAppController() {
     followedTimelinePosts,
     loading,
     manualPost,
+    mutatePosts,
     moodOpen,
     myPosts,
     nextIn,
@@ -290,6 +292,7 @@ export function useAliveAppController() {
     saveCommentEdit,
     savePostEdit,
     setAuto,
+    setAutoInterval,
     setCommentAs,
     setCommentOn,
     setCommentText,
@@ -300,7 +303,6 @@ export function useAliveAppController() {
     setFixText,
     setLoading,
     setMoodOpen,
-    setNextIn,
     setPosts,
     setWriteOpen,
     setWriteText,
@@ -311,7 +313,8 @@ export function useAliveAppController() {
     visiblePosts,
     writeOpen,
     writeText,
-  } = useAliveFeed({ following, personas });
+    generateServerPost,
+  } = useAliveFeed({ activeId, following, personas, setSaveStatus, step });
   const {
     recordFollowChange,
     recordRelationshipFollowBack,
@@ -541,9 +544,7 @@ export function useAliveAppController() {
     saveMemories,
   });
   const {
-    AUTO_MOODS,
     addCommentFrom,
-    autoPost,
     followerPost,
     followersReactTo,
     generatePost,
@@ -555,10 +556,9 @@ export function useAliveAppController() {
     char,
     commentAs,
     commentText,
-    correctionBlock,
     findPeerChar,
     following,
-    gallery,
+    generateServerPost,
     loadingRef,
     myFollowers,
     personas,
@@ -568,7 +568,7 @@ export function useAliveAppController() {
     setCommentText,
     setLoading,
     setMoodOpen,
-    setPosts,
+    mutatePosts,
     setSaveStatus,
   });
   const {
@@ -673,7 +673,6 @@ export function useAliveAppController() {
     ownerPersona,
     personas,
     persistLocalSnapshot,
-    posts,
     profileLoadedRef,
     profileName,
     profileTableBrokenRef,
@@ -1007,23 +1006,6 @@ export function useAliveAppController() {
   // 진도질문 모달 상태를 ref에 미러 (자동대화 루프에서 최신값 참조)
   useEffect(() => { proposalRef.current = proposal; }, [proposal]);
 
-  // 타이머: feed 화면 + auto on일 때 주기마다 자동 포스팅
-  useEffect(() => {
-    if (step !== "feed" || !auto) { setNextIn(0); return; }
-    const period = 900;
-    setNextIn(period);
-    const tick = setInterval(() => {
-      setNextIn((n) => {
-        if (n <= 1) {
-          autoPost();
-          return period;
-        }
-        return n - 1;
-      });
-    }, 1000);
-    return () => clearInterval(tick);
-  }, [step, auto, char]); // eslint-disable-line
-
   const initial = char.name.trim() ? char.name.trim()[0] : "?";
 
   const appViewCtx = {
@@ -1057,10 +1039,9 @@ export function useAliveAppController() {
     authMessage,
     authResolvedRef,
     auto,
-    AUTO_MOODS,
+    autoIntervalSeconds,
     autoChatRef,
     autoChatting,
-    autoPost,
     baseFollowerCount,
     blankAppState,
     blankChar,
@@ -1314,6 +1295,7 @@ export function useAliveAppController() {
     setAuthLoading,
     setAuthMessage,
     setAuto,
+    setAutoInterval,
     setAutoChatting,
     setChar,
     setChatMode,
@@ -1354,7 +1336,6 @@ export function useAliveAppController() {
     setMoodOpen,
     setNewChatMode,
     setNewChatSpeaker,
-    setNextIn,
     setOnboardingOpen,
     setOwnerPersona,
     setParseError,
