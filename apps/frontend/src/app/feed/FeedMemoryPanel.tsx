@@ -1,5 +1,14 @@
 import React from "react";
 
+type FeedMemoryEntry = {
+  content?: string;
+  id?: number;
+  importance?: number;
+  peer?: string;
+  pinned?: boolean;
+  source?: string;
+};
+
 export function FeedMemoryPanel({ ctx }) {
   const {
     addManualMemory,
@@ -20,7 +29,7 @@ export function FeedMemoryPanel({ ctx }) {
     showMemoryAdd,
     updateMemory,
   } = ctx;
-  const allMem = (char.lorebook || []).map(normalizeMemoryEntry);
+  const allMem = safeMemoryList(char.lorebook).map(normalizeMemoryEntry) as FeedMemoryEntry[];
   const peerOptions = lorePeerOptions();
   const peerEntries = [...new Set(allMem.map((entry) => entry.peer || "*"))]
     .map((peer) => ({ peer, count: allMem.filter((entry) => (entry.peer || "*") === peer).length }))
@@ -51,6 +60,11 @@ export function FeedMemoryPanel({ ctx }) {
       )}
     </div>
   );
+}
+
+function safeMemoryList(value: unknown): FeedMemoryEntry[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((entry) => entry && typeof entry === "object") as FeedMemoryEntry[];
 }
 
 function FeedMemoryPeers({ peerEntries, setMemDraftPeer, setMemFilter }) {

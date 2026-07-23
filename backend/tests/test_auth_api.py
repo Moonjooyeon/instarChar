@@ -2,17 +2,18 @@ from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import Optional
+from urllib.parse import parse_qs, urlsplit
 from uuid import uuid4
 
 from fastapi import Response
 from fastapi.testclient import TestClient
-from jwt.exceptions import ImmatureSignatureError
+from jwt.exceptions import ImmatureSignatureError, PyJWKClientError
 from pytest import MonkeyPatch, raises
 
 from app.api.deps import get_current_user
 from app.core.config import Settings, get_settings
 from app.core.errors import BadRequestError
-from app.core.security import _signature
+from app.core.security import _signature, read_oauth_state, sign_oauth_state
 from app.db.session import get_db_session
 from app.main import app
 from app.models import UserProvider
@@ -62,6 +63,20 @@ def test_google_start_redirects_to_google_oauth() -> None:
         response = client.get("/api/auth/google/start", follow_redirects=False)
     assert response.status_code == 307
     assert response.headers["location"].startswith("https://accounts.google.com/o/oauth2/v2/auth?")
+
+
+def test_google_start_uses_browser_origin_callback_url() -> None:
+    callback_url = "http://192.168.0.2:5173/api/auth/google/callback"
+    return_url = "http://192.168.0.2:5173"
+    with make_test_client() as client:
+        response = client.get("/api/auth/google/start", params={"redirect_uri": callback_url, "return_url": return_url}, follow_redirects=False)
+    query = parse_qs(urlsplit(response.headers["location"]).query)
+    state = read_oauth_state(query["state"][0], "google", "test-secret")
+    assert response.status_code == 307
+    assert query["redirect_uri"] == [callback_url]
+    assert state is not None
+    assert state.redirect_uri == callback_url
+    assert state.return_url == return_url
 
 
 def test_apple_start_redirects_to_apple_oauth() -> None:
@@ -127,6 +142,40 @@ def test_google_callback_sets_session_cookie(monkeypatch) -> None:
     assert "signed-session" in response.headers["set-cookie"]
 
 
+def test_google_callback_uses_state_return_url(monkeypatch: MonkeyPatch) -> None:
+    async def complete(self: object, provider: UserProvider, code: str, state: str) -> str:
+        return "signed-session"
+    state = sign_oauth_state("google", 60, "test-secret", "http://192.168.0.2:5173/api/auth/google/callback", "http://192.168.0.2:5173")
+    monkeypatch.setattr("app.api.v1.auth.OAuthService.complete", complete)
+    with make_test_client() as client:
+        response = client.get("/api/auth/google/callback", params={"code": "code", "state": state}, follow_redirects=False)
+    assert response.status_code == 307
+    assert response.headers["location"] == "http://192.168.0.2:5173"
+    assert "signed-session" in response.headers["set-cookie"]
+
+
+def test_google_callback_redirects_oauth_error_to_frontend(monkeypatch: MonkeyPatch) -> None:
+    async def complete(self: object, provider: UserProvider, code: str, state: str) -> str:
+        raise BadRequestError("OAuth token exchange failed")
+    monkeypatch.setattr("app.api.v1.auth.OAuthService.complete", complete)
+    with make_test_client() as client:
+        response = client.get("/api/auth/google/callback?code=code&state=state", follow_redirects=False)
+    assert response.status_code == 307
+    assert response.headers["location"] == "http://localhost:5173?error=BAD_REQUEST&error_description=OAuth+token+exchange+failed"
+    assert "alive_session" not in response.headers.get("set-cookie", "")
+
+
+def test_google_callback_redirects_unexpected_oauth_error_to_frontend(monkeypatch: MonkeyPatch) -> None:
+    async def complete(self: object, provider: UserProvider, code: str, state: str) -> str:
+        raise RuntimeError("jwks unavailable")
+    monkeypatch.setattr("app.api.v1.auth.OAuthService.complete", complete)
+    with make_test_client() as client:
+        response = client.get("/api/auth/google/callback?code=code&state=state", follow_redirects=False)
+    assert response.status_code == 307
+    assert response.headers["location"] == "http://localhost:5173?error=INTERNAL_SERVER_ERROR&error_description=OAuth+login+failed"
+    assert "alive_session" not in response.headers.get("set-cookie", "")
+
+
 def test_apple_callback_sets_session_cookie(monkeypatch) -> None:
     async def complete(self: object, provider: UserProvider, code: str, state: str) -> str:
         assert provider == UserProvider.apple
@@ -140,6 +189,17 @@ def test_apple_callback_sets_session_cookie(monkeypatch) -> None:
     assert response.status_code == 307
     assert response.headers["location"] == "http://localhost:5173"
     assert "signed-session" in response.headers["set-cookie"]
+
+
+def test_apple_callback_redirects_oauth_error_to_frontend(monkeypatch: MonkeyPatch) -> None:
+    async def complete(self: object, provider: UserProvider, code: str, state: str) -> str:
+        raise BadRequestError("Invalid OAuth state")
+    monkeypatch.setattr("app.api.v1.auth.OAuthService.complete", complete)
+    with make_test_client() as client:
+        response = client.post("/api/auth/apple/callback", data={"code": "code", "state": "state"}, follow_redirects=False)
+    assert response.status_code == 307
+    assert response.headers["location"] == "http://localhost:5173?error=BAD_REQUEST&error_description=Invalid+OAuth+state"
+    assert "alive_session" not in response.headers.get("set-cookie", "")
 
 
 def test_oauth_jwt_verification_uses_clock_skew_leeway(monkeypatch: MonkeyPatch) -> None:
@@ -168,6 +228,18 @@ def test_oauth_jwt_verification_errors_become_bad_request(monkeypatch: MonkeyPat
         raise ImmatureSignatureError("The token is not yet valid (iat)")
     monkeypatch.setattr("app.services.oauth.PyJWKClient", StubJWKClient)
     monkeypatch.setattr("app.services.oauth.jwt.decode", decode)
+    service = OAuthService(Settings(), StubSession())
+    with raises(BadRequestError, match="OAuth identity verification failed"):
+        service._verify_jwt("token", "audience", "issuer", "https://jwks.example")
+
+
+def test_oauth_jwks_fetch_errors_become_bad_request(monkeypatch: MonkeyPatch) -> None:
+    class StubJWKClient:
+        def __init__(self, url: str) -> None:
+            self.url = url
+        def get_signing_key_from_jwt(self, token: str) -> object:
+            raise PyJWKClientError("jwks unavailable")
+    monkeypatch.setattr("app.services.oauth.PyJWKClient", StubJWKClient)
     service = OAuthService(Settings(), StubSession())
     with raises(BadRequestError, match="OAuth identity verification failed"):
         service._verify_jwt("token", "audience", "issuer", "https://jwks.example")

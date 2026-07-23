@@ -87,9 +87,9 @@ function FeedPostCard({ post, ctx }) {
     toggleLike,
   } = ctx;
   const isExt = Boolean(post.author);
-  const pName = isExt ? post.author : char.name;
-  const pHandle = isExt ? (post.authorHandle || post.author) : (char.handle || char.name.replace(/\s/g, "").toLowerCase());
-  const pInitial = pName.trim()[0] || "?";
+  const pName = isExt ? displayName(post.author) : displayName(char.name);
+  const pHandle = isExt ? displayName(post.authorHandle || post.author) : (char.handle || pName.replace(/\s/g, "").toLowerCase());
+  const pInitial = initialForName(pName);
   const pAvatar = isExt ? post.authorAvatarImg : char.avatarImg;
   return (
     <div className="al-post">
@@ -128,16 +128,17 @@ function FeedPostCard({ post, ctx }) {
 }
 
 function FeedPostMedia({ post }) {
+  const quoted = recordValue(post.quoted);
   return (
     <>
-      {post.quoted && (
+      {quoted && (
         <div className="al-quoted">
           <div className="al-quoted-head">
-            <span className="al-quoted-av">{post.quoted.name.trim()[0] || "?"}</span>
-            <span className="al-quoted-name">{post.quoted.name}</span>
-            <span className="al-quoted-handle">@{post.quoted.handle}</span>
+            <span className="al-quoted-av">{initialForName(quoted.name)}</span>
+            <span className="al-quoted-name">{displayName(quoted.name)}</span>
+            <span className="al-quoted-handle">@{displayName(quoted.handle, "")}</span>
           </div>
-          <p className="al-quoted-text">{post.quoted.text}</p>
+          <p className="al-quoted-text">{displayName(quoted.text, "")}</p>
         </div>
       )}
       {post.img && <div className="al-post-img"><img src={post.img} alt="" /></div>}
@@ -149,34 +150,40 @@ function FeedPostMedia({ post }) {
 
 function FeedComments({ post, ctx }) {
   const { char, commentAs, commentOn, commentText, deleteComment, editingComment, personas, saveCommentEdit, setCommentAs, setCommentOn, setCommentText, setEditingComment, setPersonaDraft, submitUserComment, isExt } = ctx;
+  const comments = Array.isArray(post.comments) ? post.comments : [];
   return (
     <>
-      {(post.comments || []).length > 0 && (
+      {comments.length > 0 && (
         <div className="al-comments">
-          {post.comments.map((comment, index) => (
-            <div className="al-comment" key={index}>
-              <div className={`al-comment-av ${comment.byUser ? "mine" : ""}`}>{comment.name.trim()[0] || "?"}</div>
-              <div className="al-comment-body">
-                <span className="al-comment-name">{comment.name}{comment.byUser && <i className="al-cmt-mine">나</i>}</span>
-                {comment.replyTo && comment.replyTo !== comment.name && <span className="al-replyto"> @{comment.replyTo}에게 답글</span>}
-                {editingComment?.postId === post.id && editingComment.index === index ? (
-                  <div className="al-comment-editbox">
-                    <input value={editingComment.text} autoFocus onChange={(event) => setEditingComment((value) => ({ ...value, text: event.target.value }))} />
-                    <button onClick={() => setEditingComment(null)}>취소</button>
-                    <button disabled={!editingComment.text.trim()} onClick={saveCommentEdit}>저장</button>
-                  </div>
-                ) : (
-                  <>
-                    <span className="al-comment-text">{comment.text}{comment.edited && <i className="al-edited">수정됨</i>}</span>
-                    <span className="al-comment-tools">
-                      <button onClick={() => setEditingComment({ postId: post.id, index, text: comment.text })}>수정</button>
-                      <button onClick={() => deleteComment(post.id, index)}>삭제</button>
-                    </span>
-                  </>
-                )}
+          {comments.map((comment, index) => {
+            const commentRecord = recordValue(comment) || {};
+            const commentName = displayName(commentRecord.name);
+            const replyToName = displayName(commentRecord.replyTo, "");
+            return (
+              <div className="al-comment" key={index}>
+                <div className={`al-comment-av ${commentRecord.byUser ? "mine" : ""}`}>{initialForName(commentName)}</div>
+                <div className="al-comment-body">
+                  <span className="al-comment-name">{commentName}{commentRecord.byUser && <i className="al-cmt-mine">나</i>}</span>
+                  {replyToName && replyToName !== commentName && <span className="al-replyto"> @{replyToName}에게 답글</span>}
+                  {editingComment?.postId === post.id && editingComment.index === index ? (
+                    <div className="al-comment-editbox">
+                      <input value={editingComment.text} autoFocus onChange={(event) => setEditingComment((value) => ({ ...value, text: event.target.value }))} />
+                      <button onClick={() => setEditingComment(null)}>취소</button>
+                      <button disabled={!editingComment.text.trim()} onClick={saveCommentEdit}>저장</button>
+                    </div>
+                  ) : (
+                    <>
+                      <span className="al-comment-text">{displayName(commentRecord.text, "")}{commentRecord.edited && <i className="al-edited">수정됨</i>}</span>
+                      <span className="al-comment-tools">
+                        <button onClick={() => setEditingComment({ postId: post.id, index, text: displayName(commentRecord.text, "") })}>수정</button>
+                        <button onClick={() => deleteComment(post.id, index)}>삭제</button>
+                      </span>
+                    </>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
       {commentOn === post.id && (
@@ -197,4 +204,17 @@ function FeedComments({ post, ctx }) {
       )}
     </>
   );
+}
+
+function displayName(value: unknown, fallback = "?"): string {
+  const text = typeof value === "string" ? value.trim() : "";
+  return text || fallback;
+}
+
+function initialForName(value: unknown): string {
+  return displayName(value).trim()[0] || "?";
+}
+
+function recordValue(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" ? value as Record<string, unknown> : null;
 }

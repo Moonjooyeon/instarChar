@@ -2,12 +2,12 @@ NPM ?= npm
 CAP ?= ./node_modules/.bin/cap
 FRONTEND_WORKSPACE ?= apps/frontend
 BACKEND_DIR ?= backend
-BACKEND_HOST ?= 127.0.0.1
+BACKEND_HOST ?= 0.0.0.0
 BACKEND_PORT ?= 8000
 BACKEND_PYTHON ?= $(BACKEND_DIR)/.venv/bin/python
 BACKEND_PYTEST ?= $(BACKEND_DIR)/.venv/bin/pytest
 BACKEND_UVICORN ?= $(BACKEND_DIR)/.venv/bin/uvicorn
-WEB_HOST ?= 127.0.0.1
+WEB_HOST ?= 0.0.0.0
 WEB_PORT ?= 5173
 WEB_PREVIEW_PORT ?= 4173
 ANDROID_PROJECT_DIR ?= android
@@ -24,15 +24,15 @@ FRONTEND_BUILD_ENV = $(if $(CAP_API_URL),VITE_API_BASE_URL=$(CAP_API_URL) )
 help:
 	@printf '%s\n' \
 		'Backend helper targets:' \
-		'  make backend-dev                        Run FastAPI with reload.' \
+		'  make backend-dev                        Run FastAPI with reload on 0.0.0.0.' \
 		'  make backend-run                        Run FastAPI without reload.' \
 		'  make backend-test                       Run backend pytest suite.' \
 		'  make backend-compile                    Compile backend Python files.' \
 		'' \
 		'Web helper targets:' \
-		'  make web-dev                            Run the Vite dev server.' \
+		'  make web-dev                            Run Vite on 0.0.0.0.' \
 		'  make web-build                          Build the frontend web bundle.' \
-		'  make web-preview                        Preview the built frontend bundle.' \
+		'  make web-preview                        Preview on 0.0.0.0.' \
 		'  make android-local-properties           Write android/local.properties with sdk.dir.' \
 		'' \
 		'Capacitor helper targets:' \
@@ -46,8 +46,9 @@ help:
 		'  make cap-checklist                      Print manual cookie-session checks.' \
 		'' \
 		'Optional:' \
-		'  BACKEND_HOST=0.0.0.0 BACKEND_PORT=8000 make backend-dev' \
-		'  WEB_HOST=0.0.0.0 WEB_API_URL=http://localhost:8000/api make web-dev' \
+		'  BACKEND_HOST=127.0.0.1 BACKEND_PORT=8000 make backend-dev' \
+		'  WEB_HOST=127.0.0.1 WEB_API_URL=http://localhost:8000/api make web-dev' \
+		'  For Google OAuth on LAN, set FRONTEND_REDIRECT_URL, FRONTEND_ORIGINS, and GOOGLE_REDIRECT_URI to the LAN URL.' \
 		'  ANDROID_JAVA_HOME=$$(/usr/libexec/java_home -v 21) make cap-run-android' \
 		'  ANDROID_SDK_ROOT=$$HOME/Library/Android/sdk make cap-run-android' \
 		'  ANDROID_GRADLE_USER_HOME=android/.gradle-user-home make cap-run-android' \

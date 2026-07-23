@@ -3,7 +3,7 @@ import json
 import time
 from uuid import uuid4
 
-from app.core.security import _signature, sign_oauth_state, sign_session, verify_oauth_state, verify_session
+from app.core.security import _signature, read_oauth_state, sign_oauth_state, sign_session, verify_oauth_state, verify_session
 
 
 def test_signed_session_round_trips() -> None:
@@ -33,6 +33,14 @@ def test_signed_session_rejects_non_uuid_subject() -> None:
 def test_oauth_state_matches_provider() -> None:
     token = sign_oauth_state("google", 60, "secret")
     assert verify_oauth_state(token, "google", "secret") is True
+
+
+def test_oauth_state_preserves_redirect_urls() -> None:
+    token = sign_oauth_state("google", 60, "secret", "http://192.168.0.2:5173/api/auth/google/callback", "http://192.168.0.2:5173")
+    payload = read_oauth_state(token, "google", "secret")
+    assert payload is not None
+    assert payload.redirect_uri == "http://192.168.0.2:5173/api/auth/google/callback"
+    assert payload.return_url == "http://192.168.0.2:5173"
 
 
 def test_oauth_state_rejects_other_provider() -> None:
