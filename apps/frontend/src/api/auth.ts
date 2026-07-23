@@ -1,4 +1,4 @@
-import { apiNoContent, apiResult, apiUrl, type ApiError } from "@/api/client";
+import { apiNoContent, apiResult, apiUrl, type ApiError } from "./client.js";
 
 export type AuthProvider = "apple" | "google";
 
@@ -43,7 +43,7 @@ export function isAuthApiAvailable(): boolean {
 }
 
 export async function signInWithOAuthProvider(provider: AuthProvider): Promise<{ error: ApiError | null }> {
-  window.location.assign(apiUrl(`/auth/${provider}/start`));
+  window.location.assign(oauthStartUrl(provider));
   return { error: null };
 }
 
@@ -59,6 +59,11 @@ export async function getAuthSession(): Promise<AuthResult> {
 
 export function subscribeAuthState(): AuthSubscription {
   return { unsubscribe: () => {} };
+}
+
+function oauthStartUrl(provider: AuthProvider): string {
+  const callbackUrl = new URL(apiUrl(`/auth/${provider}/callback`), window.location.origin).href;
+  return apiUrl(`/auth/${provider}/start`, { redirect_uri: callbackUrl, return_url: window.location.origin });
 }
 
 function sessionFromMe(data: MeResponse | null): BackendSession | null {

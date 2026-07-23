@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
 from app.core.errors import BadRequestError
-from app.core.security import sign_oauth_state, sign_session, verify_oauth_state
+from app.core.security import OAuthStatePayload, read_oauth_state, sign_oauth_state, sign_session
 from app.models import UserProvider
 from app.repositories.users import UserRepository
 
@@ -29,40 +29,52 @@ class OAuthService:
         self.users = UserRepository(session)
         self.session = session
 
-    def auth_url(self, provider: UserProvider) -> str:
+    def auth_url(self, provider: UserProvider, redirect_uri: str = "", return_url: str = "") -> str:
         if provider == UserProvider.google:
-            return self._google_auth_url()
+            return self._google_auth_url(redirect_uri, return_url)
         if provider == UserProvider.apple:
-            return self._apple_auth_url()
+            return self._apple_auth_url(redirect_uri, return_url)
         raise BadRequestError("Unsupported provider")
 
     async def complete(self, provider: UserProvider, code: str, state: str) -> str:
-        self._validate_state(provider, state)
-        identity = await self._provider_identity(provider, code)
+        state_payload = self._require_oauth_state(provider, state)
+        identity = await self._provider_identity(provider, code, state_payload.redirect_uri)
         user = await self.users.get_or_create_provider_user(identity.email, identity.provider, identity.subject, identity.display_name)
         await self.session.commit()
         return sign_session(user.id, self.settings.auth_session_ttl_seconds, self.settings.auth_secret_key)
 
-    def _validate_state(self, provider: UserProvider, state: str) -> None:
-        if verify_oauth_state(state, provider.value, self.settings.auth_secret_key):
-            return
+    def _require_oauth_state(self, provider: UserProvider, state: str) -> OAuthStatePayload:
+        payload = self._oauth_state(provider, state)
+        if payload:
+            return payload
         raise BadRequestError("Invalid OAuth state")
 
-    async def _provider_identity(self, provider: UserProvider, code: str) -> ProviderIdentity:
+    def frontend_redirect_url(self, provider: UserProvider, state: str) -> str:
+        payload = self._oauth_state(provider, state)
+        if payload and payload.return_url:
+            return payload.return_url
+        return self.settings.frontend_redirect_url
+
+    def _oauth_state(self, provider: UserProvider, state: str) -> OAuthStatePayload | None:
+        return read_oauth_state(state, provider.value, self.settings.auth_secret_key)
+
+    async def _provider_identity(self, provider: UserProvider, code: str, redirect_uri: str) -> ProviderIdentity:
         if provider == UserProvider.google:
-            return await self._google_identity(code)
+            return await self._google_identity(code, redirect_uri)
         if provider == UserProvider.apple:
-            return await self._apple_identity(code)
+            return await self._apple_identity(code, redirect_uri)
         raise BadRequestError("Unsupported provider")
 
-    def _google_auth_url(self) -> str:
-        state = sign_oauth_state("google", 600, self.settings.auth_secret_key)
-        params = self._auth_params(self.settings.google_client_id, self.settings.google_redirect_uri, "openid email profile", state)
+    def _google_auth_url(self, redirect_uri: str, return_url: str) -> str:
+        callback_uri = redirect_uri or self.settings.google_redirect_uri
+        state = sign_oauth_state("google", 600, self.settings.auth_secret_key, callback_uri, return_url)
+        params = self._auth_params(self.settings.google_client_id, callback_uri, "openid email profile", state)
         return f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}"
 
-    def _apple_auth_url(self) -> str:
-        state = sign_oauth_state("apple", 600, self.settings.auth_secret_key)
-        params = self._auth_params(self.settings.apple_client_id, self.settings.apple_redirect_uri, "name email", state)
+    def _apple_auth_url(self, redirect_uri: str, return_url: str) -> str:
+        callback_uri = redirect_uri or self.settings.apple_redirect_uri
+        state = sign_oauth_state("apple", 600, self.settings.auth_secret_key, callback_uri, return_url)
+        params = self._auth_params(self.settings.apple_client_id, callback_uri, "name email", state)
         params["response_mode"] = "form_post"
         return f"https://appleid.apple.com/auth/authorize?{urlencode(params)}"
 
@@ -75,22 +87,22 @@ class OAuthService:
             return
         raise BadRequestError("OAuth client id is not configured")
 
-    async def _google_identity(self, code: str) -> ProviderIdentity:
-        token = await self._exchange_google_code(code)
+    async def _google_identity(self, code: str, redirect_uri: str) -> ProviderIdentity:
+        token = await self._exchange_google_code(code, redirect_uri)
         claims = self._verify_jwt(token["id_token"], self.settings.google_client_id, "https://accounts.google.com", "https://www.googleapis.com/oauth2/v3/certs")
         return self._identity_from_claims(UserProvider.google, claims)
 
-    async def _apple_identity(self, code: str) -> ProviderIdentity:
-        token = await self._exchange_apple_code(code)
+    async def _apple_identity(self, code: str, redirect_uri: str) -> ProviderIdentity:
+        token = await self._exchange_apple_code(code, redirect_uri)
         claims = self._verify_jwt(token["id_token"], self.settings.apple_client_id, "https://appleid.apple.com", "https://appleid.apple.com/auth/keys")
         return self._identity_from_claims(UserProvider.apple, claims)
 
-    async def _exchange_google_code(self, code: str) -> dict[str, str]:
-        payload = self._token_payload(code, self.settings.google_client_id, self.settings.google_client_secret, self.settings.google_redirect_uri)
+    async def _exchange_google_code(self, code: str, redirect_uri: str) -> dict[str, str]:
+        payload = self._token_payload(code, self.settings.google_client_id, self.settings.google_client_secret, redirect_uri or self.settings.google_redirect_uri)
         return await self._post_token("https://oauth2.googleapis.com/token", payload)
 
-    async def _exchange_apple_code(self, code: str) -> dict[str, str]:
-        payload = self._token_payload(code, self.settings.apple_client_id, self.settings.apple_client_secret, self.settings.apple_redirect_uri)
+    async def _exchange_apple_code(self, code: str, redirect_uri: str) -> dict[str, str]:
+        payload = self._token_payload(code, self.settings.apple_client_id, self.settings.apple_client_secret, redirect_uri or self.settings.apple_redirect_uri)
         return await self._post_token("https://appleid.apple.com/auth/token", payload)
 
     def _token_payload(self, code: str, client_id: str, secret: str, redirect_uri: str) -> dict[str, str]:
@@ -106,8 +118,8 @@ class OAuthService:
         return response.json()
 
     def _verify_jwt(self, token: str, audience: str, issuer: str, jwks_url: str) -> dict[str, object]:
-        key = PyJWKClient(jwks_url).get_signing_key_from_jwt(token)
         try:
+            key = PyJWKClient(jwks_url).get_signing_key_from_jwt(token)
             return jwt.decode(token, key.key, algorithms=["RS256"], audience=audience, issuer=issuer, leeway=self.settings.oauth_jwt_leeway_seconds)
         except jwt.PyJWTError as exc:
             raise BadRequestError("OAuth identity verification failed") from exc

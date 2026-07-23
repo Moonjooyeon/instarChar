@@ -18,6 +18,14 @@ class SessionPayload:
     expires_at: int
 
 
+@dataclass(frozen=True)
+class OAuthStatePayload:
+    provider: str
+    expires_at: int
+    redirect_uri: str = ""
+    return_url: str = ""
+
+
 def _encode_bytes(value: bytes) -> str:
     return base64.urlsafe_b64encode(value).rstrip(b"=").decode("ascii")
 
@@ -61,28 +69,40 @@ def _payload_from_token(encoded: str) -> SessionPayload | None:
         return None
 
 
-def sign_oauth_state(provider: str, ttl_seconds: int, secret_key: str) -> str:
+def sign_oauth_state(provider: str, ttl_seconds: int, secret_key: str, redirect_uri: str = "", return_url: str = "") -> str:
     expires_at = int(time.time()) + ttl_seconds
-    payload = {"provider": provider, "exp": expires_at}
+    payload = {"provider": provider, "exp": expires_at, "redirect_uri": redirect_uri, "return_url": return_url}
     encoded = _encode_bytes(json.dumps(payload, separators=(",", ":")).encode())
     return f"{encoded}.{_signature(encoded, secret_key)}"
 
 
 def verify_oauth_state(token: str, provider: str, secret_key: str) -> bool:
+    return read_oauth_state(token, provider, secret_key) is not None
+
+
+def read_oauth_state(token: str, provider: str, secret_key: str) -> OAuthStatePayload | None:
     parts = token.split(".")
     if len(parts) != 2:
-        return False
+        return None
     if not hmac.compare_digest(parts[1], _signature(parts[0], secret_key)):
-        return False
-    return _state_matches_provider(parts[0], provider)
+        return None
+    payload = _state_payload_from_token(parts[0])
+    if not payload or payload.provider != provider:
+        return None
+    if payload.expires_at < int(time.time()):
+        return None
+    return payload
 
 
-def _state_matches_provider(encoded: str, provider: str) -> bool:
+def _state_payload_from_token(encoded: str) -> OAuthStatePayload | None:
     try:
         raw = json.loads(_decode_bytes(encoded))
         if not isinstance(raw, dict):
-            return False
+            return None
         expires_at = int(raw.get("exp", 0))
-        return raw.get("provider") == provider and expires_at >= int(time.time())
+        provider = str(raw.get("provider") or "")
+        redirect_uri = str(raw.get("redirect_uri") or "")
+        return_url = str(raw.get("return_url") or "")
+        return OAuthStatePayload(provider=provider, expires_at=expires_at, redirect_uri=redirect_uri, return_url=return_url)
     except (binascii.Error, TypeError, ValueError, UnicodeDecodeError):
-        return False
+        return None
