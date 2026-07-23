@@ -151,6 +151,16 @@ body{ overflow-x:hidden; }
   animation:pulse 2s infinite; }
 @keyframes pulse{ 0%{box-shadow:0 0 0 0 rgba(236,72,153,.5);} 70%{box-shadow:0 0 0 7px rgba(236,72,153,0);} 100%{box-shadow:0 0 0 0 rgba(236,72,153,0);} }
 .al-autometa{ display:flex; align-items:center; gap:8px; flex-shrink:0; }
+.al-autointerval{ position:relative; display:flex; align-items:center; }
+.al-autointerval select{ appearance:none; min-height:36px; padding:7px 29px 7px 12px;
+  border:1px solid #3a3446; border-radius:999px; background:#1a1623; color:#d8caff;
+  font-family:inherit; font-size:11.5px; font-weight:750; line-height:1; cursor:pointer;
+  transition:background .15s,border-color .15s,box-shadow .15s; }
+.al-autointerval select:hover{ border-color:#6d598f; background:#201a2c; }
+.al-autointerval select:focus-visible{ outline:none; border-color:var(--accent);
+  box-shadow:0 0 0 3px rgba(159,124,255,.18); }
+.al-autointerval span{ position:absolute; right:10px; color:#9f7cff; font-size:12px;
+  line-height:1; pointer-events:none; transform:translateY(-1px); }
 .al-nextin{ font-size:11.5px; color:var(--soft); font-variant-numeric:tabular-nums; }
 
 .al-auto-badge{ font-style:normal; font-size:9.5px; font-weight:800; color:var(--accent2);
@@ -976,6 +986,7 @@ button.al-fstat{ cursor:pointer; }
   .al-composer, .al-post{ padding-left:12px; padding-right:12px; }
   .al-autobar{ align-items:flex-start; flex-direction:column; }
   .al-autometa{ width:100%; justify-content:space-between; }
+  .al-autointerval select{ min-height:40px; }
   .al-gallery-head{ align-items:flex-start; flex-direction:column; gap:6px; }
 }
 

@@ -29,11 +29,14 @@ export function FeedComposer({ ctx }) {
           {auto ? `자율 모드 ON · ${josa(char.name, "이/가")} 알아서 올리는 중` : "자율 모드 OFF"}
         </button>
         <div className="al-autometa">
-          <select aria-label="자율 생성 주기" value={autoIntervalSeconds} onChange={(event) => setAutoInterval(Number(event.target.value))}>
-            <option value={900}>15분</option>
-            <option value={1800}>30분</option>
-            <option value={3600}>1시간</option>
-          </select>
+          <div className="al-autointerval">
+            <select aria-label="자율 생성 주기" value={autoIntervalSeconds} onChange={(event) => setAutoInterval(Number(event.target.value))}>
+              <option value={900}>15분</option>
+              <option value={1800}>30분</option>
+              <option value={3600}>1시간</option>
+            </select>
+            <span aria-hidden="true">⌄</span>
+          </div>
           {auto && <span className="al-nextin">다음 글 ~{countdownText(nextIn)}</span>}
         </div>
       </div>
