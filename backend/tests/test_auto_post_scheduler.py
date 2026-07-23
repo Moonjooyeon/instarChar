@@ -81,3 +81,11 @@ def test_retry_delay_is_exponential_and_capped() -> None:
     assert retry_delay_seconds(0) == 60
     assert retry_delay_seconds(2) == 240
     assert retry_delay_seconds(10) == 900
+
+
+def test_scheduler_settings_are_safe_for_local_tests() -> None:
+    settings = Settings(_env_file=None)
+    assert settings.auto_post_scheduler_enabled is False
+    assert settings.auto_post_poll_seconds == 30
+    assert settings.auto_post_batch_size == 10
+    assert settings.auto_post_default_interval_seconds == 900

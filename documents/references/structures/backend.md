@@ -2,8 +2,8 @@
 title: Backend Structure
 author: black (black@ashwoodfriends.com)
 created: 2026-05-07
-updated: 2026-07-14
-version: 3.3.0
+updated: 2026-07-23
+version: 3.4.0
 status: approved
 ---
 
@@ -23,7 +23,8 @@ backend/
 ├── migrations/
 │   ├── env.py
 │   └── versions/
-│       └── 20260626_0001_initial_alive_schema.py
+│       ├── 20260626_0001_initial_alive_schema.py
+│       └── 20260723_0002_post_authority_and_usage.py
 ├── app/
 │   ├── main.py
 │   ├── api/
@@ -46,6 +47,9 @@ backend/
 │   ├── models/
 │   │   └── entities.py
 │   ├── repositories/
+│   │   ├── ai_usage.py
+│   │   ├── auto_posts.py
+│   │   ├── character_posts.py
 │   │   ├── dm_threads.py
 │   │   ├── profile_state.py
 │   │   ├── shared_characters.py
@@ -53,17 +57,24 @@ backend/
 │   ├── schemas/
 │   │   ├── ai.py
 │   │   ├── auth.py
+│   │   ├── character_posts.py
 │   │   ├── dm_threads.py
 │   │   ├── profile.py
 │   │   └── shared_characters.py
 │   └── services/
 │       ├── ai.py
+│       ├── auto_post_scheduler.py
+│       ├── feed_generation.py
 │       └── oauth.py
 └── tests/
     ├── test_ai_api.py
+    ├── test_ai_usage.py
     ├── test_auth_api.py
+    ├── test_auto_post_scheduler.py
+    ├── test_character_posts_repository.py
     ├── test_characters_api.py
     ├── test_dm_threads_api.py
+    ├── test_feed_generation.py
     ├── test_profile_api.py
     ├── test_security.py
     └── test_shared_characters_api.py
@@ -73,17 +84,17 @@ backend/
 
 | Layer | Path | Responsibility |
 |-------|------|----------------|
-| App entry | `backend/app/main.py` | FastAPI app creation, CORS, router mounting, global `AppError` handler, `/health` |
+| App entry | `backend/app/main.py` | FastAPI app creation, CORS, router mounting, scheduler lifespan, global `AppError` handler, `/health` |
 | API dependencies | `backend/app/api/deps.py` | Current user loading from signed session cookie |
 | API routers | `backend/app/api/v1/` | HTTP routing and response shaping |
 | Settings | `backend/app/core/config.py` | Environment-backed settings via `pydantic-settings` |
 | Errors | `backend/app/core/errors.py` | Application exceptions converted by the global handler |
 | Security | `backend/app/core/security.py` | Session signing, OAuth state signing, JWT verification helpers |
 | DB | `backend/app/db/` | Async SQLAlchemy engine/session and declarative base |
-| Models | `backend/app/models/entities.py` | SQLAlchemy ORM entities for users, profiles, characters, follows, DM threads |
+| Models | `backend/app/models/entities.py` | SQLAlchemy ORM entities for users, profiles, characters, follows, DM threads, and AI usage counters |
 | Repositories | `backend/app/repositories/` | Database operations and authorization-sensitive data access |
 | Schemas | `backend/app/schemas/` | Pydantic request/response contracts |
-| Services | `backend/app/services/` | Google and Apple OAuth flow plus Gemini-backed AI generation |
+| Services | `backend/app/services/` | OAuth, Gemini generation, feed post generation, and the autonomous post scheduler |
 | Migrations | `backend/migrations/` | Alembic schema migration files |
 | Tests | `backend/tests/` | FastAPI route and core security tests |
 
@@ -105,6 +116,10 @@ All API routes are mounted under `/api` except the system health check.
 | `POST` | `/api/profile/structured-state` | `profiles.py` | Upsert characters, personas, owner DM, shared DM rows |
 | `POST` | `/api/profile/onboarding` | `profiles.py` | Save display name and mark onboarding complete |
 | `POST` | `/api/ai/generate` | `ai.py` | Generate character, feed, DM, or analysis text through Gemini |
+| `GET` | `/api/characters/{source_account_id}/posts` | `characters.py` | Load authoritative posts, revision, and autonomous schedule state |
+| `PUT` | `/api/characters/{source_account_id}/posts` | `characters.py` | Save posts with optimistic revision validation |
+| `PATCH` | `/api/characters/{source_account_id}/auto-post` | `characters.py` | Enable or disable autonomous posts and select a supported interval |
+| `POST` | `/api/characters/{source_account_id}/posts/generate` | `characters.py` | Generate and append one character post through the backend |
 | `GET` | `/api/discover/characters` | `shared_characters.py` | Return discover character DTOs |
 | `GET` | `/api/shared-characters/follower-counts` | `shared_characters.py` | Batch follower counts |
 | `GET` | `/api/shared-characters/{shared_character_id}` | `shared_characters.py` | Load a shared character by ID |
@@ -141,6 +156,7 @@ All API routes are mounted under `/api` except the system health check.
 |-------|--------|
 | Auth and profile | `User`, `Profile` |
 | Character state | `Character`, `UserPersona` |
+| AI usage | `AiDailyUsage`, `AiMonthlyUsage` |
 | Public discovery | `SharedCharacter`, `CharacterFollow` |
 | DM state | `DmThread`, `SharedDmThread` |
 
@@ -155,5 +171,5 @@ PYTHONPATH=backend backend/.venv/bin/pytest backend/tests
 Current expected result:
 
 ```text
-45 passed
+72 passed
 ```
