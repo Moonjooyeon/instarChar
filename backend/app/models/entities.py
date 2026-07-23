@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import enum
-from datetime import datetime
+from datetime import date, datetime
+from decimal import Decimal
 from typing import Optional
 from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, String, Text, UniqueConstraint, func
+from sqlalchemy import Boolean, Date, DateTime, Enum, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -55,7 +56,14 @@ class Character(TimestampMixin, Base):
     character: Mapped[JsonMap] = mapped_column(JSONB, nullable=False, default=dict)
     gallery: Mapped[list[object]] = mapped_column(JSONB, nullable=False, default=list)
     posts: Mapped[list[object]] = mapped_column(JSONB, nullable=False, default=list)
+    posts_revision: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     following: Mapped[list[object]] = mapped_column(JSONB, nullable=False, default=list)
+    auto_post_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    auto_post_interval_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=900)
+    next_auto_post_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    last_auto_post_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    last_auto_post_error: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    auto_post_failure_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
 
 class UserPersona(TimestampMixin, Base):
@@ -113,3 +121,18 @@ class SharedDmThread(TimestampMixin, Base):
     messages: Mapped[list[object]] = mapped_column(JSONB, nullable=False, default=list)
     world_pref: Mapped[JsonMap] = mapped_column(JSONB, nullable=False, default=dict)
     created_by: Mapped[Optional[UUID]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+
+
+class AiDailyUsage(TimestampMixin, Base):
+    __tablename__ = "ai_daily_usage"
+    owner_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    usage_date: Mapped[date] = mapped_column(Date, primary_key=True)
+    call_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    estimated_cost_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False, default=Decimal("0"))
+
+
+class AiMonthlyUsage(TimestampMixin, Base):
+    __tablename__ = "ai_monthly_usage"
+    usage_month: Mapped[str] = mapped_column(String(7), primary_key=True)
+    call_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    estimated_cost_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False, default=Decimal("0"))

@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from uuid import uuid4
@@ -12,6 +13,7 @@ from app.main import app
 from app.models import SharedDmThread, UserProvider
 from app.repositories.profile_state import ProfileStateRepository
 from app.schemas.profile import ProfileStateResponse
+from app.schemas.profile import StructuredStateUpdate
 
 
 @dataclass
@@ -99,6 +101,23 @@ def test_shared_dm_thread_participant_lookup_uses_postgresql_array() -> None:
     stmt = select(SharedDmThread).where(SharedDmThread.participant_user_ids.contains([uuid4()]))
     compiled = str(stmt.compile(dialect=postgresql.dialect()))
     assert "@>" in compiled
+
+
+def test_structured_character_upsert_does_not_update_posts() -> None:
+    session = CaptureSession()
+    payload = StructuredStateUpdate(characters=[{"source_account_id": "char-1", "name": "세인", "posts": [{"text": "stale"}]}])
+    asyncio.run(ProfileStateRepository(session)._upsert_characters(uuid4(), payload))
+    compiled = str(session.statement.compile(dialect=postgresql.dialect()))
+    update_clause = compiled.split("DO UPDATE SET", 1)[1]
+    assert "posts =" not in update_clause
+
+
+class CaptureSession:
+    def __init__(self) -> None:
+        self.statement: object = None
+
+    async def execute(self, statement: object) -> None:
+        self.statement = statement
 
 
 def make_test_client() -> TestClient:

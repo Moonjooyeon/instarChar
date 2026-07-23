@@ -1,3 +1,4 @@
+from typing import Optional
 from uuid import UUID
 
 from sqlalchemy import delete, select
@@ -76,7 +77,7 @@ class ProfileStateRepository:
 
     async def _upsert_characters(self, user_id: UUID, payload: StructuredStateUpdate) -> None:
         rows = [item.model_dump(mode="python") | {"owner_id": user_id} for item in payload.characters]
-        await self._upsert(Character, rows, ["owner_id", "source_account_id"])
+        await self._upsert(Character, rows, ["owner_id", "source_account_id"], {"posts"})
 
     async def _upsert_personas(self, user_id: UUID, payload: StructuredStateUpdate) -> None:
         rows = [item.model_dump(mode="python") | {"owner_id": user_id} for item in payload.personas]
@@ -97,11 +98,12 @@ class ProfileStateRepository:
         row["created_by"] = user_id
         return row
 
-    async def _upsert(self, model: object, rows: list[dict[str, object]], conflict: list[str]) -> None:
+    async def _upsert(self, model: object, rows: list[dict[str, object]], conflict: list[str], update_exclude: Optional[set[str]] = None) -> None:
         if not rows:
             return
         stmt = insert(model).values(rows)
-        update_columns = {key: stmt.excluded[key] for key in rows[0] if key not in conflict}
+        excluded = set(conflict) | (update_exclude or set())
+        update_columns = {key: stmt.excluded[key] for key in rows[0] if key not in excluded}
         await self.session.execute(stmt.on_conflict_do_update(index_elements=conflict, set_=update_columns))
 
     async def _commit(self) -> None:

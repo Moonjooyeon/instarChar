@@ -19,3 +19,8 @@ class ForbiddenError(AppError):
 class BadRequestError(AppError):
     def __init__(self, message: str = "Bad request") -> None:
         super().__init__("BAD_REQUEST", message, 400)
+
+
+class ConflictError(AppError):
+    def __init__(self, message: str = "Conflict") -> None:
+        super().__init__("CONFLICT", message, 409)
