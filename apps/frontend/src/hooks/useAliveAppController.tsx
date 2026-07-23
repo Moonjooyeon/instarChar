@@ -44,7 +44,6 @@ import {
   symmetricRelationBaseFromLabel,
 } from "@/domain/relationships/affinityUtils";
 import {
-  BUILD_MARK,
   DISCOVER_POOL,
   EXAMPLES,
   MODEL_AUTO,
@@ -65,6 +64,7 @@ import {
   speechGuideLine,
   toneText,
 } from "@/domain/app/aliveCore";
+import { USER_PERSONA_FEATURE_ENABLED, normalizeUserPersonaSpeaker } from "@/domain/app/featureFlags";
 import { useAliveAuthActions } from "@/hooks/useAliveAuthActions";
 import { useAliveAiGeneration } from "@/hooks/useAliveAiGeneration";
 import { useAliveAppStatePersistence } from "@/hooks/useAliveAppStatePersistence";
@@ -275,7 +275,6 @@ export function useAliveAppController() {
     deletePost,
     editingComment,
     editingPost,
-    fast,
     feedView,
     fixTarget,
     fixText,
@@ -296,7 +295,6 @@ export function useAliveAppController() {
     setCommentText,
     setEditingComment,
     setEditingPost,
-    setFast,
     setFeedView,
     setFixTarget,
     setFixText,
@@ -998,22 +996,21 @@ export function useAliveAppController() {
 
   // 방 바뀌면 오너 끼어들기만 해제 (페르소나/캐릭터 선택은 보존 — 목록에서 복원되므로)
   useEffect(() => { setSpeakAs((s) => s === "owner" ? "char" : s); }, [peer && peer.name, peer && peer.asOwner]);
+  useEffect(() => {
+    if (USER_PERSONA_FEATURE_ENABLED) return;
+    setCommentAs((value) => normalizeUserPersonaSpeaker(value));
+    setSpeakAs((value) => normalizeUserPersonaSpeaker(value));
+    setNewChatSpeaker((value) => normalizeUserPersonaSpeaker(value));
+    setNewChatMode((value) => value === "persona" ? null : value);
+    setPersonaDraft(null);
+  }, []);
   // 진도질문 모달 상태를 ref에 미러 (자동대화 루프에서 최신값 참조)
   useEffect(() => { proposalRef.current = proposal; }, [proposal]);
-
-  // feed 첫 진입 시 첫 글 하나 바로 올림
-  useEffect(() => {
-    if (step === "feed" && !feedInitRef.current && posts.length === 0) {
-      feedInitRef.current = true;
-      const t = setTimeout(() => autoPost(), 600);
-      return () => clearTimeout(t);
-    }
-  }, [step]); // eslint-disable-line
 
   // 타이머: feed 화면 + auto on일 때 주기마다 자동 포스팅
   useEffect(() => {
     if (step !== "feed" || !auto) { setNextIn(0); return; }
-    const period = fast ? 30 : 900; // 빠름 30초 / 평소 15분
+    const period = 900;
     setNextIn(period);
     const tick = setInterval(() => {
       setNextIn((n) => {
@@ -1025,7 +1022,7 @@ export function useAliveAppController() {
       });
     }, 1000);
     return () => clearInterval(tick);
-  }, [step, auto, fast, char]); // eslint-disable-line
+  }, [step, auto, char]); // eslint-disable-line
 
   const initial = char.name.trim() ? char.name.trim()[0] : "?";
 
@@ -1067,7 +1064,6 @@ export function useAliveAppController() {
     baseFollowerCount,
     blankAppState,
     blankChar,
-    BUILD_MARK,
     bumpAffinity,
     bumpMutual,
     bumpRoomAffinity,
@@ -1144,7 +1140,6 @@ export function useAliveAppController() {
     enterDm,
     EXAMPLES,
     exportAppState,
-    fast,
     feedInitRef,
     feedTopRef,
     feedView,
@@ -1344,7 +1339,6 @@ export function useAliveAppController() {
     setEditingDmTitle,
     setEditingMemoryId,
     setEditingPost,
-    setFast,
     setFeedView,
     setFixTarget,
     setFixText,

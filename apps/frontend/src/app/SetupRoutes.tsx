@@ -4,7 +4,6 @@ export function SetupRoutes({ ctx }) {
   const {
     accounts,
     activeId,
-    BUILD_MARK,
     canUseApp,
     char,
     confirmReady,
@@ -45,7 +44,6 @@ export function SetupRoutes({ ctx }) {
       {canUseApp && step === "home" && (
         <HomeScreen
           accounts={accounts}
-          buildMark={BUILD_MARK}
           deletePersona={deletePersona}
           editAccount={editAccount}
           hasBackendApiConfig={hasBackendApiConfig}

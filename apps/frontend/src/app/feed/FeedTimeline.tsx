@@ -1,4 +1,5 @@
 import React from "react";
+import { USER_PERSONA_FEATURE_ENABLED } from "@/domain/app/featureFlags";
 
 export function FeedTimeline({ ctx }) {
   const {
@@ -190,10 +191,10 @@ function FeedComments({ post, ctx }) {
         <div className="al-cmtbox">
           <div className="al-cmtbox-who">
             <button className={`al-spk-chip ${commentAs === "char" ? "on" : ""}`} onClick={() => setCommentAs("char")}>{char.name}</button>
-            {personas.map((persona) => (
+            {USER_PERSONA_FEATURE_ENABLED && personas.map((persona) => (
               <button key={persona.id} className={`al-spk-chip persona ${commentAs === `p:${persona.id}` ? "on" : ""}`} onClick={() => setCommentAs(`p:${persona.id}`)}>🎭 {persona.name}</button>
             ))}
-            <button className="al-spk-chip add" onClick={() => setPersonaDraft({ name: "", age: "", persona: "", speech: "" })}>+ 페르소나</button>
+            {USER_PERSONA_FEATURE_ENABLED && <button className="al-spk-chip add" onClick={() => setPersonaDraft({ name: "", age: "", persona: "", speech: "" })}>+ 페르소나</button>}
           </div>
           <div className="al-cmtbox-row">
             <input className="al-cmtbox-input" value={commentText} autoFocus onChange={(event) => setCommentText(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) submitUserComment(post.id, isExt ? post.author : null); }} placeholder={`${commentAs === "char" ? char.name : (personas.find((persona) => `p:${persona.id}` === commentAs)?.name || "")}(으)로 댓글…`} />

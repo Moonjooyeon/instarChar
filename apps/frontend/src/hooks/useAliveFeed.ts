@@ -1,4 +1,5 @@
 import { useState, type Dispatch, type SetStateAction } from "react";
+import { USER_PERSONA_FEATURE_ENABLED } from "@/domain/app/featureFlags";
 import { formatPostTime, mergeTimelinePosts, postTimeMs, postsFromFollowedCharacter, sanitizePosts, type FeedPost, type FollowedCharacter } from "@/domain/feed/feedUtils";
 
 type PersonaOption = {
@@ -31,7 +32,6 @@ type AliveFeedReturn = {
   deletePost: (postId: FeedPost["id"]) => void;
   editingComment: EditingComment | null;
   editingPost: FeedPost | null;
-  fast: boolean;
   feedView: string;
   fixTarget: unknown;
   fixText: string;
@@ -52,7 +52,6 @@ type AliveFeedReturn = {
   setCommentText: Dispatch<SetStateAction<string>>;
   setEditingComment: Dispatch<SetStateAction<EditingComment | null>>;
   setEditingPost: Dispatch<SetStateAction<FeedPost | null>>;
-  setFast: Dispatch<SetStateAction<boolean>>;
   setFeedView: Dispatch<SetStateAction<string>>;
   setFixTarget: Dispatch<SetStateAction<unknown>>;
   setFixText: Dispatch<SetStateAction<string>>;
@@ -81,7 +80,6 @@ export function useAliveFeed({ following, personas }: FeedOptions): AliveFeedRet
   const [fixTarget, setFixTarget] = useState<unknown>(null);
   const [fixText, setFixText] = useState("");
   const [auto, setAuto] = useState(true);
-  const [fast, setFast] = useState(false);
   const [nextIn, setNextIn] = useState(0);
   const [commentOn, setCommentOn] = useState<FeedPost["id"] | null>(null);
   const [commentAs, setCommentAs] = useState("char");
@@ -94,6 +92,7 @@ export function useAliveFeed({ following, personas }: FeedOptions): AliveFeedRet
   const timelinePosts = mergeTimelinePosts(sortedPosts, followedTimelinePosts);
   const visiblePosts = feedView === "mine" ? myPosts : timelinePosts;
   function defaultCommentAs(): string {
+    if (!USER_PERSONA_FEATURE_ENABLED) return "char";
     return personas[0] ? `p:${personas[0].id}` : "char";
   }
   function openCommentBox(postId: FeedPost["id"]): void {
@@ -136,7 +135,7 @@ export function useAliveFeed({ following, personas }: FeedOptions): AliveFeedRet
     setCommentOn(null);
     setCommentText("");
   }
-  return { auto, commentAs, commentOn, commentText, defaultCommentAs, deleteComment, deletePost, editingComment, editingPost, fast, feedView, fixTarget, fixText, followedTimelinePosts, loading, manualPost, moodOpen, myPosts, nextIn, openCommentBox, posts, publicPostSnapshot, saveCommentEdit, savePostEdit, setAuto, setCommentAs, setCommentOn, setCommentText, setEditingComment, setEditingPost, setFast, setFeedView, setFixTarget, setFixText, setLoading, setMoodOpen, setNextIn, setPosts, setWriteOpen, setWriteText, sortedPosts, timeAgo: formatPostTime, timelinePosts, toggleLike, visiblePosts, writeOpen, writeText };
+  return { auto, commentAs, commentOn, commentText, defaultCommentAs, deleteComment, deletePost, editingComment, editingPost, feedView, fixTarget, fixText, followedTimelinePosts, loading, manualPost, moodOpen, myPosts, nextIn, openCommentBox, posts, publicPostSnapshot, saveCommentEdit, savePostEdit, setAuto, setCommentAs, setCommentOn, setCommentText, setEditingComment, setEditingPost, setFeedView, setFixTarget, setFixText, setLoading, setMoodOpen, setNextIn, setPosts, setWriteOpen, setWriteText, sortedPosts, timeAgo: formatPostTime, timelinePosts, toggleLike, visiblePosts, writeOpen, writeText };
 }
 
 function updateEditedComment(post: FeedPost, editingComment: EditingComment, text: string): FeedPost {

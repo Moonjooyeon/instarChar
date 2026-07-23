@@ -50,6 +50,20 @@ test.beforeEach(async ({ page }) => {
   await mockAliveApi(page);
 });
 
+test("phase 1B hides user personas and feed test controls", async ({ page }) => {
+  await createCharacter(page);
+  await page.waitForTimeout(800);
+  await expect(page.locator(".al-post")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "테스트 즉시 생성" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /빠름\(30초\)/ })).toHaveCount(0);
+  await page.getByRole("button", { name: "✉ DM" }).click();
+  await expect(page.getByRole("button", { name: /내 페르소나로 캐릭터에게 말 걸기/ })).toHaveCount(0);
+  await page.getByRole("button", { name: "‹" }).click();
+  await page.getByRole("button", { name: "‹" }).click();
+  await expect(page.getByText("내 페르소나")).toHaveCount(0);
+  await expect(page.locator(".al-build")).toHaveCount(0);
+});
+
 test("character, follow, DM world modal, back and forward stay consistent", async ({ page }) => {
   await createCharacter(page);
 

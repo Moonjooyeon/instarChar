@@ -152,9 +152,6 @@ body{ overflow-x:hidden; }
 @keyframes pulse{ 0%{box-shadow:0 0 0 0 rgba(236,72,153,.5);} 70%{box-shadow:0 0 0 7px rgba(236,72,153,0);} 100%{box-shadow:0 0 0 0 rgba(236,72,153,0);} }
 .al-autometa{ display:flex; align-items:center; gap:8px; flex-shrink:0; }
 .al-nextin{ font-size:11.5px; color:var(--soft); font-variant-numeric:tabular-nums; }
-.al-fast{ font-size:11px; font-weight:700; padding:4px 10px; border-radius:20px; cursor:pointer;
-  font-family:inherit; background:#1f1a2e; border:1px solid #2e2640; color:#9a92b5; }
-.al-fast.on{ background:var(--accent); color:#fff; border-color:var(--accent); }
 
 .al-auto-badge{ font-style:normal; font-size:9.5px; font-weight:800; color:var(--accent2);
   background:#2a1322; border:1px solid #43203a; padding:1px 6px; border-radius:8px; margin-right:6px; }
