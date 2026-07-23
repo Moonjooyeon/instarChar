@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  formatPostTime,
   followedPostId,
   mergeTimelinePosts,
   postTimeMs,
@@ -48,4 +49,20 @@ test("postTimeMs accepts dates, timestamps and parseable strings", () => {
   assert.equal(postTimeMs({ time: new Date("2026-01-01T00:00:00.000Z") }), Date.parse("2026-01-01T00:00:00.000Z"));
   assert.equal(postTimeMs({ id: 42 }), 42);
   assert.equal(postTimeMs({ time: "not-a-date" }), 0);
+});
+
+test("formatPostTime uses human-friendly relative thresholds", () => {
+  const now = new Date(2026, 6, 23, 12, 0, 0).getTime();
+  assert.equal(formatPostTime(now - 59_000, now), "방금");
+  assert.equal(formatPostTime(now - 60_000, now), "1분");
+  assert.equal(formatPostTime(now - 60 * 60_000, now), "1시간");
+  assert.equal(formatPostTime(now - 24 * 60 * 60_000, now), "1일");
+  assert.equal(formatPostTime(now - 6 * 24 * 60 * 60_000, now), "6일");
+  assert.equal(formatPostTime(new Date(2026, 6, 16, 12, 0, 0), now), "2026.07.16");
+});
+
+test("formatPostTime treats invalid and future values as just now", () => {
+  const now = new Date(2026, 6, 23, 12, 0, 0).getTime();
+  assert.equal(formatPostTime("not-a-date", now), "방금");
+  assert.equal(formatPostTime(now + 1_000, now), "방금");
 });

@@ -13,6 +13,10 @@ export type RelationEntry = {
   label: string;
 };
 
+export type IndexedRelationEntry = RelationEntry & {
+  sourceIndex: number;
+};
+
 export type CharacterLike = {
   age?: unknown;
   catchphrase?: unknown;
@@ -169,6 +173,14 @@ export function parseRelations(relStr: unknown): RelationEntry[] {
 
 export function compactName(value: unknown): string {
   return String(value || "").replace(/\s/g, "").toLowerCase();
+}
+
+export function knownCharacterRelations(relations: RelationEntry[], candidates: CharacterLike[], currentName = ""): IndexedRelationEntry[] {
+  const currentKey = compactName(currentName);
+  const candidateKeys = new Set(candidates.map((item) => compactName(item.name)).filter((name) => name && name !== currentKey));
+  return relations
+    .map((relation, sourceIndex) => ({ ...relation, sourceIndex }))
+    .filter((relation) => candidateKeys.has(compactName(relation.who)));
 }
 
 export function identityText(c: CharacterLike | string | null | undefined): string {

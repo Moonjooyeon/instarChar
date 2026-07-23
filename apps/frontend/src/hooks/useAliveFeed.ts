@@ -1,5 +1,5 @@
 import { useState, type Dispatch, type SetStateAction } from "react";
-import { mergeTimelinePosts, postTimeMs, postsFromFollowedCharacter, sanitizePosts, type FeedPost, type FollowedCharacter } from "@/domain/feed/feedUtils";
+import { formatPostTime, mergeTimelinePosts, postTimeMs, postsFromFollowedCharacter, sanitizePosts, type FeedPost, type FollowedCharacter } from "@/domain/feed/feedUtils";
 
 type PersonaOption = {
   id?: string | number;
@@ -129,14 +129,6 @@ export function useAliveFeed({ following, personas }: FeedOptions): AliveFeedRet
   function toggleLike(id: FeedPost["id"]): void {
     setPosts((items) => items.map((item) => item.id === id ? { ...item, liked: !item.liked, likes: item.likes + (item.liked ? -1 : 1) } : item));
   }
-  function timeAgo(time: string | number | Date): string {
-    const ms = time instanceof Date ? time.getTime() : (typeof time === "number" ? time : Date.parse(time));
-    if (!Number.isFinite(ms)) return "방금";
-    const seconds = Math.max(0, Math.floor((Date.now() - ms) / 1000));
-    if (seconds < 60) return "방금";
-    if (seconds < 3600) return `${Math.floor(seconds / 60)}분`;
-    return `${Math.floor(seconds / 3600)}시간`;
-  }
   function publicPostSnapshot(sourcePosts: FeedPost[] = posts): FeedPost[] {
     return sanitizePosts(sourcePosts).filter((post) => !post.author && post.text).sort((a, b) => postTimeMs(b) - postTimeMs(a)).slice(0, 30).map(publicPostFromPost);
   }
@@ -144,7 +136,7 @@ export function useAliveFeed({ following, personas }: FeedOptions): AliveFeedRet
     setCommentOn(null);
     setCommentText("");
   }
-  return { auto, commentAs, commentOn, commentText, defaultCommentAs, deleteComment, deletePost, editingComment, editingPost, fast, feedView, fixTarget, fixText, followedTimelinePosts, loading, manualPost, moodOpen, myPosts, nextIn, openCommentBox, posts, publicPostSnapshot, saveCommentEdit, savePostEdit, setAuto, setCommentAs, setCommentOn, setCommentText, setEditingComment, setEditingPost, setFast, setFeedView, setFixTarget, setFixText, setLoading, setMoodOpen, setNextIn, setPosts, setWriteOpen, setWriteText, sortedPosts, timeAgo, timelinePosts, toggleLike, visiblePosts, writeOpen, writeText };
+  return { auto, commentAs, commentOn, commentText, defaultCommentAs, deleteComment, deletePost, editingComment, editingPost, fast, feedView, fixTarget, fixText, followedTimelinePosts, loading, manualPost, moodOpen, myPosts, nextIn, openCommentBox, posts, publicPostSnapshot, saveCommentEdit, savePostEdit, setAuto, setCommentAs, setCommentOn, setCommentText, setEditingComment, setEditingPost, setFast, setFeedView, setFixTarget, setFixText, setLoading, setMoodOpen, setNextIn, setPosts, setWriteOpen, setWriteText, sortedPosts, timeAgo: formatPostTime, timelinePosts, toggleLike, visiblePosts, writeOpen, writeText };
 }
 
 function updateEditedComment(post: FeedPost, editingComment: EditingComment, text: string): FeedPost {

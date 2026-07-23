@@ -48,6 +48,24 @@ export function postTimeMs(post: FeedPost): number {
   return Number.isFinite(ms) ? ms : 0;
 }
 
+export function formatPostTime(time: string | number | Date, now = Date.now()): string {
+  const ms = time instanceof Date ? time.getTime() : (typeof time === "number" ? time : Date.parse(time));
+  if (!Number.isFinite(ms) || ms > now) return "방금";
+  const seconds = Math.floor((now - ms) / 1000);
+  if (seconds < 60) return "방금";
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}분`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}시간`;
+  if (seconds < 604800) return `${Math.floor(seconds / 86400)}일`;
+  return dottedDate(new Date(ms));
+}
+
+function dottedDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}.${month}.${day}`;
+}
+
 export function followedPostId(sourceId: string | undefined, postId: string | number | undefined, index: number): string {
   return `followed:${sourceId || "local"}:${postId || index}`;
 }

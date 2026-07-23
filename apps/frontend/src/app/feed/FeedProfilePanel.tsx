@@ -1,9 +1,11 @@
 import React from "react";
 import { FeedMemoryPanel } from "@/app/feed/FeedMemoryPanel";
+import { knownCharacterRelations } from "@/domain/app/aliveCore";
 
 export function FeedProfilePanel({ ctx }) {
   const {
     activeSharedId,
+    accounts,
     affOf,
     affinityStage,
     char,
@@ -30,6 +32,7 @@ export function FeedProfilePanel({ ctx }) {
     setWorldModal,
     shareCurrentCharacter,
     shareStatus,
+    sharedCharacters,
     showMemory,
     showRelations,
     toggleFollowPanel,
@@ -38,7 +41,9 @@ export function FeedProfilePanel({ ctx }) {
     update,
     WorldChip,
   } = ctx;
-  const relCount = parseRelations(char.relations).length;
+  const candidates = [...accounts.map((item) => item.char), ...following, ...sharedCharacters];
+  const relations = knownCharacterRelations(parseRelations(char.relations), candidates, char.name);
+  const relCount = relations.length;
   return (
     <div className="al-profile">
       <button className="al-back" onClick={goHome}>‹</button>
@@ -102,7 +107,7 @@ export function FeedProfilePanel({ ctx }) {
           )}
           {myFollowers().length > 0 && <span className="al-fstat-new">친해진 캐가 맞팔했어!</span>}
         </div>
-        {showRelations && <FeedRelations ctx={{ affOf, affinityStage, char, deleteRelationAt, isFollowedCharacterName, parseRelations, relationStageLabel, relLabelFor, setAffinityManual }} />}
+        {showRelations && relCount > 0 && <FeedRelations ctx={{ affOf, affinityStage, char, deleteRelationAt, isFollowedCharacterName, relationStageLabel, relations, relLabelFor, setAffinityManual }} />}
         {showMemory && <FeedMemoryPanel ctx={ctx} />}
         <div className="al-gallery">
           <div className="al-gallery-head">
@@ -131,10 +136,10 @@ export function FeedProfilePanel({ ctx }) {
 }
 
 function FeedRelations({ ctx }) {
-  const { affOf, affinityStage, char, deleteRelationAt, isFollowedCharacterName, parseRelations, relationStageLabel, relLabelFor, setAffinityManual } = ctx;
+  const { affOf, affinityStage, char, deleteRelationAt, isFollowedCharacterName, relationStageLabel, relations, relLabelFor, setAffinityManual } = ctx;
   return (
     <div className="al-rellist">
-      {parseRelations(char.relations).map(({ who, label }, i) => {
+      {relations.map(({ who, label, sourceIndex }) => {
         const aff = affOf(char.name, who);
         const back = affOf(who, char.name);
         const neg = aff < 0;
@@ -142,13 +147,13 @@ function FeedRelations({ ctx }) {
         const oneSided = (peerExists && relLabelFor(char, who) === "짝사랑")
           || (peerExists && aff >= 50 && back < 30 && !/부부|배우자|연인|애인|약혼|사랑/.test(label));
         return (
-          <div className="al-rel" key={i}>
+          <div className="al-rel" key={sourceIndex}>
             <div className="al-rel-top">
               <span className="al-rel-av">{(who.trim()[0]) || "?"}</span>
               <span className="al-rel-who">{who}</span>
               {oneSided && <span className="al-rel-onesided">💔 짝사랑</span>}
               <span className="al-rel-stage">{relationStageLabel(label, aff)} · {aff}</span>
-              <button type="button" className="al-rel-delete" onClick={() => deleteRelationAt(i)}>삭제</button>
+              <button type="button" className="al-rel-delete" onClick={() => deleteRelationAt(sourceIndex)}>삭제</button>
             </div>
             {label && <p className="al-rel-desc">{label}</p>}
             <div className="al-rel-bar">
