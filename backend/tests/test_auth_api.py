@@ -79,6 +79,23 @@ def test_google_start_uses_browser_origin_callback_url() -> None:
     assert state.return_url == return_url
 
 
+def test_google_start_allows_separate_backend_and_frontend_ports() -> None:
+    callback_url = "http://localhost:8000/api/auth/google/callback"
+    return_url = "http://localhost:5173"
+    with make_test_client() as client:
+        response = client.get("/api/auth/google/start", params={"redirect_uri": callback_url, "return_url": return_url}, follow_redirects=False)
+    assert response.status_code == 307
+    assert parse_qs(urlsplit(response.headers["location"]).query)["redirect_uri"] == [callback_url]
+
+
+def test_google_start_rejects_untrusted_frontend_origin() -> None:
+    callback_url = "http://localhost:8000/api/auth/google/callback"
+    with make_test_client() as client:
+        response = client.get("/api/auth/google/start", params={"redirect_uri": callback_url, "return_url": "https://evil.example"}, follow_redirects=False)
+    assert response.status_code == 400
+    assert response.json()["message"] == "Invalid OAuth return URL"
+
+
 def test_apple_start_redirects_to_apple_oauth() -> None:
     with make_test_client() as client:
         response = client.get("/api/auth/apple/start", follow_redirects=False)
@@ -278,6 +295,7 @@ def make_test_client_with_failing_auth() -> TestClient:
 def stub_settings() -> Settings:
     return Settings(
         auth_secret_key="test-secret",
+        frontend_origins="http://localhost:5173,http://192.168.0.2:5173",
         google_client_id="google-client",
         google_client_secret="google-secret",
         apple_client_id="apple-client",
