@@ -12,6 +12,7 @@ export type FeedPost = {
   author?: string;
   authorHandle?: string;
   authorAvatarImg?: string;
+  authorCharacterId?: string;
   authorSharedId?: string;
   mood?: string;
   [key: string]: unknown;
@@ -19,6 +20,7 @@ export type FeedPost = {
 
 export type FollowedCharacter = {
   id?: string;
+  characterId?: string;
   sharedId?: string;
   name?: string;
   handle?: string;
@@ -27,7 +29,7 @@ export type FollowedCharacter = {
 };
 
 export type FollowedPostLike = {
-  target_shared_character_id: string;
+  target_character_id: string;
   post_id: string;
   available: boolean;
   liked: boolean;
@@ -56,22 +58,22 @@ export function canManagePost(post: FeedPost): boolean {
   return !post.author && !post.importedFromFollow;
 }
 
-export function followedPostTarget(post: FeedPost): { target_shared_character_id: string; post_id: string } | null {
-  const sharedId = String(post.authorSharedId || "");
+export function followedPostTarget(post: FeedPost): { target_character_id: string; post_id: string } | null {
+  const characterId = String(post.authorCharacterId || "");
   const postId = String(post.originalPostId ?? "");
-  if (!sharedId || !postId) return null;
-  return { target_shared_character_id: sharedId, post_id: postId };
+  if (!characterId || !postId) return null;
+  return { target_character_id: characterId, post_id: postId };
 }
 
-export function followedLikeKey(target: { target_shared_character_id: string; post_id: string }): string {
-  return `${target.target_shared_character_id}:${target.post_id}`;
+export function followedLikeKey(target: { target_character_id: string; post_id: string }): string {
+  return `${target.target_character_id}:${target.post_id}`;
 }
 
 export function followedLikeState(items: FollowedPostLike[]): FollowedLikeState {
   return Object.fromEntries(items.filter((item) => item.available).map((item) => [followedLikeKey(item), item]));
 }
 
-export function followedPostTargets(posts: FeedPost[]): { target_shared_character_id: string; post_id: string }[] {
+export function followedPostTargets(posts: FeedPost[]): { target_character_id: string; post_id: string }[] {
   const targets = posts.map(followedPostTarget).filter((item) => item !== null);
   return [...new Map(targets.map((item) => [followedLikeKey(item), item])).values()];
 }
@@ -130,6 +132,7 @@ export function postsFromFollowedCharacter(poolChar: FollowedCharacter): FeedPos
       author: poolChar.name,
       authorHandle: poolChar.handle || poolChar.name,
       authorAvatarImg: poolChar.avatarImg || "",
+      authorCharacterId: poolChar.characterId || "",
       authorSharedId: poolChar.sharedId || "",
       mood: post.mood || "팔로잉",
       time: post.time || new Date().toISOString(),

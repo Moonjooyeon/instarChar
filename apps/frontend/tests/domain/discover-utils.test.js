@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   followerCharacterId,
   hydrateFollowedCharacters,
+  characterRowToDiscoverChar,
   sameDiscoverCharacter,
 } from "../../src/domain/discover/discoverUtils.js";
 
@@ -29,4 +30,9 @@ test("hydrateFollowedCharacters adds authoritative posts to stored follows", () 
   const hydrated = hydrateFollowedCharacters(following, discovered);
   assert.deepEqual(hydrated[0].posts, [{ id: "post-1", text: "최신 글" }]);
   assert.equal(hydrated[0].id, "stored");
+});
+
+test("character discovery exposes the persistent character id", () => {
+  const discovered = characterRowToDiscoverChar({ character_id: "character-1", owner_id: "owner", source_account_id: "account", name: "세라" });
+  assert.equal(discovered.characterId, "character-1");
 });

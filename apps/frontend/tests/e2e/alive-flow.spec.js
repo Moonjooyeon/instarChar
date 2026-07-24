@@ -50,13 +50,13 @@ async function mockPersistentPostLikes(page) {
   const likes = new Map();
   await page.route("**/api/post-likes/query", async (route) => {
     const body = route.request().postDataJSON();
-    const items = (body?.targets || []).map((target) => ({ ...target, available: true, liked: likes.get(`${body.liker_account_id}:${target.target_shared_character_id}:${target.post_id}`) || false, likes: likes.get(`${body.liker_account_id}:${target.target_shared_character_id}:${target.post_id}`) ? 1 : 0 }));
+    const items = (body?.targets || []).map((target) => ({ ...target, available: true, liked: likes.get(`${body.liker_account_id}:${target.target_character_id}:${target.post_id}`) || false, likes: likes.get(`${body.liker_account_id}:${target.target_character_id}:${target.post_id}`) ? 1 : 0 }));
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ items }) });
   });
   await page.route("**/api/post-likes", async (route) => {
     const body = route.request().postDataJSON();
-    likes.set(`${body.liker_account_id}:${body.target_shared_character_id}:${body.post_id}`, body.liked);
-    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ target_shared_character_id: body.target_shared_character_id, post_id: body.post_id, available: true, liked: body.liked, likes: body.liked ? 1 : 0 }) });
+    likes.set(`${body.liker_account_id}:${body.target_character_id}:${body.post_id}`, body.liked);
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ target_character_id: body.target_character_id, post_id: body.post_id, available: true, liked: body.liked, likes: body.liked ? 1 : 0 }) });
   });
 }
 

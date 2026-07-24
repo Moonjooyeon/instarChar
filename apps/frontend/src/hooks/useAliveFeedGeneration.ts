@@ -211,7 +211,7 @@ function followerPostUserContent(char, posterImg, quoteTarget): GenerateMessage[
 }
 
 function followerPostFromText({ char, postId, poster, posterImg, quoteTarget, text }) {
-  return { id: postId, text, mood: "팔로잉", time: new Date(), likes: Math.floor(Math.random() * 30) + 2, liked: false, author: poster.name, authorHandle: poster.handle || poster.name, authorSharedId: poster.sharedId || "", isAuto: true, img: posterImg, quoted: quoteTarget ? { name: char.name, handle: char.handle || char.name, text: quoteTarget.text } : null };
+  return { id: postId, text, mood: "팔로잉", time: new Date(), likes: Math.floor(Math.random() * 30) + 2, liked: false, author: poster.name, authorHandle: poster.handle || poster.name, authorCharacterId: poster.characterId || "", authorSharedId: poster.sharedId || "", isAuto: true, img: posterImg, quoted: quoteTarget ? { name: char.name, handle: char.handle || char.name, text: quoteTarget.text } : null };
 }
 
 function stripQuotes(text) {

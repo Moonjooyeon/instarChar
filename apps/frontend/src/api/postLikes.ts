@@ -2,7 +2,7 @@ import { apiJson } from "./client.js";
 
 
 export type PostLikeTarget = {
-  target_shared_character_id: string;
+  target_character_id: string;
   post_id: string;
 };
 

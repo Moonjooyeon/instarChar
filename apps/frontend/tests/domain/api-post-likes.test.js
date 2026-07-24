@@ -28,22 +28,22 @@ test("queryPostLikes splits more than one hundred targets", async () => {
 });
 
 test("updatePostLike sends the desired final state", async () => {
-  const item = likeItem("shared-1", "post-1", false, 3);
+  const item = likeItem("character-1", "post-1", false, 3);
   const restoreFetch = stubFetch([jsonResponse(item)]);
   try {
-    assert.deepEqual(await updatePostLike("char-1", target("shared-1", "post-1"), false), item);
-    assert.deepEqual(JSON.parse(globalThis.fetch.calls[0].init.body), { liker_account_id: "char-1", target_shared_character_id: "shared-1", post_id: "post-1", liked: false });
+    assert.deepEqual(await updatePostLike("char-1", target("character-1", "post-1"), false), item);
+    assert.deepEqual(JSON.parse(globalThis.fetch.calls[0].init.body), { liker_account_id: "char-1", target_character_id: "character-1", post_id: "post-1", liked: false });
   } finally {
     restoreFetch();
   }
 });
 
-function target(sharedId, postId) {
-  return { target_shared_character_id: sharedId, post_id: postId };
+function target(characterId, postId) {
+  return { target_character_id: characterId, post_id: postId };
 }
 
-function likeItem(sharedId, postId, liked, likes) {
-  return { ...target(sharedId, postId), available: true, liked, likes };
+function likeItem(characterId, postId, liked, likes) {
+  return { ...target(characterId, postId), available: true, liked, likes };
 }
 
 function jsonResponse(body, status = 200) {

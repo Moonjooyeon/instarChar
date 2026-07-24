@@ -15,6 +15,7 @@ export type CharacterData = {
 
 export type SharedCharacterRow = {
   id?: string;
+  character_id?: string;
   owner_id?: string;
   owner_name?: string;
   source_account_id?: string;
@@ -33,6 +34,7 @@ export type CharacterRow = SharedCharacterRow & {
 
 export type DiscoverCharacter = CharacterData & {
   id: string;
+  characterId: string;
   sharedId: string;
   ownerId?: string;
   sourceAccountId?: string;
@@ -81,6 +83,7 @@ export function sharedRowToChar(row: SharedCharacterRow): DiscoverCharacter {
   return {
     ...base,
     id: `shared_${row.id}`,
+    characterId: row.character_id || "",
     sharedId: row.id,
     ownerId: row.owner_id,
     sourceAccountId: row.source_account_id,
@@ -101,6 +104,7 @@ export function characterRowToDiscoverChar(row: CharacterRow): DiscoverCharacter
   return {
     ...base,
     id: `char_${row.owner_id || "owner"}_${row.source_account_id || row.name || "unknown"}`,
+    characterId: row.character_id || "",
     sharedId: "",
     ownerId: row.owner_id,
     sourceAccountId: row.source_account_id,
