@@ -1,5 +1,6 @@
 import React from "react";
 import { USER_PERSONA_FEATURE_ENABLED } from "@/domain/app/featureFlags";
+import { canManagePost } from "@/domain/feed/feedUtils";
 
 export function FeedTimeline({ ctx }) {
   const {
@@ -92,6 +93,7 @@ function FeedPostCard({ post, ctx }) {
   const pHandle = isExt ? displayName(post.authorHandle || post.author) : (char.handle || pName.replace(/\s/g, "").toLowerCase());
   const pInitial = initialForName(pName);
   const pAvatar = isExt ? post.authorAvatarImg : char.avatarImg;
+  const canManage = canManagePost(post);
   return (
     <div className="al-post">
       <div className={`al-post-av ${isExt ? "ext" : ""}`}>{pAvatar ? <img src={pAvatar} alt="" /> : pInitial}</div>
@@ -116,10 +118,9 @@ function FeedPostCard({ post, ctx }) {
         <FeedPostMedia post={post} />
         <div className="al-post-actions">
           <button className={`al-like ${post.liked ? "on" : ""}`} onClick={() => toggleLike(post.id)}>{post.liked ? "♥" : "♡"} {post.likes}</button>
-          {!post.byUser && <button className="al-fixbtn" onClick={() => { setFixTarget({ type: "post", id: post.id, text: post.text }); setFixText(""); }}>⚠ 캐해 아님</button>}
-          <span className="al-post-mood">{post.isAuto && <i className="al-auto-badge">자율</i>}{post.byUser && <i className="al-user-badge">내가</i>}{(post.mood || "").split(" / ")[0]}</span>
-          <button className="al-mini-action" onClick={() => setEditingPost({ id: post.id, text: post.text })}>수정</button>
-          <button className="al-mini-action danger" onClick={() => deletePost(post.id)}>삭제</button>
+          {canManage && !post.byUser && <button className="al-fixbtn" onClick={() => { setFixTarget({ type: "post", id: post.id, text: post.text }); setFixText(""); }}>⚠ 캐해 아님</button>}
+          {canManage && <button className="al-mini-action" onClick={() => setEditingPost({ id: post.id, text: post.text })}>수정</button>}
+          {canManage && <button className="al-mini-action danger" onClick={() => deletePost(post.id)}>삭제</button>}
         </div>
         <FeedComments post={post} ctx={{ char, commentAs, commentOn, commentText, deleteComment, editingComment, personas, saveCommentEdit, setCommentAs, setCommentOn, setCommentText, setEditingComment, setPersonaDraft, submitUserComment, isExt }} />
         {commentOn !== post.id && <button className="al-cmt-open" onClick={() => openCommentBox(post.id)}>💬 댓글 달기</button>}

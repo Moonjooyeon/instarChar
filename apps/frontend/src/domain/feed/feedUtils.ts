@@ -26,6 +26,8 @@ export type FollowedCharacter = {
   posts?: FeedPost[];
 };
 
+export type FollowedLikeState = Record<string, boolean>;
+
 export function isFailedGeneratedPost(post: FeedPost | null | undefined): boolean {
   const text = String(post?.text || "").trim();
   if (!text) return false;
@@ -40,6 +42,22 @@ export function isFailedGeneratedPost(post: FeedPost | null | undefined): boolea
 
 export function sanitizePosts(items: unknown): FeedPost[] {
   return Array.isArray(items) ? items.filter((post) => !isFailedGeneratedPost(post)) : [];
+}
+
+export function canManagePost(post: FeedPost): boolean {
+  return !post.author && !post.importedFromFollow;
+}
+
+export function applyFollowedLikeState(post: FeedPost, state: FollowedLikeState): FeedPost {
+  const liked = state[String(post.id)];
+  if (liked === undefined) return post;
+  const likes = Math.max(0, Number(post.likes || 0) + (liked ? 1 : 0));
+  return { ...post, liked, likes };
+}
+
+export function toggleFollowedLikeState(state: FollowedLikeState = {}, postId: FeedPost["id"]): FollowedLikeState {
+  const key = String(postId);
+  return { ...state, [key]: !state[key] };
 }
 
 export function postTimeMs(post: FeedPost): number {
@@ -85,7 +103,7 @@ export function postsFromFollowedCharacter(poolChar: FollowedCharacter): FeedPos
       authorSharedId: poolChar.sharedId || "",
       mood: post.mood || "팔로잉",
       time: post.time || new Date().toISOString(),
-      likes: post.likes || Math.floor(Math.random() * 20) + 1,
+      likes: typeof post.likes === "number" && Number.isFinite(post.likes) ? post.likes : 0,
       liked: false,
       comments: Array.isArray(post.comments) ? post.comments : [],
     }));

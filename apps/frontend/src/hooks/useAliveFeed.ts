@@ -8,7 +8,7 @@ import {
   type CharacterPostsState,
 } from "@/api/characterPosts";
 import { USER_PERSONA_FEATURE_ENABLED } from "@/domain/app/featureFlags";
-import { formatPostTime, mergeTimelinePosts, postTimeMs, postsFromFollowedCharacter, sanitizePosts, type FeedPost, type FollowedCharacter } from "@/domain/feed/feedUtils";
+import { applyFollowedLikeState, formatPostTime, mergeTimelinePosts, postTimeMs, postsFromFollowedCharacter, sanitizePosts, toggleFollowedLikeState, type FeedPost, type FollowedCharacter, type FollowedLikeState } from "@/domain/feed/feedUtils";
 
 type PersonaOption = {
   id?: string | number;
@@ -106,9 +106,11 @@ export function useAliveFeed({ activeId, following, personas, setSaveStatus, ste
   const [commentText, setCommentText] = useState("");
   const [editingPost, setEditingPost] = useState<FeedPost | null>(null);
   const [editingComment, setEditingComment] = useState<EditingComment | null>(null);
+  const [followedLikesByAccount, setFollowedLikesByAccount] = useState<Record<string, FollowedLikeState>>({});
   const sortedPosts = sanitizePosts(posts).sort((a, b) => postTimeMs(b) - postTimeMs(a));
   const myPosts = sortedPosts.filter((post) => !post.author);
-  const followedTimelinePosts = (following || []).flatMap((item) => postsFromFollowedCharacter(item));
+  const followedLikeState = followedLikesByAccount[activeId || ""] || {};
+  const followedTimelinePosts = (following || []).flatMap((item) => postsFromFollowedCharacter(item)).map((post) => applyFollowedLikeState(post, followedLikeState));
   const timelinePosts = mergeTimelinePosts(sortedPosts, followedTimelinePosts);
   const visiblePosts = feedView === "mine" ? myPosts : timelinePosts;
   useEffect(() => { postsRef.current = posts; }, [posts]);
@@ -207,7 +209,15 @@ export function useAliveFeed({ activeId, following, personas, setSaveStatus, ste
     mutatePosts((items) => [{ id: Date.now(), text: text.trim(), mood: "내가 작성", time: new Date(), likes: 0, liked: false, byUser: true }, ...items]);
   }
   function toggleLike(id: FeedPost["id"]): void {
+    if (followedTimelinePosts.some((post) => post.id === id)) {
+      toggleFollowedPostLike(id);
+      return;
+    }
     mutatePosts((items) => items.map((item) => item.id === id ? { ...item, liked: !item.liked, likes: Number(item.likes || 0) + (item.liked ? -1 : 1) } : item));
+  }
+  function toggleFollowedPostLike(id: FeedPost["id"]): void {
+    const accountKey = activeId || "";
+    setFollowedLikesByAccount((prev) => ({ ...prev, [accountKey]: toggleFollowedLikeState(prev[accountKey], id) }));
   }
   function publicPostSnapshot(sourcePosts: FeedPost[] = posts): FeedPost[] {
     return sanitizePosts(sourcePosts).filter((post) => !post.author && post.text).sort((a, b) => postTimeMs(b) - postTimeMs(a)).slice(0, 30).map(publicPostFromPost);

@@ -1,12 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  applyFollowedLikeState,
+  canManagePost,
   formatPostTime,
   followedPostId,
   mergeTimelinePosts,
   postTimeMs,
   postsFromFollowedCharacter,
   sanitizePosts,
+  toggleFollowedLikeState,
 } from "../../src/domain/feed/feedUtils.js";
 
 test("sanitizePosts removes generated failure placeholders", () => {
@@ -31,6 +34,25 @@ test("postsFromFollowedCharacter creates imported timeline posts", () => {
   assert.equal(imported[0].importedFromFollow, true);
   assert.equal(imported[0].author, "세인");
   assert.equal(imported[0].likes, 3);
+});
+
+test("postsFromFollowedCharacter preserves a zero like count", () => {
+  const character = { id: "c1", name: "세인", posts: [{ id: "p1", text: "고요한 밤", likes: 0 }] };
+  assert.equal(postsFromFollowedCharacter(character)[0].likes, 0);
+  assert.equal(postsFromFollowedCharacter(character)[0].likes, 0);
+});
+
+test("canManagePost allows only the current character's posts", () => {
+  assert.equal(canManagePost({ id: "mine", text: "내 글" }), true);
+  assert.equal(canManagePost({ id: "followed", text: "상대 글", author: "세인", importedFromFollow: true }), false);
+});
+
+test("followed post likes toggle without changing the source count", () => {
+  const post = { id: "followed:shared:p1", likes: 4, liked: false };
+  const liked = toggleFollowedLikeState({}, post.id);
+  assert.deepEqual(applyFollowedLikeState(post, liked), { ...post, likes: 5, liked: true });
+  const unliked = toggleFollowedLikeState(liked, post.id);
+  assert.deepEqual(applyFollowedLikeState(post, unliked), { ...post, likes: 4, liked: false });
 });
 
 test("mergeTimelinePosts deduplicates and sorts newest first", () => {
