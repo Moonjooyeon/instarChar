@@ -65,6 +65,7 @@ import {
   toneText,
 } from "@/domain/app/aliveCore";
 import { USER_PERSONA_FEATURE_ENABLED, normalizeUserPersonaSpeaker } from "@/domain/app/featureFlags";
+import { hydrateFollowedCharacters } from "@/domain/discover/discoverUtils";
 import { useAliveAuthActions } from "@/hooks/useAliveAuthActions";
 import { useAliveAiGeneration } from "@/hooks/useAliveAiGeneration";
 import { useAliveAppStatePersistence } from "@/hooks/useAliveAppStatePersistence";
@@ -256,6 +257,7 @@ export function useAliveAppController() {
     profileName,
     session,
   });
+  const feedFollowing = hydrateFollowedCharacters(following, sharedCharacters);
   const {
     findPeerChar,
   } = useAlivePeerLookup({
@@ -314,7 +316,7 @@ export function useAliveAppController() {
     writeOpen,
     writeText,
     generateServerPost,
-  } = useAliveFeed({ activeId, following, personas, setSaveStatus, step });
+  } = useAliveFeed({ activeId, following: feedFollowing, personas, setSaveStatus, step });
   const {
     recordFollowChange,
     recordRelationshipFollowBack,
