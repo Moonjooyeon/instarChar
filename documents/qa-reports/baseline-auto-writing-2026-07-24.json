@@ -1,0 +1,23 @@
+{
+  "date": "2026-07-24",
+  "url": "http://localhost:5173/app/feed",
+  "healthScore": 93,
+  "issues": [
+    {
+      "id": "ISSUE-001",
+      "title": "실행 환경에서 자동 글쓰기 예약이 처리되지 않음",
+      "severity": "high",
+      "category": "functional"
+    }
+  ],
+  "categoryScores": {
+    "console": 70,
+    "links": 100,
+    "visual": 100,
+    "functional": 85,
+    "ux": 100,
+    "performance": 100,
+    "content": 100,
+    "accessibility": 100
+  }
+}
