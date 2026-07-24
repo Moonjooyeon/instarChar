@@ -14,6 +14,7 @@ export function FeedTimeline({ ctx }) {
     editingPost,
     feedTopRef,
     feedView,
+    isLikePending,
     loading,
     myPosts,
     openCommentBox,
@@ -54,7 +55,7 @@ export function FeedTimeline({ ctx }) {
         )}
         {visiblePosts.map((post) => (
           <React.Fragment key={post.id}>
-            <FeedPostCard post={post} ctx={{ char, commentAs, commentOn, commentText, deleteComment, deletePost, editingComment, editingPost, openCommentBox, personas, saveCommentEdit, savePostEdit, setCommentAs, setCommentOn, setCommentText, setEditingComment, setEditingPost, setFixTarget, setFixText, setPersonaDraft, submitUserComment, timeAgo, toggleLike }} />
+            <FeedPostCard post={post} ctx={{ char, commentAs, commentOn, commentText, deleteComment, deletePost, editingComment, editingPost, isLikePending, openCommentBox, personas, saveCommentEdit, savePostEdit, setCommentAs, setCommentOn, setCommentText, setEditingComment, setEditingPost, setFixTarget, setFixText, setPersonaDraft, submitUserComment, timeAgo, toggleLike }} />
           </React.Fragment>
         ))}
       </div>
@@ -72,6 +73,7 @@ function FeedPostCard({ post, ctx }) {
     deletePost,
     editingComment,
     editingPost,
+    isLikePending,
     openCommentBox,
     personas,
     saveCommentEdit,
@@ -117,7 +119,7 @@ function FeedPostCard({ post, ctx }) {
         )}
         <FeedPostMedia post={post} />
         <div className="al-post-actions">
-          <button className={`al-like ${post.liked ? "on" : ""}`} onClick={() => toggleLike(post.id)}>{post.liked ? "♥" : "♡"} {post.likes}</button>
+          <button className={`al-like ${post.liked ? "on" : ""}`} disabled={isLikePending(post.id)} onClick={() => toggleLike(post.id)}>{post.liked ? "♥" : "♡"} {post.likes}</button>
           {canManage && !post.byUser && <button className="al-fixbtn" onClick={() => { setFixTarget({ type: "post", id: post.id, text: post.text }); setFixText(""); }}>⚠ 캐해 아님</button>}
           {canManage && <button className="al-mini-action" onClick={() => setEditingPost({ id: post.id, text: post.text })}>수정</button>}
           {canManage && <button className="al-mini-action danger" onClick={() => deletePost(post.id)}>삭제</button>}

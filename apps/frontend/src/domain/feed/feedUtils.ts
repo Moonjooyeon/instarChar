@@ -26,7 +26,15 @@ export type FollowedCharacter = {
   posts?: FeedPost[];
 };
 
-export type FollowedLikeState = Record<string, boolean>;
+export type FollowedPostLike = {
+  target_shared_character_id: string;
+  post_id: string;
+  available: boolean;
+  liked: boolean;
+  likes: number;
+};
+
+export type FollowedLikeState = Record<string, FollowedPostLike>;
 
 export function isFailedGeneratedPost(post: FeedPost | null | undefined): boolean {
   const text = String(post?.text || "").trim();
@@ -48,16 +56,38 @@ export function canManagePost(post: FeedPost): boolean {
   return !post.author && !post.importedFromFollow;
 }
 
-export function applyFollowedLikeState(post: FeedPost, state: FollowedLikeState): FeedPost {
-  const liked = state[String(post.id)];
-  if (liked === undefined) return post;
-  const likes = Math.max(0, Number(post.likes || 0) + (liked ? 1 : 0));
-  return { ...post, liked, likes };
+export function followedPostTarget(post: FeedPost): { target_shared_character_id: string; post_id: string } | null {
+  const sharedId = String(post.authorSharedId || "");
+  const postId = String(post.originalPostId ?? "");
+  if (!sharedId || !postId) return null;
+  return { target_shared_character_id: sharedId, post_id: postId };
 }
 
-export function toggleFollowedLikeState(state: FollowedLikeState = {}, postId: FeedPost["id"]): FollowedLikeState {
-  const key = String(postId);
-  return { ...state, [key]: !state[key] };
+export function followedLikeKey(target: { target_shared_character_id: string; post_id: string }): string {
+  return `${target.target_shared_character_id}:${target.post_id}`;
+}
+
+export function followedLikeState(items: FollowedPostLike[]): FollowedLikeState {
+  return Object.fromEntries(items.filter((item) => item.available).map((item) => [followedLikeKey(item), item]));
+}
+
+export function followedPostTargets(posts: FeedPost[]): { target_shared_character_id: string; post_id: string }[] {
+  const targets = posts.map(followedPostTarget).filter((item) => item !== null);
+  return [...new Map(targets.map((item) => [followedLikeKey(item), item])).values()];
+}
+
+export function applyFollowedLikeState(post: FeedPost, state: FollowedLikeState): FeedPost {
+  const target = followedPostTarget(post);
+  const item = target ? state[followedLikeKey(target)] : undefined;
+  return item ? { ...post, liked: item.liked, likes: item.likes } : post;
+}
+
+export function optimisticFollowedLike(post: FeedPost): FollowedPostLike | null {
+  const target = followedPostTarget(post);
+  if (!target) return null;
+  const liked = !post.liked;
+  const likes = Math.max(0, Number(post.likes || 0) + (liked ? 1 : -1));
+  return { ...target, available: true, liked, likes };
 }
 
 export function postTimeMs(post: FeedPost): number {

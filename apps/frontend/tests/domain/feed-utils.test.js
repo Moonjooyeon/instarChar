@@ -3,13 +3,17 @@ import test from "node:test";
 import {
   applyFollowedLikeState,
   canManagePost,
+  followedLikeKey,
+  followedLikeState,
   formatPostTime,
   followedPostId,
+  followedPostTarget,
+  followedPostTargets,
   mergeTimelinePosts,
+  optimisticFollowedLike,
   postTimeMs,
   postsFromFollowedCharacter,
   sanitizePosts,
-  toggleFollowedLikeState,
 } from "../../src/domain/feed/feedUtils.js";
 
 test("sanitizePosts removes generated failure placeholders", () => {
@@ -47,12 +51,24 @@ test("canManagePost allows only the current character's posts", () => {
   assert.equal(canManagePost({ id: "followed", text: "상대 글", author: "세인", importedFromFollow: true }), false);
 });
 
-test("followed post likes toggle without changing the source count", () => {
-  const post = { id: "followed:shared:p1", likes: 4, liked: false };
-  const liked = toggleFollowedLikeState({}, post.id);
-  assert.deepEqual(applyFollowedLikeState(post, liked), { ...post, likes: 5, liked: true });
-  const unliked = toggleFollowedLikeState(liked, post.id);
-  assert.deepEqual(applyFollowedLikeState(post, unliked), { ...post, likes: 4, liked: false });
+test("followed post likes apply canonical server state", () => {
+  const post = { id: "followed:shared:p1", originalPostId: "p1", authorSharedId: "shared", likes: 4, liked: false };
+  const item = { target_shared_character_id: "shared", post_id: "p1", available: true, likes: 8, liked: true };
+  assert.deepEqual(applyFollowedLikeState(post, followedLikeState([item])), { ...post, likes: 8, liked: true });
+  assert.equal(followedLikeKey(item), "shared:p1");
+});
+
+test("followed post targets use authoritative ids and remove duplicates", () => {
+  const post = { id: "followed:shared:p1", originalPostId: "p1", authorSharedId: "shared" };
+  assert.deepEqual(followedPostTarget(post), { target_shared_character_id: "shared", post_id: "p1" });
+  assert.deepEqual(followedPostTargets([post, { ...post }]), [{ target_shared_character_id: "shared", post_id: "p1" }]);
+  assert.equal(followedPostTarget({ id: "local" }), null);
+});
+
+test("optimistic followed likes increment and decrement without going negative", () => {
+  const post = { originalPostId: "p1", authorSharedId: "shared", likes: 0, liked: false };
+  assert.deepEqual(optimisticFollowedLike(post), { target_shared_character_id: "shared", post_id: "p1", available: true, likes: 1, liked: true });
+  assert.equal(optimisticFollowedLike({ ...post, liked: true })?.likes, 0);
 });
 
 test("mergeTimelinePosts deduplicates and sorts newest first", () => {

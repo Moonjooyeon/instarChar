@@ -46,6 +46,20 @@ async function createCharacter(page) {
   await expect(page.getByRole("heading", { name: "테스트린" })).toBeVisible();
 }
 
+async function mockPersistentPostLikes(page) {
+  const likes = new Map();
+  await page.route("**/api/post-likes/query", async (route) => {
+    const body = route.request().postDataJSON();
+    const items = (body?.targets || []).map((target) => ({ ...target, available: true, liked: likes.get(`${body.liker_account_id}:${target.target_shared_character_id}:${target.post_id}`) || false, likes: likes.get(`${body.liker_account_id}:${target.target_shared_character_id}:${target.post_id}`) ? 1 : 0 }));
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ items }) });
+  });
+  await page.route("**/api/post-likes", async (route) => {
+    const body = route.request().postDataJSON();
+    likes.set(`${body.liker_account_id}:${body.target_shared_character_id}:${body.post_id}`, body.liked);
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ target_shared_character_id: body.target_shared_character_id, post_id: body.post_id, available: true, liked: body.liked, likes: body.liked ? 1 : 0 }) });
+  });
+}
+
 test.beforeEach(async ({ page }) => {
   await mockAliveApi(page);
 });
@@ -131,6 +145,21 @@ test("DM send ignores rapid duplicate clicks while request is pending", async ({
 
   await expect(page.getByText("지금 확인해줘")).toHaveCount(1);
   await expect(page.getByText("확인했습니다. 지금 상황은 제가 정리하죠.")).toBeVisible();
+});
+
+test("followed post like survives a page reload", async ({ page }) => {
+  await mockPersistentPostLikes(page);
+  await createCharacter(page);
+  await page.getByRole("button", { name: "🔍 탐색" }).click();
+  await page.getByRole("button", { name: "+ 팔로우" }).first().click();
+  await page.getByRole("button", { name: "‹" }).click();
+  const followedPost = page.locator(".al-post").filter({ has: page.locator(".al-post-extbadge") }).first();
+  await expect(followedPost).toBeVisible();
+  await followedPost.locator(".al-like").click();
+  await expect(followedPost.locator(".al-like")).toHaveClass(/on/);
+  await page.reload();
+  const restoredPost = page.locator(".al-post").filter({ has: page.locator(".al-post-extbadge") }).first();
+  await expect(restoredPost.locator(".al-like")).toHaveClass(/on/);
 });
 
 test("manual long-term memory can be added, pinned and marked important", async ({ page }) => {

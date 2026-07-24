@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import { useCallback, useEffect, useRef, useState, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
 import {
   CharacterPostsApiError,
   generateCharacterPost,
@@ -7,8 +7,9 @@ import {
   updateCharacterAutoPost,
   type CharacterPostsState,
 } from "@/api/characterPosts";
+import { queryPostLikes, updatePostLike, type PostLikeItem, type PostLikeTarget } from "@/api/postLikes";
 import { USER_PERSONA_FEATURE_ENABLED } from "@/domain/app/featureFlags";
-import { applyFollowedLikeState, formatPostTime, mergeTimelinePosts, postTimeMs, postsFromFollowedCharacter, sanitizePosts, toggleFollowedLikeState, type FeedPost, type FollowedCharacter, type FollowedLikeState } from "@/domain/feed/feedUtils";
+import { applyFollowedLikeState, followedLikeKey, followedLikeState, followedPostTarget, followedPostTargets, formatPostTime, mergeTimelinePosts, optimisticFollowedLike, postTimeMs, postsFromFollowedCharacter, sanitizePosts, type FeedPost, type FollowedCharacter, type FollowedLikeState } from "@/domain/feed/feedUtils";
 
 type PersonaOption = {
   id?: string | number;
@@ -79,6 +80,7 @@ type AliveFeedReturn = {
   timeAgo: (time: string | number | Date) => string;
   timelinePosts: FeedPost[];
   toggleLike: (id: FeedPost["id"]) => void;
+  isLikePending: (id: FeedPost["id"]) => boolean;
   autoIntervalSeconds: number;
   generateServerPost: (mood: string) => Promise<FeedPost | null>;
   visiblePosts: FeedPost[];
@@ -106,11 +108,11 @@ export function useAliveFeed({ activeId, following, personas, setSaveStatus, ste
   const [commentText, setCommentText] = useState("");
   const [editingPost, setEditingPost] = useState<FeedPost | null>(null);
   const [editingComment, setEditingComment] = useState<EditingComment | null>(null);
-  const [followedLikesByAccount, setFollowedLikesByAccount] = useState<Record<string, FollowedLikeState>>({});
   const sortedPosts = sanitizePosts(posts).sort((a, b) => postTimeMs(b) - postTimeMs(a));
   const myPosts = sortedPosts.filter((post) => !post.author);
-  const followedLikeState = followedLikesByAccount[activeId || ""] || {};
-  const followedTimelinePosts = (following || []).flatMap((item) => postsFromFollowedCharacter(item)).map((post) => applyFollowedLikeState(post, followedLikeState));
+  const rawFollowedPosts = (following || []).flatMap((item) => postsFromFollowedCharacter(item));
+  const followedLikes = useFollowedLikes({ activeId, posts: rawFollowedPosts, setSaveStatus, step });
+  const followedTimelinePosts = rawFollowedPosts.map((post) => applyFollowedLikeState(post, followedLikes.state));
   const timelinePosts = mergeTimelinePosts(sortedPosts, followedTimelinePosts);
   const visiblePosts = feedView === "mine" ? myPosts : timelinePosts;
   useEffect(() => { postsRef.current = posts; }, [posts]);
@@ -209,15 +211,16 @@ export function useAliveFeed({ activeId, following, personas, setSaveStatus, ste
     mutatePosts((items) => [{ id: Date.now(), text: text.trim(), mood: "내가 작성", time: new Date(), likes: 0, liked: false, byUser: true }, ...items]);
   }
   function toggleLike(id: FeedPost["id"]): void {
-    if (followedTimelinePosts.some((post) => post.id === id)) {
-      toggleFollowedPostLike(id);
+    const followedPost = followedTimelinePosts.find((post) => post.id === id);
+    if (followedPost) {
+      followedLikes.toggle(followedPost);
       return;
     }
     mutatePosts((items) => items.map((item) => item.id === id ? { ...item, liked: !item.liked, likes: Number(item.likes || 0) + (item.liked ? -1 : 1) } : item));
   }
-  function toggleFollowedPostLike(id: FeedPost["id"]): void {
-    const accountKey = activeId || "";
-    setFollowedLikesByAccount((prev) => ({ ...prev, [accountKey]: toggleFollowedLikeState(prev[accountKey], id) }));
+  function isLikePending(id: FeedPost["id"]): boolean {
+    const post = followedTimelinePosts.find((item) => item.id === id);
+    return post ? followedLikes.isPending(post) : false;
   }
   function publicPostSnapshot(sourcePosts: FeedPost[] = posts): FeedPost[] {
     return sanitizePosts(sourcePosts).filter((post) => !post.author && post.text).sort((a, b) => postTimeMs(b) - postTimeMs(a)).slice(0, 30).map(publicPostFromPost);
@@ -226,7 +229,125 @@ export function useAliveFeed({ activeId, following, personas, setSaveStatus, ste
     setCommentOn(null);
     setCommentText("");
   }
-  return { auto, autoIntervalSeconds, commentAs, commentOn, commentText, defaultCommentAs, deleteComment, deletePost, editingComment, editingPost, feedView, fixTarget, fixText, followedTimelinePosts, generateServerPost, loading, manualPost, moodOpen, mutatePosts, myPosts, nextIn, openCommentBox, posts, publicPostSnapshot, saveCommentEdit, savePostEdit, setAuto, setAutoInterval, setCommentAs, setCommentOn, setCommentText, setEditingComment, setEditingPost, setFeedView, setFixTarget, setFixText, setLoading, setMoodOpen, setPosts, setWriteOpen, setWriteText, sortedPosts, timeAgo: formatPostTime, timelinePosts, toggleLike, visiblePosts, writeOpen, writeText };
+  return { auto, autoIntervalSeconds, commentAs, commentOn, commentText, defaultCommentAs, deleteComment, deletePost, editingComment, editingPost, feedView, fixTarget, fixText, followedTimelinePosts, generateServerPost, isLikePending, loading, manualPost, moodOpen, mutatePosts, myPosts, nextIn, openCommentBox, posts, publicPostSnapshot, saveCommentEdit, savePostEdit, setAuto, setAutoInterval, setCommentAs, setCommentOn, setCommentText, setEditingComment, setEditingPost, setFeedView, setFixTarget, setFixText, setLoading, setMoodOpen, setPosts, setWriteOpen, setWriteText, sortedPosts, timeAgo: formatPostTime, timelinePosts, toggleLike, visiblePosts, writeOpen, writeText };
+}
+
+type FollowedLikesOptions = {
+  activeId: string | null;
+  posts: FeedPost[];
+  setSaveStatus: Dispatch<SetStateAction<string>>;
+  step: string;
+};
+
+type FollowedLikesReturn = {
+  state: FollowedLikeState;
+  isPending: (post: FeedPost) => boolean;
+  toggle: (post: FeedPost) => void;
+};
+
+function useFollowedLikes({ activeId, posts, setSaveStatus, step }: FollowedLikesOptions): FollowedLikesReturn {
+  const [state, setState] = useState<FollowedLikeState>({});
+  const [pending, setPending] = useState<Record<string, boolean>>({});
+  const pendingRef = useRef(new Set<string>());
+  const activeRef = useRef(activeId);
+  const targets = followedPostTargets(posts);
+  const signature = JSON.stringify(targets);
+  useEffect(() => { activeRef.current = activeId; pendingRef.current.clear(); setPending({}); }, [activeId]);
+  useFollowedLikeRefresh({ activeId, pendingRef, setSaveStatus, setState, signature, step, targets });
+  const isPending = (post: FeedPost): boolean => followedLikePending(post, pending);
+  const toggle = (post: FeedPost): void => toggleFollowedLike({ activeId, activeRef, pendingRef, setPending, setSaveStatus, setState, state }, post);
+  return { state, isPending, toggle };
+}
+
+type FollowedLikeActionOptions = Pick<FollowedLikesOptions, "activeId" | "setSaveStatus"> & {
+  activeRef: MutableRefObject<string | null>;
+  pendingRef: MutableRefObject<Set<string>>;
+  setPending: Dispatch<SetStateAction<Record<string, boolean>>>;
+  setState: Dispatch<SetStateAction<FollowedLikeState>>;
+  state: FollowedLikeState;
+};
+
+function toggleFollowedLike(options: FollowedLikeActionOptions, post: FeedPost): void {
+  const { activeId, activeRef, pendingRef, setPending, setSaveStatus, setState, state } = options;
+  const target = followedPostTarget(post);
+  const next = optimisticFollowedLike(post);
+  if (!activeId || !target || !next) return;
+  const key = followedLikeKey(target);
+  if (pendingRef.current.has(key)) return;
+  const previous = state[key];
+  markLikePending(key, true, pendingRef, setPending);
+  setState((current) => ({ ...current, [key]: next }));
+  void persistFollowedLike({ activeId, activeRef, key, next, previous, setSaveStatus, setState, target }).finally(() => {
+    if (activeRef.current === activeId) markLikePending(key, false, pendingRef, setPending);
+  });
+}
+
+function followedLikePending(post: FeedPost, pending: Record<string, boolean>): boolean {
+  const target = followedPostTarget(post);
+  return target ? Boolean(pending[followedLikeKey(target)]) : false;
+}
+
+type FollowedLikeRefreshOptions = Omit<FollowedLikesOptions, "posts"> & {
+  pendingRef: MutableRefObject<Set<string>>;
+  setState: Dispatch<SetStateAction<FollowedLikeState>>;
+  signature: string;
+  targets: PostLikeTarget[];
+};
+
+function useFollowedLikeRefresh(options: FollowedLikeRefreshOptions): void {
+  const { activeId, pendingRef, setSaveStatus, setState, signature, step, targets } = options;
+  useEffect(() => {
+    let cancelled = false;
+    if (!activeId || step !== "feed") return setState({});
+    void queryPostLikes(activeId, targets).then((items) => {
+      if (!cancelled) setState((current) => mergedRefreshedLikes(current, items, pendingRef.current));
+    }).catch((error) => { if (!cancelled) setSaveStatus(postsErrorMessage(error)); });
+    return () => { cancelled = true; };
+  }, [activeId, setSaveStatus, setState, signature, step]);
+}
+
+type PersistLikeOptions = {
+  activeId: string;
+  activeRef: MutableRefObject<string | null>;
+  key: string;
+  next: PostLikeItem;
+  previous?: PostLikeItem;
+  setSaveStatus: Dispatch<SetStateAction<string>>;
+  setState: Dispatch<SetStateAction<FollowedLikeState>>;
+  target: PostLikeTarget;
+};
+
+async function persistFollowedLike(options: PersistLikeOptions): Promise<void> {
+  const { activeId, activeRef, key, next, previous, setSaveStatus, setState, target } = options;
+  try {
+    const item = await updatePostLike(activeId, target, next.liked);
+    if (activeRef.current === activeId) setState((current) => ({ ...current, [key]: item }));
+  } catch (error) {
+    if (activeRef.current !== activeId) return;
+    setState((current) => restoredLikeState(current, key, previous));
+    setSaveStatus(postsErrorMessage(error));
+  }
+}
+
+function restoredLikeState(state: FollowedLikeState, key: string, previous?: PostLikeItem): FollowedLikeState {
+  if (previous) return { ...state, [key]: previous };
+  const next = { ...state };
+  delete next[key];
+  return next;
+}
+
+function mergedRefreshedLikes(current: FollowedLikeState, items: PostLikeItem[], pending: Set<string>): FollowedLikeState {
+  const next = followedLikeState(items);
+  pending.forEach((key) => {
+    if (current[key]) next[key] = current[key];
+  });
+  return next;
+}
+
+function markLikePending(key: string, value: boolean, ref: MutableRefObject<Set<string>>, setPending: Dispatch<SetStateAction<Record<string, boolean>>>): void {
+  if (value) ref.current.add(key);
+  else ref.current.delete(key);
+  setPending((current) => ({ ...current, [key]: value }));
 }
 
 function useFeedRefresh({ activeId, refreshPosts, step }: { activeId: string | null; refreshPosts: () => Promise<void>; step: string }): void {
