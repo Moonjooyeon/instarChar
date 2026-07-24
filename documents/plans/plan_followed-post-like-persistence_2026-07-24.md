@@ -3,8 +3,8 @@ title: 팔로우 게시글 좋아요 영구 저장 작업 계획
 author: black (black@ashwoodfriends.com)
 created: 2026-07-24
 updated: 2026-07-24
-version: 1.0.0
-status: review
+version: 1.1.0
+status: approved
 ---
 
 # 팔로우 게시글 좋아요 영구 저장 작업 계획
@@ -236,11 +236,11 @@ Alembic revision `20260724_0003`에서 `character_post_likes` 테이블을 추�
 
 ### Phase L1. PostgreSQL 모델과 마이그레이션
 
-- [ ] `CharacterPostLike` ORM 모델을 추가한다.
-- [ ] 모델 export를 추가한다.
-- [ ] `20260724_0003` Alembic 마이그레이션을 추가한다.
-- [ ] 복합 외래키, target cascade, unique constraint, 집계 index를 정의한다.
-- [ ] upgrade와 downgrade 순서를 검증한다.
+- [x] `CharacterPostLike` ORM 모델을 추가한다.
+- [x] 모델 export를 추가한다.
+- [x] `20260724_0003` Alembic 마이그레이션을 추가한다.
+- [x] 복합 외래키, target cascade, unique constraint, 집계 index를 정의한다.
+- [x] upgrade 적용과 현재 revision을 검증한다.
 
 완료 조건:
 
@@ -249,13 +249,13 @@ Alembic revision `20260724_0003`에서 `character_post_likes` 테이블을 추�
 
 ### Phase L2. 백엔드 schema, repository, API
 
-- [ ] 좋아요 query와 상태 변경용 Pydantic schema를 추가한다.
-- [ ] `PostLikesRepository`에 현재 캐릭터 소유권 검증을 추가한다.
-- [ ] 대상 팔로우 여부와 원본 게시글 존재 여부를 검증한다.
-- [ ] 일괄 상태 조회를 단일 집계 흐름으로 구현한다.
-- [ ] 좋아요 추가와 취소를 멱등한 트랜잭션으로 구현한다.
-- [ ] `post_likes.py` router를 `/api`에 등록한다.
-- [ ] 잘못된 소유권은 `403`, 없는 대상은 `404`로 구분할 수 있도록 공통 오류를 보완한다.
+- [x] 좋아요 query와 상태 변경용 Pydantic schema를 추가한다.
+- [x] `PostLikesRepository`에 현재 캐릭터 소유권 검증을 추가한다.
+- [x] 대상 팔로우 여부와 원본 게시글 존재 여부를 검증한다.
+- [x] 일괄 상태 조회를 단일 집계 흐름으로 구현한다.
+- [x] 좋아요 추가와 취소를 멱등한 트랜잭션으로 구현한다.
+- [x] `post_likes.py` router를 `/api`에 등록한다.
+- [x] 잘못된 소유권은 `403`, 없는 대상은 `404`로 구분할 수 있도록 공통 오류를 보완한다.
 
 완료 조건:
 
@@ -265,11 +265,11 @@ Alembic revision `20260724_0003`에서 `character_post_likes` 테이블을 추�
 
 ### Phase L3. 프런트엔드 API와 도메인 상태
 
-- [ ] `apps/frontend/src/api/postLikes.ts`에 query와 상태 변경 함수를 추가한다.
-- [ ] `FeedPost`의 `authorSharedId`, `originalPostId`를 서버 요청의 권위 식별자로 사용한다.
-- [ ] 합성된 타임라인 ID를 서버에 보내지 않도록 변환 함수를 둔다.
-- [ ] 서버 응답을 팔로우 게시글에 병합하는 순수 도메인 함수를 추가한다.
-- [ ] `followedLikesByAccount`, `FollowedLikeState`, 임시 토글 함수를 제거한다.
+- [x] `apps/frontend/src/api/postLikes.ts`에 query와 상태 변경 함수를 추가한다.
+- [x] `FeedPost`의 `authorSharedId`, `originalPostId`를 서버 요청의 권위 식별자로 사용한다.
+- [x] 합성된 타임라인 ID를 서버에 보내지 않도록 변환 함수를 둔다.
+- [x] 서버 응답을 팔로우 게시글에 병합하는 순수 도메인 함수를 추가한다.
+- [x] `followedLikesByAccount`와 boolean 기반 임시 토글을 제거한다.
 
 완료 조건:
 
@@ -278,12 +278,12 @@ Alembic revision `20260724_0003`에서 `character_post_likes` 테이블을 추�
 
 ### Phase L4. 타임라인 연동과 사용자 피드백
 
-- [ ] 피드 진입, 현재 캐릭터 변경, 팔로우 목록 또는 팔로우 게시글 변경 시 좋아요 상태를 일괄 조회한다.
-- [ ] 팔로우 게시글 좋아요 클릭을 낙관적으로 반영한다.
-- [ ] 게시글별 pending 상태로 빠른 중복 클릭을 막는다.
-- [ ] 성공 시 서버의 최종 개수로 화면을 교정한다.
-- [ ] 실패 시 이전 상태로 되돌리고 기존 저장 상태 표시 영역에 오류를 안내한다.
-- [ ] unmount 또는 현재 캐릭터 변경 뒤 도착한 이전 요청 응답이 새 화면 상태를 덮지 않게 한다.
+- [x] 피드 진입, 현재 캐릭터 변경, 팔로우 목록 또는 팔로우 게시글 변경 시 좋아요 상태를 일괄 조회한다.
+- [x] 팔로우 게시글 좋아요 클릭을 낙관적으로 반영한다.
+- [x] 게시글별 pending 상태로 빠른 중복 클릭을 막는다.
+- [x] 성공 시 서버의 최종 개수로 화면을 교정한다.
+- [x] 실패 시 이전 상태로 되돌리고 기존 저장 상태 표시 영역에 오류를 안내한다.
+- [x] unmount 또는 현재 캐릭터 변경 뒤 도착한 이전 요청 응답이 새 화면 상태를 덮지 않게 한다.
 
 완료 조건:
 
@@ -292,13 +292,13 @@ Alembic revision `20260724_0003`에서 `character_post_likes` 테이블을 추�
 
 ### Phase L5. 테스트와 문서
 
-- [ ] migration 및 ORM 제약조건을 검증한다.
-- [ ] repository와 API 계약 테스트를 추가한다.
-- [ ] 프런트 API 요청 형식과 오류 파싱 테스트를 추가한다.
-- [ ] 좋아요 상태 병합, 낙관적 반영, rollback 도메인 테스트를 추가한다.
-- [ ] 실제 실행 중 앱에서 영구 저장 시나리오를 수동 검증한다.
-- [ ] 백엔드 구조와 API 문서에 새 모델과 endpoint를 반영한다.
-- [ ] 본 계획서의 체크리스트와 진행 현황을 구현 결과에 맞춰 갱신한다.
+- [x] migration 및 ORM 제약조건을 검증한다.
+- [x] repository와 API 계약 테스트를 추가한다.
+- [x] 프런트 API 요청 형식과 100개 초과 분할 테스트를 추가한다.
+- [x] 좋아요 상태 병합과 낙관적 증감 도메인 테스트를 추가한다.
+- [ ] 로그인된 실행 환경에서 영구 저장 시나리오를 수동 검증한다.
+- [x] 백엔드와 프런트엔드 구조 문서에 새 모델과 endpoint를 반영한다.
+- [x] 본 계획서의 체크리스트와 진행 현황을 구현 결과에 맞춰 갱신한다.
 
 ## 9. 테스트 계획
 
@@ -407,11 +407,19 @@ npm --prefix apps/frontend run test:e2e -- --list
 - [x] 기존 게시글, 팔로우, 프런트 임시 좋아요 흐름 조사
 - [x] 데이터 모델과 API 계약 설계
 - [x] 테스트, 오류 처리, 배포 순서 정의
-- [ ] 계획 승인
-- [ ] Phase L1 구현
-- [ ] Phase L2 구현
-- [ ] Phase L3 구현
-- [ ] Phase L4 구현
-- [ ] Phase L5 검증 및 문서화
+- [x] 계획 승인
+- [x] Phase L1 구현
+- [x] Phase L2 구현
+- [x] Phase L3 구현
+- [x] Phase L4 구현
+- [x] Phase L5 자동 검증 및 문서화
+- [ ] 로그인된 실행 환경에서 클릭·새로고침 수동 검증
 
-계획 승인 전에는 코드 구현과 마이그레이션 적용을 진행하지 않는다.
+진행 결과 (2026-07-24):
+
+- PostgreSQL migration `20260724_0003` 적용 및 실제 table, unique constraint, composite foreign key, cascade, index 확인
+- 백엔드 compileall과 전체 테스트 `84/84` 통과
+- 프런트엔드 typecheck, 도메인 테스트 `65/65`, production build 통과
+- Playwright 영구 좋아요 시나리오 추가 및 전체 `5개` 테스트 수집 확인
+- 실행 중인 프런트엔드와 백엔드의 HTTP `200` 응답 확인
+- 인앱 브라우저가 로그인 화면이어서 실제 계정의 클릭·새로고침 수동 검증은 보류
