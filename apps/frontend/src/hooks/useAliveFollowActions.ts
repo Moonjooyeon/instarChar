@@ -8,6 +8,7 @@ import {
   applyRelationshipAutoFollowsToAccounts as applyRelationshipAutoFollowsToAccountsUtil,
   relationAutoFollowsFor as relationAutoFollowsForUtil,
 } from "@/domain/relationships/relationshipFollowUtils";
+import { sameDiscoverCharacter } from "@/domain/discover/discoverUtils";
 import { dirKey, nameMatch } from "@/domain/relationships/affinityUtils";
 import { parseRelations, type CharacterLike, type RelationEntry } from "@/domain/app/aliveCore";
 
@@ -79,8 +80,8 @@ export function useAliveFollowActions({
     return applyRelationshipAutoFollowsToAccountsUtil({ accountList, sharedCharacters, nameMatch, parseRelations, relationFor, profileName }) as AccountWithCharacter[];
   }
   async function toggleFollow(poolChar: FollowCharacter): Promise<void> {
-    const already = following.some((item) => item.id === poolChar.id);
-    const nextFollowing = already ? following.filter((item) => item.id !== poolChar.id) : [...following, followedCharacterFromPool(poolChar)];
+    const already = following.some((item) => sameDiscoverCharacter(item, poolChar));
+    const nextFollowing = already ? following.filter((item) => !sameDiscoverCharacter(item, poolChar)) : [...following, followedCharacterFromPool(poolChar)];
     setFollowing(nextFollowing);
     setPosts((items) => nextPostsForFollowToggle(items, poolChar, already));
     syncActiveSharedCharacter(nextFollowing);

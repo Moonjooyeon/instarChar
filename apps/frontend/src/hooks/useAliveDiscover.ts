@@ -13,7 +13,7 @@ import {
 } from "@/api/discover";
 import { hasRemoteApiClient, hasBackendApiConfig } from "@/api/client";
 import { sharedCharacterUrl } from "@/domain/app/aliveCore";
-import { mergeDiscoverCharacters, sharedRowToChar, type CharacterData, type CharacterRow, type DiscoverCharacter, type SharedCharacterRow } from "@/domain/discover/discoverUtils";
+import { followerCharacterId, mergeDiscoverCharacters, sameDiscoverCharacter, sharedRowToChar, type CharacterData, type CharacterRow, type DiscoverCharacter, type SharedCharacterRow } from "@/domain/discover/discoverUtils";
 
 type SetState<T> = Dispatch<SetStateAction<T>>;
 
@@ -182,7 +182,10 @@ export function useAliveDiscover({ activeId = null, char = null, profileName = "
   const [activeSharedId, setActiveSharedId] = useState("");
   const [shareStatus, setShareStatus] = useState<string>("");
   const shareStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isFollowing = (id: string): boolean => following.some((item) => item.id === id);
+  const isFollowing = (id: string): boolean => {
+    const target = [...sharedCharacters, ...sharedFollowers.rows].find((item) => item.id === id);
+    return following.some((item) => target ? sameDiscoverCharacter(item, target) : item.id === id);
+  };
   const baseFollowerCount = (name = ""): number => deterministicFollowerCount(name);
   const publicFollowingCount = (target?: { following?: unknown[] } | null): number => Array.isArray(target?.following) ? target.following.length : 0;
   const publicFollowerCount = (target?: DiscoverCharacter | null): number => {
@@ -326,7 +329,7 @@ function followerCountsForRows(ids: string[], rows: FollowRow[]): Record<string,
 function followerRowToChar(row: FollowRow, sharedCharacters: DiscoverCharacter[]): FollowerCharacter {
   const character = row.follower_character || {};
   const shared = sharedCharacters.find((item) => item.ownerId === row.follower_id && item.sourceAccountId === row.follower_account_id);
-  return { ...(shared || {}), ...character, external: shared?.external ?? true, id: shared?.id || `follower_${row.id}`, shared: Boolean(shared), sharedId: shared?.sharedId || "", ownerId: row.follower_id, sourceAccountId: row.follower_account_id, name: character.name || row.follower_name || "이름 없음", handle: character.handle || "", owner: shared?.owner || `@${row.follower_name || "user"}`, ownerName: shared?.ownerName || row.follower_name || "user", persona: character.persona || shared?.persona || "", tags: character.tags || shared?.tags || [], posts: character.posts || shared?.posts || [], followerAccountId: row.follower_account_id, followedAt: row.created_at };
+  return { ...(shared || {}), ...character, external: shared?.external ?? true, id: shared?.id || followerCharacterId(row.id), shared: Boolean(shared), sharedId: shared?.sharedId || "", ownerId: row.follower_id, sourceAccountId: row.follower_account_id, name: character.name || row.follower_name || "이름 없음", handle: character.handle || "", owner: shared?.owner || `@${row.follower_name || "user"}`, ownerName: shared?.ownerName || row.follower_name || "user", persona: character.persona || shared?.persona || "", tags: character.tags || shared?.tags || [], posts: character.posts || shared?.posts || [], followerAccountId: row.follower_account_id, followedAt: row.created_at };
 }
 
 function sharedResultRows(characterResult: SharedCharacterQueryResult, sharedResult: SharedRowsQueryResult): SharedResultRows {
