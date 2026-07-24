@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from urllib.parse import urlencode
+from uuid import UUID
 
 import httpx
 import jwt
@@ -23,6 +24,12 @@ class ProviderIdentity:
     display_name: str
 
 
+@dataclass(frozen=True)
+class OAuthCompletion:
+    session_token: str
+    user_id: UUID
+
+
 class OAuthService:
     def __init__(self, settings: Settings, session: AsyncSession) -> None:
         self.settings = settings
@@ -36,12 +43,13 @@ class OAuthService:
             return self._apple_auth_url(redirect_uri, return_url)
         raise BadRequestError("Unsupported provider")
 
-    async def complete(self, provider: UserProvider, code: str, state: str) -> str:
+    async def complete(self, provider: UserProvider, code: str, state: str) -> OAuthCompletion:
         state_payload = self._require_oauth_state(provider, state)
         identity = await self._provider_identity(provider, code, state_payload.redirect_uri)
         user = await self.users.get_or_create_provider_user(identity.email, identity.provider, identity.subject, identity.display_name)
         await self.session.commit()
-        return sign_session(user.id, self.settings.auth_session_ttl_seconds, self.settings.auth_secret_key)
+        token = sign_session(user.id, self.settings.auth_session_ttl_seconds, self.settings.auth_secret_key)
+        return OAuthCompletion(session_token=token, user_id=user.id)
 
     def _require_oauth_state(self, provider: UserProvider, state: str) -> OAuthStatePayload:
         payload = self._oauth_state(provider, state)

@@ -15,7 +15,7 @@ export function DumpScreen({
       <button className="al-dump-back" onClick={() => setStep("home")}>‹ 내 캐릭터들</button>
       <div className="al-setup">
         <div className="al-setup-head">
-          <span className="al-spark">✶</span>
+          <span className="al-spark">★</span>
           <h1>내 캐릭터를 깨운다</h1>
           <p>걔에 대해 적어줘.<br />설명만 있어도 깨울 수 있어.</p>
         </div>

@@ -1,3 +1,6 @@
+import { App } from "@capacitor/app";
+import { Capacitor, CapacitorHttp } from "@capacitor/core";
+
 import { apiNoContent, apiResult, apiUrl, type ApiError } from "./client.js";
 
 export type AuthProvider = "apple" | "google";
@@ -38,6 +41,12 @@ export type AuthSubscription = {
   unsubscribe: () => void;
 };
 
+type AuthStateListener = () => void;
+
+const NATIVE_OAUTH_REDIRECT_URL = "app.instarcharacterbot.alive://oauth/callback";
+const authStateListeners = new Set<AuthStateListener>();
+let nativeOAuthInitialization: Promise<void> | null = null;
+
 export function isAuthApiAvailable(): boolean {
   return true;
 }
@@ -52,18 +61,64 @@ export function signOutAuthSession(): Promise<{ error: ApiError | null }> {
 }
 
 export async function getAuthSession(): Promise<AuthResult> {
+  await initializeNativeOAuth();
   const result = await apiResult<MeResponse>("/auth/me");
   if (result.error) return { data: { session: null }, error: result.error };
   return { data: { session: sessionFromMe(result.data || null) }, error: null };
 }
 
-export function subscribeAuthState(): AuthSubscription {
-  return { unsubscribe: () => {} };
+export function subscribeAuthState(listener: AuthStateListener): AuthSubscription {
+  authStateListeners.add(listener);
+  return { unsubscribe: () => authStateListeners.delete(listener) };
 }
 
 function oauthStartUrl(provider: AuthProvider): string {
   const callbackUrl = new URL(apiUrl(`/auth/${provider}/callback`), window.location.origin).href;
-  return apiUrl(`/auth/${provider}/start`, { redirect_uri: callbackUrl, return_url: window.location.origin });
+  const returnUrl = Capacitor.isNativePlatform() ? NATIVE_OAUTH_REDIRECT_URL : window.location.origin;
+  return apiUrl(`/auth/${provider}/start`, { redirect_uri: callbackUrl, return_url: returnUrl });
+}
+
+async function initializeNativeOAuth(): Promise<void> {
+  if (!Capacitor.isNativePlatform()) return;
+  if (!nativeOAuthInitialization) nativeOAuthInitialization = startNativeOAuthListener();
+  return nativeOAuthInitialization;
+}
+
+async function startNativeOAuthListener(): Promise<void> {
+  await App.addListener("appUrlOpen", ({ url }) => {
+    exchangeNativeOAuthUrl(url, true).catch(showNativeOAuthError);
+  });
+  const launch = await App.getLaunchUrl();
+  if (launch?.url) await exchangeNativeOAuthUrl(launch.url, false);
+}
+
+async function exchangeNativeOAuthUrl(value: string, notify: boolean): Promise<void> {
+  const url = new URL(value);
+  if (!isNativeOAuthCallback(url)) return;
+  const error = url.searchParams.get("error_description") || url.searchParams.get("error");
+  if (error) throw new Error(error);
+  const code = url.searchParams.get("code");
+  if (!code) throw new Error("소셜 로그인 승인 코드가 없어.");
+  await exchangeNativeOAuthCode(code);
+  if (notify) authStateListeners.forEach((listener) => listener());
+}
+
+async function exchangeNativeOAuthCode(code: string): Promise<void> {
+  const url = new URL(apiUrl("/auth/native/exchange"), window.location.origin).href;
+  const response = await CapacitorHttp.post({ url, headers: { "Content-Type": "application/json" }, data: { code } });
+  if (response.status >= 200 && response.status < 300) return;
+  throw new Error("소셜 로그인 세션을 만들지 못했어.");
+}
+
+function isNativeOAuthCallback(url: URL): boolean {
+  return `${url.protocol}//${url.host}${url.pathname}` === NATIVE_OAUTH_REDIRECT_URL;
+}
+
+function showNativeOAuthError(error: unknown): void {
+  const message = error instanceof Error ? error.message : "소셜 로그인에 실패했어.";
+  const url = new URL(window.location.href);
+  url.searchParams.set("error", message);
+  window.location.assign(url.href);
 }
 
 function sessionFromMe(data: MeResponse | null): BackendSession | null {

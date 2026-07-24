@@ -90,7 +90,7 @@ export function ConfirmScreen({
 function CharacterAnalysisFields({ char, update }) {
   return (
     <div className="al-analysis">
-      <div className="al-analysis-head"><span className="al-spark-sm">✶</span> AI가 분석한 {char.name || "이 캐릭터"}</div>
+      <div className="al-analysis-head"><span className="al-spark-sm">★</span> AI가 분석한 {char.name || "이 캐릭터"}</div>
       {[
         ["surface", "겉모습", "첫인상·겉으로 보이는 모습"],
         ["inner", "속마음", "겉과 다른 숨은 면"],

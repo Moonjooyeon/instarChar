@@ -11,9 +11,14 @@ body{ overflow-x:hidden; }
     var(--bg);
   display:flex; flex-direction:column; align-items:center;
   padding:0 16px;
-  font-family:'Pretendard','Inter',-apple-system,'Apple SD Gothic Neo',sans-serif; color:var(--ink);
+  font-family:'Pretendard Variable','Apple Color Emoji','Apple Symbols',-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo',sans-serif; color:var(--ink);
 }
 .al-phone{ width:100%; max-width:420px; min-height:100dvh; background:var(--phone);
+  --al-safe-top:var(--safe-area-inset-top,env(safe-area-inset-top,0px));
+  --al-safe-right:var(--safe-area-inset-right,env(safe-area-inset-right,0px));
+  --al-safe-bottom:var(--safe-area-inset-bottom,env(safe-area-inset-bottom,0px));
+  --al-safe-left:var(--safe-area-inset-left,env(safe-area-inset-left,0px));
+  padding:var(--al-safe-top) var(--al-safe-right) var(--al-safe-bottom) var(--al-safe-left);
   border:1px solid var(--line); border-radius:26px; overflow:hidden;
   box-shadow:0 30px 70px -30px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.05) inset; }
 

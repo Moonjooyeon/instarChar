@@ -1,4 +1,5 @@
 from functools import lru_cache
+from typing import Literal
 
 from pydantic import computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -12,8 +13,11 @@ class Settings(BaseSettings):
     frontend_redirect_url: str = "http://localhost:5173"
     auth_cookie_name: str = "alive_session"
     auth_cookie_secure: bool = False
+    auth_cookie_samesite: Literal["lax", "none", "strict"] = "lax"
     auth_secret_key: str = "change-me-in-env"
     auth_session_ttl_seconds: int = 60 * 60 * 24 * 30
+    native_oauth_redirect_url: str = "app.instarcharacterbot.alive://oauth/callback"
+    native_oauth_code_ttl_seconds: int = 120
     google_client_id: str = ""
     google_client_secret: str = ""
     google_redirect_uri: str = "http://localhost:8000/api/auth/google/callback"

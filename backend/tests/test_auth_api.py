@@ -17,7 +17,7 @@ from app.core.security import _signature, read_oauth_state, sign_oauth_state
 from app.db.session import get_db_session
 from app.main import app
 from app.models import UserProvider
-from app.services.oauth import OAuthService
+from app.services.oauth import OAuthCompletion, OAuthService
 
 
 @dataclass
@@ -96,6 +96,16 @@ def test_google_start_rejects_untrusted_frontend_origin() -> None:
     assert response.json()["message"] == "Invalid OAuth return URL"
 
 
+def test_google_start_accepts_native_oauth_return_url() -> None:
+    return_url = "app.instarcharacterbot.alive://oauth/callback"
+    with make_test_client() as client:
+        response = client.get("/api/auth/google/start", params={"return_url": return_url}, follow_redirects=False)
+    state = read_oauth_state(parse_qs(urlsplit(response.headers["location"]).query)["state"][0], "google", "test-secret")
+    assert response.status_code == 307
+    assert state is not None
+    assert state.return_url == return_url
+
+
 def test_apple_start_redirects_to_apple_oauth() -> None:
     with make_test_client() as client:
         response = client.get("/api/auth/apple/start", follow_redirects=False)
@@ -145,11 +155,11 @@ def test_logout_clears_session_cookie() -> None:
 
 
 def test_google_callback_sets_session_cookie(monkeypatch) -> None:
-    async def complete(self: object, provider: UserProvider, code: str, state: str) -> str:
+    async def complete(self: object, provider: UserProvider, code: str, state: str) -> OAuthCompletion:
         assert provider == UserProvider.google
         assert code == "code"
         assert state == "state"
-        return "signed-session"
+        return OAuthCompletion(session_token="signed-session", user_id=uuid4())
 
     monkeypatch.setattr("app.api.v1.auth.OAuthService.complete", complete)
     with make_test_client() as client:
@@ -160,8 +170,8 @@ def test_google_callback_sets_session_cookie(monkeypatch) -> None:
 
 
 def test_google_callback_uses_state_return_url(monkeypatch: MonkeyPatch) -> None:
-    async def complete(self: object, provider: UserProvider, code: str, state: str) -> str:
-        return "signed-session"
+    async def complete(self: object, provider: UserProvider, code: str, state: str) -> OAuthCompletion:
+        return OAuthCompletion(session_token="signed-session", user_id=uuid4())
     state = sign_oauth_state("google", 60, "test-secret", "http://192.168.0.2:5173/api/auth/google/callback", "http://192.168.0.2:5173")
     monkeypatch.setattr("app.api.v1.auth.OAuthService.complete", complete)
     with make_test_client() as client:
@@ -171,8 +181,37 @@ def test_google_callback_uses_state_return_url(monkeypatch: MonkeyPatch) -> None
     assert "signed-session" in response.headers["set-cookie"]
 
 
+def test_google_callback_issues_native_one_time_code(monkeypatch: MonkeyPatch) -> None:
+    user_id = uuid4()
+    async def complete(self: object, provider: UserProvider, code: str, state: str) -> OAuthCompletion:
+        return OAuthCompletion(session_token="signed-session", user_id=user_id)
+    async def issue(self: object, requested_user_id: object) -> str:
+        assert requested_user_id == user_id
+        return "one-time-code"
+    return_url = "app.instarcharacterbot.alive://oauth/callback"
+    state = sign_oauth_state("google", 60, "test-secret", "", return_url)
+    monkeypatch.setattr("app.api.v1.auth.OAuthService.complete", complete)
+    monkeypatch.setattr("app.api.v1.auth.NativeOAuthService.issue", issue)
+    with make_test_client() as client:
+        response = client.get("/api/auth/google/callback", params={"code": "code", "state": state}, follow_redirects=False)
+    assert response.status_code == 307
+    assert response.headers["location"] == f"{return_url}?code=one-time-code"
+    assert "alive_session" not in response.headers.get("set-cookie", "")
+
+
+def test_native_oauth_exchange_sets_session_cookie(monkeypatch: MonkeyPatch) -> None:
+    async def consume(self: object, code: str) -> str:
+        assert code == "one-time-code"
+        return "signed-session"
+    monkeypatch.setattr("app.api.v1.auth.NativeOAuthService.consume", consume)
+    with make_test_client() as client:
+        response = client.post("/api/auth/native/exchange", json={"code": "one-time-code"})
+    assert response.status_code == 204
+    assert "signed-session" in response.headers["set-cookie"]
+
+
 def test_google_callback_redirects_oauth_error_to_frontend(monkeypatch: MonkeyPatch) -> None:
-    async def complete(self: object, provider: UserProvider, code: str, state: str) -> str:
+    async def complete(self: object, provider: UserProvider, code: str, state: str) -> OAuthCompletion:
         raise BadRequestError("OAuth token exchange failed")
     monkeypatch.setattr("app.api.v1.auth.OAuthService.complete", complete)
     with make_test_client() as client:
@@ -183,7 +222,7 @@ def test_google_callback_redirects_oauth_error_to_frontend(monkeypatch: MonkeyPa
 
 
 def test_google_callback_redirects_unexpected_oauth_error_to_frontend(monkeypatch: MonkeyPatch) -> None:
-    async def complete(self: object, provider: UserProvider, code: str, state: str) -> str:
+    async def complete(self: object, provider: UserProvider, code: str, state: str) -> OAuthCompletion:
         raise RuntimeError("jwks unavailable")
     monkeypatch.setattr("app.api.v1.auth.OAuthService.complete", complete)
     with make_test_client() as client:
@@ -194,11 +233,11 @@ def test_google_callback_redirects_unexpected_oauth_error_to_frontend(monkeypatc
 
 
 def test_apple_callback_sets_session_cookie(monkeypatch) -> None:
-    async def complete(self: object, provider: UserProvider, code: str, state: str) -> str:
+    async def complete(self: object, provider: UserProvider, code: str, state: str) -> OAuthCompletion:
         assert provider == UserProvider.apple
         assert code == "code"
         assert state == "state"
-        return "signed-session"
+        return OAuthCompletion(session_token="signed-session", user_id=uuid4())
 
     monkeypatch.setattr("app.api.v1.auth.OAuthService.complete", complete)
     with make_test_client() as client:
@@ -209,7 +248,7 @@ def test_apple_callback_sets_session_cookie(monkeypatch) -> None:
 
 
 def test_apple_callback_redirects_oauth_error_to_frontend(monkeypatch: MonkeyPatch) -> None:
-    async def complete(self: object, provider: UserProvider, code: str, state: str) -> str:
+    async def complete(self: object, provider: UserProvider, code: str, state: str) -> OAuthCompletion:
         raise BadRequestError("Invalid OAuth state")
     monkeypatch.setattr("app.api.v1.auth.OAuthService.complete", complete)
     with make_test_client() as client:

@@ -181,7 +181,22 @@ function sessionFallbackTimer(isAlive: () => boolean, options: RuntimeOptions, c
 }
 
 function subscribeAuthStateChange(options: RuntimeOptions, callback: AuthCallbackState): { unsubscribe: () => void } {
-  return subscribeAuthState();
+  return subscribeAuthState(() => {
+    refreshAuthSession(options).catch((error) => options.setAuthMessage(options.readableAuthError(error)));
+  });
+}
+
+async function refreshAuthSession(options: RuntimeOptions): Promise<void> {
+  options.setAuthLoading(true);
+  const { data, error } = await getAuthSession();
+  options.authResolvedRef.current = true;
+  if (error) {
+    options.setAuthMessage(error.message || "로그인 상태 확인에 실패했어.");
+    options.setAuthLoading(false);
+    return;
+  }
+  options.setSession(data.session);
+  options.setAuthLoading(false);
 }
 
 async function refreshSlowSession({ profileLoadedRef, setAuthLoading, setAuthMessage, setProfileLoading, setSaveStatus, setSession, setStateReady }: Pick<SessionBootstrapOptions, "profileLoadedRef" | "setAuthLoading" | "setAuthMessage" | "setProfileLoading" | "setSaveStatus" | "setSession" | "setStateReady">): Promise<void> {

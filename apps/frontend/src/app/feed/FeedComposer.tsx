@@ -49,7 +49,7 @@ export function FeedComposer({ ctx }) {
         {!moodOpen ? (
           <div className="al-compose-row">
             <button className="al-wake" onClick={() => setMoodOpen(true)} disabled={loading}>
-              {loading ? <span className="al-typing"><i/><i/><i/></span> : `✶ ${josa(char.name, "한테/한테")} 시키기`}
+              {loading ? <span className="al-typing"><i/><i/><i/></span> : `★ ${josa(char.name, "한테/한테")} 시키기`}
             </button>
             <button className="al-writeself" onClick={() => setWriteOpen((value) => !value)}>✎ 내가 쓰기</button>
           </div>

@@ -29,5 +29,8 @@
     "app:sync": "make cap-sync",
     "app:open:ios": "make cap-open-ios",
     "app:open:android": "make cap-open-android"
+  },
+  "dependencies": {
+    "@capacitor/app": "^8.1.1"
   }
 }

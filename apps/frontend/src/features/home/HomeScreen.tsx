@@ -25,7 +25,7 @@ export function HomeScreen({
           {hasBackendApiConfig && <button onClick={signOut}>로그아웃</button>}
         </div>
         <div className="al-home-head">
-          <span className="al-spark">✶</span>
+          <span className="al-spark">★</span>
           <h1>내 캐릭터들</h1>
           <p>{accounts.length > 0 ? "캐릭터를 골라 들어가거나, 새로 깨워봐." : "첫 캐릭터를 깨워보자."}</p>
         </div>

@@ -6,6 +6,15 @@
     "androidScheme": "https"
   },
   "ios": {
-    "contentInset": "automatic"
+    "contentInset": "never"
+  },
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    },
+    "SystemBars": {
+      "insetsHandling": "css",
+      "style": "DARK"
+    }
   }
 }

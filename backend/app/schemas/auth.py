@@ -18,6 +18,10 @@ class MeResponse(BaseModel):
     onboarded: bool
 
 
+class NativeOAuthExchangeRequest(BaseModel):
+    code: str
+
+
 class OAuthCallbackResult(BaseModel):
     user_id: UUID
     redirect_url: str = "/app"

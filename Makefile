@@ -15,7 +15,7 @@ ANDROID_SDK_ROOT ?= $(HOME)/Library/Android/sdk
 ANDROID_JAVA_HOME ?= $(shell /usr/libexec/java_home -v 21 2>/dev/null)
 ANDROID_GRADLE_USER_HOME ?= $(ANDROID_PROJECT_DIR)/.gradle-user-home
 WEB_API_URL ?=
-CAP_API_URL ?=
+CAP_API_URL ?= https://alive.imagebgremover.net
 FRONTEND_WEB_ENV = $(if $(WEB_API_URL),VITE_API_BASE_URL=$(WEB_API_URL) )
 FRONTEND_BUILD_ENV = $(if $(CAP_API_URL),VITE_API_BASE_URL=$(CAP_API_URL) )
 
@@ -114,8 +114,8 @@ cap-run-android: android-java-home android-local-properties
 cap-checklist:
 	@printf '%s\n' \
 		'Manual Capacitor cookie-session checklist:' \
-		'  1. Run BACKEND_HOST=0.0.0.0 make backend-dev.' \
-		'  2. Set CAP_API_URL to the FastAPI origin, usually http://YOUR_LAN_IP:8000/api.' \
+		'  1. The default API is https://alive.imagebgremover.net/api.' \
+		'  2. Override CAP_API_URL only when testing another backend.' \
 		'  3. Run make cap-sync.' \
 		'  4. Open or run the target platform.' \
 		'  5. Sign in with Google or Apple.' \

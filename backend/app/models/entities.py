@@ -36,6 +36,16 @@ class User(TimestampMixin, Base):
     profile: Mapped[Profile] = relationship(back_populates="user", cascade="all, delete-orphan")
 
 
+class NativeOAuthCode(Base):
+    __tablename__ = "native_oauth_codes"
+    id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid4)
+    code_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class Profile(TimestampMixin, Base):
     __tablename__ = "profiles"
     user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
