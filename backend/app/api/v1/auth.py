@@ -66,7 +66,7 @@ async def get_me(user: User = Depends(get_current_user)) -> MeResponse:
 
 def _oauth_start_redirect(provider: UserProvider, redirect_uri: str, return_url: str, settings: Settings, session: AsyncSession) -> RedirectResponse:
     callback_url = _trusted_oauth_callback_url(provider, redirect_uri)
-    frontend_url = _trusted_frontend_url(callback_url, return_url)
+    frontend_url = _trusted_frontend_url(return_url, settings.allowed_origins)
     return RedirectResponse(OAuthService(settings, session).auth_url(provider, callback_url, frontend_url))
 
 
@@ -99,13 +99,17 @@ def _trusted_oauth_callback_url(provider: UserProvider, redirect_uri: str) -> st
     return redirect_uri
 
 
-def _trusted_frontend_url(callback_url: str, return_url: str) -> str:
+def _trusted_frontend_url(return_url: str, allowed_origins: list[str]) -> str:
     if not return_url:
         return ""
     parts = urlsplit(return_url)
-    callback = urlsplit(callback_url)
     if parts.scheme not in {"http", "https"} or not parts.netloc:
         raise BadRequestError("Invalid OAuth return URL")
-    if callback_url and (parts.scheme, parts.netloc) != (callback.scheme, callback.netloc):
+    if _url_origin(return_url) not in {_url_origin(item) for item in allowed_origins}:
         raise BadRequestError("Invalid OAuth return URL")
     return urlunsplit(parts._replace(query="", fragment=""))
+
+
+def _url_origin(value: str) -> str:
+    parts = urlsplit(value)
+    return f"{parts.scheme.lower()}://{parts.netloc.lower()}"

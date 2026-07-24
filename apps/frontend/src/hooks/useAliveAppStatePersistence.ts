@@ -216,11 +216,11 @@ export function useAliveAppStatePersistence({
     };
   }
   function compactProfileBackup(snapshot: AppState = {}): AppState {
+    const { posts: _posts, ...baseSnapshot } = snapshot;
     return {
-      ...snapshot,
+      ...baseSnapshot,
       accounts: (snapshot.accounts || []).map(compactAccountBackup),
       gallery: compactGallery(snapshot.gallery),
-      posts: compactPosts(snapshot.posts),
       following: compactFollowing(snapshot.following),
       dmThreads: compactThreads(snapshot.dmThreads),
     };
@@ -309,10 +309,10 @@ export function useAliveAppStatePersistence({
 }
 
 function compactAccountBackup(account: AccountState): AccountState {
+  const { posts: _posts, ...baseAccount } = account;
   return {
-    ...account,
+    ...baseAccount,
     gallery: compactGallery(account.gallery),
-    posts: compactPosts(account.posts),
     following: compactFollowing(account.following),
   };
 }

@@ -161,7 +161,6 @@ function characterRowsFor(snapshot: AppSnapshot, ownerId: string): Record<string
     handle: account.char?.handle || "",
     character: compactCharacter(account),
     gallery: compactGallery(account.gallery || []),
-    posts: compactPosts(account.posts || []),
     following: compactFollowing(account.following || []),
   })).filter((row) => row.source_account_id && row.name);
 }
@@ -334,10 +333,6 @@ function compactGallery(items: unknown): unknown[] {
   return Array.isArray(items) ? items.slice(-12) : [];
 }
 
-function compactPosts(items: unknown): unknown[] {
-  return Array.isArray(items) ? items.slice(0, 40).map((post) => compactPost(post)) : [];
-}
-
 function compactFollowing(items: unknown): FollowCharacter[] {
   return Array.isArray(items) ? items.slice(0, 120).map((item) => compactFollowCharacter(item)) : [];
 }
@@ -354,11 +349,6 @@ function compactMessages(messages: unknown): unknown[] {
 function personaFromRow(row: Record<string, unknown>): PersonaState {
   const persona = recordValue(row.persona);
   return { ...persona, id: stringValue(persona.id) || stringValue(row.persona_id), name: stringValue(persona.name) || stringValue(row.name) || "" };
-}
-
-function compactPost(post: unknown): Record<string, unknown> {
-  const row = recordValue(post);
-  return { ...row, comments: Array.isArray(row.comments) ? row.comments.slice(-20) : [] };
 }
 
 function compactFollowCharacter(item: unknown): FollowCharacter {

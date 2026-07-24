@@ -3,9 +3,8 @@ import React from "react";
 export function FeedComposer({ ctx }) {
   const {
     auto,
-    autoPost,
+    autoIntervalSeconds,
     char,
-    fast,
     generatePost,
     josa,
     loading,
@@ -14,7 +13,7 @@ export function FeedComposer({ ctx }) {
     nextIn,
     POST_MOODS,
     setAuto,
-    setFast,
+    setAutoInterval,
     setMoodOpen,
     setWriteOpen,
     setWriteText,
@@ -25,20 +24,20 @@ export function FeedComposer({ ctx }) {
   return (
     <>
       <div className="al-autobar">
-        <button className={`al-autotoggle ${auto ? "on" : ""}`} onClick={() => setAuto((value) => !value)}>
+        <button className={`al-autotoggle ${auto ? "on" : ""}`} onClick={() => setAuto(!auto)}>
           <span className="al-autodot" />
           {auto ? `자율 모드 ON · ${josa(char.name, "이/가")} 알아서 올리는 중` : "자율 모드 OFF"}
         </button>
         <div className="al-autometa">
-          {auto && <span className="al-nextin">{fast ? "" : "다음 글 "}~{Math.floor(nextIn / 60)}:{String(nextIn % 60).padStart(2, "0")}</span>}
-          <button className="al-fast" onClick={autoPost} disabled={loading}>
-            {loading ? "생성 중" : "테스트 즉시 생성"}
-          </button>
-          {auto && (
-            <button className={`al-fast ${fast ? "on" : ""}`} onClick={() => setFast((value) => !value)}>
-              {fast ? "빠름(30초)" : "15분"}
-            </button>
-          )}
+          <div className="al-autointerval">
+            <select aria-label="자율 생성 주기" value={autoIntervalSeconds} onChange={(event) => setAutoInterval(Number(event.target.value))}>
+              <option value={900}>15분</option>
+              <option value={1800}>30분</option>
+              <option value={3600}>1시간</option>
+            </select>
+            <span aria-hidden="true">⌄</span>
+          </div>
+          {auto && <span className="al-nextin">다음 글 ~{countdownText(nextIn)}</span>}
         </div>
       </div>
       <div className="al-directive">
@@ -78,4 +77,11 @@ export function FeedComposer({ ctx }) {
       </div>
     </>
   );
+}
+
+function countdownText(seconds) {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const remaining = String(seconds % 60).padStart(2, "0");
+  return hours > 0 ? `${hours}:${String(minutes).padStart(2, "0")}:${remaining}` : `${minutes}:${remaining}`;
 }

@@ -2,7 +2,6 @@ export const MODEL_DIRECT = "claude-sonnet-4-6";
 export const MODEL_AUTO = "claude-haiku-4-5-20251001";
 export const MODEL_CHAT = MODEL_DIRECT;
 export const MODEL_UTIL = "claude-haiku-4-5-20251001";
-export const BUILD_MARK = typeof __ALIVE_BUILD__ !== "undefined" ? __ALIVE_BUILD__ : "local";
 export const LOCAL_STATE_KEY = "alive_app_state_v1";
 export const API_LIMIT_MESSAGE = "오늘 한정된 API는 다 사용했어요! 다음에 만나요.";
 
@@ -11,6 +10,10 @@ export type AppStep = "home" | "dump" | "confirm" | "feed" | "discover" | "dmlis
 export type RelationEntry = {
   who: string;
   label: string;
+};
+
+export type IndexedRelationEntry = RelationEntry & {
+  sourceIndex: number;
 };
 
 export type CharacterLike = {
@@ -169,6 +172,14 @@ export function parseRelations(relStr: unknown): RelationEntry[] {
 
 export function compactName(value: unknown): string {
   return String(value || "").replace(/\s/g, "").toLowerCase();
+}
+
+export function knownCharacterRelations(relations: RelationEntry[], candidates: CharacterLike[], currentName = ""): IndexedRelationEntry[] {
+  const currentKey = compactName(currentName);
+  const candidateKeys = new Set(candidates.map((item) => compactName(item.name)).filter((name) => name && name !== currentKey));
+  return relations
+    .map((relation, sourceIndex) => ({ ...relation, sourceIndex }))
+    .filter((relation) => candidateKeys.has(compactName(relation.who)));
 }
 
 export function identityText(c: CharacterLike | string | null | undefined): string {

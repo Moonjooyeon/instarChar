@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from uuid import uuid4
@@ -12,6 +13,7 @@ from app.main import app
 from app.models import SharedDmThread, UserProvider
 from app.repositories.profile_state import ProfileStateRepository
 from app.schemas.profile import ProfileStateResponse
+from app.schemas.profile import StructuredStateUpdate
 
 
 @dataclass
@@ -99,6 +101,38 @@ def test_shared_dm_thread_participant_lookup_uses_postgresql_array() -> None:
     stmt = select(SharedDmThread).where(SharedDmThread.participant_user_ids.contains([uuid4()]))
     compiled = str(stmt.compile(dialect=postgresql.dialect()))
     assert "@>" in compiled
+
+
+def test_structured_character_upsert_does_not_update_posts() -> None:
+    session = CaptureSession()
+    payload = StructuredStateUpdate(characters=[{"source_account_id": "char-1", "name": "세인", "posts": [{"text": "stale"}]}])
+    asyncio.run(ProfileStateRepository(session)._upsert_characters(uuid4(), payload))
+    compiled = str(session.statement.compile(dialect=postgresql.dialect()))
+    update_clause = compiled.split("DO UPDATE SET", 1)[1]
+    assert "posts =" not in update_clause
+
+
+def test_character_follow_rows_are_rebuilt_from_structured_characters() -> None:
+    user = asyncio.run(stub_current_user())
+    shared_id = uuid4()
+    payload = StructuredStateUpdate(characters=[{"source_account_id": "char-1", "name": "하루", "character": {"name": "하루"}, "following": [{"name": "세라", "sharedId": str(shared_id)}]}])
+    rows = ProfileStateRepository(CaptureSession())._character_follow_rows(user, payload)
+    assert rows == [{"follower_id": user.id, "follower_name": "테스터", "follower_account_id": "char-1", "follower_character": {"name": "하루"}, "target_shared_character_id": shared_id}]
+
+
+def test_character_follow_rows_ignore_unshared_characters() -> None:
+    user = asyncio.run(stub_current_user())
+    payload = StructuredStateUpdate(characters=[{"source_account_id": "char-1", "name": "하루", "following": [{"name": "세라", "sharedId": ""}]}])
+    rows = ProfileStateRepository(CaptureSession())._character_follow_rows(user, payload)
+    assert rows == []
+
+
+class CaptureSession:
+    def __init__(self) -> None:
+        self.statement: object = None
+
+    async def execute(self, statement: object) -> None:
+        self.statement = statement
 
 
 def make_test_client() -> TestClient:

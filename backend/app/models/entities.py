@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import enum
-from datetime import datetime
+from datetime import date, datetime
+from decimal import Decimal
 from typing import Optional
 from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, String, Text, UniqueConstraint, func
+from sqlalchemy import Boolean, Date, DateTime, Enum, ForeignKey, ForeignKeyConstraint, Index, Integer, Numeric, String, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -55,7 +56,14 @@ class Character(TimestampMixin, Base):
     character: Mapped[JsonMap] = mapped_column(JSONB, nullable=False, default=dict)
     gallery: Mapped[list[object]] = mapped_column(JSONB, nullable=False, default=list)
     posts: Mapped[list[object]] = mapped_column(JSONB, nullable=False, default=list)
+    posts_revision: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     following: Mapped[list[object]] = mapped_column(JSONB, nullable=False, default=list)
+    auto_post_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    auto_post_interval_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=900)
+    next_auto_post_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    last_auto_post_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    last_auto_post_error: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    auto_post_failure_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
 
 class UserPersona(TimestampMixin, Base):
@@ -94,6 +102,21 @@ class CharacterFollow(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class CharacterPostLike(Base):
+    __tablename__ = "character_post_likes"
+    __table_args__ = (
+        ForeignKeyConstraint(["liker_owner_id", "liker_account_id"], ["characters.owner_id", "characters.source_account_id"], ondelete="CASCADE", name="fk_post_likes_liker_character"),
+        UniqueConstraint("liker_owner_id", "liker_account_id", "target_character_id", "target_post_id", name="uq_character_post_likes"),
+        Index("ix_character_post_likes_target", "target_character_id", "target_post_id"),
+    )
+    id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid4)
+    liker_owner_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), nullable=False)
+    liker_account_id: Mapped[str] = mapped_column(String(120), nullable=False)
+    target_character_id: Mapped[UUID] = mapped_column(ForeignKey("characters.id", ondelete="CASCADE", name="fk_post_likes_target_character"), nullable=False)
+    target_post_id: Mapped[str] = mapped_column(String(120), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class DmThread(TimestampMixin, Base):
     __tablename__ = "dm_threads"
     __table_args__ = (UniqueConstraint("owner_id", "thread_key", name="uq_dm_threads_owner_key"),)
@@ -113,3 +136,18 @@ class SharedDmThread(TimestampMixin, Base):
     messages: Mapped[list[object]] = mapped_column(JSONB, nullable=False, default=list)
     world_pref: Mapped[JsonMap] = mapped_column(JSONB, nullable=False, default=dict)
     created_by: Mapped[Optional[UUID]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+
+
+class AiDailyUsage(TimestampMixin, Base):
+    __tablename__ = "ai_daily_usage"
+    owner_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    usage_date: Mapped[date] = mapped_column(Date, primary_key=True)
+    call_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    estimated_cost_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False, default=Decimal("0"))
+
+
+class AiMonthlyUsage(TimestampMixin, Base):
+    __tablename__ = "ai_monthly_usage"
+    usage_month: Mapped[str] = mapped_column(String(7), primary_key=True)
+    call_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    estimated_cost_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False, default=Decimal("0"))

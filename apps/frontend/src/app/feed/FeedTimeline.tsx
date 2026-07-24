@@ -1,4 +1,6 @@
 import React from "react";
+import { USER_PERSONA_FEATURE_ENABLED } from "@/domain/app/featureFlags";
+import { canManagePost } from "@/domain/feed/feedUtils";
 
 export function FeedTimeline({ ctx }) {
   const {
@@ -12,6 +14,7 @@ export function FeedTimeline({ ctx }) {
     editingPost,
     feedTopRef,
     feedView,
+    isLikePending,
     loading,
     myPosts,
     openCommentBox,
@@ -52,7 +55,7 @@ export function FeedTimeline({ ctx }) {
         )}
         {visiblePosts.map((post) => (
           <React.Fragment key={post.id}>
-            <FeedPostCard post={post} ctx={{ char, commentAs, commentOn, commentText, deleteComment, deletePost, editingComment, editingPost, openCommentBox, personas, saveCommentEdit, savePostEdit, setCommentAs, setCommentOn, setCommentText, setEditingComment, setEditingPost, setFixTarget, setFixText, setPersonaDraft, submitUserComment, timeAgo, toggleLike }} />
+            <FeedPostCard post={post} ctx={{ char, commentAs, commentOn, commentText, deleteComment, deletePost, editingComment, editingPost, isLikePending, openCommentBox, personas, saveCommentEdit, savePostEdit, setCommentAs, setCommentOn, setCommentText, setEditingComment, setEditingPost, setFixTarget, setFixText, setPersonaDraft, submitUserComment, timeAgo, toggleLike }} />
           </React.Fragment>
         ))}
       </div>
@@ -70,6 +73,7 @@ function FeedPostCard({ post, ctx }) {
     deletePost,
     editingComment,
     editingPost,
+    isLikePending,
     openCommentBox,
     personas,
     saveCommentEdit,
@@ -91,6 +95,7 @@ function FeedPostCard({ post, ctx }) {
   const pHandle = isExt ? displayName(post.authorHandle || post.author) : (char.handle || pName.replace(/\s/g, "").toLowerCase());
   const pInitial = initialForName(pName);
   const pAvatar = isExt ? post.authorAvatarImg : char.avatarImg;
+  const canManage = canManagePost(post);
   return (
     <div className="al-post">
       <div className={`al-post-av ${isExt ? "ext" : ""}`}>{pAvatar ? <img src={pAvatar} alt="" /> : pInitial}</div>
@@ -114,11 +119,10 @@ function FeedPostCard({ post, ctx }) {
         )}
         <FeedPostMedia post={post} />
         <div className="al-post-actions">
-          <button className={`al-like ${post.liked ? "on" : ""}`} onClick={() => toggleLike(post.id)}>{post.liked ? "♥" : "♡"} {post.likes}</button>
-          {!post.byUser && <button className="al-fixbtn" onClick={() => { setFixTarget({ type: "post", id: post.id, text: post.text }); setFixText(""); }}>⚠ 캐해 아님</button>}
-          <span className="al-post-mood">{post.isAuto && <i className="al-auto-badge">자율</i>}{post.byUser && <i className="al-user-badge">내가</i>}{(post.mood || "").split(" / ")[0]}</span>
-          <button className="al-mini-action" onClick={() => setEditingPost({ id: post.id, text: post.text })}>수정</button>
-          <button className="al-mini-action danger" onClick={() => deletePost(post.id)}>삭제</button>
+          <button className={`al-like ${post.liked ? "on" : ""}`} disabled={isLikePending(post.id)} onClick={() => toggleLike(post.id)}>{post.liked ? "♥" : "♡"} {post.likes}</button>
+          {canManage && !post.byUser && <button className="al-fixbtn" onClick={() => { setFixTarget({ type: "post", id: post.id, text: post.text }); setFixText(""); }}>⚠ 캐해 아님</button>}
+          {canManage && <button className="al-mini-action" onClick={() => setEditingPost({ id: post.id, text: post.text })}>수정</button>}
+          {canManage && <button className="al-mini-action danger" onClick={() => deletePost(post.id)}>삭제</button>}
         </div>
         <FeedComments post={post} ctx={{ char, commentAs, commentOn, commentText, deleteComment, editingComment, personas, saveCommentEdit, setCommentAs, setCommentOn, setCommentText, setEditingComment, setPersonaDraft, submitUserComment, isExt }} />
         {commentOn !== post.id && <button className="al-cmt-open" onClick={() => openCommentBox(post.id)}>💬 댓글 달기</button>}
@@ -190,10 +194,10 @@ function FeedComments({ post, ctx }) {
         <div className="al-cmtbox">
           <div className="al-cmtbox-who">
             <button className={`al-spk-chip ${commentAs === "char" ? "on" : ""}`} onClick={() => setCommentAs("char")}>{char.name}</button>
-            {personas.map((persona) => (
+            {USER_PERSONA_FEATURE_ENABLED && personas.map((persona) => (
               <button key={persona.id} className={`al-spk-chip persona ${commentAs === `p:${persona.id}` ? "on" : ""}`} onClick={() => setCommentAs(`p:${persona.id}`)}>🎭 {persona.name}</button>
             ))}
-            <button className="al-spk-chip add" onClick={() => setPersonaDraft({ name: "", age: "", persona: "", speech: "" })}>+ 페르소나</button>
+            {USER_PERSONA_FEATURE_ENABLED && <button className="al-spk-chip add" onClick={() => setPersonaDraft({ name: "", age: "", persona: "", speech: "" })}>+ 페르소나</button>}
           </div>
           <div className="al-cmtbox-row">
             <input className="al-cmtbox-input" value={commentText} autoFocus onChange={(event) => setCommentText(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) submitUserComment(post.id, isExt ? post.author : null); }} placeholder={`${commentAs === "char" ? char.name : (personas.find((persona) => `p:${persona.id}` === commentAs)?.name || "")}(으)로 댓글…`} />

@@ -1,8 +1,8 @@
 import React from "react";
+import { USER_PERSONA_FEATURE_ENABLED } from "@/domain/app/featureFlags";
 
 export function HomeScreen({
   accounts,
-  buildMark,
   deletePersona,
   editAccount,
   hasBackendApiConfig,
@@ -54,7 +54,7 @@ export function HomeScreen({
           <button className="al-accadd" onClick={startNewCharacter}>+ 새 캐릭터 깨우기</button>
         </div>
 
-        <div className="al-persona-mgr">
+        {USER_PERSONA_FEATURE_ENABLED && <div className="al-persona-mgr">
           <div className="al-pm-head">🎭 내 페르소나 <span>{personas.length > 0 && `(${personas.length})`}</span></div>
           <p className="al-pm-desc">캐릭터에게 다가갈 또 다른 나. DM에서 골라 쓰면 캐릭터처럼 호감도·관계가 따로 쌓여.</p>
           <div className="al-pm-list">
@@ -75,9 +75,7 @@ export function HomeScreen({
             ))}
             <button className="al-pm-add" onClick={() => setPersonaDraft({ name: "", age: "", persona: "", speech: "" })}>+ 페르소나 만들기</button>
           </div>
-        </div>
-
-        <div className="al-build">build {String(buildMark).slice(0, 7)}</div>
+        </div>}
       </div>
     </div>
   );

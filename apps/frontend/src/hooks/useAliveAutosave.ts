@@ -29,7 +29,6 @@ type AutosaveOptions = {
   ownerPersona: unknown;
   personas: unknown;
   persistLocalSnapshot: (snapshot: unknown) => void;
-  posts: unknown;
   profileLoadedRef: MutableRef<boolean>;
   profileName: unknown;
   profileTableBrokenRef: MutableRef<boolean>;
@@ -58,7 +57,6 @@ export function useAliveAutosave({
   ownerPersona,
   personas,
   persistLocalSnapshot,
-  posts,
   profileLoadedRef,
   profileName,
   profileTableBrokenRef,
@@ -82,7 +80,7 @@ export function useAliveAutosave({
       saveRemoteSnapshot({ profileTableBrokenRef, profileUpsertPayload, setSaveStatus, snapshot, syncStructuredState });
     }, 700);
     return () => clearTimeout(saveTimerRef.current);
-  }, [accounts, activeId, char, gallery, posts, personas, dmThreads, dmThreadTitles, dmWorldPrefs, deletedDmKeys, ownerPersona, following, affinity, profileName, onboardingOpen, stateReady, session?.user?.id]);
+  }, [accounts, activeId, char, gallery, personas, dmThreads, dmThreadTitles, dmWorldPrefs, deletedDmKeys, ownerPersona, following, affinity, profileName, onboardingOpen, stateReady, session?.user?.id]);
   useEffect(() => {
     if (!stateReady) return;
     function saveBeforeLeave() {
@@ -95,7 +93,7 @@ export function useAliveAutosave({
       window.removeEventListener("pagehide", saveBeforeLeave);
       window.removeEventListener("beforeunload", saveBeforeLeave);
     };
-  }, [accounts, activeId, char, gallery, posts, personas, dmThreads, dmThreadTitles, dmWorldPrefs, deletedDmKeys, ownerPersona, following, affinity, discoverQuery, profileName, onboardingOpen, stateReady]);
+  }, [accounts, activeId, char, gallery, personas, dmThreads, dmThreadTitles, dmWorldPrefs, deletedDmKeys, ownerPersona, following, affinity, discoverQuery, profileName, onboardingOpen, stateReady]);
 }
 
 function saveLocalSnapshot(snapshot: unknown, persistLocalSnapshot: (snapshot: unknown) => void, setSaveStatus: (value: string) => void): void {

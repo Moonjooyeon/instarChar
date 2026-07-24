@@ -15,6 +15,7 @@ export type CharacterData = {
 
 export type SharedCharacterRow = {
   id?: string;
+  character_id?: string;
   owner_id?: string;
   owner_name?: string;
   source_account_id?: string;
@@ -33,6 +34,7 @@ export type CharacterRow = SharedCharacterRow & {
 
 export type DiscoverCharacter = CharacterData & {
   id: string;
+  characterId: string;
   sharedId: string;
   ownerId?: string;
   sourceAccountId?: string;
@@ -47,11 +49,41 @@ export type DiscoverCharacter = CharacterData & {
   posts: Record<string, unknown>[];
 };
 
+type CharacterIdentity = {
+  id?: string;
+  ownerId?: string;
+  sharedId?: string;
+  sourceAccountId?: string;
+};
+
+export function sameDiscoverCharacter(left: CharacterIdentity | null | undefined, right: CharacterIdentity | null | undefined): boolean {
+  if (!left || !right) return false;
+  if (left.ownerId && left.sourceAccountId && right.ownerId && right.sourceAccountId) {
+    return left.ownerId === right.ownerId && left.sourceAccountId === right.sourceAccountId;
+  }
+  if (left.sharedId && right.sharedId) return left.sharedId === right.sharedId;
+  return Boolean(left.id && right.id && left.id === right.id);
+}
+
+export function followerCharacterId(id = ""): string {
+  if (!id) return "follower_unknown";
+  return id.startsWith("follower_") ? id : `follower_${id}`;
+}
+
+export function hydrateFollowedCharacters(following: DiscoverCharacter[] = [], available: DiscoverCharacter[] = []): DiscoverCharacter[] {
+  return following.map((stored) => {
+    const fresh = available.find((item) => sameDiscoverCharacter(item, stored));
+    if (!fresh) return stored;
+    return { ...fresh, ...stored, posts: fresh.posts };
+  });
+}
+
 export function sharedRowToChar(row: SharedCharacterRow): DiscoverCharacter {
   const base = row.character || {};
   return {
     ...base,
     id: `shared_${row.id}`,
+    characterId: row.character_id || "",
     sharedId: row.id,
     ownerId: row.owner_id,
     sourceAccountId: row.source_account_id,
@@ -72,6 +104,7 @@ export function characterRowToDiscoverChar(row: CharacterRow): DiscoverCharacter
   return {
     ...base,
     id: `char_${row.owner_id || "owner"}_${row.source_account_id || row.name || "unknown"}`,
+    characterId: row.character_id || "",
     sharedId: "",
     ownerId: row.owner_id,
     sourceAccountId: row.source_account_id,

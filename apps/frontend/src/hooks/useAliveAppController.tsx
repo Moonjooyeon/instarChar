@@ -44,7 +44,6 @@ import {
   symmetricRelationBaseFromLabel,
 } from "@/domain/relationships/affinityUtils";
 import {
-  BUILD_MARK,
   DISCOVER_POOL,
   EXAMPLES,
   MODEL_AUTO,
@@ -65,6 +64,8 @@ import {
   speechGuideLine,
   toneText,
 } from "@/domain/app/aliveCore";
+import { USER_PERSONA_FEATURE_ENABLED, normalizeUserPersonaSpeaker } from "@/domain/app/featureFlags";
+import { hydrateFollowedCharacters } from "@/domain/discover/discoverUtils";
 import { useAliveAuthActions } from "@/hooks/useAliveAuthActions";
 import { useAliveAiGeneration } from "@/hooks/useAliveAiGeneration";
 import { useAliveAppStatePersistence } from "@/hooks/useAliveAppStatePersistence";
@@ -256,6 +257,7 @@ export function useAliveAppController() {
     profileName,
     session,
   });
+  const feedFollowing = hydrateFollowedCharacters(following, sharedCharacters);
   const {
     findPeerChar,
   } = useAlivePeerLookup({
@@ -270,18 +272,19 @@ export function useAliveAppController() {
     commentAs,
     commentOn,
     commentText,
+    autoIntervalSeconds,
     defaultCommentAs,
     deleteComment,
     deletePost,
     editingComment,
     editingPost,
-    fast,
     feedView,
     fixTarget,
     fixText,
     followedTimelinePosts,
     loading,
     manualPost,
+    mutatePosts,
     moodOpen,
     myPosts,
     nextIn,
@@ -291,29 +294,30 @@ export function useAliveAppController() {
     saveCommentEdit,
     savePostEdit,
     setAuto,
+    setAutoInterval,
     setCommentAs,
     setCommentOn,
     setCommentText,
     setEditingComment,
     setEditingPost,
-    setFast,
     setFeedView,
     setFixTarget,
     setFixText,
     setLoading,
     setMoodOpen,
-    setNextIn,
     setPosts,
     setWriteOpen,
     setWriteText,
     sortedPosts,
     timeAgo,
     timelinePosts,
+    isLikePending,
     toggleLike,
     visiblePosts,
     writeOpen,
     writeText,
-  } = useAliveFeed({ following, personas });
+    generateServerPost,
+  } = useAliveFeed({ activeId, following: feedFollowing, personas, setSaveStatus, step });
   const {
     recordFollowChange,
     recordRelationshipFollowBack,
@@ -543,9 +547,7 @@ export function useAliveAppController() {
     saveMemories,
   });
   const {
-    AUTO_MOODS,
     addCommentFrom,
-    autoPost,
     followerPost,
     followersReactTo,
     generatePost,
@@ -557,10 +559,9 @@ export function useAliveAppController() {
     char,
     commentAs,
     commentText,
-    correctionBlock,
     findPeerChar,
     following,
-    gallery,
+    generateServerPost,
     loadingRef,
     myFollowers,
     personas,
@@ -570,7 +571,7 @@ export function useAliveAppController() {
     setCommentText,
     setLoading,
     setMoodOpen,
-    setPosts,
+    mutatePosts,
     setSaveStatus,
   });
   const {
@@ -675,7 +676,6 @@ export function useAliveAppController() {
     ownerPersona,
     personas,
     persistLocalSnapshot,
-    posts,
     profileLoadedRef,
     profileName,
     profileTableBrokenRef,
@@ -998,34 +998,16 @@ export function useAliveAppController() {
 
   // 방 바뀌면 오너 끼어들기만 해제 (페르소나/캐릭터 선택은 보존 — 목록에서 복원되므로)
   useEffect(() => { setSpeakAs((s) => s === "owner" ? "char" : s); }, [peer && peer.name, peer && peer.asOwner]);
+  useEffect(() => {
+    if (USER_PERSONA_FEATURE_ENABLED) return;
+    setCommentAs((value) => normalizeUserPersonaSpeaker(value));
+    setSpeakAs((value) => normalizeUserPersonaSpeaker(value));
+    setNewChatSpeaker((value) => normalizeUserPersonaSpeaker(value));
+    setNewChatMode((value) => value === "persona" ? null : value);
+    setPersonaDraft(null);
+  }, []);
   // 진도질문 모달 상태를 ref에 미러 (자동대화 루프에서 최신값 참조)
   useEffect(() => { proposalRef.current = proposal; }, [proposal]);
-
-  // feed 첫 진입 시 첫 글 하나 바로 올림
-  useEffect(() => {
-    if (step === "feed" && !feedInitRef.current && posts.length === 0) {
-      feedInitRef.current = true;
-      const t = setTimeout(() => autoPost(), 600);
-      return () => clearTimeout(t);
-    }
-  }, [step]); // eslint-disable-line
-
-  // 타이머: feed 화면 + auto on일 때 주기마다 자동 포스팅
-  useEffect(() => {
-    if (step !== "feed" || !auto) { setNextIn(0); return; }
-    const period = fast ? 30 : 900; // 빠름 30초 / 평소 15분
-    setNextIn(period);
-    const tick = setInterval(() => {
-      setNextIn((n) => {
-        if (n <= 1) {
-          autoPost();
-          return period;
-        }
-        return n - 1;
-      });
-    }, 1000);
-    return () => clearInterval(tick);
-  }, [step, auto, fast, char]); // eslint-disable-line
 
   const initial = char.name.trim() ? char.name.trim()[0] : "?";
 
@@ -1060,14 +1042,12 @@ export function useAliveAppController() {
     authMessage,
     authResolvedRef,
     auto,
-    AUTO_MOODS,
+    autoIntervalSeconds,
     autoChatRef,
     autoChatting,
-    autoPost,
     baseFollowerCount,
     blankAppState,
     blankChar,
-    BUILD_MARK,
     bumpAffinity,
     bumpMutual,
     bumpRoomAffinity,
@@ -1144,7 +1124,6 @@ export function useAliveAppController() {
     enterDm,
     EXAMPLES,
     exportAppState,
-    fast,
     feedInitRef,
     feedTopRef,
     feedView,
@@ -1319,6 +1298,7 @@ export function useAliveAppController() {
     setAuthLoading,
     setAuthMessage,
     setAuto,
+    setAutoInterval,
     setAutoChatting,
     setChar,
     setChatMode,
@@ -1344,7 +1324,6 @@ export function useAliveAppController() {
     setEditingDmTitle,
     setEditingMemoryId,
     setEditingPost,
-    setFast,
     setFeedView,
     setFixTarget,
     setFixText,
@@ -1360,7 +1339,6 @@ export function useAliveAppController() {
     setMoodOpen,
     setNewChatMode,
     setNewChatSpeaker,
-    setNextIn,
     setOnboardingOpen,
     setOwnerPersona,
     setParseError,
@@ -1433,6 +1411,7 @@ export function useAliveAppController() {
     syncStructuredState,
     timeAgo,
     timelinePosts,
+    isLikePending,
     toggleFollow,
     toggleFollowPanel,
     toggleLike,

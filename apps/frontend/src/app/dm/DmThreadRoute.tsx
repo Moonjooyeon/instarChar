@@ -40,8 +40,8 @@ export function DmThreadRoute({ ctx }) {
       <div className="al-dmhead">
         <button className="al-back-inline" onClick={() => {
           const recentLines = dm.slice(-8).map((message) => ({ who: message.from, text: message.text }));
-          if (peer.asOwner) judgeSession(OWNER, state.peerName, recentLines);
-          else if (meName !== ownerLabel) processSession(meName, state.peerName, recentLines, false, dmKey);
+          if (!peer.readOnly && peer.asOwner) judgeSession(OWNER, state.peerName, recentLines);
+          else if (!peer.readOnly && meName !== ownerLabel) processSession(meName, state.peerName, recentLines, false, dmKey);
           setStep("dmlist");
         }}>‹</button>
         <div className="al-dmhead-av">{state.peerInitial}</div>
@@ -49,15 +49,15 @@ export function DmThreadRoute({ ctx }) {
           <span className="al-dmhead-name">{state.roomTitle}</span>
           <span className="al-dmhead-sub">{state.headSub}</span>
         </div>
-        {!peer.asOwner && (
+        {!peer.asOwner && !peer.readOnly && (
           <div className="al-dm-head-actions">
             <button className="al-dm-settings-btn" onClick={ctx.openDmSettings}>세계관</button>
             <button className={`al-dm-settings-btn ${showPeerMem ? "on" : ""}`} onClick={() => setShowPeerMem((value) => !value)}>기억 {state.visibleMems.length}</button>
           </div>
         )}
       </div>
-      <DmAffinityPanel ctx={{ ...ctx, ...state, PROPOSAL_THRESHOLD, setAffinityOpen }} />
-      <DmMemoryPanel ctx={{ ...ctx, ...state }} />
+      {!peer.readOnly && <DmAffinityPanel ctx={{ ...ctx, ...state, PROPOSAL_THRESHOLD, setAffinityOpen }} />}
+      {!peer.readOnly && <DmMemoryPanel ctx={{ ...ctx, ...state }} />}
       <DmMessages ctx={{ ...ctx, ...state }} />
       <DmControls ctx={{ ...ctx, ...state, josa }} />
     </div>
@@ -67,10 +67,10 @@ export function DmThreadRoute({ ctx }) {
 function dmThreadState({ activePersona, affOf, attachStage, char, currentWorldPref, dm, dmAffOf, dmKey, dmThreadTitles, findPeerChar, josa, meName, OWNER, ownerLabel, peer, relationHintFor, relationStageLabel, roomAffOf, roomMemoryEntries, symmetricRelationBaseFromLabel }) {
   const peerName = peer.asOwner ? char.name : peer.name;
   const peerInitial = peerName.trim()[0] || "?";
-  const speakerName = activePersona ? activePersona.name : char.name;
+  const speakerName = peer.readOnly && peer.legacySpeakerName ? peer.legacySpeakerName : (activePersona ? activePersona.name : char.name);
   const npcRoom = dmKey?.startsWith("local::");
   const dmKindLabel = peer.dmKind === "npc" ? "NPC 채팅 · 관계 미반영" : "공유 DM";
-  const headSub = peer.asOwner ? "나(오너)로서 대화 중" : `${josa(speakerName, "으로/로")} 대화 중 · ${dmKindLabel}`;
+  const headSub = peer.readOnly ? `${josa(speakerName, "으로/로")} 나눈 과거 대화 · 읽기 전용` : (peer.asOwner ? "나(오너)로서 대화 중" : `${josa(speakerName, "으로/로")} 대화 중 · ${dmKindLabel}`);
   const roomTitle = dmThreadTitles[dmKey] || (peer.asOwner ? `${peerName} (내 캐릭터)` : peerName);
   const peerCharForAffinity = peer.asOwner ? char : (findPeerChar(peerName) || peer);
   const speakerToPeerRel = relationHintFor(speakerName, peerName, peer.relation || "");

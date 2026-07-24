@@ -13,6 +13,7 @@ test("sharedCharacterResults adapts FastAPI discover response to legacy row buck
     characters: [
       {
         autoSynced: true,
+        characterId: "character-a",
         character: { ownerName: "owner-a", persona: "calm" },
         gallery: [{ url: "a.png" }],
         id: "char_owner_char-a",
@@ -23,6 +24,7 @@ test("sharedCharacterResults adapts FastAPI discover response to legacy row buck
         sourceAccountId: "char-a",
       },
       {
+        characterId: "character-b",
         character: { posts: [{ body: "shared" }] },
         handle: "bee",
         id: "shared_shared-a",
@@ -40,8 +42,10 @@ test("sharedCharacterResults adapts FastAPI discover response to legacy row buck
     const [characters, shared] = await sharedCharacterResults();
     assert.equal(globalThis.fetch.calls[0].input, "/api/discover/characters");
     assert.deepEqual(characters.value.data[0].source_account_id, "char-a");
+    assert.deepEqual(characters.value.data[0].character_id, "character-a");
     assert.deepEqual(characters.value.data[0].posts, [{ body: "hello" }]);
     assert.deepEqual(shared.value.data[0].id, "shared-a");
+    assert.deepEqual(shared.value.data[0].character_id, "character-b");
     assert.deepEqual(shared.value.data[0].owner_name, "owner-b");
   } finally {
     restoreFetch();

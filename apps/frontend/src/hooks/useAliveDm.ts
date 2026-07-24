@@ -19,8 +19,10 @@ type DmPeer = {
   asOwner?: boolean;
   dmKey?: string;
   dmKind?: string;
+  legacySpeakerName?: string;
   localRoomId?: string;
   name?: string;
+  readOnly?: boolean;
 };
 
 type DmMessage = {

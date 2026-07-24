@@ -1,4 +1,5 @@
 import React from "react";
+import { USER_PERSONA_FEATURE_ENABLED } from "@/domain/app/featureFlags";
 
 export function PersonaFixModals({ ctx }) {
   const {
@@ -29,7 +30,7 @@ export function PersonaFixModals({ ctx }) {
   } = ctx;
   return (
     <>
-      {canUseApp && personaDraft && (
+      {USER_PERSONA_FEATURE_ENABLED && canUseApp && personaDraft && (
         <div className="al-modal-bg" onClick={() => setPersonaDraft(null)}>
           <div className="al-modal" onClick={(event) => event.stopPropagation()}>
             <h3 className="al-modal-title">🎭 {personaDraft.id ? "페르소나 수정" : "새 페르소나"}</h3>

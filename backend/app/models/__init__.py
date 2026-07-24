@@ -1,6 +1,9 @@
 from app.models.entities import (
+    AiDailyUsage,
+    AiMonthlyUsage,
     Character,
     CharacterFollow,
+    CharacterPostLike,
     DmThread,
     Profile,
     SharedCharacter,
@@ -11,8 +14,11 @@ from app.models.entities import (
 )
 
 __all__ = [
+    "AiDailyUsage",
+    "AiMonthlyUsage",
     "Character",
     "CharacterFollow",
+    "CharacterPostLike",
     "DmThread",
     "Profile",
     "SharedCharacter",

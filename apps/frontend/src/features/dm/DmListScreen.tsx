@@ -1,4 +1,5 @@
 import React from "react";
+import { USER_PERSONA_FEATURE_ENABLED, normalizeUserPersonaSpeaker } from "@/domain/app/featureFlags";
 
 export function DmListScreen({
   accounts,
@@ -22,9 +23,11 @@ export function DmListScreen({
   sharedCharacters,
   startRenameDm,
 }) {
-  const speakerName = newChatSpeaker === "char"
+  const safeNewChatSpeaker = normalizeUserPersonaSpeaker(newChatSpeaker);
+  const personaMode = USER_PERSONA_FEATURE_ENABLED && newChatMode === "persona";
+  const speakerName = safeNewChatSpeaker === "char"
     ? char.name
-    : (personas.find((p) => `p:${p.id}` === newChatSpeaker)?.name || char.name);
+    : (personas.find((p) => `p:${p.id}` === safeNewChatSpeaker)?.name || char.name);
 
   return (
     <div className="al-phone">
@@ -64,13 +67,15 @@ export function DmListScreen({
                     dmKind: c.dmKind,
                     dmKey: c.dmKey,
                     localRoomId: c.localRoomId,
+                    legacySpeakerName: c.asPersona || "",
+                    readOnly: !USER_PERSONA_FEATURE_ENABLED && Boolean(c.asPersona),
                   };
                   let restoredSpeakAs = "char";
                   if (c.asPersona) {
                     const p = personas.find((pp) => pp.name === c.asPersona);
                     restoredSpeakAs = p ? `p:${p.id}` : "char";
                   }
-                  requestDmEntry(nextPeer, restoredSpeakAs);
+                  requestDmEntry(nextPeer, normalizeUserPersonaSpeaker(restoredSpeakAs));
                 }
               }}
             >
@@ -81,10 +86,10 @@ export function DmListScreen({
               </div>
               <span className="al-convitem-count">{c.count}</span>
             </button>
-            <div className="al-conv-actions">
+            {(USER_PERSONA_FEATURE_ENABLED || !c.asPersona) && <div className="al-conv-actions">
               <button type="button" onClick={(e) => startRenameDm(c, e)}>수정</button>
               <button type="button" className="danger" onClick={(e) => deleteDmThread(c.key, e)}>삭제</button>
-            </div>
+            </div>}
           </div>
         ))}
       </div>
@@ -103,7 +108,7 @@ export function DmListScreen({
             <button className="al-newchat-btn" onClick={() => { setNewChatSpeaker("char"); setNewChatMode("char"); }}>
               💬 <b>{char.name}</b>(으)로 다른 캐릭터에게 말 걸기
             </button>
-            <button
+            {USER_PERSONA_FEATURE_ENABLED && <button
               className="al-persona-entry"
               onClick={() => {
                 if (personas.length === 0) { setPersonaDraft({ name: "", age: "", persona: "", speech: "" }); return; }
@@ -112,11 +117,11 @@ export function DmListScreen({
               }}
             >
               🎭 내 페르소나로 캐릭터에게 말 걸기 {personas.length === 0 && <span className="al-pe-hint">(먼저 만들기)</span>}
-            </button>
+            </button>}
           </>
         ) : (
           <div className="al-newchat-panel">
-            {newChatMode === "persona" && (
+            {personaMode && (
               <>
                 <p className="al-newchat-lbl">어떤 페르소나로?</p>
                 <div className="al-nc-speakers">
@@ -135,11 +140,11 @@ export function DmListScreen({
             )}
             <p className="al-newchat-lbl">누구에게 — {speakerName}(으)로</p>
             <div className="al-newchat-targets">
-              {newChatMode === "persona" && (
+              {personaMode && (
                 <button
                   className="al-newchat-target mine"
                   onClick={() => {
-                    requestDmEntry({ name: char.name, persona: char.persona, relation: "" }, newChatSpeaker);
+                    requestDmEntry({ name: char.name, persona: char.persona, relation: "" }, safeNewChatSpeaker);
                   }}
                 >
                   <span className="al-nt-av">{char.name.trim()[0]}</span>
@@ -154,7 +159,7 @@ export function DmListScreen({
                     key={a.id}
                     className="al-newchat-target"
                     onClick={() => {
-                      requestDmEntry({ name: a.char.name, persona: a.char.persona, relation: "" }, newChatSpeaker);
+                      requestDmEntry({ name: a.char.name, persona: a.char.persona, relation: "" }, safeNewChatSpeaker);
                     }}
                   >
                     <span className="al-nt-av">{a.char.name.trim()[0]}</span>
@@ -168,7 +173,7 @@ export function DmListScreen({
                   key={f.id}
                   className="al-newchat-target ext"
                   onClick={() => {
-                    requestDmEntry({ ...f, name: f.name, persona: f.persona, relation: relationMatched(char, f) }, newChatSpeaker);
+                    requestDmEntry({ ...f, name: f.name, persona: f.persona, relation: relationMatched(char, f) }, safeNewChatSpeaker);
                   }}
                 >
                   <span className="al-nt-av">{f.name.trim()[0]}</span>

@@ -22,6 +22,7 @@ type DiscoverResponse = {
 
 type DiscoverCharacterDto = {
   autoSynced?: boolean;
+  characterId?: string;
   character?: Record<string, unknown>;
   followedAt?: string | null;
   followerAccountId?: string;
@@ -149,6 +150,7 @@ export async function loadActiveSharedCharacterId(_ownerId: string, sourceAccoun
 function sharedDtoToRow(item: DiscoverCharacterDto): SharedCharacterRow {
   return {
     id: stringValue(item.sharedId),
+    character_id: stringValue(item.characterId),
     owner_id: stringValue(item.ownerId),
     owner_name: stringValue(item.ownerName),
     source_account_id: stringValue(item.sourceAccountId),
@@ -162,6 +164,7 @@ function sharedDtoToRow(item: DiscoverCharacterDto): SharedCharacterRow {
 
 function characterDtoToRow(item: DiscoverCharacterDto): CharacterRow {
   return {
+    character_id: stringValue(item.characterId),
     owner_id: stringValue(item.ownerId),
     owner_name: stringValue(item.ownerName),
     source_account_id: stringValue(item.sourceAccountId),

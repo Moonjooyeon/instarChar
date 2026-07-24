@@ -2,8 +2,8 @@
 title: Frontend Structure
 author: black (black@ashwoodfriends.com)
 created: 2026-05-07
-updated: 2026-07-14
-version: 3.1.0
+updated: 2026-07-24
+version: 3.2.0
 status: approved
 ---
 
@@ -35,6 +35,7 @@ apps/frontend/
     │   ├── discover.ts
     │   ├── dm.ts
     │   ├── generate.ts
+    │   ├── postLikes.ts
     │   ├── profiles.ts
     │   └── structured.ts
     ├── app/

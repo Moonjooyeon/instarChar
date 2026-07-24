@@ -5,21 +5,18 @@ import json
 import random
 import re
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from uuid import UUID
 
 import httpx
-from fastapi import Request
 
 from app.core.config import Settings
+from app.repositories.ai_usage import AiUsageRepository
 from app.schemas.ai import GenerateMessage, GenerateRequest
 
 
-API_LIMIT_MESSAGE = "오늘 설정된 API 사용량을 모두 사용했어. 다음에 다시 만나자."
 RETRYABLE_STATUS_CODES = {429, 500, 503, 504}
 JSON_SYSTEM_PATTERN = re.compile(r"JSON|json|json 객체|json으로|반드시 JSON")
 DATA_URL_PATTERN = re.compile(r"^data:([^;,]+);base64,(.+)$")
-_daily_usage: dict[str, int] = {}
-_monthly_usage: dict[str, float] = {}
 
 
 @dataclass(frozen=True)
@@ -35,31 +32,22 @@ class GeminiResponse:
     retry_after: float = 0
 
 
-@dataclass(frozen=True)
-class UsageCheck:
-    blocked: bool
-    daily_key: str = ""
-    month: str = ""
-    monthly_cost: float = 0
-    status_code: int = 200
-    body: dict[str, object] | None = None
-
-
 class GeminiGenerateService:
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, usage_repository: AiUsageRepository) -> None:
         self.settings = settings
+        self.usage_repository = usage_repository
 
-    async def generate(self, payload: GenerateRequest, request: Request) -> GenerateApiResult:
+    async def generate(self, payload: GenerateRequest, owner_id: UUID) -> GenerateApiResult:
         if not self.settings.gemini_api_key:
             return GenerateApiResult(500, {"error": "API_KEY_MISSING", "message": "서버에 Gemini API 키가 설정되지 않았습니다."})
-        usage = self._check_usage_limit(request)
-        if usage.blocked:
-            return GenerateApiResult(usage.status_code, usage.body or {})
         if not payload.messages:
             return GenerateApiResult(400, {"error": "BAD_REQUEST", "message": "messages 배열이 필요합니다."})
-        return await self._generate_with_provider(payload, usage)
+        usage = await self.usage_repository.reserve(owner_id, self.settings)
+        if not usage.allowed:
+            return GenerateApiResult(429, {"error": usage.error_code, "message": usage.message})
+        return await self._generate_with_provider(payload)
 
-    async def _generate_with_provider(self, payload: GenerateRequest, usage: UsageCheck) -> GenerateApiResult:
+    async def _generate_with_provider(self, payload: GenerateRequest) -> GenerateApiResult:
         gemini_body = self._gemini_body(payload)
         model_name = self._model_name(payload.model)
         response = await self._call_with_retries(model_name, gemini_body)
@@ -71,7 +59,7 @@ class GeminiGenerateService:
             if response.status_code >= 400:
                 return self._provider_error(response)
             text_result = self._text_result(response.body)
-        return self._final_result(text_result, response.body, usage)
+        return self._final_result(text_result, response.body)
 
     async def _retry_empty_response(self, payload: GenerateRequest, model_name: str, body: dict[str, object]) -> GeminiResponse:
         retry_body = self._retry_body(payload, body)
@@ -155,10 +143,9 @@ class GeminiGenerateService:
         retry_prompt = {"role": "user", "parts": [{"text": "직전 응답이 비어 있었다. 위 지시를 그대로 따르되, 반드시 빈 문자열이 아닌 최종 답변 본문만 출력하라."}]}
         return self._list_value(contents) + [retry_prompt]
 
-    def _final_result(self, text_result: dict[str, object], data: dict[str, object], usage: UsageCheck) -> GenerateApiResult:
+    def _final_result(self, text_result: dict[str, object], data: dict[str, object]) -> GenerateApiResult:
         text = str(text_result.get("text") or "")
         if text:
-            self._record_usage(usage)
             return GenerateApiResult(200, {"content": [{"type": "text", "text": text}]})
         finish_reason = str(text_result.get("finishReason") or self._record(data.get("promptFeedback")).get("blockReason") or "unknown")
         return GenerateApiResult(500, self._empty_response_body(finish_reason, text_result, data))
@@ -187,27 +174,6 @@ class GeminiGenerateService:
         config = self._record(body.get("generationConfig"))
         reason = str(text_result.get("finishReason") or "")
         return reason in {"STOP", "MAX_TOKENS"} or (self._wants_json(payload.system) and "responseMimeType" in config)
-
-    def _check_usage_limit(self, request: Request) -> UsageCheck:
-        now = datetime.now(timezone.utc)
-        daily_key = f"{self._period_key(now, 'day')}:{self._client_key(request)}"
-        month = self._period_key(now, "month")
-        daily_count = _daily_usage.get(daily_key, 0)
-        monthly_cost = _monthly_usage.get(month, 0)
-        if daily_count >= self.settings.api_daily_limit:
-            return UsageCheck(True, status_code=429, body={"error": "DAILY_LIMIT_EXCEEDED", "message": API_LIMIT_MESSAGE})
-        if monthly_cost + self.settings.api_estimated_call_cost_usd > self.settings.api_monthly_cost_limit_usd:
-            return UsageCheck(True, status_code=429, body={"error": "MONTHLY_COST_LIMIT_EXCEEDED", "message": API_LIMIT_MESSAGE})
-        return UsageCheck(False, daily_key=daily_key, month=month, monthly_cost=monthly_cost)
-
-    def _record_usage(self, usage: UsageCheck) -> None:
-        _daily_usage[usage.daily_key] = _daily_usage.get(usage.daily_key, 0) + 1
-        _monthly_usage[usage.month] = usage.monthly_cost + self.settings.api_estimated_call_cost_usd
-
-    def _client_key(self, request: Request) -> str:
-        forwarded = request.headers.get("x-forwarded-for", "")
-        first_ip = forwarded.split(",")[0].strip()
-        return first_ip or request.headers.get("x-real-ip") or (request.client.host if request.client else "local")
 
     def _gemini_url(self, model_name: str) -> str:
         return f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent"
@@ -242,9 +208,6 @@ class GeminiGenerateService:
         if response and response.retry_after > 0:
             return response.retry_after
         return (600 * (2 ** attempt) + random.randint(0, 249)) / 1000
-
-    def _period_key(self, date: datetime, period_type: str) -> str:
-        return date.strftime("%Y-%m") if period_type == "month" else date.strftime("%Y-%m-%d")
 
     def _image_url(self, value: object) -> object:
         return self._record(value).get("url") if isinstance(value, dict) else value

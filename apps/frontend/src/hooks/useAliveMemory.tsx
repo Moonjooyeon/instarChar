@@ -1,5 +1,6 @@
 import { useState, type Dispatch, type ReactElement, type SetStateAction } from "react";
 import { LorePeerSelect } from "@/components/ui/LorePeerSelect";
+import { knownCharacterRelations } from "@/domain/app/aliveCore";
 
 type SetState<T> = Dispatch<SetStateAction<T>>;
 
@@ -37,7 +38,8 @@ type RoomPrefs = Record<string, unknown> & {
 type DmWorldPrefs = Record<string, RoomPrefs>;
 
 type RelationEntry = {
-  who?: string;
+  label: string;
+  who: string;
 };
 
 type ConversationEntry = {
@@ -160,8 +162,9 @@ export function useAliveMemory({ activeId, activeSharedId, accounts, char, follo
   }
   function lorePeerOptions(): string[] {
     const names = new Set(["*"]);
+    const candidates = [...accounts.map((item) => item.char), ...following];
     (char.lorebook || []).forEach((item) => names.add(item.peer || "*"));
-    parseRelations(char.relations).forEach((relation) => { if (relation.who) names.add(relation.who); });
+    knownCharacterRelations(parseRelations(char.relations), candidates, char.name).forEach((relation) => names.add(relation.who));
     accounts.forEach((item) => { if (item.char.name && item.char.name !== char.name) names.add(item.char.name); });
     following.forEach((item) => { if (item.name) names.add(item.name); });
     myConversations().forEach((item) => { if (item.peerName) names.add(item.peerName); });

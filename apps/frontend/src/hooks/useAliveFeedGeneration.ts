@@ -1,5 +1,5 @@
 import { postGenerateContent, type GenerateMessage } from "@/api/generate";
-import { ANTI_REPEAT_RULES, recentLinesBlock, worldBridgeBlock } from "@/domain/app/textUtils";
+import { ANTI_REPEAT_RULES, worldBridgeBlock } from "@/domain/app/textUtils";
 import {
   API_LIMIT_MESSAGE,
   MODEL_AUTO,
@@ -11,8 +11,6 @@ import {
 } from "@/domain/app/aliveCore";
 import { affinityStage } from "@/domain/relationships/affinityUtils";
 
-const AUTO_MOODS = ["일상 / 방금 있었던 일", "혼잣말 / 생각", "지금 기분", "푸념 / 투정", "셀카 찍은 척 (사진 묘사)", "랜덤 / 알아서"];
-
 export function useAliveFeedGeneration({
   affOf,
   bumpAffinity,
@@ -20,10 +18,9 @@ export function useAliveFeedGeneration({
   char,
   commentAs,
   commentText,
-  correctionBlock,
   findPeerChar,
   following,
-  gallery,
+  generateServerPost,
   loadingRef,
   myFollowers,
   personas,
@@ -33,24 +30,17 @@ export function useAliveFeedGeneration({
   setCommentText,
   setLoading,
   setMoodOpen,
-  setPosts,
+  mutatePosts,
   setSaveStatus,
 }) {
-  async function generatePost(mood, isAuto = false) {
+  async function generatePost(mood) {
     if (loadingRef.current) return;
     loadingRef.current = true;
     setLoading(true);
     setMoodOpen(false);
-    const attachedImg = gallery.length > 0 ? gallery[Math.floor(Math.random() * gallery.length)] : null;
-    const formatRule = postFormatRule(mood, attachedImg);
-    const sys = postSystemPrompt({ char, correctionBlock, formatRule, posts });
-    const userMsg = mood === "랜덤 / 알아서" ? "지금 이 순간 떠오른 걸 자유롭게 한 줄 올려줘." : `다음 느낌으로 글을 올려줘: ${mood}`;
-    const userContent: GenerateMessage["content"] = attachedImg ? [{ type: "text", text: `${userMsg}\n첨부된 이미지를 보고 이미지 속 상황과 시선, 표정, 분위기에 맞춰 써.` }, { type: "image_url", image_url: { url: attachedImg } }] : userMsg;
     try {
-      const parsed = parseGeneratedPost(await postGenerateContent({ model: MODEL_AUTO, max_tokens: 400, system: sys, messages: [{ role: "user", content: userContent }] }, "게시글 생성 API"), mood, attachedImg);
-      const newPostId = Date.now();
-      setPosts((items) => [generatedPostFromParsed(parsed, mood, attachedImg, isAuto, newPostId), ...items]);
-      if (following.length > 0) setTimeout(() => followersReactTo(newPostId, parsed.text), 1800 + Math.random() * 2000);
+      const post = await generateServerPost(mood);
+      if (post && following.length > 0) setTimeout(() => followersReactTo(post.id, post.text), 1800 + Math.random() * 2000);
     } catch (e) {
       console.error("게시글 생성 실패:", e);
       setSaveStatus(e.message === API_LIMIT_MESSAGE ? API_LIMIT_MESSAGE : "게시글 생성 실패");
@@ -58,12 +48,6 @@ export function useAliveFeedGeneration({
       setLoading(false);
       loadingRef.current = false;
     }
-  }
-  function autoPost() {
-    if (loadingRef.current) return;
-    if (following.length > 0 && Math.random() < 0.3) { followerPost(); return; }
-    const mood = AUTO_MOODS[Math.floor(Math.random() * AUTO_MOODS.length)];
-    generatePost(mood, true);
   }
   async function addCommentFrom(postId, postText, postAuthorName, commenter, priorComments = [], replyTo = postAuthorName) {
     if (!canAutoComment(commenter.name, postAuthorName)) return null;
@@ -75,7 +59,7 @@ export function useAliveFeedGeneration({
     try {
       const text = stripQuotes(await postGenerateContent({ model: MODEL_AUTO, max_tokens: 150, system: sys, messages: [{ role: "user", content: commentUserContent(commenter, targetImage) }] }, "댓글 생성 API"));
       if (!text) return null;
-      appendGeneratedComment(setPosts, postId, commenter, text, replyTo);
+      appendGeneratedComment(mutatePosts, postId, commenter, text, replyTo);
       return text;
     } catch (e) {
       return null;
@@ -90,7 +74,7 @@ export function useAliveFeedGeneration({
     const rootAuthor = postAuthorName || char.name;
     const target = posts.find((post) => post.id === postId);
     const priorComments = [...((target && target.comments) || []), { name, text: txt, replyTo: rootAuthor }];
-    appendUserComment(setPosts, postId, { handle, name, rootAuthor, txt });
+    appendUserComment(mutatePosts, postId, { handle, name, rootAuthor, txt });
     if (postAuthorName && postAuthorName !== name) bumpAffinity(postAuthorName, name, 1, []);
     setCommentText("");
     setCommentOn(null);
@@ -126,72 +110,10 @@ export function useAliveFeedGeneration({
     loadingRef.current = false;
     if (!text) return;
     const postId = Date.now();
-    setPosts((items) => [followerPostFromText({ char, postId, poster, posterImg, quoteTarget, text }), ...items]);
+    mutatePosts((items) => [followerPostFromText({ char, postId, poster, posterImg, quoteTarget, text }), ...items]);
     if (quoteTarget) bumpAffinity(poster.name, char.name, 1, []);
   }
-  return { AUTO_MOODS, addCommentFrom, autoPost, followerPost, followersReactTo, generatePost, submitUserComment };
-}
-
-function postFormatRule(mood, attachedImg) {
-  if (attachedImg) return `- 이번 글에는 사용자가 업로드해둔 캐릭터 그림/사진 1장이 함께 첨부된다. 이미지를 실제로 보고, 이미지 속 표정·시선·포즈·분위기와 맞는 캡션을 쓴다.
-- 예를 들어 캐릭터가 빤히 보는 사진이면, "뭘 그렇게 봐", "계속 볼 거야?", "눈 마주쳤네"처럼 그 시선 맥락을 캐릭터 말투로 자연스럽게 반영한다.
-- 사진 설명문처럼 길게 묘사하지 말고, 이미지에 붙는 SNS 짧은 말로 쓴다.
-- [PHOTO] 태그는 쓰지 말고 본문만 출력.`;
-  if (mood.includes("셀카")) return `- 이번 글은 "방금 찍은 셀카"에 붙이는 글이다. 사진을 직접 묘사하는 한 줄(예: "창가 역광, 머리 부스스")을 먼저 [PHOTO] 태그 뒤에 쓰고, 줄바꿈 후 캐릭터의 코멘트를 쓴다.
-형식:
-[PHOTO] (사진 장면 묘사 한 줄)
-(캐릭터의 코멘트 한두 줄)`;
-  if (mood.includes("무드")) return `- 이번 글은 "오늘의 무드" 카드다. [MOOD] 태그 뒤에 BGM/풍경/색감/사물 중 하나를 한 줄로 쓰고, 줄바꿈 후 캐릭터의 코멘트를 쓴다.
-형식:
-[MOOD] (예: 오늘의 BGM — ○○○ / 지금 보는 풍경 — ○○○)
-(캐릭터의 코멘트 한두 줄)`;
-  return "- 따옴표로 감싸지 말고 본문만 출력.";
-}
-
-function postSystemPrompt({ char, correctionBlock, formatRule, posts }) {
-  return `너는 지금부터 아래 캐릭터 본인이 되어, 그 캐릭터의 SNS(트위터/스레드 같은) 계정에 올릴 짧은 글 하나를 쓴다.
-
-[캐릭터]
-이름: ${char.name}
-${char.age ? `나이/설정: ${char.age}` : ""}
-페르소나: ${char.persona}
-${char.surface ? `겉모습/첫인상: ${char.surface}` : ""}
-${char.inner ? `속마음(겉과 다른 면): ${char.inner}` : ""}
-${char.situational ? `상황별 반응: ${char.situational}` : ""}
-${char.triggers ? `무너지거나 발끈하는 점: ${char.triggers}` : ""}
-${char.interests ? `좋아하는 것/관심사: ${char.interests}` : ""}
-${char.world ? `세계관/배경: ${char.world}` : ""}
-${relationshipBoundaryLine(char, "public")}
-${speechGuideLine(char.speech, "말투 특징")}
-${catchphraseGuideLine(char.catchphrase)}
-${selfSettingPriorityBlock(char, `${char.name} 자기 설정`)}
-
-[규칙]
-- 이 캐릭터 본인이 직접 쓴 SNS 게시글처럼 1인칭으로 쓴다. 설명문 아님.
-- 위 "말투 특징"은 참고 메모다. 거기에 적힌 문장·예시·키워드를 그대로 내뱉지 말고, 캐릭터답게 새 문장으로 말하라.
-- 말투는 어미·호흡·거리감·문장 길이로 은근하게 반영한다. 설정표를 읽는 듯한 설명문이나 복붙한 예문이면 실패다.
-- 짧게. 한두 문장, 길어야 세 문장. 실제 트윗 길이.
-- 겉모습만이 아니라 속마음·상황을 입체적으로 드러내라. 가끔은 겉과 속의 간극이 보이게.
-- 해시태그는 캐릭터가 쓸 법하면 1개 정도만, 아니면 생략.
-- 이모지는 캐릭터 성격에 맞으면 약간, 아니면 쓰지 않는다.
-- 메타발언 금지("AI로서" 등). 그냥 그 캐릭터로 존재할 것.
-${formatRule}${ANTI_REPEAT_RULES}${recentLinesBlock(posts.slice(0, 6).map((post) => post.text))}${correctionBlock()}`;
-}
-
-function parseGeneratedPost(rawText, mood, attachedImg) {
-  let text = stripQuotes(rawText);
-  let photoDesc = null;
-  let moodDesc = null;
-  const photoMatch = text.match(/\[PHOTO\]\s*(.+)/);
-  const moodMatch = text.match(/\[MOOD\]\s*(.+)/);
-  if (photoMatch) { photoDesc = photoMatch[1].split("\n")[0].trim(); text = text.replace(/\[PHOTO\]\s*.+(\n|$)/, "").trim(); }
-  if (moodMatch) { moodDesc = moodMatch[1].split("\n")[0].trim(); text = text.replace(/\[MOOD\]\s*.+(\n|$)/, "").trim(); }
-  if (attachedImg && mood.includes("셀카")) photoDesc = null;
-  return { moodDesc, photoDesc, text };
-}
-
-function generatedPostFromParsed(parsed, mood, attachedImg, isAuto, id) {
-  return { id, text: parsed.text, mood, time: new Date(), likes: Math.floor(Math.random() * 40) + 3, liked: false, photoDesc: parsed.photoDesc, moodDesc: parsed.moodDesc, img: attachedImg, isAuto, comments: [] };
+  return { addCommentFrom, followerPost, followersReactTo, generatePost, submitUserComment };
 }
 
 function commentRelationshipBlock({ affOf, commenter, postAuthorName, relLabelFor }) {
@@ -235,12 +157,12 @@ function commentUserContent(commenter, targetImage): GenerateMessage["content"] 
   return [{ type: "text", text: `(${commenter.name}가 첨부 이미지가 있는 글에 댓글을 단다. 이미지를 보고 반응한다.)` }, { type: "image_url", image_url: { url: targetImage } }];
 }
 
-function appendGeneratedComment(setPosts, postId, commenter, text, replyTo) {
-  setPosts((items) => items.map((post) => post.id === postId ? { ...post, comments: [...(post.comments || []), { name: commenter.name, handle: commenter.handle || commenter.name, text, replyTo }] } : post));
+function appendGeneratedComment(mutatePosts, postId, commenter, text, replyTo) {
+  mutatePosts((items) => items.map((post) => post.id === postId ? { ...post, comments: [...(post.comments || []), { name: commenter.name, handle: commenter.handle || commenter.name, text, replyTo }] } : post));
 }
 
-function appendUserComment(setPosts, postId, { handle, name, rootAuthor, txt }) {
-  setPosts((items) => items.map((post) => post.id === postId ? { ...post, comments: [...(post.comments || []), { name, handle, text: txt, byUser: true, replyTo: rootAuthor }] } : post));
+function appendUserComment(mutatePosts, postId, { handle, name, rootAuthor, txt }) {
+  mutatePosts((items) => items.map((post) => post.id === postId ? { ...post, comments: [...(post.comments || []), { name, handle, text: txt, byUser: true, replyTo: rootAuthor }] } : post));
 }
 
 function scheduleAuthorReply({ addCommentFrom, char, findPeerChar, name, postAuthorName, postId, priorComments, rootAuthor, target }) {
@@ -289,7 +211,7 @@ function followerPostUserContent(char, posterImg, quoteTarget): GenerateMessage[
 }
 
 function followerPostFromText({ char, postId, poster, posterImg, quoteTarget, text }) {
-  return { id: postId, text, mood: "팔로잉", time: new Date(), likes: Math.floor(Math.random() * 30) + 2, liked: false, author: poster.name, authorHandle: poster.handle || poster.name, authorSharedId: poster.sharedId || "", isAuto: true, img: posterImg, quoted: quoteTarget ? { name: char.name, handle: char.handle || char.name, text: quoteTarget.text } : null };
+  return { id: postId, text, mood: "팔로잉", time: new Date(), likes: Math.floor(Math.random() * 30) + 2, liked: false, author: poster.name, authorHandle: poster.handle || poster.name, authorCharacterId: poster.characterId || "", authorSharedId: poster.sharedId || "", isAuto: true, img: posterImg, quoted: quoteTarget ? { name: char.name, handle: char.handle || char.name, text: quoteTarget.text } : null };
 }
 
 function stripQuotes(text) {

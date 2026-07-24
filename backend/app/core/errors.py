@@ -16,6 +16,16 @@ class ForbiddenError(AppError):
         super().__init__("FORBIDDEN", message, 403)
 
 
+class NotFoundError(AppError):
+    def __init__(self, message: str = "Not found") -> None:
+        super().__init__("NOT_FOUND", message, 404)
+
+
 class BadRequestError(AppError):
     def __init__(self, message: str = "Bad request") -> None:
         super().__init__("BAD_REQUEST", message, 400)
+
+
+class ConflictError(AppError):
+    def __init__(self, message: str = "Conflict") -> None:
+        super().__init__("CONFLICT", message, 409)

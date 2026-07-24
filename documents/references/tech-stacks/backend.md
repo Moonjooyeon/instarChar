@@ -2,8 +2,8 @@
 title: Backend Tech Stack
 author: black (black@ashwoodfriends.com)
 created: 2026-05-07
-updated: 2026-06-26
-version: 2.2.0
+updated: 2026-07-23
+version: 2.3.0
 status: approved
 ---
 
@@ -61,6 +61,7 @@ The backend is being introduced to replace Supabase Auth/DB usage with server-ow
 | `backend/alembic.ini` | Alembic configuration |
 | `backend/migrations/env.py` | Alembic async migration runner |
 | `backend/migrations/versions/20260626_0001_initial_alive_schema.py` | Initial alive backend schema |
+| `backend/migrations/versions/20260723_0002_post_authority_and_usage.py` | Post revision, autonomous schedule, and PostgreSQL usage counters |
 
 ## Environment Variables
 
@@ -78,6 +79,13 @@ Defined in `.env.example`.
 | `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
 | `APPLE_CLIENT_ID` | Apple OAuth client ID |
 | `APPLE_CLIENT_SECRET` | Apple OAuth client secret or generated client secret |
+| `GEMINI_API_KEY` | Server-only Gemini API key |
+| `API_DAILY_LIMIT` | Per-user daily AI call limit stored and checked in PostgreSQL |
+| `API_MONTHLY_COST_LIMIT_USD` | System monthly estimated AI cost limit |
+| `AUTO_POST_SCHEDULER_ENABLED` | Enables the backend lifespan scheduler; defaults to `false` |
+| `AUTO_POST_POLL_SECONDS` | Due-post polling interval; defaults to `30` seconds |
+| `AUTO_POST_BATCH_SIZE` | Maximum due characters claimed per poll; defaults to `10` |
+| `AUTO_POST_DEFAULT_INTERVAL_SECONDS` | Default autonomous posting interval; `900` seconds |
 
 ## Implemented Backend Domains
 
@@ -87,7 +95,9 @@ Defined in `.env.example`.
 | Profile state | `backend/app/api/v1/profiles.py` | Implemented for profile backup, structured state, onboarding |
 | Shared characters and follows | `backend/app/api/v1/shared_characters.py` | Implemented for discovery, sharing, follows, follow-back |
 | DM threads | `backend/app/api/v1/dm_threads.py` | Implemented for owner/shared DM CRUD with participant checks |
-| AI generation | Not implemented yet | Planned Phase 7 |
+| AI generation | `backend/app/api/v1/ai.py` | Implemented with Gemini and PostgreSQL-backed usage limits |
+| Character posts | `backend/app/api/v1/characters.py` | Implemented with revision-based writes and backend generation |
+| Autonomous posts | `backend/app/services/auto_post_scheduler.py` | Implemented with PostgreSQL due-state and `SKIP LOCKED` claims |
 
 ## Verification
 
@@ -101,5 +111,5 @@ PYTHONPATH=backend backend/.venv/bin/pytest backend/tests
 Current expected pytest result:
 
 ```text
-32 passed
+72 passed
 ```

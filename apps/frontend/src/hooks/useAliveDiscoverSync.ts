@@ -61,7 +61,7 @@ export function useAliveDiscoverSync({
   verifyMutualLove,
 }: DiscoverSyncOptions): void {
   useEffect(() => {
-    if (canUseApp && ["discover", "dmlist", "dm"].includes(step)) loadSharedCharacters();
+    if (canUseApp && ["discover", "dmlist", "dm", "feed"].includes(step)) loadSharedCharacters();
   }, [canUseApp, step, session?.user?.id]);
   useEffect(() => {
     if (!canUseApp || !hasRemoteApiClient() || !session?.user || !activeId) {

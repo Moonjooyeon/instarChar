@@ -1,4 +1,7 @@
+import asyncio
 import logging
+from contextlib import asynccontextmanager, suppress
+from collections.abc import AsyncIterator
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -7,11 +10,27 @@ from fastapi.responses import JSONResponse
 from app.api.v1 import api_router
 from app.core.config import get_settings
 from app.core.errors import AppError
+from app.db.session import AsyncSessionLocal
+from app.services.auto_post_scheduler import AutoPostScheduler
 
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
-app = FastAPI(title=settings.app_name)
+
+
+@asynccontextmanager
+async def lifespan(application: FastAPI) -> AsyncIterator[None]:
+    task = None
+    if settings.auto_post_scheduler_enabled:
+        task = asyncio.create_task(AutoPostScheduler(settings, AsyncSessionLocal).run())
+    yield
+    if task:
+        task.cancel()
+        with suppress(asyncio.CancelledError):
+            await task
+
+
+app = FastAPI(title=settings.app_name, lifespan=lifespan)
 app.include_router(api_router)
 app.add_middleware(
     CORSMiddleware,
