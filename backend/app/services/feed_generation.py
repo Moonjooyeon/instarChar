@@ -60,7 +60,8 @@ class FeedGenerationService:
     def _request(self, name: str, character: dict[str, object], posts: list[object], mood: str) -> GenerateRequest:
         recent = [self._post_text(item) for item in list(posts or [])[:8]]
         system = "character-feed-post-v1\n캐릭터 설정에 맞는 SNS 글 하나를 JSON 객체로 작성하라. text는 필수이며 photoDesc와 moodDesc는 선택이다. 설명이나 코드펜스 없이 JSON만 출력하라."
-        prompt = {"name": name, "character": character, "mood": mood, "recent_posts": [item for item in recent if item]}
+        prompt_character = {key: value for key, value in character.items() if key not in {"avatarImg", "headerImg"}}
+        prompt = {"name": name, "character": prompt_character, "mood": mood, "recent_posts": [item for item in recent if item]}
         return GenerateRequest(flow="character-feed-post-v1", model="fast", max_tokens=1200, system=system, messages=[GenerateMessage(role="user", content=json.dumps(prompt, ensure_ascii=False))])
 
     def _post_from_result(self, result: GenerateApiResult, mood: str) -> dict[str, object] | None:

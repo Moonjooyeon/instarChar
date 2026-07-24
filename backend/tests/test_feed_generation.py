@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from collections.abc import Coroutine
 from dataclasses import dataclass
 from uuid import uuid4
@@ -41,6 +42,16 @@ class StubPosts:
 class StubUsage:
     async def reserve(self, owner_id: object, settings: Settings) -> UsageReservation:
         return UsageReservation(True)
+
+
+def test_feed_generation_excludes_profile_images_from_prompt() -> None:
+    service = FeedGenerationService(StubPosts(), StubUsage(), Settings(gemini_api_key="test"))
+    character = {"persona": "차분함", "avatarImg": "data:image/png;base64,avatar", "headerImg": "data:image/png;base64,header"}
+    request = service._request("세인", character, [], "일상")
+    content = request.messages[0].content
+    assert isinstance(content, str)
+    prompt = json.loads(content)
+    assert prompt["character"] == {"persona": "차분함"}
 
 
 def test_feed_generation_parses_and_saves_provider_result(monkeypatch: MonkeyPatch) -> None:
