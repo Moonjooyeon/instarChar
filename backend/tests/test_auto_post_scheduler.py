@@ -83,9 +83,14 @@ def test_retry_delay_is_exponential_and_capped() -> None:
     assert retry_delay_seconds(10) == 900
 
 
-def test_scheduler_settings_are_safe_for_local_tests() -> None:
+def test_scheduler_settings_enable_background_generation_by_default() -> None:
     settings = Settings(_env_file=None)
-    assert settings.auto_post_scheduler_enabled is False
+    assert settings.auto_post_scheduler_enabled is True
     assert settings.auto_post_poll_seconds == 30
     assert settings.auto_post_batch_size == 10
     assert settings.auto_post_default_interval_seconds == 900
+
+
+def test_scheduler_can_be_disabled_for_local_tests(monkeypatch: MonkeyPatch) -> None:
+    monkeypatch.setenv("AUTO_POST_SCHEDULER_ENABLED", "false")
+    assert Settings(_env_file=None).auto_post_scheduler_enabled is False
