@@ -42,7 +42,7 @@ def _timestamps() -> list[sa.Column[object]]:
 
 
 def _create_users() -> None:
-    op.create_table("users", _uuid_pk(), sa.Column("email", sa.String(length=320), nullable=False), sa.Column("provider", sa.Enum("google", "apple", name="user_provider", create_type=False), nullable=False), sa.Column("provider_subject", sa.String(length=255), nullable=False), *_timestamps(), sa.UniqueConstraint("provider", "provider_subject", name="uq_users_provider_subject"))
+    op.create_table("users", _uuid_pk(), sa.Column("email", sa.String(length=320), nullable=False), sa.Column("provider", postgresql.ENUM("google", "apple", name="user_provider", create_type=False), nullable=False), sa.Column("provider_subject", sa.String(length=255), nullable=False), *_timestamps(), sa.UniqueConstraint("provider", "provider_subject", name="uq_users_provider_subject"))
     op.create_table("profiles", sa.Column("user_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="CASCADE"), primary_key=True), sa.Column("display_name", sa.String(length=120), nullable=False, server_default=""), sa.Column("onboarded", sa.Boolean(), nullable=False, server_default=sa.text("false")), sa.Column("app_state", postgresql.JSONB(), nullable=False, server_default=sa.text("'{}'::jsonb")), *_timestamps())
 
 
