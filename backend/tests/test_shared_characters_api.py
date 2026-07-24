@@ -42,14 +42,16 @@ async def stub_current_user() -> StubUser:
 
 def test_discover_characters_returns_merged_dto(monkeypatch) -> None:
     owner_id = uuid4()
+    character_id = uuid4()
 
     async def discover(self: object) -> list[DiscoverCharacter]:
-        return [DiscoverCharacter(id="shared_1", sharedId=str(uuid4()), ownerId=owner_id, sourceAccountId="char-1", owner="@tester", ownerName="tester", shared=True, name="A")]
+        return [DiscoverCharacter(id="shared_1", characterId=str(character_id), sharedId=str(uuid4()), ownerId=owner_id, sourceAccountId="char-1", owner="@tester", ownerName="tester", shared=True, name="A")]
 
     monkeypatch.setattr(SharedCharacterRepository, "discover", discover)
     with make_test_client() as client:
         response = client.get("/api/discover/characters")
     assert response.status_code == 200
+    assert response.json()["characters"][0]["characterId"] == str(character_id)
     assert response.json()["characters"][0]["sourceAccountId"] == "char-1"
 
 
@@ -177,6 +179,14 @@ def test_relationship_follow_back_requires_mutual_love_words() -> None:
     assert repo._mutual_love(follower, target) is False
     target.character = {"relations": "A와 애인"}
     assert repo._mutual_love(follower, target) is True
+
+
+def test_discover_dtos_include_persistent_character_id() -> None:
+    repo = SharedCharacterRepository(StubSession())
+    character = SimpleNamespace(id=uuid4(), owner_id=uuid4(), source_account_id="char-1", character={}, name="A", handle="", posts=[], gallery=[], following=[])
+    shared = SimpleNamespace(id=uuid4(), owner_id=character.owner_id, source_account_id="char-1", owner_name="tester", name="A", handle="", persona="", tags=[], character={})
+    assert repo._character_dto(character).characterId == str(character.id)
+    assert repo._shared_dto(shared, character.id).characterId == str(character.id)
 
 
 def make_test_client() -> TestClient:

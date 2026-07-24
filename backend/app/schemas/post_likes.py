@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 
 
 class PostLikeTarget(BaseModel):
-    target_shared_character_id: UUID
+    target_character_id: UUID
     post_id: str = Field(min_length=1, max_length=120)
 
 

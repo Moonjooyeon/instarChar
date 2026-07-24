@@ -39,14 +39,14 @@ async def stub_current_user() -> StubUser:
 
 
 def test_query_post_likes_returns_batch_state(monkeypatch) -> None:
-    shared_id = uuid4()
+    character_id = uuid4()
 
     async def query(self: object, user: StubUser, payload: object) -> PostLikesResponse:
-        item = PostLikeItem(target_shared_character_id=shared_id, post_id="post-1", available=True, liked=True, likes=3)
+        item = PostLikeItem(target_character_id=character_id, post_id="post-1", available=True, liked=True, likes=3)
         return PostLikesResponse(items=[item])
 
     monkeypatch.setattr(PostLikesRepository, "query", query)
-    body = {"liker_account_id": "char-1", "targets": [{"target_shared_character_id": str(shared_id), "post_id": "post-1"}]}
+    body = {"liker_account_id": "char-1", "targets": [{"target_character_id": str(character_id), "post_id": "post-1"}]}
     with make_test_client() as client:
         response = client.post("/api/post-likes/query", json=body)
     assert response.status_code == 200
@@ -54,14 +54,14 @@ def test_query_post_likes_returns_batch_state(monkeypatch) -> None:
 
 
 def test_update_post_like_returns_canonical_state(monkeypatch) -> None:
-    shared_id = uuid4()
+    character_id = uuid4()
 
     async def update(self: object, user: StubUser, payload: object) -> PostLikeItem:
         assert payload.liker_account_id == "char-1"
-        return PostLikeItem(target_shared_character_id=shared_id, post_id="post-1", available=True, liked=payload.liked, likes=4)
+        return PostLikeItem(target_character_id=character_id, post_id="post-1", available=True, liked=payload.liked, likes=4)
 
     monkeypatch.setattr(PostLikesRepository, "update", update)
-    body = {"liker_account_id": "char-1", "target_shared_character_id": str(shared_id), "post_id": "post-1", "liked": True}
+    body = {"liker_account_id": "char-1", "target_character_id": str(character_id), "post_id": "post-1", "liked": True}
     with make_test_client() as client:
         response = client.put("/api/post-likes", json=body)
     assert response.status_code == 200
@@ -69,7 +69,7 @@ def test_update_post_like_returns_canonical_state(monkeypatch) -> None:
 
 
 def test_query_rejects_more_than_one_hundred_targets() -> None:
-    target = {"target_shared_character_id": str(uuid4()), "post_id": "post-1"}
+    target = {"target_character_id": str(uuid4()), "post_id": "post-1"}
     with make_test_client() as client:
         response = client.post("/api/post-likes/query", json={"liker_account_id": "char-1", "targets": [target] * 101})
     assert response.status_code == 422

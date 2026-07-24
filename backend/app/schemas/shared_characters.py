@@ -23,6 +23,7 @@ class ShareIdResponse(BaseModel):
 
 class DiscoverCharacter(BaseModel):
     id: str
+    characterId: str = ""
     sharedId: str = ""
     ownerId: UUID
     sourceAccountId: str

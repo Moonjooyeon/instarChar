@@ -22,13 +22,17 @@ class SharedCharacterRepository:
         character_rows = await self._characters()
         shared_rows = await self._shared_characters()
         merged = {self._source_key(row): self._character_dto(row) for row in character_rows}
+        character_ids = {self._source_key(row): row.id for row in character_rows}
         for row in shared_rows:
-            merged[self._source_key(row)] = self._shared_dto(row)
+            merged[self._source_key(row)] = self._shared_dto(row, character_ids.get(self._source_key(row)))
         return list(merged.values())
 
     async def get_shared(self, shared_id: UUID) -> Optional[DiscoverCharacter]:
         row = await self._shared_by_id(shared_id)
-        return self._shared_dto(row) if row else None
+        if not row:
+            return None
+        character = await self._character_by_source(row.owner_id, row.source_account_id)
+        return self._shared_dto(row, character.id if character else None)
 
     async def get_share_id(self, user: User, source_account_id: str) -> ShareId:
         row = await self._shared_by_source(user.id, source_account_id)
@@ -108,6 +112,10 @@ class SharedCharacterRepository:
         result = await self.session.execute(select(SharedCharacter).where(SharedCharacter.owner_id == owner_id, SharedCharacter.source_account_id == source_account_id))
         return result.scalar_one_or_none()
 
+    async def _character_by_source(self, owner_id: UUID, source_account_id: str) -> Optional[Character]:
+        result = await self.session.execute(select(Character).where(Character.owner_id == owner_id, Character.source_account_id == source_account_id))
+        return result.scalar_one_or_none()
+
     async def _follow_rows(self, shared_id: UUID) -> list[CharacterFollow]:
         stmt = select(CharacterFollow).where(CharacterFollow.target_shared_character_id == shared_id).order_by(CharacterFollow.created_at.desc())
         result = await self.session.execute(stmt)
@@ -141,12 +149,12 @@ class SharedCharacterRepository:
     def _follow_back_payload(self, follower: SharedCharacter) -> FollowRequest:
         return FollowRequest(follower_name=follower.owner_name, follower_account_id=follower.source_account_id, follower_character=follower.character)
 
-    def _shared_dto(self, row: SharedCharacter) -> DiscoverCharacter:
-        return DiscoverCharacter(id=f"shared_{row.id}", sharedId=str(row.id), ownerId=row.owner_id, sourceAccountId=row.source_account_id, owner=f"@{row.owner_name or 'user'}", ownerName=row.owner_name or "user", shared=True, name=row.name, handle=row.handle, persona=row.persona, tags=row.tags, posts=list(row.character.get("posts", [])), character=row.character)
+    def _shared_dto(self, row: SharedCharacter, character_id: Optional[UUID]) -> DiscoverCharacter:
+        return DiscoverCharacter(id=f"shared_{row.id}", characterId=str(character_id or ""), sharedId=str(row.id), ownerId=row.owner_id, sourceAccountId=row.source_account_id, owner=f"@{row.owner_name or 'user'}", ownerName=row.owner_name or "user", shared=True, name=row.name, handle=row.handle, persona=row.persona, tags=row.tags, posts=list(row.character.get("posts", [])), character=row.character)
 
     def _character_dto(self, row: Character) -> DiscoverCharacter:
         tags = [row.character.get("age"), row.character.get("surface"), row.character.get("interests")]
-        return DiscoverCharacter(id=f"char_{row.owner_id}_{row.source_account_id}", ownerId=row.owner_id, sourceAccountId=row.source_account_id, owner=f"@{row.character.get('ownerName', 'user')}", ownerName=str(row.character.get("ownerName", "user")), autoSynced=True, name=row.name, handle=row.handle, persona=str(row.character.get("persona", "")), tags=[item for item in tags if item], posts=row.posts, gallery=row.gallery, following=row.following, character=row.character)
+        return DiscoverCharacter(id=f"char_{row.owner_id}_{row.source_account_id}", characterId=str(row.id), ownerId=row.owner_id, sourceAccountId=row.source_account_id, owner=f"@{row.character.get('ownerName', 'user')}", ownerName=str(row.character.get("ownerName", "user")), autoSynced=True, name=row.name, handle=row.handle, persona=str(row.character.get("persona", "")), tags=[item for item in tags if item], posts=row.posts, gallery=row.gallery, following=row.following, character=row.character)
 
     def _source_key(self, row: object) -> str:
         return f"{row.owner_id}:{row.source_account_id}"

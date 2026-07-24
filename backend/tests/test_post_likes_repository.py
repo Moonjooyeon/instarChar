@@ -8,7 +8,7 @@ import pytest
 from sqlalchemy import ForeignKeyConstraint, UniqueConstraint
 
 from app.core.errors import ForbiddenError
-from app.models import CharacterPostLike, SharedCharacter
+from app.models import Character, CharacterPostLike
 from app.repositories.post_likes import PostLikesRepository
 from app.schemas.post_likes import PostLikeTarget, PostLikeUpdate, PostLikesQuery
 
@@ -69,37 +69,46 @@ def test_model_prevents_duplicate_character_post_likes() -> None:
 
 def test_query_returns_available_and_missing_posts() -> None:
     owner_id = uuid4()
-    shared_id = uuid4()
-    shared = shared_row(shared_id)
-    results = [StubResult(scalar=uuid4()), StubResult(rows=[shared]), StubResult(rows=[(shared_id, "post-1", 2)]), StubResult(rows=[(shared_id, "post-1")])]
-    payload = PostLikesQuery(liker_account_id="char-1", targets=[target(shared_id, "post-1"), target(shared_id, "missing")])
+    character_id = uuid4()
+    character = character_row(character_id)
+    results = [StubResult(scalar=uuid4()), StubResult(rows=[character]), StubResult(rows=[(character_id, "post-1", 2)]), StubResult(rows=[(character_id, "post-1")])]
+    payload = PostLikesQuery(liker_account_id="char-1", targets=[target(character_id, "post-1"), target(character_id, "missing")])
     response = asyncio.run(PostLikesRepository(StubSession(results)).query(StubUser(owner_id), payload))
-    assert response.items[0].model_dump() == {"target_shared_character_id": shared_id, "post_id": "post-1", "available": True, "liked": True, "likes": 5}
+    assert response.items[0].model_dump() == {"target_character_id": character_id, "post_id": "post-1", "available": True, "liked": True, "likes": 5}
     assert response.items[1].available is False
     assert response.items[1].likes == 0
 
 
 def test_update_like_is_idempotent_and_returns_canonical_count() -> None:
     owner_id = uuid4()
-    shared_id = uuid4()
-    session = StubSession([StubResult(scalar=uuid4()), StubResult(scalar=shared_row(shared_id)), StubResult(scalar=uuid4()), StubResult(), StubResult(scalar=1)])
-    payload = PostLikeUpdate(liker_account_id="char-1", target_shared_character_id=shared_id, post_id="post-1", liked=True)
+    character_id = uuid4()
+    session = StubSession([StubResult(scalar=uuid4()), StubResult(scalar=character_row(character_id)), StubResult(), StubResult(scalar=1)])
+    payload = PostLikeUpdate(liker_account_id="char-1", target_character_id=character_id, post_id="post-1", liked=True)
     response = asyncio.run(PostLikesRepository(session).update(StubUser(owner_id), payload))
     assert response.liked is True
     assert response.likes == 4
-    assert "ON CONFLICT ON CONSTRAINT uq_character_post_likes DO NOTHING" in str(session.statements[3])
+    assert "ON CONFLICT ON CONSTRAINT uq_character_post_likes DO NOTHING" in str(session.statements[2])
     assert session.commits == 1
 
 
+def test_update_allows_unshared_target_character() -> None:
+    character_id = uuid4()
+    session = StubSession([StubResult(scalar=uuid4()), StubResult(scalar=character_row(character_id)), StubResult(), StubResult(scalar=1)])
+    payload = PostLikeUpdate(liker_account_id="char-1", target_character_id=character_id, post_id="post-1", liked=True)
+    response = asyncio.run(PostLikesRepository(session).update(StubUser(uuid4()), payload))
+    assert response.target_character_id == character_id
+    assert response.liked is True
+
+
 def test_update_rejects_unowned_liker_character() -> None:
-    payload = PostLikeUpdate(liker_account_id="other", target_shared_character_id=uuid4(), post_id="post-1", liked=True)
+    payload = PostLikeUpdate(liker_account_id="other", target_character_id=uuid4(), post_id="post-1", liked=True)
     with pytest.raises(ForbiddenError):
         asyncio.run(PostLikesRepository(StubSession([StubResult()])).update(StubUser(uuid4()), payload))
 
 
-def shared_row(shared_id: UUID) -> SharedCharacter:
-    return SharedCharacter(id=shared_id, owner_id=uuid4(), source_account_id="target", name="세라", character={"posts": [{"id": "post-1", "likes": 3}]})
+def character_row(character_id: UUID) -> Character:
+    return Character(id=character_id, owner_id=uuid4(), source_account_id="target", name="세라", posts=[{"id": "post-1", "likes": 3}])
 
 
-def target(shared_id: UUID, post_id: str) -> PostLikeTarget:
-    return PostLikeTarget(target_shared_character_id=shared_id, post_id=post_id)
+def target(character_id: UUID, post_id: str) -> PostLikeTarget:
+    return PostLikeTarget(target_character_id=character_id, post_id=post_id)
