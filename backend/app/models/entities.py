@@ -6,7 +6,7 @@ from decimal import Decimal
 from typing import Optional
 from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, Date, DateTime, Enum, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint, func
+from sqlalchemy import Boolean, Date, DateTime, Enum, ForeignKey, ForeignKeyConstraint, Index, Integer, Numeric, String, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -99,6 +99,21 @@ class CharacterFollow(Base):
     follower_account_id: Mapped[str] = mapped_column(String(120), nullable=False)
     follower_character: Mapped[JsonMap] = mapped_column(JSONB, nullable=False, default=dict)
     target_shared_character_id: Mapped[UUID] = mapped_column(ForeignKey("shared_characters.id", ondelete="CASCADE"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class CharacterPostLike(Base):
+    __tablename__ = "character_post_likes"
+    __table_args__ = (
+        ForeignKeyConstraint(["liker_owner_id", "liker_account_id"], ["characters.owner_id", "characters.source_account_id"], ondelete="CASCADE", name="fk_post_likes_liker_character"),
+        UniqueConstraint("liker_owner_id", "liker_account_id", "target_shared_character_id", "target_post_id", name="uq_character_post_likes"),
+        Index("ix_character_post_likes_target", "target_shared_character_id", "target_post_id"),
+    )
+    id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid4)
+    liker_owner_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), nullable=False)
+    liker_account_id: Mapped[str] = mapped_column(String(120), nullable=False)
+    target_shared_character_id: Mapped[UUID] = mapped_column(ForeignKey("shared_characters.id", ondelete="CASCADE"), nullable=False)
+    target_post_id: Mapped[str] = mapped_column(String(120), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
