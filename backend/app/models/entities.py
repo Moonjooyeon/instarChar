@@ -21,6 +21,19 @@ class UserProvider(str, enum.Enum):
     apple = "apple"
 
 
+class UserModerationStatus(str, enum.Enum):
+    active = "active"
+    suspended = "suspended"
+    banned = "banned"
+
+
+class ReportStatus(str, enum.Enum):
+    pending = "pending"
+    reviewing = "reviewing"
+    resolved = "resolved"
+    dismissed = "dismissed"
+
+
 class TimestampMixin:
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
@@ -33,6 +46,7 @@ class User(TimestampMixin, Base):
     email: Mapped[str] = mapped_column(String(320), nullable=False)
     provider: Mapped[UserProvider] = mapped_column(Enum(UserProvider, name="user_provider"), nullable=False)
     provider_subject: Mapped[str] = mapped_column(String(255), nullable=False)
+    moderation_status: Mapped[UserModerationStatus] = mapped_column(Enum(UserModerationStatus, name="user_moderation_status"), nullable=False, default=UserModerationStatus.active)
     profile: Mapped[Profile] = relationship(back_populates="user", cascade="all, delete-orphan")
 
 
@@ -44,6 +58,41 @@ class NativeOAuthCode(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     used_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class UserPolicyConsent(Base):
+    __tablename__ = "user_policy_consents"
+    __table_args__ = (UniqueConstraint("user_id", "terms_version", name="uq_user_policy_consents_version"),)
+    id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid4)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    terms_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    accepted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class UserBlock(Base):
+    __tablename__ = "user_blocks"
+    __table_args__ = (UniqueConstraint("blocker_id", "blocked_id", name="uq_user_blocks_pair"),)
+    id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid4)
+    blocker_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    blocked_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ContentReport(TimestampMixin, Base):
+    __tablename__ = "content_reports"
+    id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid4)
+    reporter_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    target_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    target_owner_id: Mapped[Optional[UUID]] = mapped_column(PgUUID(as_uuid=True))
+    target_reference: Mapped[str] = mapped_column(String(500), nullable=False)
+    reason: Mapped[str] = mapped_column(String(32), nullable=False)
+    detail: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    snapshot: Mapped[JsonMap] = mapped_column(JSONB, nullable=False, default=dict)
+    status: Mapped[ReportStatus] = mapped_column(Enum(ReportStatus, name="report_status"), nullable=False, default=ReportStatus.pending)
+    resolution_action: Mapped[str] = mapped_column(String(32), nullable=False, default="none")
+    moderator_note: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    resolved_by: Mapped[str] = mapped_column(String(120), nullable=False, default="")
+    resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
 
 class Profile(TimestampMixin, Base):

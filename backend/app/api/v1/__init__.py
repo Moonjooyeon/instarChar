@@ -4,6 +4,7 @@ from app.api.v1.ai import router as ai_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.characters import router as characters_router
 from app.api.v1.dm_threads import router as dm_threads_router
+from app.api.v1.moderation import router as moderation_router
 from app.api.v1.post_likes import router as post_likes_router
 from app.api.v1.profiles import router as profile_router
 from app.api.v1.shared_characters import router as shared_characters_router
@@ -17,3 +18,4 @@ api_router.include_router(profile_router)
 api_router.include_router(post_likes_router)
 api_router.include_router(shared_characters_router)
 api_router.include_router(dm_threads_router)
+api_router.include_router(moderation_router)

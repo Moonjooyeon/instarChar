@@ -93,6 +93,7 @@ import { useAliveRelationshipSync } from "@/hooks/useAliveRelationshipSync";
 import { useAliveSessionBootstrap } from "@/hooks/useAliveSessionBootstrap";
 import { useAliveSessionAnalysis } from "@/hooks/useAliveSessionAnalysis";
 import { useAliveStructuredPersistence } from "@/hooks/useAliveStructuredPersistence";
+import { useAliveSafety } from "@/hooks/useAliveSafety";
 import { useCharacterAccounts } from "@/hooks/useCharacterAccounts";
 
 // ─────────────────────────────────────────────
@@ -257,7 +258,19 @@ export function useAliveAppController() {
     profileName,
     session,
   });
-  const feedFollowing = hydrateFollowedCharacters(following, sharedCharacters);
+  const {
+    acceptTerms,
+    blockedUserIds,
+    blockUser,
+    consentAccepted,
+    consentLoaded,
+    reportTarget,
+    setReportTarget,
+    submitReport,
+    termsVersion,
+  } = useAliveSafety({ session, setSaveStatus });
+  const safeFollowing = following.filter((item) => !item.ownerId || !blockedUserIds.includes(item.ownerId));
+  const feedFollowing = hydrateFollowedCharacters(safeFollowing, sharedCharacters);
   const {
     findPeerChar,
   } = useAlivePeerLookup({
@@ -640,6 +653,7 @@ export function useAliveAppController() {
   const {
     clearLocalAuthStorage,
     completeOnboarding,
+    deleteAccount,
     readableAuthError,
     recoverAuthScreen,
     signInWithProvider,
@@ -687,13 +701,14 @@ export function useAliveAppController() {
     syncStructuredState,
   });
 
-  const canUseApp = !hasBackendApiConfig || (session && stateReady);
-  const authBusy = hasBackendApiConfig && (authLoading || profileLoading || (session && !stateReady));
+  const canUseApp = !hasBackendApiConfig || (session && stateReady && consentLoaded && consentAccepted);
+  const authBusy = hasBackendApiConfig && (authLoading || profileLoading || (session && (!stateReady || !consentLoaded)));
   const appScreenVisible = canUseApp && (
     ["home", "dump", "confirm", "feed", "discover", "dmlist"].includes(step)
     || (step === "dm" && peer)
   );
-  const hasMainScreen = authBusy || (hasBackendApiConfig && !authLoading && !session) || appScreenVisible;
+  const needsSafetyConsent = Boolean(hasBackendApiConfig && session && consentLoaded && !consentAccepted);
+  const hasMainScreen = authBusy || needsSafetyConsent || (hasBackendApiConfig && !authLoading && !session) || appScreenVisible;
   const showRecoveryScreen = !hasMainScreen;
   const {
     navApplyingRef,
@@ -1012,6 +1027,7 @@ export function useAliveAppController() {
   const initial = char.name.trim() ? char.name.trim()[0] : "?";
 
   const appViewCtx = {
+    acceptTerms,
     accounts,
     accountSnapshot,
     activeId,
@@ -1046,12 +1062,14 @@ export function useAliveAppController() {
     autoChatRef,
     autoChatting,
     baseFollowerCount,
+    blockedUserIds,
     blankAppState,
     blankChar,
     bumpAffinity,
     bumpMutual,
     bumpRoomAffinity,
     bumpRoomMutual,
+    blockUser,
     canActivateSpecialRelation,
     canAutoComment,
     canonicalDmKey,
@@ -1069,6 +1087,8 @@ export function useAliveAppController() {
     commentText,
     compactProfileBackup,
     completeOnboarding,
+    consentAccepted,
+    consentLoaded,
     confirmDeleteCharacter,
     confirmReady,
     ConfirmScreen,
@@ -1079,6 +1099,7 @@ export function useAliveAppController() {
     defaultCommentAs,
     defaultDmTitle,
     deleteComment,
+    deleteAccount,
     deletedDmKeys,
     deletedDmKeysRef,
     deleteDmThread,
@@ -1242,6 +1263,7 @@ export function useAliveAppController() {
     publicFollowingCount,
     publicPostSnapshot,
     publicProfile,
+    reportTarget,
     POST_MOODS,
     QUICK_FIXES,
     readableAuthError,
@@ -1354,6 +1376,7 @@ export function useAliveAppController() {
     setProfileName,
     setProposal,
     setPublicProfile,
+    setReportTarget,
     setRelationLabelFor,
     setRelationResult,
     setRelationToLove,
@@ -1402,6 +1425,7 @@ export function useAliveAppController() {
     step,
     stopAutoChat,
     submitUserComment,
+    submitReport,
     switchAccount,
     SYMMETRIC_RELATION_BASE,
     symmetricRelationBaseFromLabel,
@@ -1410,6 +1434,7 @@ export function useAliveAppController() {
     syncOwnFollowRows,
     syncStructuredState,
     timeAgo,
+    termsVersion,
     timelinePosts,
     isLikePending,
     toggleFollow,

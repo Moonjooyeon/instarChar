@@ -1,0 +1,100 @@
+:root {
+  color-scheme: dark;
+  font-family: Pretendard, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", sans-serif;
+  background: #120f18;
+  color: #f4f2f8;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(circle at 15% 0%, #30204a 0, transparent 34rem),
+    #120f18;
+}
+
+main {
+  width: min(760px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 56px 0 80px;
+}
+
+header {
+  padding-bottom: 28px;
+  border-bottom: 1px solid #393241;
+}
+
+.brand {
+  color: #b99cff;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: .12em;
+}
+
+h1 {
+  margin: 12px 0 10px;
+  font-size: clamp(30px, 7vw, 44px);
+  letter-spacing: -.04em;
+}
+
+h2 {
+  margin: 36px 0 12px;
+  font-size: 19px;
+}
+
+h3 {
+  margin: 24px 0 8px;
+  font-size: 16px;
+}
+
+p,
+li {
+  color: #cbc5d3;
+  font-size: 15px;
+  line-height: 1.75;
+}
+
+ul,
+ol {
+  padding-left: 22px;
+}
+
+a {
+  color: #c8b3ff;
+}
+
+.meta,
+.note {
+  color: #9f97aa;
+  font-size: 13px;
+}
+
+.notice {
+  margin: 24px 0;
+  padding: 18px;
+  border: 1px solid #514267;
+  border-radius: 14px;
+  background: rgba(38, 28, 52, .72);
+}
+
+.action {
+  display: inline-block;
+  margin: 8px 0 4px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #8f6ee8, #d66ba5);
+  color: #fff;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+footer {
+  margin-top: 48px;
+  padding-top: 22px;
+  border-top: 1px solid #393241;
+  color: #8f8799;
+  font-size: 13px;
+}

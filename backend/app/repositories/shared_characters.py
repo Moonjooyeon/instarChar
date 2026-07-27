@@ -5,8 +5,9 @@ from sqlalchemy import delete, func, select, tuple_
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Character, CharacterFollow, SharedCharacter, User
+from app.models import Character, CharacterFollow, SharedCharacter, User, UserBlock, UserModerationStatus
 from app.schemas.shared_characters import DiscoverCharacter, FollowRequest, FollowSnapshotRequest, FollowerRow, SharedCharacterUpdate
+from app.services.content_safety import require_safe_content
 
 
 class ShareId:
@@ -18,18 +19,15 @@ class SharedCharacterRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
-    async def discover(self) -> list[DiscoverCharacter]:
-        character_rows = await self._characters()
-        shared_rows = await self._shared_characters()
-        merged = {self._source_key(row): self._character_dto(row) for row in character_rows}
-        character_ids = {self._source_key(row): row.id for row in character_rows}
-        for row in shared_rows:
-            merged[self._source_key(row)] = self._shared_dto(row, character_ids.get(self._source_key(row)))
-        return list(merged.values())
+    async def discover(self, viewer_id: UUID) -> list[DiscoverCharacter]:
+        excluded = await self._excluded_owner_ids(viewer_id)
+        shared_rows = await self._shared_characters(excluded)
+        character_ids = await self._character_ids(shared_rows)
+        return [self._shared_dto(row, character_ids.get(self._source_key(row))) for row in shared_rows]
 
-    async def get_shared(self, shared_id: UUID) -> Optional[DiscoverCharacter]:
+    async def get_shared(self, shared_id: UUID, viewer_id: UUID) -> Optional[DiscoverCharacter]:
         row = await self._shared_by_id(shared_id)
-        if not row:
+        if not row or row.owner_id in await self._excluded_owner_ids(viewer_id):
             return None
         character = await self._character_by_source(row.owner_id, row.source_account_id)
         return self._shared_dto(row, character.id if character else None)
@@ -39,6 +37,7 @@ class SharedCharacterRepository:
         return ShareId(row.id if row else None)
 
     async def upsert_shared(self, user: User, source_account_id: str, payload: SharedCharacterUpdate) -> ShareId:
+        require_safe_content(payload.model_dump(mode="python"))
         row = self._payload_row(user, source_account_id, payload)
         stmt = insert(SharedCharacter).values(row)
         update_columns = {key: stmt.excluded[key] for key in row if key not in ["owner_id", "source_account_id"]}
@@ -63,13 +62,16 @@ class SharedCharacterRepository:
         counts.update({row[0]: row[1] for row in result.all()})
         return counts
 
-    async def followers(self, shared_id: UUID) -> list[FollowerRow]:
+    async def followers(self, shared_id: UUID, viewer_id: UUID) -> list[FollowerRow]:
         rows = await self._follow_rows(shared_id)
+        excluded = await self._excluded_owner_ids(viewer_id)
+        rows = [row for row in rows if row.follower_id not in excluded]
         shared_rows = await self._shared_by_follow_rows(rows)
         return [self._follower_dto(row, shared_rows.get((row.follower_id, row.follower_account_id))) for row in rows]
 
     async def follow(self, user: User, shared_id: UUID, payload: FollowRequest) -> bool:
-        if not await self._shared_by_id(shared_id):
+        target = await self._shared_by_id(shared_id)
+        if not target or target.owner_id in await self._excluded_owner_ids(user.id):
             return False
         await self._upsert_follow(user.id, shared_id, payload)
         await self.session.commit()
@@ -96,13 +98,22 @@ class SharedCharacterRepository:
         await self.session.commit()
         return True
 
-    async def _characters(self) -> list[Character]:
-        result = await self.session.execute(select(Character).limit(120))
+    async def _shared_characters(self, excluded: set[UUID]) -> list[SharedCharacter]:
+        stmt = select(SharedCharacter).join(User, User.id == SharedCharacter.owner_id).where(User.moderation_status == UserModerationStatus.active)
+        result = await self.session.execute(stmt.where(SharedCharacter.owner_id.not_in(excluded)).order_by(SharedCharacter.created_at.desc()).limit(80))
         return list(result.scalars().all())
 
-    async def _shared_characters(self) -> list[SharedCharacter]:
-        result = await self.session.execute(select(SharedCharacter).order_by(SharedCharacter.created_at.desc()).limit(80))
-        return list(result.scalars().all())
+    async def _character_ids(self, rows: list[SharedCharacter]) -> dict[str, UUID]:
+        if not rows:
+            return {}
+        filters = [(row.owner_id, row.source_account_id) for row in rows]
+        result = await self.session.execute(select(Character).where(tuple_(Character.owner_id, Character.source_account_id).in_(filters)))
+        return {self._source_key(row): row.id for row in result.scalars().all()}
+
+    async def _excluded_owner_ids(self, viewer_id: UUID) -> set[UUID]:
+        stmt = select(UserBlock.blocker_id, UserBlock.blocked_id).where((UserBlock.blocker_id == viewer_id) | (UserBlock.blocked_id == viewer_id))
+        result = await self.session.execute(stmt)
+        return {blocked if blocker == viewer_id else blocker for blocker, blocked in result.all()}
 
     async def _shared_by_id(self, shared_id: UUID) -> Optional[SharedCharacter]:
         result = await self.session.execute(select(SharedCharacter).where(SharedCharacter.id == shared_id))

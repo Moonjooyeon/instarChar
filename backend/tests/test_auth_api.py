@@ -154,6 +154,18 @@ def test_logout_clears_session_cookie() -> None:
     assert "alive_session" in response.headers.get("set-cookie", "")
 
 
+def test_delete_account_removes_user_data_and_clears_cookie(monkeypatch: MonkeyPatch) -> None:
+    deleted_user_ids: list[object] = []
+    async def delete_account(self: object, user: StubUser) -> None:
+        deleted_user_ids.append(user.id)
+    monkeypatch.setattr("app.api.v1.auth.UserRepository.delete_account", delete_account)
+    with make_test_client() as client:
+        response = client.delete("/api/auth/account")
+    assert response.status_code == 204
+    assert len(deleted_user_ids) == 1
+    assert "alive_session" in response.headers.get("set-cookie", "")
+
+
 def test_google_callback_sets_session_cookie(monkeypatch) -> None:
     async def complete(self: object, provider: UserProvider, code: str, state: str) -> OAuthCompletion:
         assert provider == UserProvider.google

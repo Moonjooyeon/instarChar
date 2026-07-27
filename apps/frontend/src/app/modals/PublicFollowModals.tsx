@@ -3,6 +3,7 @@ import React from "react";
 export function PublicFollowModals({ ctx }) {
   const {
     activeSharedId,
+    blockUser,
     canUseApp,
     followPanel,
     following,
@@ -14,6 +15,8 @@ export function PublicFollowModals({ ctx }) {
     requestDmEntry,
     setFollowPanel,
     setPublicProfile,
+    setReportTarget,
+    setFollowing,
     setWorldModal,
     sharedFollowers,
     toggleFollow,
@@ -42,6 +45,21 @@ export function PublicFollowModals({ ctx }) {
               <div className="al-public-actions">
                 <button className="al-public-dm" onClick={() => { setPublicProfile(null); requestDmEntry(publicProfile, "char"); }}>✉ 바로 DM</button>
                 <button className={`al-public-follow ${isFollowing(publicProfile.id) ? "on" : ""}`} onClick={() => toggleFollow(publicProfile)}>{isFollowing(publicProfile.id) ? "팔로잉 취소" : "+ 팔로우"}</button>
+                <button className="al-public-safety" onClick={() => setReportTarget({
+                  targetType: "character",
+                  targetOwnerId: publicProfile.ownerId,
+                  targetReference: publicProfile.sharedId || publicProfile.characterId || publicProfile.id,
+                  snapshot: { name: publicProfile.name, handle: publicProfile.handle, persona: publicProfile.persona },
+                  label: `${publicProfile.name} 캐릭터`,
+                })}>신고</button>
+                <button className="al-public-safety danger" onClick={() => {
+                  if (!publicProfile.ownerId || !window.confirm(`${publicProfile.name}의 운영 사용자를 차단할까요? 관련 캐릭터와 콘텐츠가 모두 숨겨집니다.`)) return;
+                  void blockUser(publicProfile.ownerId).then((blocked) => {
+                    if (!blocked) return;
+                    setFollowing((items) => items.filter((item) => item.ownerId !== publicProfile.ownerId));
+                    setPublicProfile(null);
+                  });
+                }}>차단</button>
               </div>
             </div>
           </div>

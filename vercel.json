@@ -4,6 +4,9 @@
   "buildCommand": "npm run build",
   "outputDirectory": "apps/frontend/dist",
   "rewrites": [
+    { "source": "/privacy/:path*", "destination": "/privacy/index.html" },
+    { "source": "/terms/:path*", "destination": "/terms/index.html" },
+    { "source": "/account-deletion/:path*", "destination": "/account-deletion/index.html" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [

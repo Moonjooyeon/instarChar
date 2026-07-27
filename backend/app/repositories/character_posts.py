@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.errors import BadRequestError, ConflictError
 from app.models import Character, SharedCharacter, User
 from app.schemas.character_posts import AutoPostUpdate, CharacterPostsResponse, CharacterPostsUpdate
+from app.services.content_safety import require_safe_content
 
 
 class CharacterPostsRepository:
@@ -20,6 +21,7 @@ class CharacterPostsRepository:
         return self.response(row)
 
     async def save(self, user: User, source_account_id: str, payload: CharacterPostsUpdate) -> CharacterPostsResponse:
+        require_safe_content(payload.posts)
         row = await self.owned_character(user.id, source_account_id, lock=True)
         if row.posts_revision != payload.revision:
             raise ConflictError("Post revision is stale")
@@ -40,6 +42,7 @@ class CharacterPostsRepository:
         return self.response(row)
 
     async def append_generated_post(self, owner_id: UUID, source_account_id: str, post: dict[str, object], is_auto: bool = False) -> CharacterPostsResponse:
+        require_safe_content(post)
         row = await self.owned_character(owner_id, source_account_id, lock=True)
         row.posts = [post, *list(row.posts or [])][:40]
         row.posts_revision += 1

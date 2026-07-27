@@ -1,7 +1,7 @@
 import React from "react";
 
 export function DmMessages({ ctx }) {
-  const { char, dm, dmEndRef, dmSending, josa, peer, peerInitial, peerName, setFixTarget, setFixText, speakerName } = ctx;
+  const { char, dm, dmEndRef, dmKey, dmSending, josa, peer, peerInitial, peerName, setFixTarget, setFixText, setReportTarget, speakerName } = ctx;
   return (
     <div className="al-dmscroll">
       {dm.length === 0 && (
@@ -22,6 +22,13 @@ export function DmMessages({ ctx }) {
               {message.img && <img className="al-bubble-img" src={message.img} alt="" />}
               {message.text && !(message.img && message.text === "(사진)") && <span className="al-bubble-text">{message.text}</span>}
               {canFixDmLine && <button className="al-fixbtn-dm" onClick={() => { setFixTarget({ type: "dm", index, text: message.text, who: message.from }); setFixText(""); }}>⚠ 캐해 아님</button>}
+              {fromPeer && <button className="al-fixbtn-dm safety" onClick={() => setReportTarget({
+                targetType: peer.ownerId ? "dm_message" : "ai_content",
+                targetOwnerId: peer.ownerId || undefined,
+                targetReference: `${dmKey}:${index}`,
+                snapshot: { from: message.from, text: message.text || "", image: Boolean(message.img) },
+                label: `${message.from}의 DM`,
+              })}>신고</button>}
             </div>
           </div>
         );

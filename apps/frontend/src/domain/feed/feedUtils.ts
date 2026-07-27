@@ -13,6 +13,7 @@ export type FeedPost = {
   authorHandle?: string;
   authorAvatarImg?: string;
   authorCharacterId?: string;
+  authorOwnerId?: string;
   authorSharedId?: string;
   mood?: string;
   [key: string]: unknown;
@@ -20,6 +21,7 @@ export type FeedPost = {
 
 export type FollowedCharacter = {
   id?: string;
+  ownerId?: string;
   characterId?: string;
   sharedId?: string;
   name?: string;
@@ -133,6 +135,7 @@ export function postsFromFollowedCharacter(poolChar: FollowedCharacter): FeedPos
       authorHandle: poolChar.handle || poolChar.name,
       authorAvatarImg: poolChar.avatarImg || "",
       authorCharacterId: poolChar.characterId || "",
+      authorOwnerId: poolChar.ownerId || "",
       authorSharedId: poolChar.sharedId || "",
       mood: post.mood || "팔로잉",
       time: post.time || new Date().toISOString(),

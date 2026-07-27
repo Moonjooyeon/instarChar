@@ -1,8 +1,14 @@
 import React from "react";
 import { USER_PERSONA_FEATURE_ENABLED } from "@/domain/app/featureFlags";
+import {
+  ACCOUNT_DELETION_URL,
+  PRIVACY_POLICY_URL,
+  TERMS_URL,
+} from "@/domain/app/legal";
 
 export function HomeScreen({
   accounts,
+  deleteAccount,
   deletePersona,
   editAccount,
   hasBackendApiConfig,
@@ -76,6 +82,16 @@ export function HomeScreen({
             <button className="al-pm-add" onClick={() => setPersonaDraft({ name: "", age: "", persona: "", speech: "" })}>+ 페르소나 만들기</button>
           </div>
         </div>}
+        {hasBackendApiConfig && (
+          <div className="al-account-settings">
+            <nav aria-label="법률 및 계정 안내">
+              <a href={PRIVACY_POLICY_URL} target="_blank" rel="noreferrer">개인정보처리방침</a>
+              <a href={TERMS_URL} target="_blank" rel="noreferrer">이용약관</a>
+              <a href={ACCOUNT_DELETION_URL} target="_blank" rel="noreferrer">계정 삭제 안내</a>
+            </nav>
+            <button onClick={deleteAccount}>계정 및 모든 데이터 삭제</button>
+          </div>
+        )}
       </div>
     </div>
   );

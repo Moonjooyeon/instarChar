@@ -1,11 +1,11 @@
 from uuid import UUID
 from typing import Optional
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models import Profile, User, UserProvider
+from app.models import Profile, SharedDmThread, User, UserProvider
 
 
 class UserRepository:
@@ -32,3 +32,9 @@ class UserRepository:
         if existing:
             return existing
         return await self.create_provider_user(email, provider, subject, display_name)
+
+    async def delete_account(self, user: User) -> None:
+        statement = delete(SharedDmThread).where(SharedDmThread.participant_user_ids.contains([user.id]))
+        await self.session.execute(statement)
+        await self.session.delete(user)
+        await self.session.commit()

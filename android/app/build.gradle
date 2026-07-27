@@ -1,5 +1,11 @@
 apply plugin: 'com.android.application'
 
+def releaseKeystorePath = System.getenv("ALIVE_ANDROID_KEYSTORE_PATH")
+def releaseKeyAlias = System.getenv("ALIVE_ANDROID_KEY_ALIAS")
+def releaseKeyPassword = System.getenv("ALIVE_ANDROID_KEY_PASSWORD")
+def releaseStorePassword = System.getenv("ALIVE_ANDROID_STORE_PASSWORD")
+def hasReleaseSigning = [releaseKeystorePath, releaseKeyAlias, releaseKeyPassword, releaseStorePassword].every { it }
+
 android {
     namespace = "app.instarcharacterbot.alive"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -16,11 +22,30 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        if (hasReleaseSigning) {
+            release {
+                storeFile file(releaseKeystorePath)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            }
         }
+    }
+}
+
+gradle.taskGraph.whenReady { graph ->
+    if (graph.hasTask(":app:bundleRelease") && !hasReleaseSigning) {
+        throw new GradleException("Set all ALIVE_ANDROID_KEYSTORE_PATH, ALIVE_ANDROID_KEY_ALIAS, ALIVE_ANDROID_KEY_PASSWORD, and ALIVE_ANDROID_STORE_PASSWORD values before building the release bundle.")
     }
 }
 
