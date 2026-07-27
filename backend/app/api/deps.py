@@ -4,10 +4,10 @@ from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
-from app.core.errors import UnauthorizedError
+from app.core.errors import ForbiddenError, UnauthorizedError
 from app.core.security import verify_session
 from app.db.session import get_db_session
-from app.models import User
+from app.models import User, UserModerationStatus
 from app.repositories.users import UserRepository
 
 
@@ -27,6 +27,10 @@ async def get_current_user(
 
 async def _load_user(user_id: UUID, session: AsyncSession) -> User:
     user = await UserRepository(session).get_by_id(user_id)
-    if user:
-        return user
-    raise UnauthorizedError()
+    if not user:
+        raise UnauthorizedError()
+    if user.moderation_status == UserModerationStatus.banned:
+        raise ForbiddenError("Account access has been disabled")
+    if user.moderation_status == UserModerationStatus.suspended:
+        raise ForbiddenError("Account access is temporarily suspended")
+    return user

@@ -44,7 +44,8 @@ def test_discover_characters_returns_merged_dto(monkeypatch) -> None:
     owner_id = uuid4()
     character_id = uuid4()
 
-    async def discover(self: object) -> list[DiscoverCharacter]:
+    async def discover(self: object, viewer_id: object) -> list[DiscoverCharacter]:
+        assert viewer_id
         return [DiscoverCharacter(id="shared_1", characterId=str(character_id), sharedId=str(uuid4()), ownerId=owner_id, sourceAccountId="char-1", owner="@tester", ownerName="tester", shared=True, name="A")]
 
     monkeypatch.setattr(SharedCharacterRepository, "discover", discover)
@@ -131,7 +132,8 @@ def test_followers_returns_rows(monkeypatch) -> None:
     owner_id = uuid4()
     shared_id = uuid4()
 
-    async def followers(self: object, target_id: object) -> list[FollowerRow]:
+    async def followers(self: object, target_id: object, viewer_id: object) -> list[FollowerRow]:
+        assert viewer_id
         return [FollowerRow(id="follower_1", ownerId=owner_id, sourceAccountId="char-1", owner="@tester", ownerName="tester", followerAccountId="char-1", name="A")]
 
     monkeypatch.setattr(SharedCharacterRepository, "followers", followers)

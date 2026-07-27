@@ -4,6 +4,7 @@ import { canManagePost } from "@/domain/feed/feedUtils";
 
 export function FeedTimeline({ ctx }) {
   const {
+    activeId,
     char,
     commentAs,
     commentOn,
@@ -30,6 +31,7 @@ export function FeedTimeline({ ctx }) {
     setFixTarget,
     setFixText,
     setPersonaDraft,
+    setReportTarget,
     submitUserComment,
     timeAgo,
     timelinePosts,
@@ -55,7 +57,7 @@ export function FeedTimeline({ ctx }) {
         )}
         {visiblePosts.map((post) => (
           <React.Fragment key={post.id}>
-            <FeedPostCard post={post} ctx={{ char, commentAs, commentOn, commentText, deleteComment, deletePost, editingComment, editingPost, isLikePending, openCommentBox, personas, saveCommentEdit, savePostEdit, setCommentAs, setCommentOn, setCommentText, setEditingComment, setEditingPost, setFixTarget, setFixText, setPersonaDraft, submitUserComment, timeAgo, toggleLike }} />
+            <FeedPostCard post={post} ctx={{ activeId, char, commentAs, commentOn, commentText, deleteComment, deletePost, editingComment, editingPost, isLikePending, openCommentBox, personas, saveCommentEdit, savePostEdit, setCommentAs, setCommentOn, setCommentText, setEditingComment, setEditingPost, setFixTarget, setFixText, setPersonaDraft, setReportTarget, submitUserComment, timeAgo, toggleLike }} />
           </React.Fragment>
         ))}
       </div>
@@ -65,6 +67,7 @@ export function FeedTimeline({ ctx }) {
 
 function FeedPostCard({ post, ctx }) {
   const {
+    activeId,
     char,
     commentAs,
     commentOn,
@@ -86,6 +89,7 @@ function FeedPostCard({ post, ctx }) {
     setFixTarget,
     setFixText,
     setPersonaDraft,
+    setReportTarget,
     submitUserComment,
     timeAgo,
     toggleLike,
@@ -123,8 +127,9 @@ function FeedPostCard({ post, ctx }) {
           {canManage && !post.byUser && <button className="al-fixbtn" onClick={() => { setFixTarget({ type: "post", id: post.id, text: post.text }); setFixText(""); }}>⚠ 캐해 아님</button>}
           {canManage && <button className="al-mini-action" onClick={() => setEditingPost({ id: post.id, text: post.text })}>수정</button>}
           {canManage && <button className="al-mini-action danger" onClick={() => deletePost(post.id)}>삭제</button>}
+          {!post.byUser && <button className="al-mini-action safety" onClick={() => setReportTarget(postReportTarget(post, activeId))}>신고</button>}
         </div>
-        <FeedComments post={post} ctx={{ char, commentAs, commentOn, commentText, deleteComment, editingComment, personas, saveCommentEdit, setCommentAs, setCommentOn, setCommentText, setEditingComment, setPersonaDraft, submitUserComment, isExt }} />
+        <FeedComments post={post} ctx={{ char, commentAs, commentOn, commentText, deleteComment, editingComment, personas, saveCommentEdit, setCommentAs, setCommentOn, setCommentText, setEditingComment, setPersonaDraft, setReportTarget, submitUserComment, isExt }} />
         {commentOn !== post.id && <button className="al-cmt-open" onClick={() => openCommentBox(post.id)}>💬 댓글 달기</button>}
       </div>
     </div>
@@ -153,7 +158,7 @@ function FeedPostMedia({ post }) {
 }
 
 function FeedComments({ post, ctx }) {
-  const { char, commentAs, commentOn, commentText, deleteComment, editingComment, personas, saveCommentEdit, setCommentAs, setCommentOn, setCommentText, setEditingComment, setPersonaDraft, submitUserComment, isExt } = ctx;
+  const { char, commentAs, commentOn, commentText, deleteComment, editingComment, personas, saveCommentEdit, setCommentAs, setCommentOn, setCommentText, setEditingComment, setPersonaDraft, setReportTarget, submitUserComment, isExt } = ctx;
   const comments = Array.isArray(post.comments) ? post.comments : [];
   return (
     <>
@@ -179,8 +184,9 @@ function FeedComments({ post, ctx }) {
                     <>
                       <span className="al-comment-text">{displayName(commentRecord.text, "")}{commentRecord.edited && <i className="al-edited">수정됨</i>}</span>
                       <span className="al-comment-tools">
-                        <button onClick={() => setEditingComment({ postId: post.id, index, text: displayName(commentRecord.text, "") })}>수정</button>
-                        <button onClick={() => deleteComment(post.id, index)}>삭제</button>
+                        {!isExt && <button onClick={() => setEditingComment({ postId: post.id, index, text: displayName(commentRecord.text, "") })}>수정</button>}
+                        {!isExt && <button onClick={() => deleteComment(post.id, index)}>삭제</button>}
+                        {isExt && <button onClick={() => setReportTarget(commentReportTarget(post, commentRecord, index))}>신고</button>}
                       </span>
                     </>
                   )}
@@ -221,4 +227,25 @@ function initialForName(value: unknown): string {
 
 function recordValue(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" ? value as Record<string, unknown> : null;
+}
+
+function postReportTarget(post, activeId) {
+  const external = Boolean(post.authorOwnerId);
+  return {
+    targetType: external ? "post" : "ai_content",
+    targetOwnerId: post.authorOwnerId || undefined,
+    targetReference: external ? `${post.authorCharacterId}:${post.originalPostId}` : `${activeId || "local"}:${post.id}`,
+    snapshot: { author: post.author || "", text: post.text || "", image: Boolean(post.img) },
+    label: external ? `${post.author || "외부 캐릭터"}의 게시물` : "AI 생성 게시물",
+  };
+}
+
+function commentReportTarget(post, comment, index) {
+  return {
+    targetType: "comment",
+    targetOwnerId: post.authorOwnerId || undefined,
+    targetReference: `${post.authorCharacterId}:${post.originalPostId}:${index}`,
+    snapshot: { name: comment.name || "", text: comment.text || "" },
+    label: `${displayName(comment.name, "외부 캐릭터")}의 댓글`,
+  };
 }

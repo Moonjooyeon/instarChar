@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     gemini_model_fast: str = "gemini-2.5-flash"
     gemini_model_good: str = "gemini-2.5-pro"
+    moderation_api_key: str = ""
+    moderation_actor: str = "operations"
+    terms_version: str = "2026-07-24"
     api_daily_limit: int = 50
     api_monthly_cost_limit_usd: float = 60.0
     api_estimated_call_cost_usd: float = 0.003

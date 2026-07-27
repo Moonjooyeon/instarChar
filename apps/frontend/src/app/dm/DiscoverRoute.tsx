@@ -4,6 +4,7 @@ export function DiscoverRoute({ ctx }) {
   const {
     activeId,
     activeSharedId,
+    blockedUserIds,
     char,
     discoverQuery,
     DiscoverScreen,
@@ -30,6 +31,7 @@ export function DiscoverRoute({ ctx }) {
     <DiscoverScreen
       activeId={activeId}
       activeSharedId={activeSharedId}
+      blockedUserIds={blockedUserIds}
       char={char}
       discoverPool={DISCOVER_POOL}
       discoverQuery={discoverQuery}

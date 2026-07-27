@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { signInWithOAuthProvider } from "../../src/api/auth.js";
+import { deleteAuthAccount, signInWithOAuthProvider } from "../../src/api/auth.js";
 
 test("signInWithOAuthProvider sends current origin callback to backend", async () => {
   const assigned = [];
@@ -17,6 +17,19 @@ test("signInWithOAuthProvider sends current origin callback to backend", async (
   }
 });
 
+test("deleteAuthAccount requests permanent account deletion", async () => {
+  const calls = [];
+  const restoreFetch = stubFetch(calls);
+  try {
+    const result = await deleteAuthAccount();
+    assert.deepEqual(result, { error: null });
+    assert.equal(calls[0].input, "/api/auth/account");
+    assert.equal(calls[0].init.method, "DELETE");
+  } finally {
+    restoreFetch();
+  }
+});
+
 function stubWindow(origin, assigned) {
   const originalWindow = globalThis.window;
   globalThis.window = {
@@ -29,5 +42,16 @@ function stubWindow(origin, assigned) {
   };
   return () => {
     globalThis.window = originalWindow;
+  };
+}
+
+function stubFetch(calls) {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (input, init = {}) => {
+    calls.push({ input, init });
+    return new Response(null, { status: 204 });
+  };
+  return () => {
+    globalThis.fetch = originalFetch;
   };
 }

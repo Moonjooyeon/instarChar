@@ -3,6 +3,7 @@
 export function DiscoverScreen({
   activeId,
   activeSharedId,
+  blockedUserIds,
   char,
   discoverPool,
   discoverQuery,
@@ -28,7 +29,8 @@ export function DiscoverScreen({
   const safeDiscoverPool = Array.isArray(discoverPool) ? discoverPool : [];
   const safeFollowing = Array.isArray(following) ? following : [];
   const safeSharedLoadState = sharedLoadState || {};
-  const mergedDiscover = hasBackendApiConfig ? safeSharedCharacters : safeDiscoverPool;
+  const mergedDiscover = (hasBackendApiConfig ? safeSharedCharacters : safeDiscoverPool)
+    .filter((item) => !blockedUserIds?.includes(item.ownerId));
   const isActiveShared = (c) => Boolean(
     (activeSharedId && (c.sharedId === activeSharedId || c.id === `shared_${activeSharedId}`)) ||
     (session?.user?.id && activeId && c.ownerId === session.user.id && c.sourceAccountId === activeId)

@@ -25,8 +25,8 @@ router = APIRouter(tags=["shared-characters"])
 
 
 @router.get("/discover/characters", response_model=DiscoverResponse)
-async def discover_characters(session: AsyncSession = Depends(get_db_session)) -> DiscoverResponse:
-    rows = await SharedCharacterRepository(session).discover()
+async def discover_characters(user: User = Depends(get_current_user), session: AsyncSession = Depends(get_db_session)) -> DiscoverResponse:
+    rows = await SharedCharacterRepository(session).discover(user.id)
     return DiscoverResponse(characters=rows)
 
 
@@ -42,16 +42,16 @@ async def sync_owned_follow_snapshot(payload: FollowSnapshotRequest, user: User 
 
 
 @router.get("/shared-characters/{shared_character_id}")
-async def get_shared_character(shared_character_id: UUID, session: AsyncSession = Depends(get_db_session)) -> object:
-    row = await SharedCharacterRepository(session).get_shared(shared_character_id)
+async def get_shared_character(shared_character_id: UUID, user: User = Depends(get_current_user), session: AsyncSession = Depends(get_db_session)) -> object:
+    row = await SharedCharacterRepository(session).get_shared(shared_character_id, user.id)
     if not row:
         raise BadRequestError("Shared character not found")
     return row
 
 
 @router.get("/shared-characters/{shared_character_id}/followers", response_model=FollowersResponse)
-async def get_shared_character_followers(shared_character_id: UUID, session: AsyncSession = Depends(get_db_session)) -> FollowersResponse:
-    rows = await SharedCharacterRepository(session).followers(shared_character_id)
+async def get_shared_character_followers(shared_character_id: UUID, user: User = Depends(get_current_user), session: AsyncSession = Depends(get_db_session)) -> FollowersResponse:
+    rows = await SharedCharacterRepository(session).followers(shared_character_id, user.id)
     return FollowersResponse(rows=rows)
 
 

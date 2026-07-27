@@ -1,4 +1,5 @@
 import {
+  deleteAuthAccount,
   type AuthProvider,
   isAuthApiAvailable,
   signInWithOAuthProvider,
@@ -83,6 +84,16 @@ export function useAliveAuthActions({
     setStep("home");
     setSaveStatus("로그인 대기");
   }
+  async function deleteAccount(): Promise<void> {
+    const confirmed = window.confirm("계정과 캐릭터, 게시물, DM 등 모든 데이터를 영구 삭제할까요? 이 작업은 되돌릴 수 없어요.");
+    if (!confirmed) return;
+    const { error } = await deleteAuthAccount();
+    if (error) {
+      setSaveStatus(`계정 삭제 실패: ${error.message}`);
+      return;
+    }
+    await signOut();
+  }
   async function completeOnboarding(): Promise<void> {
     if (!session?.user || !isAuthApiAvailable()) {
       setOnboardingOpen(false);
@@ -109,7 +120,7 @@ export function useAliveAuthActions({
     setStateReady(false);
     setAuthMessage("로그인 상태를 초기화했어. 다시 로그인해줘.");
   }
-  return { clearLocalAuthStorage, completeOnboarding, readableAuthError, recoverAuthScreen, signInWithProvider, signOut };
+  return { clearLocalAuthStorage, completeOnboarding, deleteAccount, readableAuthError, recoverAuthScreen, signInWithProvider, signOut };
 }
 
 function clearStorage(storage: Storage, includeLocalState: boolean): void {

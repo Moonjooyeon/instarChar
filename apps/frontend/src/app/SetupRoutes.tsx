@@ -8,6 +8,7 @@ export function SetupRoutes({ ctx }) {
     char,
     confirmReady,
     ConfirmScreen,
+    deleteAccount,
     deletePersona,
     dump,
     DumpScreen,
@@ -44,6 +45,7 @@ export function SetupRoutes({ ctx }) {
       {canUseApp && step === "home" && (
         <HomeScreen
           accounts={accounts}
+          deleteAccount={deleteAccount}
           deletePersona={deletePersona}
           editAccount={editAccount}
           hasBackendApiConfig={hasBackendApiConfig}

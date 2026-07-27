@@ -15,6 +15,7 @@
     "src/api/dm.ts",
     "src/api/generate.ts",
     "src/api/profiles.ts",
+    "src/api/safety.ts",
     "src/api/structured.ts",
     "src/domain/**/*.ts",
     "src/types/env.d.ts",

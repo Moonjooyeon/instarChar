@@ -7,7 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ForbiddenError
 from app.models import DmThread, SharedDmThread, User
+from app.repositories.moderation import ModerationRepository
 from app.schemas.dm_threads import DmThreadPayload, SharedDmThreadPayload
+from app.services.content_safety import require_safe_content
 
 
 class DmThreadRepository:
@@ -36,6 +38,9 @@ class DmThreadRepository:
         return row
 
     async def upsert_shared_thread(self, user: User, payload: SharedDmThreadPayload) -> None:
+        require_safe_content(payload.messages)
+        if await ModerationRepository(self.session).blocked_between(user.id, payload.participant_user_ids):
+            raise ForbiddenError("Shared DM is unavailable because a participant is blocked")
         existing = await self._shared_dm_by_key(payload.thread_key)
         if existing:
             self._require_shared_participant(user, existing)

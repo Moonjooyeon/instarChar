@@ -60,6 +60,10 @@ export function signOutAuthSession(): Promise<{ error: ApiError | null }> {
   return apiNoContent("/auth/logout", { method: "POST" });
 }
 
+export function deleteAuthAccount(): Promise<{ error: ApiError | null }> {
+  return apiNoContent("/auth/account", { method: "DELETE" });
+}
+
 export async function getAuthSession(): Promise<AuthResult> {
   await initializeNativeOAuth();
   const result = await apiResult<MeResponse>("/auth/me");

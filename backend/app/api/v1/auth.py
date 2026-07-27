@@ -10,6 +10,7 @@ from app.core.config import Settings, get_settings
 from app.core.errors import AppError, BadRequestError
 from app.db.session import get_db_session
 from app.models import User, UserProvider
+from app.repositories.users import UserRepository
 from app.schemas.auth import MeResponse, NativeOAuthExchangeRequest, UserResponse
 from app.services.native_oauth import NativeOAuthService
 from app.services.oauth import OAuthCompletion, OAuthService
@@ -60,6 +61,12 @@ async def exchange_native_oauth(payload: NativeOAuthExchangeRequest, response: R
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 async def logout(response: Response, settings: Settings = Depends(get_settings)) -> None:
+    response.delete_cookie(settings.auth_cookie_name, path="/")
+
+
+@router.delete("/account", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_account(response: Response, user: User = Depends(get_current_user), settings: Settings = Depends(get_settings), session: AsyncSession = Depends(get_db_session)) -> None:
+    await UserRepository(session).delete_account(user)
     response.delete_cookie(settings.auth_cookie_name, path="/")
 
 

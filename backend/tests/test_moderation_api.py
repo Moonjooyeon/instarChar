@@ -1,0 +1,98 @@
+from collections.abc import AsyncIterator
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from types import SimpleNamespace
+from uuid import uuid4
+
+from fastapi.testclient import TestClient
+
+from app.api.deps import get_current_user
+from app.core.config import get_settings
+from app.db.session import get_db_session
+from app.main import app
+from app.models import ReportStatus, UserProvider
+from app.repositories.moderation import ModerationRepository
+
+
+@dataclass
+class StubUser:
+    id: object
+    email: str = "reporter@example.com"
+    provider: UserProvider = UserProvider.google
+
+
+class StubSession:
+    pass
+
+
+class StubSettings:
+    terms_version = "2026-07-24"
+    moderation_api_key = "moderation-secret"
+    moderation_actor = "test-operator"
+
+
+async def stub_db_session() -> AsyncIterator[StubSession]:
+    yield StubSession()
+
+
+async def stub_current_user() -> StubUser:
+    return StubUser(id=uuid4())
+
+
+def stub_settings() -> StubSettings:
+    return StubSettings()
+
+
+def test_consent_status_and_acceptance(monkeypatch) -> None:
+    async def consent_status(self: object, user_id: object, version: str) -> bool:
+        return False
+    async def accept_terms(self: object, user_id: object, version: str) -> None:
+        assert version == "2026-07-24"
+    monkeypatch.setattr(ModerationRepository, "consent_status", consent_status)
+    monkeypatch.setattr(ModerationRepository, "accept_terms", accept_terms)
+    with make_test_client() as client:
+        current = client.get("/api/safety/consent")
+        accepted = client.put("/api/safety/consent")
+    assert current.json() == {"accepted": False, "terms_version": "2026-07-24"}
+    assert accepted.json() == {"accepted": True, "terms_version": "2026-07-24"}
+
+
+def test_report_endpoint_creates_pending_queue_item(monkeypatch) -> None:
+    async def create_report(self: object, user_id: object, payload: object) -> object:
+        return SimpleNamespace(id=uuid4(), status=ReportStatus.pending, created_at=datetime.now(timezone.utc))
+    monkeypatch.setattr(ModerationRepository, "create_report", create_report)
+    body = {"target_type": "post", "target_owner_id": str(uuid4()), "target_reference": "char:post", "reason": "harassment", "snapshot": {"text": "bad"}}
+    with make_test_client() as client:
+        response = client.post("/api/safety/reports", json=body)
+    assert response.status_code == 201
+    assert response.json()["status"] == "pending"
+
+
+def test_block_endpoint_persists_target(monkeypatch) -> None:
+    calls = []
+    async def block_user(self: object, blocker_id: object, blocked_id: object) -> None:
+        calls.append((blocker_id, blocked_id))
+    monkeypatch.setattr(ModerationRepository, "block_user", block_user)
+    target_id = uuid4()
+    with make_test_client() as client:
+        response = client.put(f"/api/safety/blocks/{target_id}")
+    assert response.status_code == 204
+    assert calls[0][1] == target_id
+
+
+def test_moderation_queue_requires_configured_secret(monkeypatch) -> None:
+    async def reports(self: object, report_status: object) -> list[object]:
+        return []
+    monkeypatch.setattr(ModerationRepository, "reports", reports)
+    with make_test_client() as client:
+        forbidden = client.get("/api/moderation/reports", headers={"X-Moderation-Key": "wrong"})
+        allowed = client.get("/api/moderation/reports", headers={"X-Moderation-Key": "moderation-secret"})
+    assert forbidden.status_code == 403
+    assert allowed.json() == {"reports": []}
+
+
+def make_test_client() -> TestClient:
+    app.dependency_overrides[get_db_session] = stub_db_session
+    app.dependency_overrides[get_current_user] = stub_current_user
+    app.dependency_overrides[get_settings] = stub_settings
+    return TestClient(app)
