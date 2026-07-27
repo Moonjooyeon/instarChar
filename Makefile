@@ -19,7 +19,7 @@ CAP_API_URL ?= https://alive.imagebgremover.net
 FRONTEND_WEB_ENV = $(if $(WEB_API_URL),VITE_API_BASE_URL=$(WEB_API_URL) )
 FRONTEND_BUILD_ENV = $(if $(CAP_API_URL),VITE_API_BASE_URL=$(CAP_API_URL) )
 
-.PHONY: help backend-dev backend-run backend-test backend-compile web-dev web-build web-preview android-java-home android-local-properties cap-doctor cap-build cap-sync cap-open-ios cap-open-android cap-run-ios cap-run-android cap-checklist
+.PHONY: help backend-dev backend-run backend-test backend-compile web-dev web-build web-preview android-java-home android-local-properties cap-doctor cap-build cap-sync cap-open-ios cap-open-android cap-run-ios cap-run-android cap-checklist android-bundle-release ios-archive-release
 
 help:
 	@printf '%s\n' \
@@ -43,6 +43,8 @@ help:
 		'  make cap-open-android                   Open the Android project in Android Studio.' \
 		'  make cap-run-ios                        Run the iOS Capacitor app manually.' \
 		'  make cap-run-android                    Run the Android Capacitor app manually.' \
+		'  make android-bundle-release             Build a signed Android App Bundle.' \
+		'  make ios-archive-release                Archive iOS for App Store upload.' \
 		'  make cap-checklist                      Print manual cookie-session checks.' \
 		'' \
 		'Optional:' \
@@ -110,6 +112,12 @@ cap-run-ios:
 
 cap-run-android: android-java-home android-local-properties
 	JAVA_HOME=$(ANDROID_JAVA_HOME) ANDROID_HOME=$(ANDROID_SDK_ROOT) ANDROID_SDK_ROOT=$(ANDROID_SDK_ROOT) GRADLE_USER_HOME=$(ANDROID_GRADLE_USER_HOME) $(CAP) run android
+
+android-bundle-release: cap-sync android-java-home android-local-properties
+	JAVA_HOME=$(ANDROID_JAVA_HOME) ANDROID_HOME=$(ANDROID_SDK_ROOT) ANDROID_SDK_ROOT=$(ANDROID_SDK_ROOT) GRADLE_USER_HOME=$(ANDROID_GRADLE_USER_HOME) $(ANDROID_PROJECT_DIR)/gradlew -p $(ANDROID_PROJECT_DIR) bundleRelease
+
+ios-archive-release: cap-sync
+	xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release -destination 'generic/platform=iOS' -archivePath ios/build/ALIVE.xcarchive archive -allowProvisioningUpdates
 
 cap-checklist:
 	@printf '%s\n' \
