@@ -424,6 +424,20 @@ def test_oauth_token_exchange_rejects_provider_server_errors(monkeypatch: Monkey
         asyncio.run(service._post_token("https://provider.example/token", {"code": "secret"}))
 
 
+def test_oauth_token_exchange_preserves_safe_provider_error_code(monkeypatch: MonkeyPatch) -> None:
+    class StubClient:
+        async def __aenter__(self) -> "StubClient":
+            return self
+        async def __aexit__(self, exc_type: object, exc: object, traceback: object) -> None:
+            return None
+        async def post(self, url: str, data: dict[str, str]) -> object:
+            return SimpleNamespace(status_code=400, json=lambda: {"error": "invalid_client", "error_description": "secret detail"})
+    monkeypatch.setattr("app.services.oauth.httpx.AsyncClient", lambda timeout: StubClient())
+    service = OAuthService(Settings(), StubSession())
+    with raises(BadRequestError, match=r"OAuth token exchange failed: invalid_client$"):
+        asyncio.run(service._post_token("https://provider.example/token", {"code": "secret"}))
+
+
 def make_test_client() -> TestClient:
     app.dependency_overrides[get_settings] = stub_settings
     app.dependency_overrides[get_db_session] = stub_db_session

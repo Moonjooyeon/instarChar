@@ -635,7 +635,10 @@ body{ overflow-x:hidden; }
 .al-social-login{ width:100%; display:flex; flex-direction:column; gap:8px; margin:12px 0 6px; }
 .al-social-login button{ width:100%; min-height:44px; border-radius:12px; border:1px solid #4a4654; cursor:pointer;
   font-family:inherit; font-size:14px; font-weight:900; }
-.al-google-login{ background:#f7f5fb; border-color:#e8e3f1 !important; color:#17151d; }
+.al-google-login{ display:grid; place-items:center; padding:0 16px; background:#fff; border-color:#747775 !important;
+  color:#1f1f1f; font-family:Roboto,'Noto Sans KR',sans-serif !important; font-weight:500 !important; }
+.al-google-login-content{ display:inline-flex; align-items:center; justify-content:center; gap:12px; line-height:20px; }
+.al-google-login-content img{ display:block; width:18px; height:auto; flex-shrink:0; }
 .al-apple-login{ min-height:0 !important; padding:0; overflow:hidden; background:#000; border:none !important; line-height:0; }
 .al-apple-login img{ display:block; width:100%; height:auto; }
 .al-social-login button:disabled{ opacity:.45; cursor:default; }

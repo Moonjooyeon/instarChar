@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { appleLoginFailureMessage, deleteAuthAccount, shouldInvalidateAppleCredential, signInWithOAuthProvider } from "../../src/api/auth.js";
+import { appleLoginFailureMessage, deleteAuthAccount, shouldInvalidateAppleCredential, shouldShowAppleLogin, signInWithOAuthProvider } from "../../src/api/auth.js";
 
 test("signInWithOAuthProvider sends current origin callback to backend", async () => {
   const assigned = [];
@@ -47,6 +47,20 @@ test("deleteAuthAccount requests permanent account deletion", async () => {
 test("Apple login errors distinguish retryable provider failures", () => {
   assert.match(appleLoginFailureMessage(503), /다시 시도/);
   assert.match(appleLoginFailureMessage(400), /다시 로그인/);
+  assert.match(appleLoginFailureMessage(400, { message: "OAuth identity verification failed" }), /검증/);
+  assert.match(appleLoginFailureMessage(400, { message: "OAuth token exchange failed" }), /교환/);
+  assert.match(appleLoginFailureMessage(400, '{"message":"OAuth token exchange failed"}'), /교환/);
+  assert.match(appleLoginFailureMessage(400, { detail: "OAuth token exchange failed" }), /교환/);
+  assert.match(appleLoginFailureMessage(400, '{"detail":"OAuth token exchange failed"}'), /교환/);
+  assert.match(appleLoginFailureMessage(400, { message: "OAuth token exchange failed: invalid_client" }), /서버 설정/);
+  assert.match(appleLoginFailureMessage(400, { message: "OAuth token exchange failed: invalid_grant" }), /교환/);
+  assert.match(appleLoginFailureMessage(400, { message: "Apple client credentials are not configured" }), /서버 설정/);
+});
+
+test("Apple login is hidden only on Android", () => {
+  assert.equal(shouldShowAppleLogin("android"), false);
+  assert.equal(shouldShowAppleLogin("ios"), true);
+  assert.equal(shouldShowAppleLogin("web"), true);
 });
 
 test("Apple credential state only invalidates a known revoked account", () => {

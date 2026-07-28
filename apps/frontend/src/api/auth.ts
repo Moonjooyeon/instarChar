@@ -145,13 +145,17 @@ async function signInWithNativeApple(): Promise<{ error: ApiError | null }> {
 async function exchangeNativeAppleCredential(credential: NativeAppleCredential, nonce: string): Promise<void> {
   const url = new URL(apiUrl("/auth/apple/native"), window.location.origin).href;
   const data = { authorization_code: credential.authorizationCode, identity_token: credential.identityToken, nonce, display_name: credential.displayName || "" };
-  const response = await CapacitorHttp.post({ url, headers: { "Content-Type": "application/json" }, data });
+  const response = await CapacitorHttp.post({ url, headers: { "Content-Type": "application/json" }, data, responseType: "json" });
   if (response.status >= 200 && response.status < 300) return;
-  throw new Error(appleLoginFailureMessage(response.status));
+  throw new Error(appleLoginFailureMessage(response.status, response.data as unknown));
 }
 
 function isNativeApplePlatform(): boolean {
   return Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
+}
+
+export function shouldShowAppleLogin(platform: string = Capacitor.getPlatform()): boolean {
+  return platform !== "android";
 }
 
 function nativeAppleErrorMessage(error: unknown): string {
@@ -160,9 +164,29 @@ function nativeAppleErrorMessage(error: unknown): string {
   return "Apple 로그인에 실패했어.";
 }
 
-export function appleLoginFailureMessage(status: number): string {
+export function appleLoginFailureMessage(status: number, data: unknown = null): string {
+  const detail = appleLoginErrorDetail(data);
+  if (/client credentials|client id|invalid_client|encryption/i.test(detail)) return "Apple 로그인 서버 설정이 완료되지 않았어.";
+  if (/identity verification/i.test(detail)) return "Apple 로그인 정보 검증에 실패했어. Apple 계정으로 다시 인증해줘.";
+  if (/token exchange/i.test(detail)) return "Apple 로그인 승인 코드 교환에 실패했어. 다시 로그인해줘.";
   if (status >= 500) return "Apple 로그인 서버에 잠시 연결할 수 없어. 다시 시도해줘.";
   return "Apple 로그인 승인이 만료됐거나 유효하지 않아. 다시 로그인해줘.";
+}
+
+function appleLoginErrorDetail(data: unknown): string {
+  if (typeof data === "string") return appleLoginErrorDetailFromText(data);
+  if (!data || typeof data !== "object") return "";
+  const response = data as { detail?: unknown; message?: unknown };
+  if (typeof response.message === "string") return response.message;
+  return typeof response.detail === "string" ? response.detail : "";
+}
+
+function appleLoginErrorDetailFromText(data: string): string {
+  try {
+    return appleLoginErrorDetail(JSON.parse(data) as unknown);
+  } catch {
+    return "";
+  }
 }
 
 export function shouldInvalidateAppleCredential(state: string, hasStoredCredential: boolean): boolean {

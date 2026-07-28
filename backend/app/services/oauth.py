@@ -21,6 +21,9 @@ from app.repositories.users import UserRepository
 from app.services.apple_client_secret import AppleClientSecretFactory
 
 
+SAFE_OAUTH_ERROR_CODES = frozenset({"invalid_client", "invalid_grant", "invalid_request", "unauthorized_client", "unsupported_grant_type"})
+
+
 @dataclass(frozen=True)
 class ProviderIdentity:
     provider: UserProvider
@@ -172,11 +175,21 @@ class OAuthService:
         if response.status_code >= 500:
             raise ServiceUnavailableError("OAuth provider is temporarily unavailable")
         if response.status_code >= 400:
-            raise BadRequestError("OAuth token exchange failed")
+            raise self._token_exchange_error(response)
         data: object = response.json()
         if not isinstance(data, dict) or not all(isinstance(key, str) for key in data):
             raise BadRequestError("OAuth token response is invalid")
         return data
+
+    def _token_exchange_error(self, response: httpx.Response) -> BadRequestError:
+        try:
+            data: object = response.json()
+        except ValueError:
+            return BadRequestError("OAuth token exchange failed")
+        code = data.get("error") if isinstance(data, dict) else None
+        if not isinstance(code, str) or code not in SAFE_OAUTH_ERROR_CODES:
+            return BadRequestError("OAuth token exchange failed")
+        return BadRequestError(f"OAuth token exchange failed: {code}")
 
     def _verify_jwt(self, token: str, audience: str, issuer: str, jwks_url: str) -> dict[str, object]:
         try:

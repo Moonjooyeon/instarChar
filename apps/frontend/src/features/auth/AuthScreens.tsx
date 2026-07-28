@@ -1,5 +1,7 @@
 import React from "react";
 
+import { shouldShowAppleLogin } from "@/api/auth";
+
 export function AuthLoadingScreen({ authMessage, onRetryCharacters }) {
   const canRetry = String(authMessage || "").includes("캐릭터를 불러오지 못했어요");
 
@@ -25,17 +27,25 @@ export function AuthEntryScreen({
   authMessage,
   signInWithProvider,
 }) {
+  const showAppleLogin = shouldShowAppleLogin();
   return (
     <div className="al-phone">
       <div className="al-auth">
         <span className="al-spark">★</span>
         <h1>ALIVE 로그인</h1>
-        <p>Google 또는 Apple 계정으로 저장된 캐릭터와 대화를 불러올게.</p>
+        <p>{showAppleLogin ? "Google 또는 Apple 계정으로 저장된 캐릭터와 대화를 불러올게." : "Google 계정으로 저장된 캐릭터와 대화를 불러올게."}</p>
         <div className="al-social-login">
-          <button className="al-google-login" onClick={() => signInWithProvider("google")} disabled={authLoading}>Google로 계속</button>
-          <button className="al-apple-login" onClick={() => signInWithProvider("apple")} disabled={authLoading} aria-label="Apple로 계속">
-            <img src="/apple-sign-in-continue-ko.png" alt="" aria-hidden="true" />
+          <button className="al-google-login" onClick={() => signInWithProvider("google")} disabled={authLoading} aria-label="Google로 계속">
+            <span className="al-google-login-content">
+              <img src="/google-g-logo.png" alt="" aria-hidden="true" />
+              <span>Google로 계속</span>
+            </span>
           </button>
+          {showAppleLogin && (
+            <button className="al-apple-login" onClick={() => signInWithProvider("apple")} disabled={authLoading} aria-label="Apple로 계속">
+              <img src="/apple-sign-in-continue-ko.png" alt="" aria-hidden="true" />
+            </button>
+          )}
         </div>
         {authMessage && <p className="al-auth-msg">{authMessage}</p>}
       </div>

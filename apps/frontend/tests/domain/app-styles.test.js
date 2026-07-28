@@ -31,12 +31,18 @@ test("the native app shell consumes system safe-area insets", () => {
   );
 });
 
-test("Apple login uses the bundled official Korean button", () => {
+test("social login uses bundled official brand assets", () => {
   const screenPath = path.resolve(process.cwd(), "src/features/auth/AuthScreens.tsx");
-  const assetPath = path.resolve(process.cwd(), "public/apple-sign-in-continue-ko.png");
+  const appleAssetPath = path.resolve(process.cwd(), "public/apple-sign-in-continue-ko.png");
+  const googleAssetPath = path.resolve(process.cwd(), "public/google-g-logo.png");
   const screen = readFileSync(screenPath, "utf8");
-  const asset = readFileSync(assetPath);
+  const appleAsset = readFileSync(appleAssetPath);
+  const googleAsset = readFileSync(googleAssetPath);
+  assert.match(screen, /const showAppleLogin = shouldShowAppleLogin\(\)/);
+  assert.match(screen, /"Google 계정으로 저장된 캐릭터와 대화를 불러올게\."/);
   assert.match(screen, /aria-label="Apple로 계속"/);
   assert.match(screen, /src="\/apple-sign-in-continue-ko\.png"/);
-  assert.deepEqual([...asset.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
+  assert.match(screen, /src="\/google-g-logo\.png"/);
+  assert.deepEqual([...appleAsset.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
+  assert.deepEqual([...googleAsset.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
 });
