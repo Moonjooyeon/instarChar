@@ -160,7 +160,7 @@ def test_delete_account_removes_user_data_and_clears_cookie(monkeypatch: MonkeyP
     deleted_user_ids: list[object] = []
     async def delete_account(self: object, user: StubUser) -> None:
         deleted_user_ids.append(user.id)
-    monkeypatch.setattr("app.api.v1.auth.UserRepository.delete_account", delete_account)
+    monkeypatch.setattr("app.api.v1.auth.AccountDeletionService.delete", delete_account)
     with make_test_client() as client:
         response = client.delete("/api/auth/account")
     assert response.status_code == 204
