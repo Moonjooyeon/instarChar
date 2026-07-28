@@ -17,7 +17,7 @@ def test_legal_pages_are_public_html() -> None:
         assert title in responses[path].text
         assert "(주)애쉬우드프렌즈" in responses[path].text
         assert "ashwoodfriends@ashwoodfriends.com" in responses[path].text
-        assert 'href="/legal.css?v=20260728-1"' in responses[path].text
+        assert 'href="/legal.css?v=20260728-2"' in responses[path].text
 
 
 def test_legal_styles_are_public_css() -> None:
@@ -25,5 +25,6 @@ def test_legal_styles_are_public_css() -> None:
         response = client.get("/legal.css")
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/css")
-    assert "font-family: -apple-system" in response.text
+    assert 'font-family: "Apple SD Gothic Neo", sans-serif' in response.text
+    assert "font-family: -apple-system" not in response.text
     assert "font-family: Pretendard" not in response.text
