@@ -19,7 +19,7 @@ body {
     radial-gradient(circle at 15% 0%, rgba(183, 131, 255, 0.16), transparent 34rem),
     var(--background);
   color: var(--text);
-  font-family: Pretendard, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
   line-height: 1.7;
 }
 

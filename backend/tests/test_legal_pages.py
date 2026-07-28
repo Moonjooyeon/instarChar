@@ -24,3 +24,5 @@ def test_legal_styles_are_public_css() -> None:
         response = client.get("/legal.css")
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/css")
+    assert "font-family: -apple-system" in response.text
+    assert "font-family: Pretendard" not in response.text
