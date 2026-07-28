@@ -32,8 +32,10 @@ export function AuthEntryScreen({
         <h1>ALIVE 로그인</h1>
         <p>Google 또는 Apple 계정으로 저장된 캐릭터와 대화를 불러올게.</p>
         <div className="al-social-login">
-          <button onClick={() => signInWithProvider("google")} disabled={authLoading}>Google로 계속</button>
-          <button onClick={() => signInWithProvider("apple")} disabled={authLoading}>Apple로 계속</button>
+          <button className="al-google-login" onClick={() => signInWithProvider("google")} disabled={authLoading}>Google로 계속</button>
+          <button className="al-apple-login" onClick={() => signInWithProvider("apple")} disabled={authLoading} aria-label="Apple로 계속">
+            <img src="/apple-sign-in-continue-ko.png" alt="" aria-hidden="true" />
+          </button>
         </div>
         {authMessage && <p className="al-auth-msg">{authMessage}</p>}
       </div>

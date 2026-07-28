@@ -30,3 +30,13 @@ test("the native app shell consumes system safe-area insets", () => {
     /padding:var\(--al-safe-top\) var\(--al-safe-right\) var\(--al-safe-bottom\) var\(--al-safe-left\)/,
   );
 });
+
+test("Apple login uses the bundled official Korean button", () => {
+  const screenPath = path.resolve(process.cwd(), "src/features/auth/AuthScreens.tsx");
+  const assetPath = path.resolve(process.cwd(), "public/apple-sign-in-continue-ko.png");
+  const screen = readFileSync(screenPath, "utf8");
+  const asset = readFileSync(assetPath);
+  assert.match(screen, /aria-label="Apple로 계속"/);
+  assert.match(screen, /src="\/apple-sign-in-continue-ko\.png"/);
+  assert.deepEqual([...asset.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
+});

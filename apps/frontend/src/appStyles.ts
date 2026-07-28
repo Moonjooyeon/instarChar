@@ -634,9 +634,10 @@ body{ overflow-x:hidden; }
 .al-auth-tabs button.on{ color:#fff; background:linear-gradient(135deg,var(--accent),var(--accent2)); }
 .al-social-login{ width:100%; display:flex; flex-direction:column; gap:8px; margin:12px 0 6px; }
 .al-social-login button{ width:100%; min-height:44px; border-radius:12px; border:1px solid #4a4654; cursor:pointer;
-  background:#fee500; color:#191600; font-family:inherit; font-size:14px; font-weight:900; }
-.al-social-login button:nth-child(2){ background:#f7f5fb; border-color:#e8e3f1; color:#17151d; }
-.al-social-login button:nth-child(3){ background:#111; border-color:#333; color:#fff; }
+  font-family:inherit; font-size:14px; font-weight:900; }
+.al-google-login{ background:#f7f5fb; border-color:#e8e3f1 !important; color:#17151d; }
+.al-apple-login{ min-height:0 !important; padding:0; overflow:hidden; background:#000; border:none !important; line-height:0; }
+.al-apple-login img{ display:block; width:100%; height:auto; }
 .al-social-login button:disabled{ opacity:.45; cursor:default; }
 .al-auth-divider{ width:100%; display:flex; align-items:center; gap:10px; margin:10px 0 2px; color:var(--soft); font-size:11.5px; }
 .al-auth-divider:before,.al-auth-divider:after{ content:""; flex:1; height:1px; background:#363241; }
