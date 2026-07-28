@@ -14,9 +14,9 @@ status: review
 | 항목 | 값 |
 |---|---|
 | 앱 이름 | ALIVE |
-| 패키지·번들 ID | `app.instarcharacterbot.alive` |
-| Android 버전 | `1.0` (`versionCode` 1) |
-| iOS 버전 | `1.0` (`build` 1) |
+| 패키지·번들 ID | `com.ashwoodfriends.alive` |
+| Android 버전 | `1.0.0` (`versionCode` 1) |
+| iOS 버전 | `1.0.0` (`build` 1) |
 | Android 대상 API | 36 |
 | iOS 최소 버전 | 15.0 |
 | 기본 API | `https://alive.imagebgremover.net/api` |

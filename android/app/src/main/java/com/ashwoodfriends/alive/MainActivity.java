@@ -1,4 +1,4 @@
-package app.instarcharacterbot.alive;
+package com.ashwoodfriends.alive;
 
 import com.getcapacitor.BridgeActivity;
 

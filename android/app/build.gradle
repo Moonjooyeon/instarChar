@@ -7,14 +7,14 @@ def releaseStorePassword = System.getenv("ALIVE_ANDROID_STORE_PASSWORD")
 def hasReleaseSigning = [releaseKeystorePath, releaseKeyAlias, releaseKeyPassword, releaseStorePassword].every { it }
 
 android {
-    namespace = "app.instarcharacterbot.alive"
+    namespace = "com.ashwoodfriends.alive"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "app.instarcharacterbot.alive"
+        applicationId "com.ashwoodfriends.alive"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
-        versionName "1.0"
+        versionName "1.0.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
