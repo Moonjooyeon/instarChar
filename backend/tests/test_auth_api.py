@@ -384,6 +384,22 @@ def test_native_apple_login_verifies_device_and_server_identity(monkeypatch: Mon
     assert result.session_token == "session"
 
 
+def test_native_apple_login_accepts_verified_identity_without_email(monkeypatch: MonkeyPatch) -> None:
+    service = OAuthService(Settings(apple_native_client_id="com.ashwoodfriends.alive"), StubSession())
+    claims = {"device-token": {"sub": "apple-user", "nonce": "1234567890abcdef"}, "server-token": {"sub": "apple-user"}}
+    async def exchange(code: str) -> dict[str, object]:
+        return {"id_token": "server-token", "refresh_token": "refresh", "access_token": "access", "expires_in": 3600}
+    async def complete(identity: object, tokens: object, client_id: str) -> OAuthCompletion:
+        assert getattr(identity, "subject") == "apple-user"
+        assert getattr(identity, "email").endswith("@apple-login.ashwoodfriends.com")
+        return OAuthCompletion(session_token="session", user_id=uuid4())
+    monkeypatch.setattr(service, "_verify_apple_native_token", lambda token: claims[token])
+    monkeypatch.setattr(service, "_exchange_native_apple_code", exchange)
+    monkeypatch.setattr(service, "_complete_identity", complete)
+    result = asyncio.run(service.complete_native_apple("single-use-code", "device-token", "1234567890abcdef", ""))
+    assert result.session_token == "session"
+
+
 def test_native_apple_login_rejects_mismatched_server_user() -> None:
     service = OAuthService(Settings(), StubSession())
     with raises(BadRequestError, match="Apple identity verification failed"):

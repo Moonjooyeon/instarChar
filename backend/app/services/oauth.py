@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from hashlib import sha256
 from hmac import compare_digest
 from urllib.parse import urlencode
 from uuid import UUID
@@ -108,10 +109,23 @@ class OAuthService:
 
     def _native_apple_authentication(self, claims: dict[str, object], token: dict[str, object], display_name: str) -> tuple[ProviderIdentity, AppleTokenSet]:
         try:
-            return self._identity_from_claims(UserProvider.apple, claims, display_name), self._apple_tokens(token)
+            return self._native_apple_identity(claims, display_name), self._apple_tokens(token)
         except AppError as exc:
             self._log_native_apple_failure("token_payload", exc)
             raise
+
+    def _native_apple_identity(self, claims: dict[str, object], display_name: str) -> ProviderIdentity:
+        subject = str(claims.get("sub") or "")
+        if not subject:
+            raise BadRequestError("OAuth identity is missing required claims")
+        provided_email = str(claims.get("email") or "")
+        email = provided_email or self._apple_fallback_email(subject)
+        name = display_name.strip() or (self._display_name(email, claims) if provided_email else "Apple 사용자")
+        return ProviderIdentity(provider=UserProvider.apple, subject=subject, email=email, display_name=name)
+
+    def _apple_fallback_email(self, subject: str) -> str:
+        digest = sha256(subject.encode()).hexdigest()
+        return f"apple-{digest}@apple-login.ashwoodfriends.com"
 
     def _log_native_apple_failure(self, stage: str, error: AppError) -> None:
         logger.warning("Native Apple login failed stage=%s error=%s", stage, error.message)
