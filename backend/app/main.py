@@ -2,10 +2,11 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager, suppress
 from collections.abc import AsyncIterator
+from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 from app.api.v1 import api_router
 from app.core.config import get_settings
@@ -16,6 +17,7 @@ from app.services.auto_post_scheduler import AutoPostScheduler
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
+legal_directory = Path(__file__).resolve().parent / "legal"
 
 
 @asynccontextmanager
@@ -44,6 +46,26 @@ app.add_middleware(
 @app.get("/health", tags=["system"], summary="Health check")
 async def health_check() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/privacy/", include_in_schema=False)
+async def privacy_policy() -> FileResponse:
+    return FileResponse(legal_directory / "privacy.html")
+
+
+@app.get("/terms/", include_in_schema=False)
+async def terms_of_service() -> FileResponse:
+    return FileResponse(legal_directory / "terms.html")
+
+
+@app.get("/account-deletion/", include_in_schema=False)
+async def account_deletion() -> FileResponse:
+    return FileResponse(legal_directory / "account-deletion.html")
+
+
+@app.get("/legal.css", include_in_schema=False)
+async def legal_styles() -> FileResponse:
+    return FileResponse(legal_directory / "legal.css", media_type="text/css")
 
 
 @app.exception_handler(AppError)
