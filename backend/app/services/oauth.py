@@ -17,13 +17,15 @@ from app.core.config import Settings
 from app.core.errors import AppError, BadRequestError, ServiceUnavailableError
 from app.core.security import OAuthStatePayload, read_oauth_state, sign_oauth_state, sign_session
 from app.core.token_encryption import TokenCipher
-from app.models import UserProvider
+from app.models import User, UserProvider
 from app.repositories.apple_credentials import AppleCredentialsRepository
 from app.repositories.users import UserRepository
 from app.services.apple_client_secret import AppleClientSecretFactory
 
 
 SAFE_OAUTH_ERROR_CODES = frozenset({"invalid_client", "invalid_grant", "invalid_request", "unauthorized_client", "unsupported_grant_type"})
+APPLE_FALLBACK_EMAIL_DOMAIN = "apple-login.ashwoodfriends.com"
+APPLE_FALLBACK_DIGEST_LENGTH = 58
 logger = logging.getLogger(__name__)
 
 
@@ -124,19 +126,32 @@ class OAuthService:
         return ProviderIdentity(provider=UserProvider.apple, subject=subject, email=email, display_name=name)
 
     def _apple_fallback_email(self, subject: str) -> str:
-        digest = sha256(subject.encode()).hexdigest()
-        return f"apple-{digest}@apple-login.ashwoodfriends.com"
+        digest = sha256(subject.encode()).hexdigest()[:APPLE_FALLBACK_DIGEST_LENGTH]
+        return f"apple-{digest}@{APPLE_FALLBACK_EMAIL_DOMAIN}"
 
     def _log_native_apple_failure(self, stage: str, error: AppError) -> None:
         logger.warning("Native Apple login failed stage=%s error=%s", stage, error.message)
 
     async def _complete_identity(self, identity: ProviderIdentity, tokens: AppleTokenSet | None = None, client_id: str = "") -> OAuthCompletion:
         user = await self.users.get_or_create_provider_user(identity.email, identity.provider, identity.subject, identity.display_name)
+        self._refresh_apple_email(user, identity)
         if tokens:
             await self._store_apple_credentials(user.id, client_id, identity.subject, tokens)
         await self.session.commit()
         token = sign_session(user.id, self.settings.auth_session_ttl_seconds, self.settings.auth_secret_key)
         return OAuthCompletion(session_token=token, user_id=user.id)
+
+    def _refresh_apple_email(self, user: User, identity: ProviderIdentity) -> None:
+        if identity.provider != UserProvider.apple:
+            return
+        current_fallback = self._is_apple_fallback_email(user.email)
+        incoming_fallback = self._is_apple_fallback_email(identity.email)
+        if not current_fallback and incoming_fallback:
+            return
+        user.email = identity.email
+
+    def _is_apple_fallback_email(self, email: str) -> bool:
+        return email.startswith("apple-") and email.endswith(f"@{APPLE_FALLBACK_EMAIL_DOMAIN}")
 
     def _require_oauth_state(self, provider: UserProvider, state: str) -> OAuthStatePayload:
         payload = self._oauth_state(provider, state)

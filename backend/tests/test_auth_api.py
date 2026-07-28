@@ -20,7 +20,8 @@ from app.core.security import _signature, read_oauth_state, sign_oauth_state
 from app.db.session import get_db_session
 from app.main import app
 from app.models import UserModerationStatus, UserProvider
-from app.services.oauth import OAuthCompletion, OAuthService
+from app.schemas.auth import UserResponse
+from app.services.oauth import OAuthCompletion, OAuthService, ProviderIdentity
 
 
 @dataclass
@@ -392,12 +393,27 @@ def test_native_apple_login_accepts_verified_identity_without_email(monkeypatch:
     async def complete(identity: object, tokens: object, client_id: str) -> OAuthCompletion:
         assert getattr(identity, "subject") == "apple-user"
         assert getattr(identity, "email").endswith("@apple-login.ashwoodfriends.com")
+        assert len(getattr(identity, "email").split("@")[0]) <= 64
         return OAuthCompletion(session_token="session", user_id=uuid4())
     monkeypatch.setattr(service, "_verify_apple_native_token", lambda token: claims[token])
     monkeypatch.setattr(service, "_exchange_native_apple_code", exchange)
     monkeypatch.setattr(service, "_complete_identity", complete)
     result = asyncio.run(service.complete_native_apple("single-use-code", "device-token", "1234567890abcdef", ""))
     assert result.session_token == "session"
+
+
+def test_native_apple_login_repairs_legacy_fallback_email() -> None:
+    legacy_email = f"apple-{'a' * 64}@apple-login.ashwoodfriends.com"
+    replacement_email = f"apple-{'a' * 58}@apple-login.ashwoodfriends.com"
+    user = StubUser(uuid4(), legacy_email, UserProvider.apple, StubProfile())
+    service = OAuthService(Settings(), StubSession())
+    async def get_user(email: str, provider: UserProvider, subject: str, display_name: str) -> StubUser:
+        return user
+    service.users = SimpleNamespace(get_or_create_provider_user=get_user)
+    identity = ProviderIdentity(UserProvider.apple, "apple-user", replacement_email, "Apple 사용자")
+    asyncio.run(service._complete_identity(identity))
+    assert user.email == replacement_email
+    assert str(UserResponse.model_validate(user).email) == replacement_email
 
 
 def test_native_apple_login_rejects_mismatched_server_user() -> None:
