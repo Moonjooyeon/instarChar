@@ -10,8 +10,9 @@ from app.core.config import Settings, get_settings
 from app.core.errors import AppError, BadRequestError
 from app.db.session import get_db_session
 from app.models import User, UserProvider
-from app.schemas.auth import MeResponse, NativeAppleLoginRequest, NativeOAuthExchangeRequest, UserResponse
+from app.schemas.auth import AppleNotificationRequest, MeResponse, NativeAppleLoginRequest, NativeOAuthExchangeRequest, UserResponse
 from app.services.account_deletion import AccountDeletionService
+from app.services.apple_notifications import AppleNotificationService
 from app.services.native_oauth import NativeOAuthService
 from app.services.oauth import OAuthCompletion, OAuthService
 
@@ -64,6 +65,11 @@ async def native_apple_login(payload: NativeAppleLoginRequest, response: Respons
     service = OAuthService(settings, session)
     completion = await service.complete_native_apple(payload.authorization_code, payload.identity_token, payload.nonce, payload.display_name)
     _set_session_cookie(response, completion.session_token, settings)
+
+
+@router.post("/apple/notifications", status_code=status.HTTP_204_NO_CONTENT)
+async def apple_notifications(payload: AppleNotificationRequest, settings: Settings = Depends(get_settings), session: AsyncSession = Depends(get_db_session)) -> None:
+    await AppleNotificationService(settings, session).process(payload.payload)
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)

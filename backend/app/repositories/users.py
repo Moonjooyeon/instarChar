@@ -30,6 +30,7 @@ class UserRepository:
     async def get_or_create_provider_user(self, email: str, provider: UserProvider, subject: str, display_name: str) -> User:
         existing = await self.get_by_provider(provider, subject)
         if existing:
+            existing.auth_revoked_at = None
             return existing
         return await self.create_provider_user(email, provider, subject, display_name)
 
@@ -37,4 +38,3 @@ class UserRepository:
         statement = delete(SharedDmThread).where(SharedDmThread.participant_user_ids.contains([user.id]))
         await self.session.execute(statement)
         await self.session.delete(user)
-        await self.session.commit()

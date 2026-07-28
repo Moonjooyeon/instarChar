@@ -31,9 +31,14 @@ class StubCredentials:
         return self.rows
 
 
+class StubSession:
+    async def commit(self) -> None:
+        return None
+
+
 def test_apple_account_revokes_before_local_deletion() -> None:
     events: list[str] = []
-    service = AccountDeletionService(Settings(), cast(AsyncSession, object()))
+    service = AccountDeletionService(Settings(), cast(AsyncSession, StubSession()))
     class StubRevoker:
         async def revoke_all(self, user_id: UUID) -> int:
             events.append("revoke")
@@ -49,7 +54,7 @@ def test_apple_account_revokes_before_local_deletion() -> None:
 
 def test_google_account_skips_apple_revocation() -> None:
     events: list[str] = []
-    service = AccountDeletionService(Settings(), cast(AsyncSession, object()))
+    service = AccountDeletionService(Settings(), cast(AsyncSession, StubSession()))
     class StubRevoker:
         async def revoke_all(self, user_id: UUID) -> int:
             events.append("revoke")

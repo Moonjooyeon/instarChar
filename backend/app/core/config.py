@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     apple_key_id: str = ""
     apple_private_key: str = ""
     oauth_token_encryption_key: str = ""
+    apple_notification_audiences: str = ""
     gemini_api_key: str = ""
     gemini_model_fast: str = "gemini-2.5-flash"
     gemini_model_good: str = "gemini-2.5-pro"
@@ -50,6 +51,12 @@ class Settings(BaseSettings):
     @property
     def allowed_origins(self) -> list[str]:
         return [item.strip() for item in self.frontend_origins.split(",") if item.strip()]
+
+    @computed_field
+    @property
+    def allowed_apple_notification_audiences(self) -> list[str]:
+        configured = [item.strip() for item in self.apple_notification_audiences.split(",") if item.strip()]
+        return configured or [item for item in (self.apple_client_id, self.apple_native_client_id) if item]
 
 
 @lru_cache

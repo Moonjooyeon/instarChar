@@ -33,4 +33,6 @@ async def _load_user(user_id: UUID, session: AsyncSession) -> User:
         raise ForbiddenError("Account access has been disabled")
     if user.moderation_status == UserModerationStatus.suspended:
         raise ForbiddenError("Account access is temporarily suspended")
+    if user.auth_revoked_at:
+        raise UnauthorizedError("Apple account authorization has been revoked")
     return user

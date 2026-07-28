@@ -29,6 +29,10 @@ class NativeAppleLoginRequest(BaseModel):
     display_name: str = Field(default="", max_length=120)
 
 
+class AppleNotificationRequest(BaseModel):
+    payload: str = Field(min_length=1, max_length=16384)
+
+
 class OAuthCallbackResult(BaseModel):
     user_id: UUID
     redirect_url: str = "/app"

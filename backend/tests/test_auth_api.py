@@ -1,6 +1,7 @@
 import asyncio
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from typing import Optional
 from urllib.parse import parse_qs, urlsplit
@@ -12,13 +13,13 @@ from fastapi.testclient import TestClient
 from jwt.exceptions import ImmatureSignatureError, PyJWKClientError
 from pytest import MonkeyPatch, raises
 
-from app.api.deps import get_current_user
+from app.api.deps import _load_user, get_current_user
 from app.core.config import Settings, get_settings
-from app.core.errors import BadRequestError, ServiceUnavailableError
+from app.core.errors import BadRequestError, ServiceUnavailableError, UnauthorizedError
 from app.core.security import _signature, read_oauth_state, sign_oauth_state
 from app.db.session import get_db_session
 from app.main import app
-from app.models import UserProvider
+from app.models import UserModerationStatus, UserProvider
 from app.services.oauth import OAuthCompletion, OAuthService
 
 
@@ -34,6 +35,8 @@ class StubUser:
     email: str
     provider: UserProvider
     profile: Optional[StubProfile]
+    moderation_status: UserModerationStatus = UserModerationStatus.active
+    auth_revoked_at: Optional[datetime] = None
 
 
 class StubSession:
@@ -149,6 +152,15 @@ def test_me_returns_cors_headers_on_unhandled_errors() -> None:
     assert response.json()["error"] == "INTERNAL_SERVER_ERROR"
 
 
+def test_revoked_apple_authorization_invalidates_existing_session(monkeypatch: MonkeyPatch) -> None:
+    user = StubUser(uuid4(), "tester@example.com", UserProvider.apple, StubProfile(), auth_revoked_at=datetime.now(timezone.utc))
+    async def get_by_id(self: object, user_id: object) -> StubUser:
+        return user
+    monkeypatch.setattr("app.api.deps.UserRepository.get_by_id", get_by_id)
+    with raises(UnauthorizedError, match="authorization has been revoked"):
+        asyncio.run(_load_user(user.id, StubSession()))
+
+
 def test_logout_clears_session_cookie() -> None:
     with make_test_client() as client:
         response = client.post("/api/auth/logout")
@@ -242,6 +254,17 @@ def test_native_apple_login_rejects_short_nonce() -> None:
     with make_test_client() as client:
         response = client.post("/api/auth/apple/native", json=payload)
     assert response.status_code == 422
+
+
+def test_apple_notification_endpoint_accepts_payload(monkeypatch: MonkeyPatch) -> None:
+    received: list[str] = []
+    async def process(self: object, payload: str) -> None:
+        received.append(payload)
+    monkeypatch.setattr("app.api.v1.auth.AppleNotificationService.process", process)
+    with make_test_client() as client:
+        response = client.post("/api/auth/apple/notifications", json={"payload": "signed-payload"})
+    assert response.status_code == 204
+    assert received == ["signed-payload"]
 
 
 def test_google_callback_redirects_oauth_error_to_frontend(monkeypatch: MonkeyPatch) -> None:

@@ -1,6 +1,7 @@
 from app.models.entities import (
     AiDailyUsage,
     AiMonthlyUsage,
+    AppleAccountEvent,
     AppleOAuthCredential,
     Character,
     CharacterFollow,
@@ -23,6 +24,7 @@ from app.models.entities import (
 __all__ = [
     "AiDailyUsage",
     "AiMonthlyUsage",
+    "AppleAccountEvent",
     "AppleOAuthCredential",
     "Character",
     "CharacterFollow",

@@ -47,6 +47,7 @@ class User(TimestampMixin, Base):
     provider: Mapped[UserProvider] = mapped_column(Enum(UserProvider, name="user_provider"), nullable=False)
     provider_subject: Mapped[str] = mapped_column(String(255), nullable=False)
     moderation_status: Mapped[UserModerationStatus] = mapped_column(Enum(UserModerationStatus, name="user_moderation_status"), nullable=False, default=UserModerationStatus.active)
+    auth_revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     profile: Mapped[Profile] = relationship(back_populates="user", cascade="all, delete-orphan")
 
 
@@ -61,6 +62,18 @@ class AppleOAuthCredential(TimestampMixin, Base):
     access_token_encrypted: Mapped[Optional[str]] = mapped_column(Text)
     access_token_expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     last_validated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    email_forwarding_enabled: Mapped[Optional[bool]] = mapped_column(Boolean)
+
+
+class AppleAccountEvent(Base):
+    __tablename__ = "apple_account_events"
+    id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid4)
+    event_id: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+    event_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    subject: Mapped[str] = mapped_column(String(255), nullable=False)
+    payload_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending")
+    processed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
 
 class NativeOAuthCode(Base):

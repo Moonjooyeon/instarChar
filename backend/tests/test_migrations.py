@@ -48,3 +48,11 @@ def test_apple_credentials_migration_follows_ugc_safety() -> None:
     names = {column.name for column in columns if isinstance(column, sa.Column)}
     assert migration.down_revision == "20260724_0006"
     assert {"refresh_token_encrypted", "access_token_encrypted", "last_validated_at"} <= names
+
+
+def test_apple_notification_migration_follows_credentials() -> None:
+    migration = _load_migration("20260728_0008_apple_account_notifications.py")
+    columns = cast(Callable[[], list[object]], migration._event_columns)()
+    names = {column.name for column in columns if isinstance(column, sa.Column)}
+    assert migration.down_revision == "20260728_0007"
+    assert {"event_id", "event_type", "subject", "payload_hash", "status"} <= names

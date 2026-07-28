@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 class AccountDeletionService:
     def __init__(self, settings: Settings, session: AsyncSession) -> None:
         self.revoker = AppleTokenRevoker(settings, AppleCredentialsRepository(session))
+        self.session = session
         self.users = UserRepository(session)
 
     async def delete(self, user: User) -> None:
@@ -23,3 +24,4 @@ class AccountDeletionService:
             if not revoked:
                 logger.warning("Apple account %s has no stored OAuth credential to revoke", user.id)
         await self.users.delete_account(user)
+        await self.session.commit()

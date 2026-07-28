@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -24,6 +24,14 @@ class AppleCredentialsRepository:
     async def list_for_user(self, user_id: UUID) -> list[AppleOAuthCredential]:
         result = await self.session.execute(select(AppleOAuthCredential).where(AppleOAuthCredential.user_id == user_id))
         return list(result.scalars().all())
+
+    async def delete_for_subject(self, subject: str, client_id: str) -> None:
+        statement = delete(AppleOAuthCredential).where(AppleOAuthCredential.subject == subject, AppleOAuthCredential.client_id == client_id)
+        await self.session.execute(statement)
+
+    async def set_email_forwarding(self, subject: str, client_id: str, enabled: bool) -> None:
+        statement = update(AppleOAuthCredential).where(AppleOAuthCredential.subject == subject, AppleOAuthCredential.client_id == client_id)
+        await self.session.execute(statement.values(email_forwarding_enabled=enabled, updated_at=func.now()))
 
     def _values(self, user_id: UUID, client_id: str, subject: str, refresh_token: str, access_token: str | None, expires_at: datetime | None) -> dict[str, object]:
         return {"id": uuid4(), "user_id": user_id, "client_id": client_id, "subject": subject, "refresh_token_encrypted": refresh_token, "access_token_encrypted": access_token, "access_token_expires_at": expires_at}
