@@ -77,8 +77,8 @@ class OAuthService:
     async def complete_native_apple(self, code: str, identity_token: str, nonce: str, display_name: str) -> OAuthCompletion:
         device_claims = self._verified_native_apple_device(identity_token, nonce)
         token = await self._exchanged_native_apple_token(code)
-        server_claims = self._verified_native_apple_server(token, device_claims)
-        identity, tokens = self._native_apple_authentication(server_claims, token, display_name)
+        self._verified_native_apple_server(token, device_claims)
+        identity, tokens = self._native_apple_authentication(device_claims, token, display_name)
         return await self._complete_identity(identity, tokens, self.settings.apple_native_client_id)
 
     def _verified_native_apple_device(self, identity_token: str, nonce: str) -> dict[str, object]:

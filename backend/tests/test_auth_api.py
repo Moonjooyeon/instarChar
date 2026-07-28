@@ -367,12 +367,13 @@ def test_native_apple_nonce_must_match_identity_claim() -> None:
 
 def test_native_apple_login_verifies_device_and_server_identity(monkeypatch: MonkeyPatch) -> None:
     service = OAuthService(Settings(apple_native_client_id="com.ashwoodfriends.alive"), StubSession())
-    claims = {"device-token": {"sub": "apple-user", "nonce": "1234567890abcdef"}, "server-token": {"sub": "apple-user", "email": "private@privaterelay.appleid.com"}}
+    claims = {"device-token": {"sub": "apple-user", "email": "private@privaterelay.appleid.com", "nonce": "1234567890abcdef"}, "server-token": {"sub": "apple-user"}}
     async def exchange(code: str) -> dict[str, object]:
         assert code == "single-use-code"
         return {"id_token": "server-token", "refresh_token": "refresh", "access_token": "access", "expires_in": 3600}
     async def complete(identity: object, tokens: object, client_id: str) -> OAuthCompletion:
         assert getattr(identity, "display_name") == "애플 사용자"
+        assert getattr(identity, "email") == "private@privaterelay.appleid.com"
         assert getattr(tokens, "refresh_token") == "refresh"
         assert client_id == "com.ashwoodfriends.alive"
         return OAuthCompletion(session_token="session", user_id=uuid4())
