@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from uuid import UUID
 
 import httpx
@@ -13,6 +14,7 @@ from app.services.apple_client_secret import AppleClientSecretFactory
 
 APPLE_REVOKE_URL = "https://appleid.apple.com/auth/revoke"
 INVALID_TOKEN_ERRORS = {"invalid_grant", "invalid_token"}
+logger = logging.getLogger(__name__)
 
 
 class AppleTokenRevoker:
@@ -33,6 +35,7 @@ class AppleTokenRevoker:
         payload = {"client_id": client_id, "client_secret": secret, "token": token, "token_type_hint": "refresh_token"}
         response = await self._post(payload)
         if response.status_code < 400 or self._already_invalid(response):
+            logger.info("Revoked Apple OAuth token client_id=%s", client_id)
             return
         raise ServiceUnavailableError("Apple token revocation failed")
 

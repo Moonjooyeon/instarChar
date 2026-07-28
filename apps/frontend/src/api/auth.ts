@@ -1,5 +1,5 @@
 import { App } from "@capacitor/app";
-import { Capacitor, CapacitorHttp, registerPlugin } from "@capacitor/core";
+import { Capacitor, CapacitorHttp, registerPlugin, type PluginListenerHandle } from "@capacitor/core";
 
 import { apiNoContent, apiResult, apiUrl, type ApiError } from "./client.js";
 
@@ -51,12 +51,15 @@ type NativeAppleCredential = {
 
 type NativeAppleSignInPlugin = {
   authorize(options: { nonce: string }): Promise<NativeAppleCredential>;
+  getCredentialState(): Promise<{ hasStoredCredential: boolean; state: string }>;
+  addListener(eventName: "credentialRevoked", listener: () => void): Promise<PluginListenerHandle>;
 };
 
 const NATIVE_OAUTH_REDIRECT_URL = "com.ashwoodfriends.alive://oauth/callback";
 const NativeAppleSignIn = registerPlugin<NativeAppleSignInPlugin>("AppleSignIn");
 const authStateListeners = new Set<AuthStateListener>();
 let nativeOAuthInitialization: Promise<void> | null = null;
+let nativeAppleInvalidation: Promise<void> | null = null;
 
 export function isAuthApiAvailable(): boolean {
   return true;
@@ -106,6 +109,7 @@ async function startNativeOAuthListener(): Promise<void> {
   });
   const launch = await App.getLaunchUrl();
   if (launch?.url) await exchangeNativeOAuthUrl(launch.url, false);
+  if (isNativeApplePlatform()) await startNativeAppleCredentialMonitoring();
 }
 
 async function exchangeNativeOAuthUrl(value: string, notify: boolean): Promise<void> {
@@ -159,6 +163,41 @@ function nativeAppleErrorMessage(error: unknown): string {
 export function appleLoginFailureMessage(status: number): string {
   if (status >= 500) return "Apple 로그인 서버에 잠시 연결할 수 없어. 다시 시도해줘.";
   return "Apple 로그인 승인이 만료됐거나 유효하지 않아. 다시 로그인해줘.";
+}
+
+export function shouldInvalidateAppleCredential(state: string, hasStoredCredential: boolean): boolean {
+  if (state === "revoked" || state === "transferred") return true;
+  return state === "notFound" && hasStoredCredential;
+}
+
+async function startNativeAppleCredentialMonitoring(): Promise<void> {
+  await NativeAppleSignIn.addListener("credentialRevoked", () => {
+    invalidateNativeAppleSession().catch(showNativeOAuthError);
+  });
+  await App.addListener("appStateChange", ({ isActive }) => {
+    if (isActive) checkNativeAppleCredential().catch(showNativeOAuthError);
+  });
+  await checkNativeAppleCredential();
+}
+
+async function checkNativeAppleCredential(): Promise<void> {
+  const credential = await NativeAppleSignIn.getCredentialState();
+  if (shouldInvalidateAppleCredential(credential.state, credential.hasStoredCredential)) await invalidateNativeAppleSession();
+}
+
+async function invalidateNativeAppleSession(): Promise<void> {
+  if (!nativeAppleInvalidation) nativeAppleInvalidation = performNativeAppleInvalidation();
+  try {
+    await nativeAppleInvalidation;
+  } finally {
+    nativeAppleInvalidation = null;
+  }
+}
+
+async function performNativeAppleInvalidation(): Promise<void> {
+  const result = await signOutAuthSession();
+  if (result.error) throw new Error(result.error.message);
+  authStateListeners.forEach((listener) => listener());
 }
 
 function isNativeOAuthCallback(url: URL): boolean {

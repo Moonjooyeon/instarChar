@@ -8,9 +8,19 @@ public class AppleSignIn: CAPPlugin, CAPBridgedPlugin, ASAuthorizationController
     public let identifier = "AppleSignIn"
     public let jsName = "AppleSignIn"
     public let pluginMethods: [CAPPluginMethod] = [
-        CAPPluginMethod(name: "authorize", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "authorize", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "getCredentialState", returnType: CAPPluginReturnPromise)
     ]
+    private let userIdentifierKey = "alive.apple.userIdentifier"
     private var pendingCall: CAPPluginCall?
+
+    override public func load() {
+        NotificationCenter.default.addObserver(self, selector: #selector(handleCredentialRevoked), name: ASAuthorizationAppleIDProvider.credentialRevokedNotification, object: nil)
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
 
     @objc public func authorize(_ call: CAPPluginCall) {
         guard pendingCall == nil else {
@@ -40,6 +50,7 @@ public class AppleSignIn: CAPPlugin, CAPBridgedPlugin, ASAuthorizationController
             finishWithError("Apple login did not return verification tokens")
             return
         }
+        UserDefaults.standard.set(credential.user, forKey: userIdentifierKey)
         pendingCall?.resolve([
             "authorizationCode": authorizationCode,
             "identityToken": identityToken,
@@ -55,6 +66,38 @@ public class AppleSignIn: CAPPlugin, CAPBridgedPlugin, ASAuthorizationController
 
     public func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
         return bridge?.viewController?.view.window ?? ASPresentationAnchor()
+    }
+
+    @objc public func getCredentialState(_ call: CAPPluginCall) {
+        guard let userIdentifier = UserDefaults.standard.string(forKey: userIdentifierKey) else {
+            call.resolve(["state": "notFound", "hasStoredCredential": false])
+            return
+        }
+        ASAuthorizationAppleIDProvider().getCredentialState(forUserID: userIdentifier) { [weak self] state, error in
+            guard error == nil, let self else {
+                call.resolve(["state": "unknown", "hasStoredCredential": true])
+                return
+            }
+            let value = self.credentialStateValue(state)
+            if value != "authorized" && value != "unknown" {
+                UserDefaults.standard.removeObject(forKey: self.userIdentifierKey)
+            }
+            call.resolve(["state": value, "hasStoredCredential": true])
+        }
+    }
+
+    @objc private func handleCredentialRevoked() {
+        notifyListeners("credentialRevoked", data: [:])
+    }
+
+    private func credentialStateValue(_ state: ASAuthorizationAppleIDProvider.CredentialState) -> String {
+        switch state {
+        case .authorized: return "authorized"
+        case .revoked: return "revoked"
+        case .notFound: return "notFound"
+        case .transferred: return "transferred"
+        @unknown default: return "unknown"
+        }
     }
 
     private func string(from data: Data?) -> String? {

@@ -25,7 +25,10 @@ test("iOS delegates safe-area layout to the responsive app shell", () => {
 test("iOS bridge registers the local Apple sign-in plugin", () => {
   const iosAppPath = path.resolve(process.cwd(), "../../ios/App/App");
   const controller = readFileSync(path.join(iosAppPath, "AliveBridgeViewController.swift"), "utf8");
+  const applePlugin = readFileSync(path.join(iosAppPath, "AppleSignIn.swift"), "utf8");
   const storyboard = readFileSync(path.join(iosAppPath, "Base.lproj/Main.storyboard"), "utf8");
   assert.match(controller, /registerPluginInstance\(AppleSignIn\(\)\)/);
+  assert.match(applePlugin, /getCredentialState\(forUserID:/);
+  assert.match(applePlugin, /credentialRevokedNotification/);
   assert.match(storyboard, /customClass="AliveBridgeViewController"/);
 });

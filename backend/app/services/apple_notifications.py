@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from hashlib import sha256
+import logging
 
 import jwt
 from jwt import PyJWKClient
@@ -20,6 +21,7 @@ from app.repositories.users import UserRepository
 APPLE_ISSUER = "https://appleid.apple.com"
 APPLE_JWKS_URL = "https://appleid.apple.com/auth/keys"
 EMAIL_EVENTS = {"email-enabled": True, "email-disabled": False}
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -75,6 +77,7 @@ class AppleNotificationService:
         status = await self._apply(change)
         await self.events.complete(event_id, status)
         await self.session.commit()
+        logger.info("Processed Apple account event type=%s status=%s", change.event_type, status)
 
     async def _apply(self, change: AppleAccountChange) -> str:
         if change.event_type in EMAIL_EVENTS:

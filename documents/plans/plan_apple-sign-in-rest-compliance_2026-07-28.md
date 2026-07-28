@@ -3,8 +3,8 @@ title: Apple 로그인 REST API 및 운영 요건 구현 계획
 author: black (black@ashwoodfriends.com)
 created: 2026-07-28
 updated: 2026-07-28
-version: 1.0.0
-status: review
+version: 1.1.0
+status: implemented-local
 ---
 
 # Apple 로그인 REST API 및 운영 요건 구현 계획
@@ -131,11 +131,11 @@ Release B까지 완료해야 App Store 제출 준비가 끝난 것으로 판정�
         v
 [POST /api/auth/apple/notifications]
         |
-        +--> signedPayload 서명·issuer·audience·만료 검증
+        +--> payload JWS 서명·issuer·audience·발급 시각 검증
         +--> 알림 고유 ID 중복 확인
         +--> 공식 event type 분기
         |       +--> consent revoked
-        |       +--> account delete
+        |       +--> account deleted
         |       +--> private relay email 상태 변경
         +--> 처리 결과와 시각 저장
         |
@@ -296,10 +296,10 @@ Release B까지 완료해야 App Store 제출 준비가 끝난 것으로 판정�
 ### Phase B3. Apple 서버 간 알림
 
 - [ ] `POST /api/auth/apple/notifications` 공개 endpoint를 추가한다.
-- [ ] 요청 크기를 제한하고 `signedPayload` 이외의 입력을 거부한다.
-- [ ] Apple 공개 키로 서명, issuer, audience, 만료를 검증한다.
-- [ ] Apple 공식 문서의 현재 event type과 claim 이름을 구현 시점에 다시 대조한다.
-- [ ] `consent-revoked`, `account-delete`, private relay email 상태 변경 이벤트를 각각 처리한다.
+- [x] 요청 모델에서 `payload` JWS 이외의 입력을 거부한다.
+- [x] Apple 공개 키로 서명, issuer, audience, 발급 시각을 검증한다.
+- [x] Apple 공식 문서의 현재 event type과 claim 이름을 구현 시점에 다시 대조한다.
+- [x] `consent-revoked`, `account-deleted`, `email-enabled`, `email-disabled` 이벤트를 각각 처리한다.
 - [ ] `apple_account_events.event_id` unique constraint로 같은 알림의 재처리를 막는다.
 - [ ] 유효한 미지원 이벤트는 `ignored`로 기록하고 2xx를 반환한다.
 - [ ] 유효하지 않은 서명은 4xx로 거부하며 사용자 존재 여부를 응답으로 노출하지 않는다.
@@ -312,11 +312,11 @@ Release B까지 완료해야 App Store 제출 준비가 끝난 것으로 판정�
 
 ### Phase B4. 자격 증명 상태와 운영 점검
 
-- [ ] 앱 활성화 시 `ASAuthorizationAppleIDProvider.getCredentialState`를 호출할 시점을 정한다.
-- [ ] `revoked`, `notFound`, `transferred` 상태에서 로컬 세션을 안전하게 정리하고 재로그인을 안내한다.
-- [ ] `ASAuthorizationAppleIDProvider.credentialRevokedNotification`을 앱 실행 중 감지한다.
-- [ ] 서버에서 refresh token 상태 확인이 필요할 경우 Apple 권장 주기를 넘지 않도록 `last_validated_at`을 사용한다.
-- [ ] 토큰 교환·폐기·알림 처리의 성공/실패 지표와 비밀값 없는 구조화 로그를 추가한다.
+- [x] 앱 활성화 시 `ASAuthorizationAppleIDProvider.getCredentialState`를 호출한다.
+- [x] `revoked`, `notFound`, `transferred` 상태에서 로컬 세션을 안전하게 정리하고 재로그인을 안내한다.
+- [x] `ASAuthorizationAppleIDProvider.credentialRevokedNotification`을 앱 실행 중 감지한다.
+- [x] 서버 refresh token 주기 확인은 현재 필요하지 않다고 결정했다. 네이티브 자격 상태와 서버 알림을 사용한다.
+- [x] 토큰 폐기와 알림 처리에 비밀값을 포함하지 않는 운영 로그를 추가한다.
 
 완료 조건:
 
@@ -519,4 +519,33 @@ Lane A와 Lane B는 병렬 진행할 수 있다. Lane C는 Lane B의 client secr
 
 ## 19. 리뷰 상태
 
-`/plan-eng-review`의 정식 대화형 검토는 현재 세션에 필수 의사결정 도구가 없어 완료하지 못했다. 본 문서는 현재 코드와 Apple 공식 문서를 기준으로 작성한 구현 초안이며, 구현 전에 17절의 확인 항목과 토큰 폐기 실패 정책을 승인 상태로 전환해야 한다.
+`/plan-eng-review`의 정식 대화형 검토는 계획 작성 시점에 필수 의사결정 도구가 없어 완료하지 못했다. 이후 단계별 구현과 자동 검증을 완료했으며, 운영 반영과 실제 Apple 계정 검증만 별도 작업으로 남겨 두었다.
+
+## 20. 구현 결과
+
+| 단계 | 커밋 | 결과 |
+|---|---|---|
+| A1 | `2d1930e` | Capacitor 네이티브 Apple 플러그인 등록과 iOS entitlement 연결 |
+| A2 | `a20e128` | Apple 공식 REST 버튼 이미지를 앱에 번들하고 접근 가능한 버튼으로 적용 |
+| A3·A4 | `39abaee` | 네이티브 authorization code 교환, 짧은 수명 ES256 client secret 생성 |
+| B1 | `e15ea79` | Apple OAuth 토큰 암호화 저장과 `20260728_0007` 마이그레이션 |
+| B2 | `9228768` | Apple 토큰 폐기 성공 후 계정 삭제, 일시 장애 시 계정 보존 |
+| B3 | `a9239b3` | 서버 간 알림 검증·중복 방지·계정 상태 반영과 `20260728_0008` 마이그레이션 |
+| B4 | 이 문서와 함께 커밋 | 앱 활성화·취소 알림 기반 자격 상태 확인과 운영 로그 |
+
+최종 로컬 검증 결과:
+
+- 프런트 도메인 테스트: 81개 통과
+- 프런트 TypeScript 검사: 통과
+- 프런트 Vite 프로덕션 빌드: 통과
+- 백엔드 테스트: 131개 통과
+- Alembic head: `20260728_0008`
+- iOS 시뮬레이터 Debug 빌드: 통과
+- Git whitespace 검사: 통과
+
+운영 반영 전 남은 외부 작업:
+
+- Apple Developer Team ID, Key ID, `.p8` 키와 토큰 암호화 키를 운영 secret으로 설정한다.
+- Apple Developer의 서버 알림 URL과 허용 audience를 운영 도메인에 맞게 등록한다.
+- 운영 DB에는 승인 후 `20260728_0007`, `20260728_0008` 마이그레이션을 적용한다.
+- 실제 기기와 테스트 Apple ID로 로그인, 권한 취소, 계정 삭제를 최종 확인한다.

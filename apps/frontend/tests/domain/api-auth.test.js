@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { appleLoginFailureMessage, deleteAuthAccount, signInWithOAuthProvider } from "../../src/api/auth.js";
+import { appleLoginFailureMessage, deleteAuthAccount, shouldInvalidateAppleCredential, signInWithOAuthProvider } from "../../src/api/auth.js";
 
 test("signInWithOAuthProvider sends current origin callback to backend", async () => {
   const assigned = [];
@@ -47,6 +47,14 @@ test("deleteAuthAccount requests permanent account deletion", async () => {
 test("Apple login errors distinguish retryable provider failures", () => {
   assert.match(appleLoginFailureMessage(503), /다시 시도/);
   assert.match(appleLoginFailureMessage(400), /다시 로그인/);
+});
+
+test("Apple credential state only invalidates a known revoked account", () => {
+  assert.equal(shouldInvalidateAppleCredential("authorized", true), false);
+  assert.equal(shouldInvalidateAppleCredential("revoked", true), true);
+  assert.equal(shouldInvalidateAppleCredential("transferred", true), true);
+  assert.equal(shouldInvalidateAppleCredential("notFound", true), true);
+  assert.equal(shouldInvalidateAppleCredential("notFound", false), false);
 });
 
 function stubWindow(origin, assigned) {
