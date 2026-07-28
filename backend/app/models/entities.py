@@ -50,6 +50,19 @@ class User(TimestampMixin, Base):
     profile: Mapped[Profile] = relationship(back_populates="user", cascade="all, delete-orphan")
 
 
+class AppleOAuthCredential(TimestampMixin, Base):
+    __tablename__ = "apple_oauth_credentials"
+    __table_args__ = (UniqueConstraint("user_id", "client_id", name="uq_apple_oauth_credentials_user_client"), Index("ix_apple_oauth_credentials_subject_client", "subject", "client_id"))
+    id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid4)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    client_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    subject: Mapped[str] = mapped_column(String(255), nullable=False)
+    refresh_token_encrypted: Mapped[str] = mapped_column(Text, nullable=False)
+    access_token_encrypted: Mapped[Optional[str]] = mapped_column(Text)
+    access_token_expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    last_validated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+
 class NativeOAuthCode(Base):
     __tablename__ = "native_oauth_codes"
     id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid4)

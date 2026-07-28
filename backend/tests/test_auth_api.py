@@ -6,6 +6,7 @@ from typing import Optional
 from urllib.parse import parse_qs, urlsplit
 from uuid import uuid4
 
+from cryptography.fernet import Fernet
 from fastapi import Response
 from fastapi.testclient import TestClient
 from jwt.exceptions import ImmatureSignatureError, PyJWKClientError
@@ -344,11 +345,13 @@ def test_native_apple_nonce_must_match_identity_claim() -> None:
 def test_native_apple_login_verifies_device_and_server_identity(monkeypatch: MonkeyPatch) -> None:
     service = OAuthService(Settings(apple_native_client_id="com.ashwoodfriends.alive"), StubSession())
     claims = {"device-token": {"sub": "apple-user", "nonce": "1234567890abcdef"}, "server-token": {"sub": "apple-user", "email": "private@privaterelay.appleid.com"}}
-    async def exchange(code: str) -> dict[str, str]:
+    async def exchange(code: str) -> dict[str, object]:
         assert code == "single-use-code"
-        return {"id_token": "server-token"}
-    async def complete(identity: object) -> OAuthCompletion:
+        return {"id_token": "server-token", "refresh_token": "refresh", "access_token": "access", "expires_in": 3600}
+    async def complete(identity: object, tokens: object, client_id: str) -> OAuthCompletion:
         assert getattr(identity, "display_name") == "애플 사용자"
+        assert getattr(tokens, "refresh_token") == "refresh"
+        assert client_id == "com.ashwoodfriends.alive"
         return OAuthCompletion(session_token="session", user_id=uuid4())
     monkeypatch.setattr(service, "_verify_apple_native_token", lambda token: claims[token])
     monkeypatch.setattr(service, "_exchange_native_apple_code", exchange)
@@ -367,6 +370,21 @@ def test_native_apple_login_requires_server_identity_token() -> None:
     service = OAuthService(Settings(), StubSession())
     with raises(BadRequestError, match="Apple token exchange failed"):
         service._required_id_token({})
+
+
+def test_native_apple_tokens_are_encrypted_before_storage() -> None:
+    stored: dict[str, object] = {}
+    class StubCredentials:
+        async def upsert(self, user_id: object, client_id: str, subject: str, refresh_token: str, access_token: str, expires_at: object) -> None:
+            stored.update({"client_id": client_id, "refresh": refresh_token, "access": access_token})
+    settings = Settings(oauth_token_encryption_key=Fernet.generate_key().decode())
+    service = OAuthService(settings, StubSession())
+    service.apple_credentials = StubCredentials()
+    tokens = service._apple_tokens({"refresh_token": "refresh", "access_token": "access", "expires_in": 3600})
+    asyncio.run(service._store_apple_credentials(uuid4(), "client", "subject", tokens))
+    assert stored["client_id"] == "client"
+    assert "refresh" not in str(stored["refresh"]).removeprefix("v1:")
+    assert "access" not in str(stored["access"]).removeprefix("v1:")
 
 
 def test_oauth_token_exchange_rejects_provider_server_errors(monkeypatch: MonkeyPatch) -> None:

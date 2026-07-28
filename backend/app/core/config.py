@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     apple_team_id: str = ""
     apple_key_id: str = ""
     apple_private_key: str = ""
+    oauth_token_encryption_key: str = ""
     gemini_api_key: str = ""
     gemini_model_fast: str = "gemini-2.5-flash"
     gemini_model_good: str = "gemini-2.5-pro"
