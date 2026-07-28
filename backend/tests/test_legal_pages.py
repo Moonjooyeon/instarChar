@@ -17,6 +17,7 @@ def test_legal_pages_are_public_html() -> None:
         assert title in responses[path].text
         assert "(주)애쉬우드프렌즈" in responses[path].text
         assert "ashwoodfriends@ashwoodfriends.com" in responses[path].text
+        assert 'href="/legal.css?v=20260728-1"' in responses[path].text
 
 
 def test_legal_styles_are_public_css() -> None:
