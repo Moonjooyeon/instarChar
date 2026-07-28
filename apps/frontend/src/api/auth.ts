@@ -1,5 +1,5 @@
 import { App } from "@capacitor/app";
-import { Capacitor, CapacitorHttp } from "@capacitor/core";
+import { Capacitor, CapacitorHttp, registerPlugin } from "@capacitor/core";
 
 import { apiNoContent, apiResult, apiUrl, type ApiError } from "./client.js";
 
@@ -43,7 +43,18 @@ export type AuthSubscription = {
 
 type AuthStateListener = () => void;
 
-const NATIVE_OAUTH_REDIRECT_URL = "app.instarcharacterbot.alive://oauth/callback";
+type NativeAppleCredential = {
+  authorizationCode: string;
+  displayName?: string;
+  identityToken: string;
+};
+
+type NativeAppleSignInPlugin = {
+  authorize(options: { nonce: string }): Promise<NativeAppleCredential>;
+};
+
+const NATIVE_OAUTH_REDIRECT_URL = "com.ashwoodfriends.alive://oauth/callback";
+const NativeAppleSignIn = registerPlugin<NativeAppleSignInPlugin>("AppleSignIn");
 const authStateListeners = new Set<AuthStateListener>();
 let nativeOAuthInitialization: Promise<void> | null = null;
 
@@ -52,6 +63,7 @@ export function isAuthApiAvailable(): boolean {
 }
 
 export async function signInWithOAuthProvider(provider: AuthProvider): Promise<{ error: ApiError | null }> {
+  if (provider === "apple" && isNativeApplePlatform()) return signInWithNativeApple();
   window.location.assign(oauthStartUrl(provider));
   return { error: null };
 }
@@ -112,6 +124,41 @@ async function exchangeNativeOAuthCode(code: string): Promise<void> {
   const response = await CapacitorHttp.post({ url, headers: { "Content-Type": "application/json" }, data: { code } });
   if (response.status >= 200 && response.status < 300) return;
   throw new Error("소셜 로그인 세션을 만들지 못했어.");
+}
+
+async function signInWithNativeApple(): Promise<{ error: ApiError | null }> {
+  try {
+    const nonce = crypto.randomUUID();
+    const credential = await NativeAppleSignIn.authorize({ nonce });
+    await exchangeNativeAppleCredential(credential, nonce);
+    authStateListeners.forEach((listener) => listener());
+    return { error: null };
+  } catch (error) {
+    return { error: { message: nativeAppleErrorMessage(error) } };
+  }
+}
+
+async function exchangeNativeAppleCredential(credential: NativeAppleCredential, nonce: string): Promise<void> {
+  const url = new URL(apiUrl("/auth/apple/native"), window.location.origin).href;
+  const data = { authorization_code: credential.authorizationCode, identity_token: credential.identityToken, nonce, display_name: credential.displayName || "" };
+  const response = await CapacitorHttp.post({ url, headers: { "Content-Type": "application/json" }, data });
+  if (response.status >= 200 && response.status < 300) return;
+  throw new Error(appleLoginFailureMessage(response.status));
+}
+
+function isNativeApplePlatform(): boolean {
+  return Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
+}
+
+function nativeAppleErrorMessage(error: unknown): string {
+  if (error instanceof Error && /cancel/i.test(error.message)) return "Apple 로그인을 취소했어.";
+  if (error instanceof Error && error.message) return error.message;
+  return "Apple 로그인에 실패했어.";
+}
+
+export function appleLoginFailureMessage(status: number): string {
+  if (status >= 500) return "Apple 로그인 서버에 잠시 연결할 수 없어. 다시 시도해줘.";
+  return "Apple 로그인 승인이 만료됐거나 유효하지 않아. 다시 로그인해줘.";
 }
 
 function isNativeOAuthCallback(url: URL): boolean {

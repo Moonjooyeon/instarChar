@@ -11,7 +11,7 @@ from app.core.errors import AppError, BadRequestError
 from app.db.session import get_db_session
 from app.models import User, UserProvider
 from app.repositories.users import UserRepository
-from app.schemas.auth import MeResponse, NativeOAuthExchangeRequest, UserResponse
+from app.schemas.auth import MeResponse, NativeAppleLoginRequest, NativeOAuthExchangeRequest, UserResponse
 from app.services.native_oauth import NativeOAuthService
 from app.services.oauth import OAuthCompletion, OAuthService
 
@@ -57,6 +57,13 @@ async def _complete_oauth_callback(provider: UserProvider, code: str, state: str
 async def exchange_native_oauth(payload: NativeOAuthExchangeRequest, response: Response, settings: Settings = Depends(get_settings), session: AsyncSession = Depends(get_db_session)) -> None:
     token = await NativeOAuthService(settings, session).consume(payload.code)
     _set_session_cookie(response, token, settings)
+
+
+@router.post("/apple/native", status_code=status.HTTP_204_NO_CONTENT)
+async def native_apple_login(payload: NativeAppleLoginRequest, response: Response, settings: Settings = Depends(get_settings), session: AsyncSession = Depends(get_db_session)) -> None:
+    service = OAuthService(settings, session)
+    completion = await service.complete_native_apple(payload.authorization_code, payload.identity_token, payload.nonce, payload.display_name)
+    _set_session_cookie(response, completion.session_token, settings)
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)

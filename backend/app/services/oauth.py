@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from hmac import compare_digest
 from urllib.parse import urlencode
 from uuid import UUID
 
@@ -10,10 +11,11 @@ from jwt import PyJWKClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
-from app.core.errors import BadRequestError
+from app.core.errors import BadRequestError, ServiceUnavailableError
 from app.core.security import OAuthStatePayload, read_oauth_state, sign_oauth_state, sign_session
 from app.models import UserProvider
 from app.repositories.users import UserRepository
+from app.services.apple_client_secret import AppleClientSecretFactory
 
 
 @dataclass(frozen=True)
@@ -33,6 +35,7 @@ class OAuthCompletion:
 class OAuthService:
     def __init__(self, settings: Settings, session: AsyncSession) -> None:
         self.settings = settings
+        self.apple_client_secrets = AppleClientSecretFactory(settings)
         self.users = UserRepository(session)
         self.session = session
 
@@ -46,6 +49,18 @@ class OAuthService:
     async def complete(self, provider: UserProvider, code: str, state: str) -> OAuthCompletion:
         state_payload = self._require_oauth_state(provider, state)
         identity = await self._provider_identity(provider, code, state_payload.redirect_uri)
+        return await self._complete_identity(identity)
+
+    async def complete_native_apple(self, code: str, identity_token: str, nonce: str, display_name: str) -> OAuthCompletion:
+        device_claims = self._verify_apple_native_token(identity_token)
+        self._require_apple_nonce(device_claims, nonce)
+        token = await self._exchange_native_apple_code(code)
+        server_claims = self._verify_apple_native_token(self._required_id_token(token))
+        self._require_same_apple_user(device_claims, server_claims)
+        identity = self._identity_from_claims(UserProvider.apple, server_claims, display_name)
+        return await self._complete_identity(identity)
+
+    async def _complete_identity(self, identity: ProviderIdentity) -> OAuthCompletion:
         user = await self.users.get_or_create_provider_user(identity.email, identity.provider, identity.subject, identity.display_name)
         await self.session.commit()
         token = sign_session(user.id, self.settings.auth_session_ttl_seconds, self.settings.auth_secret_key)
@@ -110,7 +125,14 @@ class OAuthService:
         return await self._post_token("https://oauth2.googleapis.com/token", payload)
 
     async def _exchange_apple_code(self, code: str, redirect_uri: str) -> dict[str, str]:
-        payload = self._token_payload(code, self.settings.apple_client_id, self.settings.apple_client_secret, redirect_uri or self.settings.apple_redirect_uri)
+        secret = self.apple_client_secrets.create(self.settings.apple_client_id, self.settings.apple_client_secret)
+        payload = self._token_payload(code, self.settings.apple_client_id, secret, redirect_uri or self.settings.apple_redirect_uri)
+        return await self._post_token("https://appleid.apple.com/auth/token", payload)
+
+    async def _exchange_native_apple_code(self, code: str) -> dict[str, str]:
+        secret = self.apple_client_secrets.create(self.settings.apple_native_client_id, self.settings.apple_native_client_secret)
+        payload = self._token_payload(code, self.settings.apple_native_client_id, secret, "")
+        payload.pop("redirect_uri")
         return await self._post_token("https://appleid.apple.com/auth/token", payload)
 
     def _token_payload(self, code: str, client_id: str, secret: str, redirect_uri: str) -> dict[str, str]:
@@ -119,11 +141,19 @@ class OAuthService:
         return {"code": code, "client_id": client_id, "client_secret": secret, "redirect_uri": redirect_uri, "grant_type": "authorization_code"}
 
     async def _post_token(self, url: str, payload: dict[str, str]) -> dict[str, str]:
-        async with httpx.AsyncClient(timeout=10) as client:
-            response = await client.post(url, data=payload)
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                response = await client.post(url, data=payload)
+        except httpx.HTTPError as exc:
+            raise ServiceUnavailableError("OAuth provider is temporarily unavailable") from exc
+        if response.status_code >= 500:
+            raise ServiceUnavailableError("OAuth provider is temporarily unavailable")
         if response.status_code >= 400:
             raise BadRequestError("OAuth token exchange failed")
-        return response.json()
+        data: object = response.json()
+        if not isinstance(data, dict) or not all(isinstance(key, str) and isinstance(value, str) for key, value in data.items()):
+            raise BadRequestError("OAuth token response is invalid")
+        return data
 
     def _verify_jwt(self, token: str, audience: str, issuer: str, jwks_url: str) -> dict[str, object]:
         try:
@@ -132,12 +162,35 @@ class OAuthService:
         except jwt.PyJWTError as exc:
             raise BadRequestError("OAuth identity verification failed") from exc
 
-    def _identity_from_claims(self, provider: UserProvider, claims: dict[str, object]) -> ProviderIdentity:
+    def _verify_apple_native_token(self, token: str) -> dict[str, object]:
+        return self._verify_jwt(token, self.settings.apple_native_client_id, "https://appleid.apple.com", "https://appleid.apple.com/auth/keys")
+
+    def _required_id_token(self, token: dict[str, str]) -> str:
+        identity_token = token.get("id_token", "")
+        if identity_token:
+            return identity_token
+        raise BadRequestError("Apple token exchange failed")
+
+    def _require_apple_nonce(self, claims: dict[str, object], nonce: str) -> None:
+        claim = str(claims.get("nonce") or "")
+        if nonce and compare_digest(claim, nonce):
+            return
+        raise BadRequestError("Apple identity verification failed")
+
+    def _require_same_apple_user(self, device_claims: dict[str, object], server_claims: dict[str, object]) -> None:
+        device_subject = str(device_claims.get("sub") or "")
+        server_subject = str(server_claims.get("sub") or "")
+        if device_subject and compare_digest(device_subject, server_subject):
+            return
+        raise BadRequestError("Apple identity verification failed")
+
+    def _identity_from_claims(self, provider: UserProvider, claims: dict[str, object], display_name: str = "") -> ProviderIdentity:
         subject = str(claims.get("sub") or "")
         email = str(claims.get("email") or "")
         if not subject or not email:
             raise BadRequestError("OAuth identity is missing required claims")
-        return ProviderIdentity(provider=provider, subject=subject, email=email, display_name=self._display_name(email, claims))
+        name = display_name.strip() or self._display_name(email, claims)
+        return ProviderIdentity(provider=provider, subject=subject, email=email, display_name=name)
 
     def _display_name(self, email: str, claims: dict[str, object]) -> str:
         name = str(claims.get("name") or "")

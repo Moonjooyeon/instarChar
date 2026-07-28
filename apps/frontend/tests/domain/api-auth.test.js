@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { deleteAuthAccount, signInWithOAuthProvider } from "../../src/api/auth.js";
+import { appleLoginFailureMessage, deleteAuthAccount, signInWithOAuthProvider } from "../../src/api/auth.js";
 
 test("signInWithOAuthProvider sends current origin callback to backend", async () => {
   const assigned = [];
@@ -17,6 +17,20 @@ test("signInWithOAuthProvider sends current origin callback to backend", async (
   }
 });
 
+test("web Apple login keeps the backend OAuth flow", async () => {
+  const assigned = [];
+  const restoreWindow = stubWindow("https://alive.example", assigned);
+  try {
+    const result = await signInWithOAuthProvider("apple");
+    const url = new URL(assigned[0], "https://alive.example");
+    assert.deepEqual(result, { error: null });
+    assert.equal(url.pathname, "/api/auth/apple/start");
+    assert.equal(url.searchParams.get("return_url"), "https://alive.example");
+  } finally {
+    restoreWindow();
+  }
+});
+
 test("deleteAuthAccount requests permanent account deletion", async () => {
   const calls = [];
   const restoreFetch = stubFetch(calls);
@@ -28,6 +42,11 @@ test("deleteAuthAccount requests permanent account deletion", async () => {
   } finally {
     restoreFetch();
   }
+});
+
+test("Apple login errors distinguish retryable provider failures", () => {
+  assert.match(appleLoginFailureMessage(503), /다시 시도/);
+  assert.match(appleLoginFailureMessage(400), /다시 로그인/);
 });
 
 function stubWindow(origin, assigned) {

@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from app.models import UserProvider
 
@@ -20,6 +20,13 @@ class MeResponse(BaseModel):
 
 class NativeOAuthExchangeRequest(BaseModel):
     code: str
+
+
+class NativeAppleLoginRequest(BaseModel):
+    authorization_code: str = Field(min_length=1, max_length=4096)
+    identity_token: str = Field(min_length=1, max_length=8192)
+    nonce: str = Field(min_length=16, max_length=128)
+    display_name: str = Field(default="", max_length=120)
 
 
 class OAuthCallbackResult(BaseModel):

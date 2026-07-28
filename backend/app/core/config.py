@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     auth_cookie_samesite: Literal["lax", "none", "strict"] = "lax"
     auth_secret_key: str = "change-me-in-env"
     auth_session_ttl_seconds: int = 60 * 60 * 24 * 30
-    native_oauth_redirect_url: str = "app.instarcharacterbot.alive://oauth/callback"
+    native_oauth_redirect_url: str = "com.ashwoodfriends.alive://oauth/callback"
     native_oauth_code_ttl_seconds: int = 120
     google_client_id: str = ""
     google_client_secret: str = ""
@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     apple_client_id: str = ""
     apple_client_secret: str = ""
     apple_redirect_uri: str = "http://localhost:8000/api/auth/apple/callback"
+    apple_native_client_id: str = "com.ashwoodfriends.alive"
+    apple_native_client_secret: str = ""
+    apple_team_id: str = ""
+    apple_key_id: str = ""
+    apple_private_key: str = ""
     gemini_api_key: str = ""
     gemini_model_fast: str = "gemini-2.5-flash"
     gemini_model_good: str = "gemini-2.5-pro"

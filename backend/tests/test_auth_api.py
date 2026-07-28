@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from types import SimpleNamespace
@@ -12,7 +13,7 @@ from pytest import MonkeyPatch, raises
 
 from app.api.deps import get_current_user
 from app.core.config import Settings, get_settings
-from app.core.errors import BadRequestError
+from app.core.errors import BadRequestError, ServiceUnavailableError
 from app.core.security import _signature, read_oauth_state, sign_oauth_state
 from app.db.session import get_db_session
 from app.main import app
@@ -97,7 +98,7 @@ def test_google_start_rejects_untrusted_frontend_origin() -> None:
 
 
 def test_google_start_accepts_native_oauth_return_url() -> None:
-    return_url = "app.instarcharacterbot.alive://oauth/callback"
+    return_url = "com.ashwoodfriends.alive://oauth/callback"
     with make_test_client() as client:
         response = client.get("/api/auth/google/start", params={"return_url": return_url}, follow_redirects=False)
     state = read_oauth_state(parse_qs(urlsplit(response.headers["location"]).query)["state"][0], "google", "test-secret")
@@ -200,7 +201,7 @@ def test_google_callback_issues_native_one_time_code(monkeypatch: MonkeyPatch) -
     async def issue(self: object, requested_user_id: object) -> str:
         assert requested_user_id == user_id
         return "one-time-code"
-    return_url = "app.instarcharacterbot.alive://oauth/callback"
+    return_url = "com.ashwoodfriends.alive://oauth/callback"
     state = sign_oauth_state("google", 60, "test-secret", "", return_url)
     monkeypatch.setattr("app.api.v1.auth.OAuthService.complete", complete)
     monkeypatch.setattr("app.api.v1.auth.NativeOAuthService.issue", issue)
@@ -220,6 +221,26 @@ def test_native_oauth_exchange_sets_session_cookie(monkeypatch: MonkeyPatch) -> 
         response = client.post("/api/auth/native/exchange", json={"code": "one-time-code"})
     assert response.status_code == 204
     assert "signed-session" in response.headers["set-cookie"]
+
+
+def test_native_apple_login_sets_session_cookie(monkeypatch: MonkeyPatch) -> None:
+    async def complete(self: object, code: str, identity_token: str, nonce: str, display_name: str) -> OAuthCompletion:
+        assert (code, identity_token, nonce) == ("apple-code", "apple-token", "1234567890abcdef")
+        assert display_name == "애플 사용자"
+        return OAuthCompletion(session_token="apple-session", user_id=uuid4())
+    monkeypatch.setattr("app.api.v1.auth.OAuthService.complete_native_apple", complete)
+    payload = {"authorization_code": "apple-code", "identity_token": "apple-token", "nonce": "1234567890abcdef", "display_name": "애플 사용자"}
+    with make_test_client() as client:
+        response = client.post("/api/auth/apple/native", json=payload)
+    assert response.status_code == 204
+    assert "apple-session" in response.headers["set-cookie"]
+
+
+def test_native_apple_login_rejects_short_nonce() -> None:
+    payload = {"authorization_code": "apple-code", "identity_token": "apple-token", "nonce": "short"}
+    with make_test_client() as client:
+        response = client.post("/api/auth/apple/native", json=payload)
+    assert response.status_code == 422
 
 
 def test_google_callback_redirects_oauth_error_to_frontend(monkeypatch: MonkeyPatch) -> None:
@@ -313,6 +334,55 @@ def test_oauth_jwks_fetch_errors_become_bad_request(monkeypatch: MonkeyPatch) ->
         service._verify_jwt("token", "audience", "issuer", "https://jwks.example")
 
 
+def test_native_apple_nonce_must_match_identity_claim() -> None:
+    service = OAuthService(Settings(), StubSession())
+    service._require_apple_nonce({"nonce": "1234567890abcdef"}, "1234567890abcdef")
+    with raises(BadRequestError, match="Apple identity verification failed"):
+        service._require_apple_nonce({"nonce": "other"}, "1234567890abcdef")
+
+
+def test_native_apple_login_verifies_device_and_server_identity(monkeypatch: MonkeyPatch) -> None:
+    service = OAuthService(Settings(apple_native_client_id="com.ashwoodfriends.alive"), StubSession())
+    claims = {"device-token": {"sub": "apple-user", "nonce": "1234567890abcdef"}, "server-token": {"sub": "apple-user", "email": "private@privaterelay.appleid.com"}}
+    async def exchange(code: str) -> dict[str, str]:
+        assert code == "single-use-code"
+        return {"id_token": "server-token"}
+    async def complete(identity: object) -> OAuthCompletion:
+        assert getattr(identity, "display_name") == "애플 사용자"
+        return OAuthCompletion(session_token="session", user_id=uuid4())
+    monkeypatch.setattr(service, "_verify_apple_native_token", lambda token: claims[token])
+    monkeypatch.setattr(service, "_exchange_native_apple_code", exchange)
+    monkeypatch.setattr(service, "_complete_identity", complete)
+    result = asyncio.run(service.complete_native_apple("single-use-code", "device-token", "1234567890abcdef", "애플 사용자"))
+    assert result.session_token == "session"
+
+
+def test_native_apple_login_rejects_mismatched_server_user() -> None:
+    service = OAuthService(Settings(), StubSession())
+    with raises(BadRequestError, match="Apple identity verification failed"):
+        service._require_same_apple_user({"sub": "first"}, {"sub": "second"})
+
+
+def test_native_apple_login_requires_server_identity_token() -> None:
+    service = OAuthService(Settings(), StubSession())
+    with raises(BadRequestError, match="Apple token exchange failed"):
+        service._required_id_token({})
+
+
+def test_oauth_token_exchange_rejects_provider_server_errors(monkeypatch: MonkeyPatch) -> None:
+    class StubClient:
+        async def __aenter__(self) -> "StubClient":
+            return self
+        async def __aexit__(self, exc_type: object, exc: object, traceback: object) -> None:
+            return None
+        async def post(self, url: str, data: dict[str, str]) -> object:
+            return SimpleNamespace(status_code=503, json=lambda: {})
+    monkeypatch.setattr("app.services.oauth.httpx.AsyncClient", lambda timeout: StubClient())
+    service = OAuthService(Settings(), StubSession())
+    with raises(ServiceUnavailableError, match="OAuth provider is temporarily unavailable"):
+        asyncio.run(service._post_token("https://provider.example/token", {"code": "secret"}))
+
+
 def make_test_client() -> TestClient:
     app.dependency_overrides[get_settings] = stub_settings
     app.dependency_overrides[get_db_session] = stub_db_session
@@ -351,4 +421,6 @@ def stub_settings() -> Settings:
         google_client_secret="google-secret",
         apple_client_id="apple-client",
         apple_client_secret="apple-secret",
+        apple_native_client_id="com.ashwoodfriends.alive",
+        apple_native_client_secret="apple-native-secret",
     )
