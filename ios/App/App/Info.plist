@@ -13,7 +13,7 @@
 		<dict>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>app.instarcharacterbot.alive</string>
+				<string>com.ashwoodfriends.alive</string>
 			</array>
 		</dict>
 	</array>
