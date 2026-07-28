@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from hmac import compare_digest
@@ -12,7 +13,7 @@ from jwt import PyJWKClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
-from app.core.errors import BadRequestError, ServiceUnavailableError
+from app.core.errors import AppError, BadRequestError, ServiceUnavailableError
 from app.core.security import OAuthStatePayload, read_oauth_state, sign_oauth_state, sign_session
 from app.core.token_encryption import TokenCipher
 from app.models import UserProvider
@@ -22,6 +23,7 @@ from app.services.apple_client_secret import AppleClientSecretFactory
 
 
 SAFE_OAUTH_ERROR_CODES = frozenset({"invalid_client", "invalid_grant", "invalid_request", "unauthorized_client", "unsupported_grant_type"})
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -73,14 +75,46 @@ class OAuthService:
         return await self._complete_identity(authentication.identity, authentication.tokens, authentication.client_id)
 
     async def complete_native_apple(self, code: str, identity_token: str, nonce: str, display_name: str) -> OAuthCompletion:
-        device_claims = self._verify_apple_native_token(identity_token)
-        self._require_apple_nonce(device_claims, nonce)
-        token = await self._exchange_native_apple_code(code)
-        server_claims = self._verify_apple_native_token(self._required_id_token(token))
-        self._require_same_apple_user(device_claims, server_claims)
-        identity = self._identity_from_claims(UserProvider.apple, server_claims, display_name)
-        tokens = self._apple_tokens(token)
+        device_claims = self._verified_native_apple_device(identity_token, nonce)
+        token = await self._exchanged_native_apple_token(code)
+        server_claims = self._verified_native_apple_server(token, device_claims)
+        identity, tokens = self._native_apple_authentication(server_claims, token, display_name)
         return await self._complete_identity(identity, tokens, self.settings.apple_native_client_id)
+
+    def _verified_native_apple_device(self, identity_token: str, nonce: str) -> dict[str, object]:
+        try:
+            claims = self._verify_apple_native_token(identity_token)
+            self._require_apple_nonce(claims, nonce)
+            return claims
+        except AppError as exc:
+            self._log_native_apple_failure("device_identity", exc)
+            raise
+
+    async def _exchanged_native_apple_token(self, code: str) -> dict[str, object]:
+        try:
+            return await self._exchange_native_apple_code(code)
+        except AppError as exc:
+            self._log_native_apple_failure("token_exchange", exc)
+            raise
+
+    def _verified_native_apple_server(self, token: dict[str, object], device_claims: dict[str, object]) -> dict[str, object]:
+        try:
+            claims = self._verify_apple_native_token(self._required_id_token(token))
+            self._require_same_apple_user(device_claims, claims)
+            return claims
+        except AppError as exc:
+            self._log_native_apple_failure("server_identity", exc)
+            raise
+
+    def _native_apple_authentication(self, claims: dict[str, object], token: dict[str, object], display_name: str) -> tuple[ProviderIdentity, AppleTokenSet]:
+        try:
+            return self._identity_from_claims(UserProvider.apple, claims, display_name), self._apple_tokens(token)
+        except AppError as exc:
+            self._log_native_apple_failure("token_payload", exc)
+            raise
+
+    def _log_native_apple_failure(self, stage: str, error: AppError) -> None:
+        logger.warning("Native Apple login failed stage=%s error=%s", stage, error.message)
 
     async def _complete_identity(self, identity: ProviderIdentity, tokens: AppleTokenSet | None = None, client_id: str = "") -> OAuthCompletion:
         user = await self.users.get_or_create_provider_user(identity.email, identity.provider, identity.subject, identity.display_name)

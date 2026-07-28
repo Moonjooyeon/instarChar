@@ -11,7 +11,7 @@ from cryptography.fernet import Fernet
 from fastapi import Response
 from fastapi.testclient import TestClient
 from jwt.exceptions import ImmatureSignatureError, PyJWKClientError
-from pytest import MonkeyPatch, raises
+from pytest import LogCaptureFixture, MonkeyPatch, raises
 
 from app.api.deps import _load_user, get_current_user
 from app.core.config import Settings, get_settings
@@ -393,6 +393,21 @@ def test_native_apple_login_requires_server_identity_token() -> None:
     service = OAuthService(Settings(), StubSession())
     with raises(BadRequestError, match="Apple token exchange failed"):
         service._required_id_token({})
+
+
+def test_native_apple_login_logs_safe_failure_stage(monkeypatch: MonkeyPatch, caplog: LogCaptureFixture) -> None:
+    service = OAuthService(Settings(), StubSession())
+    async def exchange(code: str) -> dict[str, object]:
+        raise BadRequestError("OAuth token exchange failed: invalid_grant")
+    monkeypatch.setattr(service, "_verify_apple_native_token", lambda token: {"sub": "apple-user", "nonce": "1234567890abcdef"})
+    monkeypatch.setattr(service, "_exchange_native_apple_code", exchange)
+    with caplog.at_level("WARNING", logger="app.services.oauth"):
+        with raises(BadRequestError, match="invalid_grant"):
+            asyncio.run(service.complete_native_apple("single-use-code", "device-token", "1234567890abcdef", "사용자"))
+    assert caplog.messages == ["Native Apple login failed stage=token_exchange error=OAuth token exchange failed: invalid_grant"]
+    assert "single-use-code" not in caplog.text
+    assert "device-token" not in caplog.text
+    assert "사용자" not in caplog.text
 
 
 def test_native_apple_tokens_are_encrypted_before_storage() -> None:
