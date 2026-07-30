@@ -86,6 +86,6 @@ services:
       start_period: 10s
 
 networks:
-  database:
+  levelup-net:
     external: true
-    name: ${DB_DOCKER_NETWORK:?DB_DOCKER_NETWORK is required}
+    name: levelup-net
