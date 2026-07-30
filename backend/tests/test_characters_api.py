@@ -7,13 +7,15 @@ from fastapi.testclient import TestClient
 from pytest import MonkeyPatch
 
 from app.api.deps import get_current_user
-from app.core.errors import ConflictError
+from app.core.errors import CharacterHandleTakenError, ConflictError
 from app.db.session import get_db_session
 from app.main import app
 from app.models import UserProvider
 from app.repositories.character_posts import CharacterPostsRepository
+from app.repositories.characters import CharacterRepository
 from app.repositories.profile_state import ProfileStateRepository
 from app.schemas.character_posts import CharacterPostsResponse
+from app.schemas.characters import CharacterHandleAvailabilityResponse, CharacterWriteResponse
 from app.services.ai import GenerateApiResult
 from app.services.feed_generation import FeedGenerationService
 
@@ -56,6 +58,46 @@ def test_delete_character_data_cleans_structured_rows(monkeypatch) -> None:
         response = client.delete("/api/characters/char-1")
     assert response.status_code == 204
     assert calls == [("tester@example.com", "char-1")]
+
+
+def test_character_handle_availability_normalizes_input(monkeypatch: MonkeyPatch) -> None:
+    async def availability(self: object, user: StubUser, handle: str, exclude_source_account_id: str) -> CharacterHandleAvailabilityResponse:
+        assert (handle, exclude_source_account_id) == ("hero", "char-1")
+        return CharacterHandleAvailabilityResponse(handle=handle, available=True)
+
+    monkeypatch.setattr(CharacterRepository, "availability", availability)
+    with make_test_client() as client:
+        response = client.get("/api/characters/handle-availability?handle=%40Hero&exclude_source_account_id=char-1")
+    assert response.status_code == 200
+    assert response.json() == {"handle": "hero", "available": True}
+
+
+def test_character_handle_availability_rejects_reserved_value() -> None:
+    with make_test_client() as client:
+        response = client.get("/api/characters/handle-availability?handle=admin")
+    assert response.status_code == 422
+
+
+def test_save_character_returns_authoritative_handle(monkeypatch: MonkeyPatch) -> None:
+    async def save(self: object, user: StubUser, source_account_id: str, payload: object) -> CharacterWriteResponse:
+        return character_response(source_account_id, "hero")
+
+    monkeypatch.setattr(CharacterRepository, "save", save)
+    with make_test_client() as client:
+        response = client.put("/api/characters/draft-1", json={"name": "Hero", "handle": "@Hero", "character": {"handle": "stale"}})
+    assert response.status_code == 200
+    assert response.json()["handle"] == "hero"
+
+
+def test_save_character_returns_stable_handle_conflict(monkeypatch: MonkeyPatch) -> None:
+    async def save(self: object, user: StubUser, source_account_id: str, payload: object) -> CharacterWriteResponse:
+        raise CharacterHandleTakenError()
+
+    monkeypatch.setattr(CharacterRepository, "save", save)
+    with make_test_client() as client:
+        response = client.put("/api/characters/draft-1", json={"name": "Hero", "handle": "hero"})
+    assert response.status_code == 409
+    assert response.json()["error"] == "CHARACTER_HANDLE_TAKEN"
 
 
 def test_get_character_posts_returns_authoritative_state(monkeypatch: MonkeyPatch) -> None:
@@ -119,3 +161,7 @@ def posts_response() -> CharacterPostsResponse:
         auto_post_interval_seconds=1800,
         next_auto_post_at=datetime.now(timezone.utc),
     )
+
+
+def character_response(source_account_id: str, handle: str) -> CharacterWriteResponse:
+    return CharacterWriteResponse(source_account_id=source_account_id, name="Hero", handle=handle, character={"handle": handle})
