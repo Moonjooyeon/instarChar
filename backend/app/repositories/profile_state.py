@@ -5,8 +5,9 @@ from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.character_handles import next_available_character_handle
 from app.models import Character, CharacterFollow, DmThread, Profile, SharedCharacter, SharedDmThread, User, UserPersona
-from app.schemas.profile import ProfileStateResponse, ProfileStateUpdate, StructuredStateUpdate
+from app.schemas.profile import CharacterState, ProfileStateResponse, ProfileStateUpdate, StructuredStateUpdate
 
 
 class ProfileStateRepository:
@@ -39,8 +40,8 @@ class ProfileStateRepository:
         await self._commit()
 
     async def upsert_structured_state(self, user: User, payload: StructuredStateUpdate) -> None:
-        await self._upsert_characters(user.id, payload)
-        await self._sync_character_follows(user, payload)
+        handles = await self._upsert_characters(user.id, payload)
+        await self._sync_character_follows(user, payload, handles)
         await self._upsert_personas(user.id, payload)
         await self._upsert_dm_threads(user.id, payload)
         await self._upsert_shared_dm_threads(user.id, payload)
@@ -76,12 +77,14 @@ class ProfileStateRepository:
         result = await self.session.execute(select(SharedDmThread).where(SharedDmThread.participant_user_ids.contains([user_id])).limit(80))
         return list(result.scalars().all())
 
-    async def _upsert_characters(self, user_id: UUID, payload: StructuredStateUpdate) -> None:
-        rows = [item.model_dump(mode="python") | {"owner_id": user_id} for item in payload.characters]
-        await self._upsert(Character, rows, ["owner_id", "source_account_id"], {"posts"})
+    async def _upsert_characters(self, user_id: UUID, payload: StructuredStateUpdate) -> dict[str, str]:
+        handles = await self._character_handles_for_write(user_id, payload.characters)
+        rows = [self._character_row(user_id, item, handles[item.source_account_id]) for item in payload.characters]
+        await self._upsert(Character, rows, ["owner_id", "source_account_id"], {"handle", "posts"})
+        return handles
 
-    async def _sync_character_follows(self, user: User, payload: StructuredStateUpdate) -> None:
-        rows = self._character_follow_rows(user, payload)
+    async def _sync_character_follows(self, user: User, payload: StructuredStateUpdate, handles: dict[str, str]) -> None:
+        rows = self._character_follow_rows(user, payload, handles)
         await self.session.execute(delete(CharacterFollow).where(CharacterFollow.follower_id == user.id))
         if not rows:
             return
@@ -91,7 +94,7 @@ class ProfileStateRepository:
         valid_rows = [row for row in rows if row["target_shared_character_id"] in valid_ids]
         await self._upsert(CharacterFollow, valid_rows, ["follower_id", "follower_account_id", "target_shared_character_id"])
 
-    def _character_follow_rows(self, user: User, payload: StructuredStateUpdate) -> list[dict[str, object]]:
+    def _character_follow_rows(self, user: User, payload: StructuredStateUpdate, handles: Optional[dict[str, str]] = None) -> list[dict[str, object]]:
         rows: dict[tuple[str, UUID], dict[str, object]] = {}
         follower_name = user.profile.display_name or user.email.split("@")[0]
         for character in payload.characters:
@@ -99,8 +102,38 @@ class ProfileStateRepository:
                 target_id = self._shared_id(followed)
                 if not target_id:
                     continue
-                rows[(character.source_account_id, target_id)] = {"follower_id": user.id, "follower_name": follower_name, "follower_account_id": character.source_account_id, "follower_character": character.character, "target_shared_character_id": target_id}
+                snapshot = {**character.character, "handle": (handles or {}).get(character.source_account_id, character.handle)}
+                rows[(character.source_account_id, target_id)] = {"follower_id": user.id, "follower_name": follower_name, "follower_account_id": character.source_account_id, "follower_character": snapshot, "target_shared_character_id": target_id}
         return list(rows.values())
+
+    async def _character_handles_for_write(self, user_id: UUID, characters: list[CharacterState]) -> dict[str, str]:
+        source_ids = [item.source_account_id for item in characters]
+        handles = await self._existing_character_handles(user_id, source_ids)
+        used = await self._used_character_handles()
+        for item in characters:
+            if item.source_account_id in handles:
+                continue
+            handles[item.source_account_id] = next_available_character_handle(item.handle, used)
+            used.add(handles[item.source_account_id])
+        return handles
+
+    async def _existing_character_handles(self, user_id: UUID, source_ids: list[str]) -> dict[str, str]:
+        if not source_ids:
+            return {}
+        statement = select(Character.source_account_id, Character.handle).where(Character.owner_id == user_id, Character.source_account_id.in_(source_ids))
+        result = await self.session.execute(statement)
+        return {source_account_id: handle for source_account_id, handle in result.all()}
+
+    async def _used_character_handles(self) -> set[str]:
+        result = await self.session.execute(select(Character.handle))
+        return set(result.scalars().all())
+
+    def _character_row(self, user_id: UUID, item: CharacterState, handle: str) -> dict[str, object]:
+        row = item.model_dump(mode="python")
+        row["owner_id"] = user_id
+        row["handle"] = handle
+        row["character"] = {**item.character, "name": item.name, "handle": handle}
+        return row
 
     def _shared_id(self, value: object) -> Optional[UUID]:
         if not isinstance(value, dict):

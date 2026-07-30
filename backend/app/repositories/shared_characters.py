@@ -5,6 +5,7 @@ from sqlalchemy import delete, func, select, tuple_
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.errors import BadRequestError
 from app.models import Character, CharacterFollow, SharedCharacter, User, UserBlock, UserModerationStatus
 from app.schemas.shared_characters import DiscoverCharacter, FollowRequest, FollowSnapshotRequest, FollowerRow, SharedCharacterUpdate
 from app.services.content_safety import require_safe_content
@@ -38,7 +39,10 @@ class SharedCharacterRepository:
 
     async def upsert_shared(self, user: User, source_account_id: str, payload: SharedCharacterUpdate) -> ShareId:
         require_safe_content(payload.model_dump(mode="python"))
-        row = self._payload_row(user, source_account_id, payload)
+        character = await self._character_by_source(user.id, source_account_id)
+        if not character:
+            raise BadRequestError("Character not found")
+        row = self._payload_row(user, source_account_id, payload, character)
         stmt = insert(SharedCharacter).values(row)
         update_columns = {key: stmt.excluded[key] for key in row if key not in ["owner_id", "source_account_id"]}
         result = await self.session.execute(stmt.on_conflict_do_update(index_elements=["owner_id", "source_account_id"], set_=update_columns).returning(SharedCharacter.id))
@@ -144,10 +148,12 @@ class SharedCharacterRepository:
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none() is not None
 
-    def _payload_row(self, user: User, source_account_id: str, payload: SharedCharacterUpdate) -> dict[str, object]:
+    def _payload_row(self, user: User, source_account_id: str, payload: SharedCharacterUpdate, character: Character) -> dict[str, object]:
         row = payload.model_dump(mode="python")
         row["owner_id"] = user.id
         row["source_account_id"] = source_account_id
+        row["handle"] = character.handle
+        row["character"] = {**payload.character, "handle": character.handle}
         return row
 
     def _follow_row(self, follower_id: UUID, target_id: UUID, payload: FollowRequest) -> dict[str, object]:

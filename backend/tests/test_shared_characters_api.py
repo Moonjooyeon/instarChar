@@ -1,16 +1,19 @@
+import asyncio
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from types import SimpleNamespace
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
+import pytest
 
 from app.api.deps import get_current_user
+from app.core.errors import BadRequestError
 from app.db.session import get_db_session
 from app.main import app
-from app.models import UserProvider
+from app.models import Character, UserProvider
 from app.repositories.shared_characters import ShareId, SharedCharacterRepository
-from app.schemas.shared_characters import DiscoverCharacter, FollowerRow
+from app.schemas.shared_characters import DiscoverCharacter, FollowerRow, SharedCharacterUpdate
 
 
 @dataclass
@@ -96,6 +99,25 @@ def test_upsert_shared_character_returns_id(monkeypatch) -> None:
         response = client.put("/api/shared-characters/by-source/char-1", json=body)
     assert response.status_code == 200
     assert response.json()["id"] == str(shared_id)
+
+
+def test_shared_payload_uses_authoritative_character_handle() -> None:
+    user = asyncio.run(stub_current_user())
+    character = Character(owner_id=user.id, source_account_id="char-1", name="A", handle="database-handle")
+    payload = SharedCharacterUpdate(name="A", handle="stale", character={"handle": "stale"})
+    row = SharedCharacterRepository(StubSession())._payload_row(user, "char-1", payload, character)
+    assert row["handle"] == "database-handle"
+    assert row["character"]["handle"] == "database-handle"
+
+
+def test_sharing_requires_owned_character(monkeypatch) -> None:
+    async def missing(self: object, owner_id: object, source_account_id: str) -> None:
+        return None
+
+    monkeypatch.setattr(SharedCharacterRepository, "_character_by_source", missing)
+    user = asyncio.run(stub_current_user())
+    with pytest.raises(BadRequestError, match="Character not found"):
+        asyncio.run(SharedCharacterRepository(StubSession()).upsert_shared(user, "missing", SharedCharacterUpdate(name="A")))
 
 
 def test_follow_shared_character_returns_ok(monkeypatch) -> None:

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
@@ -110,6 +112,28 @@ def test_structured_character_upsert_does_not_update_posts() -> None:
     compiled = str(session.statement.compile(dialect=postgresql.dialect()))
     update_clause = compiled.split("DO UPDATE SET", 1)[1]
     assert "posts =" not in update_clause
+    assert "handle =" not in update_clause
+
+
+def test_legacy_character_row_uses_server_assigned_handle() -> None:
+    item = StructuredStateUpdate(characters=[{"source_account_id": "char-1", "name": "세인", "handle": "stale", "character": {"handle": "stale"}}]).characters[0]
+    row = ProfileStateRepository(CaptureSession())._character_row(uuid4(), item, "server-handle")
+    assert row["handle"] == "server-handle"
+    assert row["character"]["handle"] == "server-handle"
+
+
+def test_legacy_new_characters_receive_unique_handles() -> None:
+    session = CaptureSession(existing_rows=[], used_handles=["hero", "character"])
+    payload = StructuredStateUpdate(characters=[{"source_account_id": "one", "handle": "Hero"}, {"source_account_id": "two", "handle": ""}])
+    handles = asyncio.run(ProfileStateRepository(session)._character_handles_for_write(uuid4(), payload.characters))
+    assert handles == {"one": "hero-2", "two": "character-2"}
+
+
+def test_legacy_existing_character_keeps_database_handle() -> None:
+    session = CaptureSession(existing_rows=[("one", "database-handle")], used_handles=["database-handle"])
+    payload = StructuredStateUpdate(characters=[{"source_account_id": "one", "handle": "stale"}])
+    handles = asyncio.run(ProfileStateRepository(session)._character_handles_for_write(uuid4(), payload.characters))
+    assert handles == {"one": "database-handle"}
 
 
 def test_character_follow_rows_are_rebuilt_from_structured_characters() -> None:
@@ -117,7 +141,7 @@ def test_character_follow_rows_are_rebuilt_from_structured_characters() -> None:
     shared_id = uuid4()
     payload = StructuredStateUpdate(characters=[{"source_account_id": "char-1", "name": "하루", "character": {"name": "하루"}, "following": [{"name": "세라", "sharedId": str(shared_id)}]}])
     rows = ProfileStateRepository(CaptureSession())._character_follow_rows(user, payload)
-    assert rows == [{"follower_id": user.id, "follower_name": "테스터", "follower_account_id": "char-1", "follower_character": {"name": "하루"}, "target_shared_character_id": shared_id}]
+    assert rows == [{"follower_id": user.id, "follower_name": "테스터", "follower_account_id": "char-1", "follower_character": {"name": "하루", "handle": ""}, "target_shared_character_id": shared_id}]
 
 
 def test_character_follow_rows_ignore_unshared_characters() -> None:
@@ -128,11 +152,29 @@ def test_character_follow_rows_ignore_unshared_characters() -> None:
 
 
 class CaptureSession:
-    def __init__(self) -> None:
+    def __init__(self, existing_rows: list[tuple[str, str]] | None = None, used_handles: list[str] | None = None) -> None:
         self.statement: object = None
+        self.existing_rows = existing_rows or []
+        self.used_handles = used_handles or []
+        self.call_count = 0
 
-    async def execute(self, statement: object) -> None:
+    async def execute(self, statement: object) -> object:
         self.statement = statement
+        self.call_count += 1
+        if self.call_count == 1:
+            return CaptureResult(self.existing_rows)
+        return CaptureResult(self.used_handles)
+
+
+class CaptureResult:
+    def __init__(self, rows: list[object]) -> None:
+        self.rows = rows
+
+    def all(self) -> list[object]:
+        return self.rows
+
+    def scalars(self) -> CaptureResult:
+        return self
 
 
 def make_test_client() -> TestClient:
