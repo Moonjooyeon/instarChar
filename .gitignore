@@ -7,6 +7,7 @@ dist
 *.log
 .idea
 .env*
+!.env.example
 .venv/
 .gradle/
 .pytest_cache/
