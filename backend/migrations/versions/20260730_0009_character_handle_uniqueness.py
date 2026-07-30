@@ -25,6 +25,11 @@ _RESERVED = frozenset({"admin", "administrator", "alive", "help", "mod", "modera
 _INVALID = re.compile(r"[^a-z0-9._-]")
 
 
+def _handle_statement(sql: str) -> sa.TextClause:
+    handle = sa.bindparam("handle", type_=sa.String(_MAX_LENGTH))
+    return sa.text(sql).bindparams(handle)
+
+
 def upgrade() -> None:
     connection = op.get_bind()
     assignments = _assign_handles(_character_rows(connection))
@@ -77,7 +82,7 @@ def _character_rows(connection: sa.Connection) -> list[tuple[object, object, str
 
 
 def _update_character(connection: sa.Connection, character_id: object, handle: str) -> None:
-    statement = sa.text("UPDATE characters SET handle = :handle, character = jsonb_set(COALESCE(character, '{}'::jsonb), '{handle}', to_jsonb(CAST(:handle AS text)), true) WHERE id = :character_id")
+    statement = _handle_statement("UPDATE characters SET handle = :handle, character = jsonb_set(COALESCE(character, '{}'::jsonb), '{handle}', to_jsonb(CAST(:handle AS text)), true) WHERE id = :character_id")
     connection.execute(statement, {"character_id": character_id, "handle": handle})
 
 
@@ -85,8 +90,8 @@ def _update_snapshots(connection: sa.Connection, owner_id: object, source_accoun
     parameters = {"owner_id": owner_id, "source_account_id": source_account_id, "handle": handle}
     shared = "UPDATE shared_characters SET handle = :handle, character = jsonb_set(COALESCE(character, '{}'::jsonb), '{handle}', to_jsonb(CAST(:handle AS text)), true) WHERE owner_id = :owner_id AND source_account_id = :source_account_id"
     follower = "UPDATE character_follows SET follower_character = jsonb_set(COALESCE(follower_character, '{}'::jsonb), '{handle}', to_jsonb(CAST(:handle AS text)), true) WHERE follower_id = :owner_id AND follower_account_id = :source_account_id"
-    connection.execute(sa.text(shared), parameters)
-    connection.execute(sa.text(follower), parameters)
+    connection.execute(_handle_statement(shared), parameters)
+    connection.execute(_handle_statement(follower), parameters)
 
 
 def _create_constraints() -> None:

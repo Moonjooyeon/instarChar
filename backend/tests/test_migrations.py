@@ -3,6 +3,7 @@ from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 from types import ModuleType
 from typing import cast
+from unittest.mock import Mock
 
 import pytest
 import sqlalchemy as sa
@@ -68,3 +69,16 @@ def test_character_handle_migration_assigns_deterministic_unique_values() -> Non
     assign = cast(Callable[[list[tuple[object, object, str, str]]], list[tuple[object, object, str, str]]], migration._assign_handles)
     rows = [(1, 10, "one", "Hero"), (2, 20, "two", "@hero"), (3, 30, "three", ""), (4, 40, "four", "admin")]
     assert [row[3] for row in assign(rows)] == ["hero", "hero-2", "character", "admin-2"]
+
+
+def test_character_handle_migration_types_asyncpg_handle_binds() -> None:
+    migration = _load_migration("20260730_0009_character_handle_uniqueness.py")
+    update_character = cast(Callable[[sa.Connection, object, str], None], migration._update_character)
+    update_snapshots = cast(Callable[[sa.Connection, object, str, str], None], migration._update_snapshots)
+    connection = Mock(spec=sa.Connection)
+    update_character(connection, 1, "hero")
+    update_snapshots(connection, 2, "source", "hero")
+    statements = [call.args[0] for call in connection.execute.call_args_list]
+    compiled = [statement.compile(dialect=postgresql.asyncpg.dialect()) for statement in statements]
+    assert all("::VARCHAR" in str(statement) for statement in compiled)
+    assert all(statement.binds["handle"].type.length == 24 for statement in compiled)
