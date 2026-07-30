@@ -1,4 +1,5 @@
 import { App } from "@capacitor/app";
+import { Browser } from "@capacitor/browser";
 import { Capacitor, CapacitorHttp, registerPlugin, type PluginListenerHandle } from "@capacitor/core";
 
 import { apiNoContent, apiResult, apiUrl, type ApiError } from "./client.js";
@@ -60,6 +61,7 @@ const NativeAppleSignIn = registerPlugin<NativeAppleSignInPlugin>("AppleSignIn")
 const authStateListeners = new Set<AuthStateListener>();
 let nativeOAuthInitialization: Promise<void> | null = null;
 let nativeAppleInvalidation: Promise<void> | null = null;
+let nativeGoogleBrowserOpen = false;
 
 export function isAuthApiAvailable(): boolean {
   return true;
@@ -67,6 +69,7 @@ export function isAuthApiAvailable(): boolean {
 
 export async function signInWithOAuthProvider(provider: AuthProvider): Promise<{ error: ApiError | null }> {
   if (provider === "apple" && isNativeApplePlatform()) return signInWithNativeApple();
+  if (provider === "google" && shouldUseNativeGoogleBrowser()) return openNativeGoogleBrowser();
   window.location.assign(oauthStartUrl(provider));
   return { error: null };
 }
@@ -107,6 +110,7 @@ async function startNativeOAuthListener(): Promise<void> {
   await App.addListener("appUrlOpen", ({ url }) => {
     exchangeNativeOAuthUrl(url, true).catch(showNativeOAuthError);
   });
+  if (shouldUseNativeGoogleBrowser()) await Browser.addListener("browserFinished", handleNativeBrowserFinished);
   const launch = await App.getLaunchUrl();
   if (launch?.url) await exchangeNativeOAuthUrl(launch.url, false);
   if (isNativeApplePlatform()) await startNativeAppleCredentialMonitoring();
@@ -115,12 +119,39 @@ async function startNativeOAuthListener(): Promise<void> {
 async function exchangeNativeOAuthUrl(value: string, notify: boolean): Promise<void> {
   const url = new URL(value);
   if (!isNativeOAuthCallback(url)) return;
+  await closeNativeGoogleBrowser();
   const error = url.searchParams.get("error_description") || url.searchParams.get("error");
   if (error) throw new Error(error);
   const code = url.searchParams.get("code");
   if (!code) throw new Error("소셜 로그인 승인 코드가 없어.");
   await exchangeNativeOAuthCode(code);
   if (notify) authStateListeners.forEach((listener) => listener());
+}
+
+async function openNativeGoogleBrowser(): Promise<{ error: ApiError | null }> {
+  if (nativeGoogleBrowserOpen) return { error: null };
+  nativeGoogleBrowserOpen = true;
+  try {
+    await initializeNativeOAuth();
+    const url = new URL(oauthStartUrl("google"), window.location.origin).href;
+    await Browser.open({ url, presentationStyle: "fullscreen" });
+    return { error: null };
+  } catch (error) {
+    nativeGoogleBrowserOpen = false;
+    return { error: { message: nativeGoogleBrowserErrorMessage(error) } };
+  }
+}
+
+async function closeNativeGoogleBrowser(): Promise<void> {
+  if (!nativeGoogleBrowserOpen || !shouldUseNativeGoogleBrowser()) return;
+  nativeGoogleBrowserOpen = false;
+  await Browser.close().catch(() => undefined);
+}
+
+function handleNativeBrowserFinished(): void {
+  if (!nativeGoogleBrowserOpen) return;
+  nativeGoogleBrowserOpen = false;
+  authStateListeners.forEach((listener) => listener());
 }
 
 async function exchangeNativeOAuthCode(code: string): Promise<void> {
@@ -154,8 +185,17 @@ function isNativeApplePlatform(): boolean {
   return Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
 }
 
+export function shouldUseNativeGoogleBrowser(platform: string = Capacitor.getPlatform(), native: boolean = Capacitor.isNativePlatform()): boolean {
+  return native && platform === "ios";
+}
+
 export function shouldShowAppleLogin(platform: string = Capacitor.getPlatform()): boolean {
   return platform !== "android";
+}
+
+function nativeGoogleBrowserErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) return error.message;
+  return "Google 로그인 화면을 열지 못했어.";
 }
 
 function nativeAppleErrorMessage(error: unknown): string {

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { appleLoginFailureMessage, deleteAuthAccount, shouldInvalidateAppleCredential, shouldShowAppleLogin, signInWithOAuthProvider } from "../../src/api/auth.js";
+import { Capacitor } from "@capacitor/core";
+import { appleLoginFailureMessage, deleteAuthAccount, shouldInvalidateAppleCredential, shouldShowAppleLogin, shouldUseNativeGoogleBrowser, signInWithOAuthProvider } from "../../src/api/auth.js";
 
 test("signInWithOAuthProvider sends current origin callback to backend", async () => {
   const assigned = [];
@@ -27,6 +28,20 @@ test("web Apple login keeps the backend OAuth flow", async () => {
     assert.equal(url.pathname, "/api/auth/apple/start");
     assert.equal(url.searchParams.get("return_url"), "https://alive.example");
   } finally {
+    restoreWindow();
+  }
+});
+
+test("Android Google login keeps the external browser flow", async () => {
+  const assigned = [];
+  const restoreWindow = stubWindow("https://localhost", assigned);
+  const restorePlatform = stubNativePlatform("android");
+  try {
+    await signInWithOAuthProvider("google");
+    const url = new URL(assigned[0], "https://localhost");
+    assert.equal(url.searchParams.get("return_url"), "com.ashwoodfriends.alive://oauth/callback");
+  } finally {
+    restorePlatform();
     restoreWindow();
   }
 });
@@ -63,6 +78,12 @@ test("Apple login is hidden only on Android", () => {
   assert.equal(shouldShowAppleLogin("web"), true);
 });
 
+test("Google login uses the in-app browser only on native iOS", () => {
+  assert.equal(shouldUseNativeGoogleBrowser("ios", true), true);
+  assert.equal(shouldUseNativeGoogleBrowser("android", true), false);
+  assert.equal(shouldUseNativeGoogleBrowser("web", false), false);
+});
+
 test("Apple credential state only invalidates a known revoked account", () => {
   assert.equal(shouldInvalidateAppleCredential("authorized", true), false);
   assert.equal(shouldInvalidateAppleCredential("revoked", true), true);
@@ -83,6 +104,17 @@ function stubWindow(origin, assigned) {
   };
   return () => {
     globalThis.window = originalWindow;
+  };
+}
+
+function stubNativePlatform(platform) {
+  const originalIsNativePlatform = Capacitor.isNativePlatform;
+  const originalGetPlatform = Capacitor.getPlatform;
+  Capacitor.isNativePlatform = () => true;
+  Capacitor.getPlatform = () => platform;
+  return () => {
+    Capacitor.isNativePlatform = originalIsNativePlatform;
+    Capacitor.getPlatform = originalGetPlatform;
   };
 }
 

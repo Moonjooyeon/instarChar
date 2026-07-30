@@ -31,6 +31,7 @@
     "app:open:android": "make cap-open-android"
   },
   "dependencies": {
-    "@capacitor/app": "^8.1.1"
+    "@capacitor/app": "^8.1.1",
+    "@capacitor/browser": "^8.0.4"
   }
 }

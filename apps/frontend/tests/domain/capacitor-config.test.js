@@ -32,3 +32,9 @@ test("iOS bridge registers the local Apple sign-in plugin", () => {
   assert.match(applePlugin, /credentialRevokedNotification/);
   assert.match(storyboard, /customClass="AliveBridgeViewController"/);
 });
+
+test("iOS declares why camera access is required", () => {
+  const infoPath = path.resolve(process.cwd(), "../../ios/App/App/Info.plist");
+  const info = readFileSync(infoPath, "utf8");
+  assert.match(info, /<key>NSCameraUsageDescription<\/key>\s*<string>[^<]+<\/string>/);
+});
