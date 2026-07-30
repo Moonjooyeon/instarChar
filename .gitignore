@@ -14,4 +14,7 @@ apps/frontend/.tmp/
 apps/frontend/test-results/
 .gstack/
 
+documents/store-assets
+ios/build/
+
 *.p8

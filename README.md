@@ -58,3 +58,9 @@ PYTHONPATH=backend backend/.venv/bin/pytest backend/tests
 ## Migration Status
 
 Previous runtime calls and the old frontend data-client dependency have been removed. The old SQL schema file remains only as a legacy migration reference; the active app path is FastAPI + PostgreSQL.
+
+## 안드로이드 빌드
+``` bash
+source .env.android-signing
+make android-bundle-release
+```
