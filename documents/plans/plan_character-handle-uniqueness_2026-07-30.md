@@ -926,10 +926,10 @@ CODE PATHS                                             USER FLOWS
 
 ### Phase 1. 정규화 규칙과 DB
 
-- [ ] 서버 정규화 helper와 테스트 표를 작성한다.
-- [ ] migration helper가 같은 테스트 표를 통과하게 한다.
-- [ ] 0009 migration을 작성한다.
-- [ ] 모델 제약을 migration과 일치시킨다.
+- [x] 서버 정규화 helper와 테스트 표를 작성한다.
+- [x] migration helper가 같은 테스트 표를 통과하게 한다.
+- [x] 0009 migration을 작성한다.
+- [x] 모델 제약을 migration과 일치시킨다.
 - [ ] 업그레이드 후 중복·공백이 0인지 확인한다.
 - [ ] downgrade가 스키마를 복구하는지 확인한다.
 
@@ -937,33 +937,33 @@ CODE PATHS                                             USER FLOWS
 
 ### Phase 2. 백엔드 전용 저장 경로
 
-- [ ] character schema와 stable conflict error를 추가한다.
-- [ ] CharacterRepository availability를 구현한다.
-- [ ] idempotent PUT create/update를 구현한다.
-- [ ] unique conflict rollback을 구현한다.
-- [ ] shared·follower snapshot 갱신을 구현한다.
-- [ ] API route와 계약 테스트를 추가한다.
+- [x] character schema와 stable conflict error를 추가한다.
+- [x] CharacterRepository availability를 구현한다.
+- [x] idempotent PUT create/update를 구현한다.
+- [x] unique conflict rollback을 구현한다.
+- [x] shared·follower snapshot 갱신을 구현한다.
+- [x] API route와 계약 테스트를 추가한다.
 
 검증: API 테스트와 실제 PostgreSQL 동시성 테스트.
 
 ### Phase 3. 레거시 호환
 
-- [ ] structured sync에서 기존 DB handle을 보존한다.
-- [ ] 레거시 신규 행에 unique handle을 배정한다.
-- [ ] shared upsert가 authoritative handle을 사용하게 한다.
-- [ ] 서버 구조화 응답이 정규화 handle을 반환하는지 확인한다.
+- [x] structured sync에서 기존 DB handle을 보존한다.
+- [x] 레거시 신규 행에 unique handle을 배정한다.
+- [x] shared upsert가 authoritative handle을 사용하게 한다.
+- [x] 서버 구조화 응답이 정규화 handle을 반환하는지 확인한다.
 
 검증: profile/shared repository 테스트와 이전 payload fixture.
 
 ### Phase 4. 프론트 검증과 UX
 
-- [ ] pure handle validation helper를 서버 규칙과 맞춘다.
-- [ ] character API client를 추가한다.
-- [ ] availability hook을 추가한다.
-- [ ] ConfirmScreen 상태·오류·접근성을 구현한다.
-- [ ] create/edit를 server-first async 흐름으로 바꾼다.
-- [ ] stable draft ID와 중복 submit 방지를 구현한다.
-- [ ] structured merge의 handle 우선순위를 고친다.
+- [x] pure handle validation helper를 서버 규칙과 맞춘다.
+- [x] character API client를 추가한다.
+- [x] availability hook을 추가한다.
+- [x] ConfirmScreen 상태·오류·접근성을 구현한다.
+- [x] create/edit를 server-first async 흐름으로 바꾼다.
+- [x] stable draft ID와 중복 submit 방지를 구현한다.
+- [x] structured merge의 handle 우선순위를 고친다.
 
 검증: typecheck, domain tests, Playwright.
 
@@ -974,29 +974,29 @@ CODE PATHS                                             USER FLOWS
 - [ ] iOS와 Android에서 같은 흐름을 검증한다.
 - [ ] 이전 앱 payload 호환을 검증한다.
 - [ ] 배포 후 불일치 SQL과 오류 로그를 확인한다.
-- [ ] 문서를 현재 구조와 맞춘다.
+- [x] 문서를 현재 구조와 맞춘다.
 
 검증: 전체 프론트·백엔드 테스트와 운영 체크리스트.
 
 ## 16. 구현 작업 목록
 
-- [ ] **T1 (P1, human: ~4h / Codex: ~40m)** — DB — 기존 handle을 결정적으로 정규화하고 전역 유니크·형식 제약을 추가한다.
+- [x] **T1 (P1, human: ~4h / Codex: ~40m)** — DB — 기존 handle을 결정적으로 정규화하고 전역 유니크·형식 제약을 추가한다.
   - 근거: 현재 `characters.handle`에 중복 제약이 없다.
   - 파일: migration, `entities.py`, handle helper
   - 검증: migration 및 PostgreSQL 동시성 테스트
-- [ ] **T2 (P1, human: ~5h / Codex: ~50m)** — Backend — availability와 idempotent character PUT을 구현한다.
+- [x] **T2 (P1, human: ~5h / Codex: ~50m)** — Backend — availability와 idempotent character PUT을 구현한다.
   - 근거: 프론트 사전 조회만으로 동시 요청을 막을 수 없다.
   - 파일: character API, schema, repository, errors
   - 검증: API·repository 테스트
-- [ ] **T3 (P1, human: ~3h / Codex: ~35m)** — Backend compatibility — 레거시 자동 저장과 공유 스냅샷이 권위 handle을 보존하도록 한다.
+- [x] **T3 (P1, human: ~3h / Codex: ~35m)** — Backend compatibility — 레거시 자동 저장과 공유 스냅샷이 권위 handle을 보존하도록 한다.
   - 근거: bulk upsert와 공유 payload가 stale handle을 다시 쓸 수 있다.
   - 파일: profile/shared repositories
   - 검증: legacy fixture tests
-- [ ] **T4 (P1, human: ~5h / Codex: ~50m)** — Frontend — 생성·수정을 server-first 흐름으로 전환한다.
+- [x] **T4 (P1, human: ~5h / Codex: ~50m)** — Frontend — 생성·수정을 server-first 흐름으로 전환한다.
   - 근거: 현재 로컬 상태가 서버 성공보다 먼저 바뀐다.
   - 파일: API client, lifecycle, controller
   - 검증: domain tests와 E2E 실패·재시도
-- [ ] **T5 (P2, human: ~4h / Codex: ~40m)** — Frontend UX — 아이디 상태·debounce·접근성을 구현한다.
+- [x] **T5 (P2, human: ~4h / Codex: ~40m)** — Frontend UX — 아이디 상태·debounce·접근성을 구현한다.
   - 근거: 사용자가 중복과 형식 오류를 제출 전에 알 수 없다.
   - 파일: availability hook, ConfirmScreen, styles
   - 검증: stale response·상태별 E2E
@@ -1004,7 +1004,7 @@ CODE PATHS                                             USER FLOWS
   - 근거: mock은 DB unique 경쟁과 rollback을 증명하지 못한다.
   - 파일: backend integration tests, Playwright
   - 검증: 전체 test commands
-- [ ] **T7 (P2, human: ~1h / Codex: ~15m)** — Docs/operations — API 구조·배포·데이터 매핑 문서를 갱신한다.
+- [x] **T7 (P2, human: ~1h / Codex: ~15m)** — Docs/operations — API 구조·배포·데이터 매핑 문서를 갱신한다.
   - 근거: migration은 운영 데이터 변경과 순서 의존성이 있다.
   - 파일: structure docs, migration report
   - 검증: 문서와 실제 route/migration head 대조
@@ -1114,7 +1114,7 @@ DB 제약 적용 후 문제가 발생하면 신규 프론트 배포를 중단하
 - [ ] 공유·팔로워 snapshot 불일치가 0이다.
 - [ ] 프론트 타입 검사와 domain/E2E 테스트가 통과했다.
 - [ ] 백엔드 전체 테스트와 PostgreSQL 동시성 테스트가 통과했다.
-- [ ] 구조 문서와 운영 보고서가 갱신됐다.
+- [x] 구조 문서와 운영 보고서가 갱신됐다.
 
 ## 23. 참고 자료
 
@@ -1134,4 +1134,4 @@ DB 제약 적용 후 문제가 발생하면 신규 프론트 배포를 중단하
 | DX Review | `/plan-devex-review` | Developer experience gaps | 0 | 미실행 | 신규 테스트 DB fixture 선택 미확정 |
 
 - **UNRESOLVED:** 운영 DB의 실제 중복 매핑 확인
-- **VERDICT:** 정책 확정 및 구현 승인 완료. 페이즈별 구현·테스트·커밋 진행
+- **VERDICT:** 구현과 자동 회귀 검증 완료. 실제 PostgreSQL migration·동시성, 실행형 Playwright, 배포 smoke test는 환경 의존 게이트로 유지

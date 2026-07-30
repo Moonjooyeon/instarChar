@@ -2,8 +2,8 @@
 title: Frontend Structure
 author: black (black@ashwoodfriends.com)
 created: 2026-05-07
-updated: 2026-07-24
-version: 3.2.0
+updated: 2026-07-30
+version: 3.3.0
 status: approved
 ---
 
@@ -31,6 +31,7 @@ apps/frontend/
     ├── main.tsx
     ├── api/
     │   ├── auth.ts
+    │   ├── characters.ts
     │   ├── client.ts
     │   ├── discover.ts
     │   ├── dm.ts
@@ -74,6 +75,25 @@ apps/frontend/
 | API client | `apps/frontend/src/api/` | FastAPI fetch boundary and response adapters |
 | Shared UI | `apps/frontend/src/components/ui/` | Small reusable UI controls |
 | Tests | `apps/frontend/tests/` | Domain unit tests and Playwright E2E tests |
+
+## Character Handle Flow
+
+- `textUtils.ts` mirrors the backend lowercase, character-set, length, and exact reserved-word policy.
+- `useCharacterHandleAvailability.ts` debounces advisory availability checks and ignores stale responses.
+- Character creation and editing call `PUT /api/characters/{source_account_id}` before changing local state.
+- A new-character draft keeps one stable source ID across failed retries.
+- `CHARACTER_HANDLE_TAKEN` keeps the confirmation screen and its inputs intact.
+- Structured hydration gives the top-level database handle priority over cached JSON snapshots.
+
+## Verification
+
+```bash
+npm run typecheck
+npm run test:domain
+npm run build
+```
+
+The current domain suite contains 90 passing tests. Playwright handle scenarios require an already-running app at `ALIVE_E2E_BASE_URL` (default `http://127.0.0.1:5179`).
 
 ## Build Output
 

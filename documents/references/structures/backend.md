@@ -2,8 +2,8 @@
 title: Backend Structure
 author: black (black@ashwoodfriends.com)
 created: 2026-05-07
-updated: 2026-07-24
-version: 3.5.0
+updated: 2026-07-30
+version: 3.6.0
 status: approved
 ---
 
@@ -25,7 +25,8 @@ backend/
 │   └── versions/
 │       ├── 20260626_0001_initial_alive_schema.py
 │       ├── 20260723_0002_post_authority_and_usage.py
-│       └── 20260724_0003_character_post_likes.py
+│       ├── 20260724_0003_character_post_likes.py
+│       └── 20260730_0009_character_handle_uniqueness.py
 ├── app/
 │   ├── main.py
 │   ├── api/
@@ -40,6 +41,7 @@ backend/
 │   │       ├── profiles.py
 │   │       └── shared_characters.py
 │   ├── core/
+│   │   ├── character_handles.py
 │   │   ├── config.py
 │   │   ├── errors.py
 │   │   └── security.py
@@ -51,6 +53,7 @@ backend/
 │   ├── repositories/
 │   │   ├── ai_usage.py
 │   │   ├── auto_posts.py
+│   │   ├── characters.py
 │   │   ├── character_posts.py
 │   │   ├── dm_threads.py
 │   │   ├── post_likes.py
@@ -60,6 +63,7 @@ backend/
 │   ├── schemas/
 │   │   ├── ai.py
 │   │   ├── auth.py
+│   │   ├── characters.py
 │   │   ├── character_posts.py
 │   │   ├── dm_threads.py
 │   │   ├── post_likes.py
@@ -94,7 +98,7 @@ backend/
 | API dependencies | `backend/app/api/deps.py` | Current user loading from signed session cookie |
 | API routers | `backend/app/api/v1/` | HTTP routing and response shaping |
 | Settings | `backend/app/core/config.py` | Environment-backed settings via `pydantic-settings` |
-| Errors | `backend/app/core/errors.py` | Application exceptions converted by the global handler |
+| Errors and handle policy | `backend/app/core/` | Application exceptions plus character handle normalization, validation, reserved words, and legacy allocation |
 | Security | `backend/app/core/security.py` | Session signing, OAuth state signing, JWT verification helpers |
 | DB | `backend/app/db/` | Async SQLAlchemy engine/session and declarative base |
 | Models | `backend/app/models/entities.py` | SQLAlchemy ORM entities for users, profiles, characters, follows, post likes, DM threads, and AI usage counters |
@@ -122,6 +126,8 @@ All API routes are mounted under `/api` except the system health check.
 | `POST` | `/api/profile/structured-state` | `profiles.py` | Upsert characters, personas, owner DM, shared DM rows |
 | `POST` | `/api/profile/onboarding` | `profiles.py` | Save display name and mark onboarding complete |
 | `POST` | `/api/ai/generate` | `ai.py` | Generate character, feed, DM, or analysis text through Gemini |
+| `GET` | `/api/characters/handle-availability` | `characters.py` | Normalize a handle and report global availability, optionally excluding one owned source account |
+| `PUT` | `/api/characters/{source_account_id}` | `characters.py` | Atomically create or update a character and its authoritative globally unique handle |
 | `GET` | `/api/characters/{source_account_id}/posts` | `characters.py` | Load authoritative posts, revision, and autonomous schedule state |
 | `PUT` | `/api/characters/{source_account_id}/posts` | `characters.py` | Save posts with optimistic revision validation |
 | `PATCH` | `/api/characters/{source_account_id}/auto-post` | `characters.py` | Enable or disable autonomous posts and select a supported interval |
@@ -157,6 +163,9 @@ All API routes are mounted under `/api` except the system health check.
 - Repository methods must enforce owner or participant constraints before modifying data.
 - Shared DM access requires the current user's ID to be present in `participant_user_ids`.
 - Post-like writes require an owned liker character, an active follow row, and an existing target post.
+- Character handles are globally unique, lowercase canonical values with a 24-character limit; the database is the final concurrency authority.
+- Generic structured-state sync preserves existing database handles, while the dedicated character `PUT` endpoint is the only rename path.
+- Shared-character and follower snapshots copy the owned `Character.handle` instead of trusting client snapshots.
 - `thread_key` is passed through query/body instead of path parameters to avoid URL encoding issues.
 
 ## Database Model Groups
@@ -180,5 +189,5 @@ PYTHONPATH=backend backend/.venv/bin/pytest backend/tests
 Current expected result:
 
 ```text
-84 passed
+164 passed
 ```
