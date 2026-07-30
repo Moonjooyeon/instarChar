@@ -9,7 +9,7 @@ x-backend: &backend
   env_file:
     - ${PROD_ENV_FILE:-.env.prod}
   networks:
-    - level-up
+    - levelup-net
 
 services:
   db-bootstrap:
@@ -21,7 +21,7 @@ services:
     env_file:
       - ${DB_BOOTSTRAP_ENV_FILE:-.env.db-bootstrap}
     networks:
-      - level-up
+      - levelup-net
     command:
       - /bin/sh
       - -ec
@@ -56,7 +56,7 @@ services:
     <<: *backend
     restart: "no"
     networks:
-      - level-up
+      - levelup-net
     command:
       - alembic
       - upgrade
@@ -68,7 +68,7 @@ services:
     ports:
       - "${BACKEND_PORT:-8888}:8888"
     networks:
-    - level-up
+    - levelup-net
     depends_on:
       migrate:
         condition: service_completed_successfully
