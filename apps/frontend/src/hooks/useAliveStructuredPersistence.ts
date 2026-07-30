@@ -281,7 +281,7 @@ function characterAccountFromRow(row: Record<string, unknown>, detailsById: Map<
   const rowCharacter = recordValue(row.character);
   return {
     id: stringValue(row.source_account_id),
-    char: { ...(cached.char || {}), ...rowCharacter, name: stringValue(rowCharacter.name) || stringValue(row.name) || cached.char?.name || "", handle: stringValue(rowCharacter.handle) || stringValue(row.handle) || cached.char?.handle || "" },
+    char: { ...(cached.char || {}), ...rowCharacter, name: stringValue(rowCharacter.name) || stringValue(row.name) || cached.char?.name || "", handle: stringValue(row.handle) || stringValue(rowCharacter.handle) || cached.char?.handle || "" },
     gallery: Array.isArray(detail.gallery) ? detail.gallery : (cached.gallery || []),
     posts: Array.isArray(detail.posts) ? detail.posts : (cached.posts || []),
     following: Array.isArray(detail.following) ? detail.following : (cached.following || []),

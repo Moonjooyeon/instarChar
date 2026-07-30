@@ -5,6 +5,7 @@ import {
   ANTI_REPEAT_BASE_RULES,
   ANTI_REPEAT_RULES,
   OOC_GUARD_RULE,
+  characterHandleError,
   chatSafetyRules,
   fieldText,
   normalizeHandle,
@@ -95,6 +96,7 @@ import { useAliveSessionAnalysis } from "@/hooks/useAliveSessionAnalysis";
 import { useAliveStructuredPersistence } from "@/hooks/useAliveStructuredPersistence";
 import { useAliveSafety } from "@/hooks/useAliveSafety";
 import { useCharacterAccounts } from "@/hooks/useCharacterAccounts";
+import { useCharacterHandleAvailability } from "@/hooks/useCharacterHandleAvailability";
 
 // ─────────────────────────────────────────────
 //  ALIVE — 내 캐릭터가 자기 SNS를 운영한다
@@ -116,6 +118,7 @@ export function useAliveAppController() {
   const [profileName, setProfileName] = useState("");
   const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [saveStatus, setSaveStatus] = useState(hasBackendApiConfig ? "로그인 대기" : "로컬 저장");
+  const [characterSaveError, setCharacterSaveError] = useState("");
   const [stateReady, setStateReady] = useState(!hasBackendApiConfig);
   const [step, setStep] = useState("home"); // home | dump | confirm | feed | dm
   const {
@@ -945,7 +948,10 @@ export function useAliveAppController() {
     setStep,
   });
 
-  const confirmReady = char.name.trim() && char.persona.trim();
+  const handleAvailability = useCharacterHandleAvailability(char.handle, activeId);
+  const handleError = characterHandleError(char.handle);
+  const confirmReady = Boolean(char.name.trim() && char.persona.trim() && !handleError && handleAvailability.state !== "taken");
+  useEffect(() => setCharacterSaveError(""), [char.handle]);
 
   const {
     confirmDeleteCharacter,
@@ -978,6 +984,7 @@ export function useAliveAppController() {
     setAccounts,
     setActiveId,
     setChar,
+    setCharacterSaveError,
     setDeleteTarget,
     setDmThreads,
     setDmWorldPrefs,
@@ -1075,6 +1082,7 @@ export function useAliveAppController() {
     canonicalDmKey,
     canUseApp,
     char,
+    characterSaveError,
     chatMode,
     chatSafetyRules,
     chooseDmWorldMode,
@@ -1170,6 +1178,8 @@ export function useAliveAppController() {
     goHome,
     handleDmImage,
     handleProfileImage,
+    handleAvailability,
+    handleError,
     hasBackendApiConfig,
     handleUpload,
     hasMainScreen,

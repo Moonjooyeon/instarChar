@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   chatSafetyRules,
+  characterHandleError,
   fieldText,
+  isValidCharacterHandle,
   normalizeHandle,
   recentLinesBlock,
   worldBridgeBlock,
@@ -14,9 +16,17 @@ test("fieldText normalizes arrays and object fields", () => {
 });
 
 test("normalizeHandle strips symbols and falls back safely", () => {
-  assert.equal(normalizeHandle("@Test.User / alt", "fallback"), "test.user");
+  assert.equal(normalizeHandle("@Test.User / alt", "fallback"), "test.useralt");
   assert.equal(normalizeHandle("!!!", "캐릭터"), "character");
-  assert.equal(normalizeHandle("", "Alive Hero"), "alive");
+  assert.equal(normalizeHandle("", "Alive Hero"), "alivehero");
+  assert.equal(normalizeHandle("!!!"), "");
+});
+
+test("character handle validation matches reserved-word policy", () => {
+  assert.match(characterHandleError("admin"), /서비스/);
+  assert.equal(characterHandleError("alive_story"), "");
+  assert.equal(isValidCharacterHandle("@Hero"), true);
+  assert.equal(isValidCharacterHandle("가나다"), false);
 });
 
 test("worldBridgeBlock reflects selected world mode", () => {

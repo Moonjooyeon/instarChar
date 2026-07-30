@@ -1,3 +1,5 @@
+import { useRef } from "react";
+import { CharacterApiError, saveCharacter, type CharacterWrite } from "@/api/characters";
 import type { FeedPost } from "@/domain/feed/feedUtils";
 
 type SetState<T> = (value: T | ((prev: T) => T)) => void;
@@ -54,6 +56,7 @@ type CharacterLifecycleOptions = {
   setAccounts: SetState<AccountState[]>;
   setActiveId: SetState<string | null>;
   setChar: SetState<CharacterState>;
+  setCharacterSaveError: (value: string) => void;
   setDeleteTarget: (value: DeleteTarget | null) => void;
   setDmThreads: SetState<Record<string, unknown>>;
   setDmWorldPrefs: SetState<Record<string, unknown>>;
@@ -95,6 +98,7 @@ export function useAliveCharacterLifecycle({
   setAccounts,
   setActiveId,
   setChar,
+  setCharacterSaveError,
   setDeleteTarget,
   setDmThreads,
   setDmWorldPrefs,
@@ -113,18 +117,13 @@ export function useAliveCharacterLifecycle({
   syncOwnFollowRows,
   wakingRef,
 }: CharacterLifecycleOptions) {
+  const draftIdRef = useRef<string | null>(null);
   function syncActive(next: Record<string, unknown>): void {
     if (!activeId) return;
     setAccounts((accs) => accs.map((a) => a.id === activeId ? { ...a, char, gallery, posts, ...next } : a));
   }
-  function wakeCharacter(): void {
-    if (wakingRef.current) return;
-    wakingRef.current = true;
-    setWaking(true);
-    const existing = findExistingCharacter(accounts, char);
-    if (existing) wakeExistingCharacter(existing);
-    else wakeNewCharacter();
-    setStep("feed");
+  async function wakeCharacter(): Promise<void> {
+    if (await executeCharacterSave(wakeNewCharacter)) setStep("feed");
   }
   function switchAccount(id: string): void {
     persistActiveAccount();
@@ -146,24 +145,30 @@ export function useAliveCharacterLifecycle({
     wakingRef.current = false;
     setStep("confirm");
   }
-  function saveCharacterEdits(): void {
+  async function saveCharacterEdits(): Promise<void> {
     if (!activeId) return;
-    const editedAccounts = accounts.map((a) => a.id === activeId ? { ...a, char: { ...char }, gallery: [...gallery], posts, following } : a);
+    if (await executeCharacterSave(() => persistCharacterEdits(activeId))) setStep("feed");
+  }
+  async function persistCharacterEdits(accountId: string): Promise<void> {
+    const saved = await saveCharacter(accountId, characterWritePayload(char, gallery, following));
+    const savedChar = responseCharacter(char, saved);
+    const editedAccounts = accounts.map((a) => a.id === accountId ? { ...a, char: savedChar, gallery: [...saved.gallery], posts, following: saved.following } : a);
     const nextAccounts = applyRelationshipAutoFollowsToAccounts(editedAccounts);
-    const nextActive = nextAccounts.find((a) => a.id === activeId);
+    const nextActive = nextAccounts.find((a) => a.id === accountId);
     const nextFollowing = nextActive?.following || following;
     setAccounts(nextAccounts);
+    setChar(savedChar);
     setFollowing(nextFollowing);
-    persistLocalSnapshot({ ...exportAppState(), accounts: nextAccounts, activeId, char: { ...char }, gallery: [...gallery], posts, following: nextFollowing });
-    syncActiveSharedCharacter(nextFollowing, { ...char });
-    syncOwnFollowRows(nextFollowing, { ...char });
-    setStep("feed");
+    persistLocalSnapshot({ ...exportAppState(), accounts: nextAccounts, activeId: accountId, char: savedChar, gallery: [...saved.gallery], posts, following: nextFollowing });
+    syncActiveSharedCharacter(nextFollowing, savedChar);
+    syncOwnFollowRows(nextFollowing, savedChar);
   }
   function goHome(): void {
     persistActiveAccount();
     setStep("home");
   }
   function startNewCharacter(): void {
+    draftIdRef.current = null;
     wakingRef.current = false;
     setWaking(false);
     setChar(blankChar());
@@ -187,32 +192,45 @@ export function useAliveCharacterLifecycle({
     await saveAppStateSnapshot(deletion.nextSnapshot);
     if (structuredOk === false) setSaveStatus("삭제 저장 일부 실패");
   }
-  function wakeExistingCharacter(existing: AccountState): void {
-    const nextFollowing = relationAutoFollowsFor(existing.char, existing.id, existing.following || [], accounts);
-    const nextAccounts = applyRelationshipAutoFollowsToAccounts(accounts.map((a) => a.id === existing.id ? { ...a, following: nextFollowing } : a));
-    const nextExisting = nextAccounts.find((a) => a.id === existing.id) || { ...existing, following: nextFollowing };
-    setAccounts(nextAccounts);
-    setActiveId(existing.id);
-    setChar(nextExisting.char);
-    setGallery(nextExisting.gallery || []);
-    setPosts(nextExisting.posts || []);
-    setFollowing(nextExisting.following || []);
-    persistLocalSnapshot({ ...exportAppState(), accounts: nextAccounts, activeId: existing.id, char: nextExisting.char, gallery: nextExisting.gallery || [], posts: nextExisting.posts || [], following: nextExisting.following || [] });
-    feedInitRef.current = Boolean(nextExisting.posts && nextExisting.posts.length > 0);
-  }
-  function wakeNewCharacter(): void {
-    const id = "acc_" + Date.now();
+  async function wakeNewCharacter(): Promise<void> {
+    const id = draftIdRef.current || newDraftId();
+    draftIdRef.current = id;
     const baseAcc = { id, char: { ...char }, gallery: [...gallery], posts: [], following: [] };
     const poolAccounts = [...accounts, baseAcc];
     const acc = { ...baseAcc, following: relationAutoFollowsFor(baseAcc.char, id, [], poolAccounts) };
-    const nextAccounts = applyRelationshipAutoFollowsToAccounts([...accounts, acc]);
-    const nextAcc = nextAccounts.find((a) => a.id === id) || acc;
+    const saved = await saveCharacter(id, characterWritePayload(char, gallery, acc.following));
+    commitNewCharacter(acc, saved);
+    draftIdRef.current = null;
+  }
+  function commitNewCharacter(account: AccountState, saved: Awaited<ReturnType<typeof saveCharacter>>): void {
+    const savedChar = responseCharacter(account.char, saved);
+    const savedAccount = { ...account, char: savedChar, gallery: saved.gallery, following: saved.following };
+    const nextAccounts = applyRelationshipAutoFollowsToAccounts([...accounts, savedAccount]);
+    const nextAcc = nextAccounts.find((item) => item.id === account.id) || savedAccount;
     setAccounts(nextAccounts);
-    setActiveId(id);
+    setActiveId(account.id);
+    setChar(savedChar);
+    setGallery(saved.gallery);
     setPosts([]);
     setFollowing(nextAcc.following || []);
-    persistLocalSnapshot({ ...exportAppState(), accounts: nextAccounts, activeId: id, char: { ...char }, gallery: [...gallery], posts: [], following: nextAcc.following || [] });
+    persistLocalSnapshot({ ...exportAppState(), accounts: nextAccounts, activeId: account.id, char: savedChar, gallery: saved.gallery, posts: [], following: nextAcc.following || [] });
     feedInitRef.current = false;
+  }
+  async function executeCharacterSave(action: () => Promise<void>): Promise<boolean> {
+    if (wakingRef.current) return false;
+    wakingRef.current = true;
+    setWaking(true);
+    setCharacterSaveError("");
+    try {
+      await action();
+      return true;
+    } catch (error) {
+      setCharacterSaveError(characterSaveError(error));
+      return false;
+    } finally {
+      wakingRef.current = false;
+      setWaking(false);
+    }
   }
   function persistActiveAccount(): void {
     if (!activeId) return;
@@ -251,9 +269,23 @@ export function useAliveCharacterLifecycle({
   return { confirmDeleteCharacter, editAccount, goHome, saveCharacterEdits, startNewCharacter, switchAccount, syncActive, wakeCharacter };
 }
 
-function findExistingCharacter(accounts: AccountState[], char: CharacterState): AccountState | undefined {
-  const charKey = `${textValue(char.name).trim()}|${textValue(char.handle).trim()}|${textValue(char.persona).trim()}`;
-  return accounts.find((x) => `${textValue(x.char.name).trim()}|${textValue(x.char.handle).trim()}|${textValue(x.char.persona).trim()}` === charKey);
+function characterWritePayload(char: CharacterState, gallery: unknown[], following: unknown[]): CharacterWrite {
+  return { name: textValue(char.name).trim(), handle: textValue(char.handle), character: { ...char }, gallery: [...gallery], following: [...following] };
+}
+
+function responseCharacter(char: CharacterState, saved: Awaited<ReturnType<typeof saveCharacter>>): CharacterState {
+  return { ...char, ...saved.character, name: saved.name, handle: saved.handle };
+}
+
+function characterSaveError(error: unknown): string {
+  if (error instanceof CharacterApiError && error.code === "CHARACTER_HANDLE_TAKEN") return "이미 사용 중인 아이디야. 다른 아이디를 골라줘.";
+  if (error instanceof Error && error.message) return error.message;
+  return "캐릭터를 저장하지 못했어. 잠시 후 다시 시도해줘.";
+}
+
+function newDraftId(): string {
+  const randomId = globalThis.crypto?.randomUUID?.();
+  return `acc_${randomId || Date.now()}`;
 }
 
 function textValue(value: unknown): string {

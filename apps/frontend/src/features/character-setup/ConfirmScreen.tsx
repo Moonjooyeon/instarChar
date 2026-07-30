@@ -3,7 +3,10 @@ import React from "react";
 export function ConfirmScreen({
   activeId,
   char,
+  characterSaveError,
   confirmReady,
+  handleAvailability,
+  handleError,
   parseError,
   parseFailed,
   parseRelations,
@@ -32,8 +35,11 @@ export function ConfirmScreen({
         </label>
         <div className="al-row">
           <label className="al-field">
-            <span>아이디</span>
-            <input value={char.handle} onChange={(event) => update("handle", event.target.value)} placeholder="@id" />
+            <span>아이디 *</span>
+            <input aria-describedby="character-handle-status" aria-invalid={Boolean(handleError || handleAvailability.state === "taken")} value={char.handle} onChange={(event) => update("handle", event.target.value)} placeholder="@id" />
+            <small id="character-handle-status" aria-live="polite" className={`al-handle-status ${handleStatusClass(handleAvailability.state, handleError)}`}>
+              {handleError || handleAvailability.message}
+            </small>
           </label>
           <label className="al-field">
             <span>나이/설정</span>
@@ -79,12 +85,19 @@ export function ConfirmScreen({
             {activeId ? "← 뒤로 가기" : "← 다시 쓰기"}
           </button>
           <button className="al-start al-confirm-go" disabled={!confirmReady || waking} onClick={activeId ? saveCharacterEdits : wakeCharacter}>
-            {waking ? "깨우는 중..." : activeId ? "수정완료" : confirmReady ? `${char.name.trim()} 깨우기` : "이름·페르소나 필수"}
+            {waking ? "저장 중..." : activeId ? "수정완료" : confirmReady ? `${char.name.trim()} 깨우기` : "필수 항목을 확인해줘"}
           </button>
         </div>
+        {characterSaveError && <div className="al-character-save-error" role="alert">{characterSaveError}</div>}
       </div>
     </div>
   );
+}
+
+function handleStatusClass(state, handleError) {
+  if (handleError || state === "taken") return "error";
+  if (state === "available") return "success";
+  return "";
 }
 
 function CharacterAnalysisFields({ char, update }) {

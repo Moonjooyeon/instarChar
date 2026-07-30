@@ -40,6 +40,11 @@ body{ overflow-x:hidden; }
 .al-field input::placeholder, .al-field textarea::placeholder{ color:#55555f; }
 .al-field input:focus, .al-field textarea:focus{ outline:none; border-color:var(--accent); }
 .al-field textarea{ min-height:64px; line-height:1.55; }
+.al-handle-status{ min-height:16px; color:var(--soft); font-size:11px; line-height:1.4; }
+.al-handle-status.success{ color:#77d6a0; }
+.al-handle-status.error{ color:#ff8fa4; }
+.al-character-save-error{ padding:11px 13px; border:1px solid #66303c; border-radius:11px;
+  background:#22141a; color:#ffc3ce; font-size:12.5px; line-height:1.5; }
 
 .al-tones{ display:flex; flex-wrap:wrap; gap:7px; }
 .al-tone{ flex:1 1 calc(33% - 7px); min-width:96px; background:#1a1a20; border:1px solid var(--line);

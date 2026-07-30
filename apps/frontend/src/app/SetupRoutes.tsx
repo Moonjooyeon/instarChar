@@ -6,6 +6,7 @@ export function SetupRoutes({ ctx }) {
     activeId,
     canUseApp,
     char,
+    characterSaveError,
     confirmReady,
     ConfirmScreen,
     deleteAccount,
@@ -16,6 +17,8 @@ export function SetupRoutes({ ctx }) {
     EXAMPLES,
     hasBackendApiConfig,
     HomeScreen,
+    handleAvailability,
+    handleError,
     parseDump,
     parseError,
     parseFailed,
@@ -79,7 +82,10 @@ export function SetupRoutes({ ctx }) {
         <ConfirmScreen
           activeId={activeId}
           char={char}
+          characterSaveError={characterSaveError}
           confirmReady={confirmReady}
+          handleAvailability={handleAvailability}
+          handleError={handleError}
           parseError={parseError}
           parseFailed={parseFailed}
           parseRelations={parseRelations}

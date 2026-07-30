@@ -23,9 +23,29 @@ function objectFieldText(value: Record<string, unknown>): string {
     .join(" / ");
 }
 
-export function normalizeHandle(value: unknown, fallback: unknown): string {
-  const raw = fieldText(value || fallback).replace(/^@+/, "").split(/[,，\s/|]+/).find(Boolean) || fieldText(fallback) || "character";
-  return raw.toLowerCase().replace(/^@+/, "").replace(/[^a-z0-9._-]/g, "").replace(/^[._-]+|[._-]+$/g, "").slice(0, 24) || "character";
+const CHARACTER_HANDLE_RESERVED = new Set(["admin", "administrator", "alive", "help", "mod", "moderator", "official", "staff", "support", "system"]);
+const CHARACTER_HANDLE_PATTERN = /^[a-z0-9](?:[a-z0-9._-]{0,22}[a-z0-9])?$/;
+
+export function normalizeHandle(value: unknown, fallback?: unknown): string {
+  const normalized = normalizedHandleValue(value);
+  if (normalized || fallback === undefined) return normalized;
+  return normalizedHandleValue(fallback) || "character";
+}
+
+export function characterHandleError(value: unknown): string {
+  const normalized = normalizeHandle(value);
+  if (!CHARACTER_HANDLE_PATTERN.test(normalized)) return "영문 소문자, 숫자, 점, 밑줄, 하이픈으로 1~24자 입력해줘.";
+  if (CHARACTER_HANDLE_RESERVED.has(normalized)) return "이 아이디는 서비스에서 사용 중이라 선택할 수 없어.";
+  return "";
+}
+
+export function isValidCharacterHandle(value: unknown): boolean {
+  return !characterHandleError(value);
+}
+
+function normalizedHandleValue(value: unknown): string {
+  const normalized = fieldText(value).trim().toLowerCase().replace(/^@+/, "").replace(/[^a-z0-9._-]/g, "").replace(/^[._-]+/, "").slice(0, 24);
+  return normalized.replace(/[._-]+$/, "");
 }
 
 export function worldBridgeBlock(a: CharacterWorldLike | null | undefined, b: CharacterWorldLike | null | undefined, pref: WorldPreference | null = null): string {

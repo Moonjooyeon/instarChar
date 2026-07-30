@@ -1,6 +1,22 @@
 import { expect, test } from "@playwright/test";
 
 async function mockAliveApi(page) {
+  await page.route("**/api/characters/handle-availability?**", async (route) => {
+    const handle = new URL(route.request().url()).searchParams.get("handle") || "";
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ handle, available: true }) });
+  });
+  await page.route("**/api/characters/*", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (route.request().method() !== "PUT" || !/\/api\/characters\/[^/]+$/.test(path)) {
+      await route.fallback();
+      return;
+    }
+    const body = route.request().postDataJSON();
+    const sourceAccountId = decodeURIComponent(path.split("/").pop() || "");
+    const handle = String(body.handle || "").toLowerCase().replace(/^@+/, "");
+    const character = { ...(body.character || {}), name: body.name, handle };
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ...body, source_account_id: sourceAccountId, handle, character }) });
+  });
   await page.route("**/api/ai/generate", async (route) => {
     const body = route.request().postDataJSON();
     const system = body?.system || "";
@@ -33,6 +49,13 @@ async function mockAliveApi(page) {
 }
 
 async function createCharacter(page) {
+  await reachCharacterConfirmation(page);
+  await page.getByRole("button", { name: "테스트린 깨우기" }).click();
+  await expect(page).toHaveURL(/\/app\/feed$/);
+  await expect(page.getByRole("heading", { name: "테스트린" })).toBeVisible();
+}
+
+async function reachCharacterConfirmation(page) {
   await page.goto("/");
   await page.getByRole("button", { name: "+ 새 캐릭터 깨우기" }).click();
   await expect(page).toHaveURL(/\/app\/new$/);
@@ -41,9 +64,6 @@ async function createCharacter(page) {
   await page.getByRole("button", { name: "이대로 깨우기" }).click();
   await expect(page.getByRole("heading", { name: "이렇게 이해했어" })).toBeVisible();
   await expect(page.getByPlaceholder("@id")).toHaveValue("assistant_testerin");
-  await page.getByRole("button", { name: "테스트린 깨우기" }).click();
-  await expect(page).toHaveURL(/\/app\/feed$/);
-  await expect(page.getByRole("heading", { name: "테스트린" })).toBeVisible();
 }
 
 async function mockPersistentPostLikes(page) {
@@ -62,6 +82,66 @@ async function mockPersistentPostLikes(page) {
 
 test.beforeEach(async ({ page }) => {
   await mockAliveApi(page);
+});
+
+test("taken character handle blocks creation before submit", async ({ page }) => {
+  await page.route("**/api/characters/handle-availability?**", async (route) => {
+    const handle = new URL(route.request().url()).searchParams.get("handle") || "";
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ handle, available: handle !== "taken" }) });
+  });
+  await reachCharacterConfirmation(page);
+  await page.getByPlaceholder("@id").fill("taken");
+  await expect(page.getByText("이미 사용 중인 아이디야.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "필수 항목을 확인해줘" })).toBeDisabled();
+});
+
+test("PUT handle conflict keeps the draft on the confirmation screen", async ({ page }) => {
+  await page.route("**/api/characters/*", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (route.request().method() === "PUT" && /\/api\/characters\/[^/]+$/.test(path)) {
+      await route.fulfill({ status: 409, contentType: "application/json", body: JSON.stringify({ error: "CHARACTER_HANDLE_TAKEN", message: "이미 사용 중인 아이디야." }) });
+      return;
+    }
+    await route.fallback();
+  });
+  await reachCharacterConfirmation(page);
+  await page.getByRole("button", { name: "테스트린 깨우기" }).click();
+  await expect(page).toHaveURL(/\/app\/new\/confirm$/);
+  await expect(page.getByRole("alert")).toContainText("이미 사용 중인 아이디야");
+  const accountCount = await page.evaluate(() => JSON.parse(localStorage.getItem("alive_app_state_v1") || "{}").accounts?.length || 0);
+  expect(accountCount).toBe(0);
+});
+
+test("availability outage still allows the authoritative PUT", async ({ page }) => {
+  await page.route("**/api/characters/handle-availability?**", (route) => route.abort());
+  await reachCharacterConfirmation(page);
+  await expect(page.getByText("미리 확인하지 못했어. 저장할 때 다시 확인할게.")).toBeVisible();
+  await page.getByRole("button", { name: "테스트린 깨우기" }).click();
+  await expect(page).toHaveURL(/\/app\/feed$/);
+});
+
+test("failed PUT retry reuses the stable character source id", async ({ page }) => {
+  const sourceIds = [];
+  await page.route("**/api/characters/*", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (route.request().method() !== "PUT" || !/\/api\/characters\/[^/]+$/.test(path)) {
+      await route.fallback();
+      return;
+    }
+    sourceIds.push(decodeURIComponent(path.split("/").pop() || ""));
+    if (sourceIds.length === 1) {
+      await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ message: "잠시 후 다시 시도해줘." }) });
+      return;
+    }
+    await route.fallback();
+  });
+  await reachCharacterConfirmation(page);
+  await page.getByRole("button", { name: "테스트린 깨우기" }).click();
+  await expect(page.getByRole("alert")).toBeVisible();
+  await page.getByRole("button", { name: "테스트린 깨우기" }).click();
+  await expect(page).toHaveURL(/\/app\/feed$/);
+  expect(sourceIds).toHaveLength(2);
+  expect(sourceIds[0]).toBe(sourceIds[1]);
 });
 
 test("phase 1B hides user personas and feed test controls", async ({ page }) => {
