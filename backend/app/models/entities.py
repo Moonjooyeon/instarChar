@@ -6,7 +6,7 @@ from decimal import Decimal
 from typing import Optional
 from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, Date, DateTime, Enum, ForeignKey, ForeignKeyConstraint, Index, Integer, Numeric, String, Text, UniqueConstraint, func
+from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, Enum, ForeignKey, ForeignKeyConstraint, Index, Integer, Numeric, String, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -132,12 +132,17 @@ class Profile(TimestampMixin, Base):
 
 class Character(TimestampMixin, Base):
     __tablename__ = "characters"
-    __table_args__ = (UniqueConstraint("owner_id", "source_account_id", name="uq_characters_owner_source"),)
+    __table_args__ = (
+        UniqueConstraint("owner_id", "source_account_id", name="uq_characters_owner_source"),
+        UniqueConstraint("handle", name="uq_characters_handle"),
+        CheckConstraint("handle ~ '^[a-z0-9]([a-z0-9._-]{0,22}[a-z0-9])?$'", name="ck_characters_handle_format"),
+        CheckConstraint("handle NOT IN ('admin', 'administrator', 'alive', 'help', 'mod', 'moderator', 'official', 'staff', 'support', 'system')", name="ck_characters_handle_reserved"),
+    )
     id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid4)
     owner_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     source_account_id: Mapped[str] = mapped_column(String(120), nullable=False)
     name: Mapped[str] = mapped_column(String(120), nullable=False, default="")
-    handle: Mapped[str] = mapped_column(String(120), nullable=False, default="")
+    handle: Mapped[str] = mapped_column(String(24), nullable=False)
     character: Mapped[JsonMap] = mapped_column(JSONB, nullable=False, default=dict)
     gallery: Mapped[list[object]] = mapped_column(JSONB, nullable=False, default=list)
     posts: Mapped[list[object]] = mapped_column(JSONB, nullable=False, default=list)

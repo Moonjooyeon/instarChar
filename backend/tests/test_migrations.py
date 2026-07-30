@@ -56,3 +56,15 @@ def test_apple_notification_migration_follows_credentials() -> None:
     names = {column.name for column in columns if isinstance(column, sa.Column)}
     assert migration.down_revision == "20260728_0007"
     assert {"event_id", "event_type", "subject", "payload_hash", "status"} <= names
+
+
+def test_character_handle_migration_follows_apple_notifications() -> None:
+    migration = _load_migration("20260730_0009_character_handle_uniqueness.py")
+    assert migration.down_revision == "20260728_0008"
+
+
+def test_character_handle_migration_assigns_deterministic_unique_values() -> None:
+    migration = _load_migration("20260730_0009_character_handle_uniqueness.py")
+    assign = cast(Callable[[list[tuple[object, object, str, str]]], list[tuple[object, object, str, str]]], migration._assign_handles)
+    rows = [(1, 10, "one", "Hero"), (2, 20, "two", "@hero"), (3, 30, "three", ""), (4, 40, "four", "admin")]
+    assert [row[3] for row in assign(rows)] == ["hero", "hero-2", "character", "admin-2"]
