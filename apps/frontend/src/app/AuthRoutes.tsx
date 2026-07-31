@@ -14,6 +14,7 @@ export function AuthRoutes({ ctx }) {
     setProfileLoadRetry,
     setStateReady,
     signInWithProvider,
+    signInWithToss,
   } = ctx;
   return (
     <>
@@ -34,6 +35,7 @@ export function AuthRoutes({ ctx }) {
           authLoading={authLoading}
           authMessage={authMessage}
           signInWithProvider={signInWithProvider}
+          signInWithToss={signInWithToss}
         />
       )}
     </>

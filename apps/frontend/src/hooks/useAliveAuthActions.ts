@@ -2,6 +2,7 @@ import {
   deleteAuthAccount,
   type AuthProvider,
   isAuthApiAvailable,
+  signInWithToss as requestTossLogin,
   signInWithOAuthProvider,
   signOutAuthSession,
 } from "@/api/auth";
@@ -73,6 +74,16 @@ export function useAliveAuthActions({
       setAuthMessage(readableAuthError(error));
     }
   }
+  async function signInWithToss(): Promise<void> {
+    if (!isAuthApiAvailable()) return;
+    setAuthLoading(true);
+    setAuthMessage("");
+    const { error } = await requestTossLogin();
+    if (error) {
+      setAuthLoading(false);
+      setAuthMessage(readableAuthError(error));
+    }
+  }
   async function signOut(): Promise<void> {
     if (!isAuthApiAvailable()) return;
     await signOutAuthSession();
@@ -120,7 +131,7 @@ export function useAliveAuthActions({
     setStateReady(false);
     setAuthMessage("로그인 상태를 초기화했어. 다시 로그인해줘.");
   }
-  return { clearLocalAuthStorage, completeOnboarding, deleteAccount, readableAuthError, recoverAuthScreen, signInWithProvider, signOut };
+  return { clearLocalAuthStorage, completeOnboarding, deleteAccount, readableAuthError, recoverAuthScreen, signInWithProvider, signInWithToss, signOut };
 }
 
 function clearStorage(storage: Storage, includeLocalState: boolean): void {

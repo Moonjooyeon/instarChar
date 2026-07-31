@@ -10,11 +10,12 @@ from app.core.config import Settings, get_settings
 from app.core.errors import AppError, BadRequestError
 from app.db.session import get_db_session
 from app.models import User, UserProvider
-from app.schemas.auth import AppleNotificationRequest, MeResponse, NativeAppleLoginRequest, NativeOAuthExchangeRequest, UserResponse
+from app.schemas.auth import AppleNotificationRequest, MeResponse, NativeAppleLoginRequest, NativeOAuthExchangeRequest, TossLoginRequest, UserResponse
 from app.services.account_deletion import AccountDeletionService
 from app.services.apple_notifications import AppleNotificationService
 from app.services.native_oauth import NativeOAuthService
 from app.services.oauth import OAuthCompletion, OAuthService
+from app.services.toss_login import TossLoginService
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -64,6 +65,12 @@ async def exchange_native_oauth(payload: NativeOAuthExchangeRequest, response: R
 async def native_apple_login(payload: NativeAppleLoginRequest, response: Response, settings: Settings = Depends(get_settings), session: AsyncSession = Depends(get_db_session)) -> None:
     service = OAuthService(settings, session)
     completion = await service.complete_native_apple(payload.authorization_code, payload.identity_token, payload.nonce, payload.display_name)
+    _set_session_cookie(response, completion.session_token, settings)
+
+
+@router.post("/toss/login", status_code=status.HTTP_204_NO_CONTENT)
+async def toss_login(payload: TossLoginRequest, response: Response, settings: Settings = Depends(get_settings), session: AsyncSession = Depends(get_db_session)) -> None:
+    completion = await TossLoginService(settings, session).complete(payload.authorization_code, payload.referrer)
     _set_session_cookie(response, completion.session_token, settings)
 
 

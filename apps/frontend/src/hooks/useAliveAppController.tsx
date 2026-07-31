@@ -660,6 +660,7 @@ export function useAliveAppController() {
     readableAuthError,
     recoverAuthScreen,
     signInWithProvider,
+    signInWithToss,
     signOut,
   } = useAliveAuthActions({
     profileName,
@@ -1423,6 +1424,7 @@ export function useAliveAppController() {
     showRelations,
     shuffled,
     signInWithProvider,
+    signInWithToss,
     signOut,
     sortedPosts,
     speakAs,

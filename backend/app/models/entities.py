@@ -19,6 +19,7 @@ JsonMap = dict[str, object]
 class UserProvider(str, enum.Enum):
     google = "google"
     apple = "apple"
+    toss = "toss"
 
 
 class UserModerationStatus(str, enum.Enum):

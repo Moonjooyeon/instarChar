@@ -1,3 +1,4 @@
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
@@ -27,6 +28,11 @@ class NativeAppleLoginRequest(BaseModel):
     identity_token: str = Field(min_length=1, max_length=8192)
     nonce: str = Field(min_length=16, max_length=128)
     display_name: str = Field(default="", max_length=120)
+
+
+class TossLoginRequest(BaseModel):
+    authorization_code: str = Field(min_length=1, max_length=4096)
+    referrer: Literal["DEFAULT", "SANDBOX"]
 
 
 class AppleNotificationRequest(BaseModel):

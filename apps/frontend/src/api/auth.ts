@@ -74,6 +74,19 @@ export async function signInWithOAuthProvider(provider: AuthProvider): Promise<{
   return { error: null };
 }
 
+export function isAppsInTossRuntime(runtime: string = import.meta.env?.VITE_ALIVE_RUNTIME || ""): boolean {
+  return runtime === "apps-in-toss";
+}
+
+export async function signInWithToss(): Promise<{ error: ApiError | null }> {
+  try {
+    const authorization = await requestTossAuthorization();
+    return await apiNoContent("/auth/toss/login", { method: "POST", body: JSON.stringify({ authorization_code: authorization.authorizationCode, referrer: authorization.referrer }) });
+  } catch (error) {
+    return { error: { message: tossLoginErrorMessage(error) } };
+  }
+}
+
 export function signOutAuthSession(): Promise<{ error: ApiError | null }> {
   return apiNoContent("/auth/logout", { method: "POST" });
 }
@@ -98,6 +111,11 @@ function oauthStartUrl(provider: AuthProvider): string {
   const callbackUrl = new URL(apiUrl(`/auth/${provider}/callback`), window.location.origin).href;
   const returnUrl = Capacitor.isNativePlatform() ? NATIVE_OAUTH_REDIRECT_URL : window.location.origin;
   return apiUrl(`/auth/${provider}/start`, { redirect_uri: callbackUrl, return_url: returnUrl });
+}
+
+async function requestTossAuthorization(): Promise<{ authorizationCode: string; referrer: "DEFAULT" | "SANDBOX" }> {
+  const { appLogin } = await import("@apps-in-toss/web-framework");
+  return appLogin();
 }
 
 async function initializeNativeOAuth(): Promise<void> {
@@ -196,6 +214,11 @@ export function shouldShowAppleLogin(platform: string = Capacitor.getPlatform())
 function nativeGoogleBrowserErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message) return error.message;
   return "Google 로그인 화면을 열지 못했어.";
+}
+
+function tossLoginErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) return error.message;
+  return "토스 로그인에 실패했어.";
 }
 
 function nativeAppleErrorMessage(error: unknown): string {
