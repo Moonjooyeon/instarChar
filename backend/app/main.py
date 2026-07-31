@@ -18,6 +18,7 @@ from app.services.auto_post_scheduler import AutoPostScheduler
 settings = get_settings()
 logger = logging.getLogger(__name__)
 legal_directory = Path(__file__).resolve().parent / "legal"
+public_directory = Path(__file__).resolve().parent / "public"
 
 
 @asynccontextmanager
@@ -66,6 +67,11 @@ async def account_deletion() -> FileResponse:
 @app.get("/legal.css", include_in_schema=False)
 async def legal_styles() -> FileResponse:
     return FileResponse(legal_directory / "legal.css", media_type="text/css")
+
+
+@app.get("/brand-icon.png", include_in_schema=False)
+async def brand_icon() -> FileResponse:
+    return FileResponse(public_directory / "brand-icon.png", media_type="image/png")
 
 
 @app.exception_handler(AppError)
