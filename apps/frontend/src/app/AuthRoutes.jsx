@@ -10,6 +10,7 @@ export function AuthRoutes({ ctx }) {
     authMessage,
     authMode,
     authPassword,
+    externalAuthAvailable,
     hasSupabaseConfig,
     sendMagicLoginLink,
     sendPasswordReset,
@@ -53,6 +54,7 @@ export function AuthRoutes({ ctx }) {
           sendMagicLoginLink={sendMagicLoginLink}
           sendPasswordReset={sendPasswordReset}
           signInWithProvider={signInWithProvider}
+          externalAuthAvailable={externalAuthAvailable}
         />
       )}
     </>

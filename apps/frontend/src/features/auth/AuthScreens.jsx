@@ -34,6 +34,7 @@ export function AuthEntryScreen({
   sendMagicLoginLink,
   sendPasswordReset,
   signInWithProvider,
+  externalAuthAvailable = true,
 }) {
   return (
     <div className="al-phone">
@@ -45,12 +46,16 @@ export function AuthEntryScreen({
           <button className={authMode === "signup" ? "on" : ""} onClick={() => { setAuthMode("signup"); setAuthMessage(""); }}>회원가입</button>
           <button className={authMode === "signin" ? "on" : ""} onClick={() => { setAuthMode("signin"); setAuthMessage(""); }}>로그인</button>
         </div>
-        <div className="al-social-login">
-          <button onClick={() => signInWithProvider("kakao")} disabled={authLoading}>Kakao로 계속</button>
-          <button onClick={() => signInWithProvider("google")} disabled={authLoading}>Google로 계속</button>
-          <button onClick={() => signInWithProvider("x")} disabled={authLoading}>X로 계속</button>
-        </div>
-        <div className="al-auth-divider"><span>또는 이메일로</span></div>
+        {externalAuthAvailable && (
+          <>
+            <div className="al-social-login">
+              <button onClick={() => signInWithProvider("kakao")} disabled={authLoading}>Kakao로 계속</button>
+              <button onClick={() => signInWithProvider("google")} disabled={authLoading}>Google로 계속</button>
+              <button onClick={() => signInWithProvider("x")} disabled={authLoading}>X로 계속</button>
+            </div>
+            <div className="al-auth-divider"><span>또는 이메일로</span></div>
+          </>
+        )}
         <input
           className="al-auth-input"
           type="email"
@@ -70,10 +75,12 @@ export function AuthEntryScreen({
         <button className="al-auth-btn" disabled={!authEmail.trim() || authPassword.length < 6 || authLoading} onClick={submitAuth}>
           {authMode === "signup" ? "회원가입하고 시작" : "로그인"}
         </button>
-        <div className="al-auth-alt">
-          <button disabled={!authEmail.trim() || authLoading} onClick={sendMagicLoginLink}>이메일 링크로 간편 로그인</button>
-          <button disabled={!authEmail.trim() || authLoading} onClick={sendPasswordReset}>비밀번호 재설정</button>
-        </div>
+        {externalAuthAvailable && (
+          <div className="al-auth-alt">
+            <button disabled={!authEmail.trim() || authLoading} onClick={sendMagicLoginLink}>이메일 링크로 간편 로그인</button>
+            <button disabled={!authEmail.trim() || authLoading} onClick={sendPasswordReset}>비밀번호 재설정</button>
+          </div>
+        )}
         {authMessage && <p className="al-auth-msg">{authMessage}</p>}
       </div>
     </div>

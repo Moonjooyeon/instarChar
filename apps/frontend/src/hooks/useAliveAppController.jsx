@@ -49,6 +49,14 @@ import { useAliveAiGeneration } from "@/hooks/useAliveAiGeneration";
 import { useAliveLocalPersistence } from "@/hooks/useAliveLocalPersistence";
 import { useAliveNavigation } from "@/hooks/useAliveNavigation";
 
+function isNativeAppRuntime() {
+  const capacitor = window.Capacitor;
+  if (!capacitor) return false;
+  if (typeof capacitor.isNativePlatform === "function") return capacitor.isNativePlatform();
+  if (typeof capacitor.getPlatform === "function") return capacitor.getPlatform() !== "web";
+  return false;
+}
+
 // ─────────────────────────────────────────────
 //  ALIVE — 내 캐릭터가 자기 SNS를 운영한다
 //  설정 입력 → 그 보이스로 피드에 글이 올라옴
@@ -4157,6 +4165,7 @@ ${posterImg ? "\n[첨부 이미지]\n네가 올리는 글에는 네 캐릭터 �
     discoverQuery,
     DiscoverScreen,
     discoverShowFollowed,
+    externalAuthAvailable: !isNativeAppRuntime(),
     displayDmTitle,
     dm,
     dmAffOf,
