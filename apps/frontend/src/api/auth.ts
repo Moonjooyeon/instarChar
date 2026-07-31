@@ -2,7 +2,7 @@ import { App } from "@capacitor/app";
 import { Browser } from "@capacitor/browser";
 import { Capacitor, CapacitorHttp, registerPlugin, type PluginListenerHandle } from "@capacitor/core";
 
-import { apiNoContent, apiResult, apiUrl, type ApiError } from "./client.js";
+import { apiNoContent, apiResult, apiUrl, clearTossSessionToken, setTossSessionToken, type ApiError } from "./client.js";
 
 export type AuthProvider = "apple" | "google";
 
@@ -36,6 +36,10 @@ type AuthResult = {
     session: BackendSession | null;
   };
   error: ApiError | null;
+};
+
+type TossLoginResponse = {
+  session_token: string;
 };
 
 export type AuthSubscription = {
@@ -81,14 +85,19 @@ export function isAppsInTossRuntime(runtime: string = import.meta.env?.VITE_ALIV
 export async function signInWithToss(): Promise<{ error: ApiError | null }> {
   try {
     const authorization = await requestTossAuthorization();
-    return await apiNoContent("/auth/toss/login", { method: "POST", body: JSON.stringify({ authorization_code: authorization.authorizationCode, referrer: authorization.referrer }) });
+    const result = await apiResult<TossLoginResponse>("/auth/toss/login", { method: "POST", body: JSON.stringify({ authorization_code: authorization.authorizationCode, referrer: authorization.referrer }) });
+    if (result.error) return { error: result.error };
+    if (!result.data?.session_token) return { error: { message: "토스 로그인 세션을 만들지 못했어." } };
+    setTossSessionToken(result.data.session_token);
+    authStateListeners.forEach((listener) => listener());
+    return { error: null };
   } catch (error) {
     return { error: { message: tossLoginErrorMessage(error) } };
   }
 }
 
 export function signOutAuthSession(): Promise<{ error: ApiError | null }> {
-  return apiNoContent("/auth/logout", { method: "POST" });
+  return endTossSession();
 }
 
 export function deleteAuthAccount(): Promise<{ error: ApiError | null }> {
@@ -111,6 +120,12 @@ function oauthStartUrl(provider: AuthProvider): string {
   const callbackUrl = new URL(apiUrl(`/auth/${provider}/callback`), window.location.origin).href;
   const returnUrl = Capacitor.isNativePlatform() ? NATIVE_OAUTH_REDIRECT_URL : window.location.origin;
   return apiUrl(`/auth/${provider}/start`, { redirect_uri: callbackUrl, return_url: returnUrl });
+}
+
+async function endTossSession(): Promise<{ error: ApiError | null }> {
+  const result = await apiNoContent("/auth/logout", { method: "POST" });
+  clearTossSessionToken();
+  return result;
 }
 
 async function requestTossAuthorization(): Promise<{ authorizationCode: string; referrer: "DEFAULT" | "SANDBOX" }> {

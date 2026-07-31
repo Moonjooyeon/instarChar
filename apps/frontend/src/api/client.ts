@@ -7,6 +7,7 @@ type ApiRequestOptions = RequestInit & {
 };
 
 const API_BASE_URL = normalizeApiBaseUrl(import.meta.env?.VITE_API_BASE_URL || "/api");
+const TOSS_SESSION_TOKEN_KEY = "alive_toss_session";
 
 export const hasBackendApiConfig = true;
 
@@ -35,8 +36,17 @@ export function apiFetch(path: string, options: ApiRequestOptions = {}): Promise
   return fetch(apiUrl(path, query), {
     ...requestOptions,
     credentials: requestOptions.credentials || "include",
-    headers: requestOptions.headers,
+    headers: authorizedHeaders(requestOptions.headers),
   });
+}
+
+export function setTossSessionToken(token: string): void {
+  if (!isAppsInTossRuntime()) return;
+  localStorage.setItem(TOSS_SESSION_TOKEN_KEY, token);
+}
+
+export function clearTossSessionToken(): void {
+  localStorage.removeItem(TOSS_SESSION_TOKEN_KEY);
 }
 
 export async function apiJson<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
@@ -102,6 +112,22 @@ function jsonRequestOptions(options: ApiRequestOptions): ApiRequestOptions {
     headers.set("Content-Type", "application/json");
   }
   return { ...options, headers };
+}
+
+function authorizedHeaders(headers?: HeadersInit): Headers {
+  const next = new Headers(headers);
+  const token = tossSessionToken();
+  if (token) next.set("Authorization", `Bearer ${token}`);
+  return next;
+}
+
+function tossSessionToken(): string {
+  if (!isAppsInTossRuntime()) return "";
+  return localStorage.getItem(TOSS_SESSION_TOKEN_KEY) || "";
+}
+
+function isAppsInTossRuntime(): boolean {
+  return import.meta.env?.VITE_ALIVE_RUNTIME === "apps-in-toss";
 }
 
 function queryString(query?: ApiQuery): string {

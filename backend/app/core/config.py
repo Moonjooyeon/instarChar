@@ -1,4 +1,5 @@
 from functools import lru_cache
+import re
 from typing import Literal
 
 from pydantic import computed_field
@@ -33,6 +34,7 @@ class Settings(BaseSettings):
     oauth_token_encryption_key: str = ""
     apple_notification_audiences: str = ""
     toss_api_base_url: str = "https://apps-in-toss-api.toss.im"
+    toss_app_name: str = "ashwoodfriends-alive"
     toss_mtls_cert_path: str = ""
     toss_mtls_key_path: str = ""
     gemini_api_key: str = ""
@@ -60,6 +62,11 @@ class Settings(BaseSettings):
     def allowed_apple_notification_audiences(self) -> list[str]:
         configured = [item.strip() for item in self.apple_notification_audiences.split(",") if item.strip()]
         return configured or [item for item in (self.apple_client_id, self.apple_native_client_id) if item]
+
+    @computed_field
+    @property
+    def toss_origin_regex(self) -> str:
+        return rf"https://{re.escape(self.toss_app_name)}\.(?:private-)?apps\.tossmini\.com"
 
 
 @lru_cache

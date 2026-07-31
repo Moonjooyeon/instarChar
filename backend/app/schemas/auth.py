@@ -35,6 +35,10 @@ class TossLoginRequest(BaseModel):
     referrer: Literal["DEFAULT", "SANDBOX"]
 
 
+class TossLoginResponse(BaseModel):
+    session_token: str = Field(min_length=1)
+
+
 class AppleNotificationRequest(BaseModel):
     payload: str = Field(min_length=1, max_length=16384)
 

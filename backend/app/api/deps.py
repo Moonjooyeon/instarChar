@@ -16,13 +16,21 @@ async def get_current_user(
     settings: Settings = Depends(get_settings),
     session: AsyncSession = Depends(get_db_session),
 ) -> User:
-    alive_session = request.cookies.get(settings.auth_cookie_name)
+    alive_session = _request_session_token(request, settings)
     if not alive_session:
         raise UnauthorizedError()
     payload = verify_session(alive_session, settings.auth_secret_key)
     if not payload:
         raise UnauthorizedError()
     return await _load_user(payload.user_id, session)
+
+
+def _request_session_token(request: Request, settings: Settings) -> str:
+    cookie_token = request.cookies.get(settings.auth_cookie_name)
+    if cookie_token:
+        return cookie_token
+    scheme, _, token = request.headers.get("Authorization", "").partition(" ")
+    return token if scheme.lower() == "bearer" else ""
 
 
 async def _load_user(user_id: UUID, session: AsyncSession) -> User:
