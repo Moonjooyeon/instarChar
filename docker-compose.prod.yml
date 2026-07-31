@@ -8,6 +8,11 @@ x-backend: &backend
   image: alive-backend:${BACKEND_IMAGE_TAG:-latest}
   env_file:
     - ${PROD_ENV_FILE:-.env.prod}
+  volumes:
+    - type: bind
+      source: ${TOSS_MTLS_SECRETS_DIR:-./secrets/toss}
+      target: /run/secrets/toss
+      read_only: true
   networks:
     - levelup-net
 

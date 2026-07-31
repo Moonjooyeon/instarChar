@@ -20,3 +20,5 @@ documents/store-assets
 ios/build/
 
 *.p8
+*.pem
+secrets/
