@@ -1,6 +1,6 @@
 {
-  "name": "ALIVE",
-  "short_name": "ALIVE",
+  "name": "얼라이브",
+  "short_name": "얼라이브",
   "description": "Character social simulation app",
   "start_url": "/",
   "scope": "/",
@@ -10,9 +10,9 @@
   "orientation": "portrait",
   "icons": [
     {
-      "src": "/icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "/brand-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
       "purpose": "any maskable"
     }
   ]

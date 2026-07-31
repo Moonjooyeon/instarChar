@@ -3,9 +3,9 @@ import { defineConfig } from "@apps-in-toss/web-framework/config";
 export default defineConfig({
   appName: "ashwoodfriends-alive",
   brand: {
-    displayName: "ALIVE",
+    displayName: "얼라이브",
     primaryColor: "#a66cff",
-    icon: "",
+    icon: "https://alive.imagebgremover.net/brand-icon.png",
   },
   web: {
     host: "localhost",
