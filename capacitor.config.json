@@ -1,5 +1,5 @@
 {
-  "appId": "app.instarcharacterbot.alive",
+  "appId": "com.ashwoodfriends.alive",
   "appName": "ALIVE",
   "webDir": "apps/frontend/dist",
   "server": {
