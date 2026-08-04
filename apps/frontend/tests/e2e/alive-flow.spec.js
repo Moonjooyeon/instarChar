@@ -57,7 +57,8 @@ async function createCharacter(page) {
 
 async function reachCharacterConfirmation(page) {
   await page.goto("/");
-  await page.getByRole("button", { name: "+ 새 캐릭터 깨우기" }).click();
+  await page.getByRole("button", { name: "이전 화면으로 돌아가기" }).click();
+  await page.getByRole("button", { name: "+ 캐릭터 만들기" }).click();
   await expect(page).toHaveURL(/\/app\/new$/);
   await page.locator(".al-dump").fill("이름은 테스트린. 24살 마법학교 조교. 차분하지만 위험할 때 단호함.");
   await page.locator(".al-rp-box").fill("테스트린: 확인했습니다. 제가 정리하죠.");

@@ -1,10 +1,13 @@
 import React from "react";
 import { USER_PERSONA_FEATURE_ENABLED } from "@/domain/app/featureFlags";
+import { ServiceTour } from "@/features/onboarding/ServiceTour";
 import {
   ACCOUNT_DELETION_URL,
   PRIVACY_POLICY_URL,
   TERMS_URL,
 } from "@/domain/app/legal";
+
+const SERVICE_TOUR_DISMISSED_KEY = "alive_service_tour_dismissed";
 
 export function HomeScreen({
   accounts,
@@ -22,21 +25,34 @@ export function HomeScreen({
   startNewCharacter,
   switchAccount,
 }) {
+  const hasCharacters = accounts.length > 0;
+  const [isTourOpen, setIsTourOpen] = React.useState(() => !hasCharacters && sessionStorage.getItem(SERVICE_TOUR_DISMISSED_KEY) !== "true");
+  const dismissServiceTour = () => { sessionStorage.setItem(SERVICE_TOUR_DISMISSED_KEY, "true"); setIsTourOpen(false); };
+  const startCharacterCreation = () => { sessionStorage.setItem(SERVICE_TOUR_DISMISSED_KEY, "true"); startNewCharacter(); };
+  if (!hasCharacters && isTourOpen) return <ServiceTour completeLabel="내 캐릭터 만들기" onBack={dismissServiceTour} onComplete={startCharacterCreation} />;
   return (
     <div className="al-phone">
-      <div className="al-home">
+      <div className={`al-home ${hasCharacters ? "" : "al-home-first"}`}>
         <div className="al-accountbar">
           <span>{hasBackendApiConfig ? (profileName || session?.user?.email || "로그인됨") : "로컬 모드"}</span>
           <b>{saveStatus}</b>
           {hasBackendApiConfig && <button onClick={signOut}>로그아웃</button>}
         </div>
         <div className="al-home-head">
-          <span className="al-spark">★</span>
-          <h1>내 캐릭터들</h1>
-          <p>{accounts.length > 0 ? "캐릭터를 골라 들어가거나, 새로 깨워봐." : "첫 캐릭터를 깨워보자."}</p>
+          {hasCharacters && <span className="al-spark">★</span>}
+          <h1>{hasCharacters ? "내 캐릭터들" : "내 캐릭터"}</h1>
+          <p>{hasCharacters ? "캐릭터를 골라 들어가거나, 새로 깨워봐." : "0명의 캐릭터"}</p>
         </div>
 
         <div className="al-acclist">
+          {!hasCharacters && (
+            <section className="al-first-start" aria-labelledby="first-start-title">
+              <span className="al-first-start-mark" aria-hidden="true">?</span>
+              <span className="al-first-start-label">첫 번째 등장인물</span>
+              <h2 id="first-start-title">누구의 이야기를<br />시작할까요?</h2>
+              <p>그 아이에 대해 아는 것부터 적어 주세요.</p>
+            </section>
+          )}
           {accounts.map((a) => {
             const ini = a.char.name.trim() ? a.char.name.trim()[0] : "?";
             return (
@@ -57,7 +73,8 @@ export function HomeScreen({
               </div>
             );
           })}
-          <button className="al-accadd" onClick={startNewCharacter}>+ 새 캐릭터 깨우기</button>
+          <button className={`al-accadd ${hasCharacters ? "" : "first"}`} onClick={hasCharacters ? startNewCharacter : startCharacterCreation}>{hasCharacters ? "+ 새 캐릭터 깨우기" : "+ 캐릭터 만들기"}</button>
+          {!hasCharacters && <button className="al-first-demo-link" onClick={() => setIsTourOpen(true)}>데모 다시 보기</button>}
         </div>
 
         {USER_PERSONA_FEATURE_ENABLED && <div className="al-persona-mgr">
