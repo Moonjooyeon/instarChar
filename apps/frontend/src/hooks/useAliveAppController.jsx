@@ -57,6 +57,13 @@ function isNativeAppRuntime() {
   return false;
 }
 
+function apiGenerateUrl() {
+  const configured = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/+$/, "");
+  if (configured) return `${configured}${configured.endsWith("/api") ? "" : "/api"}/generate`;
+  if (isNativeAppRuntime()) return "https://instarcharacterbot.vercel.app/api/generate";
+  return "/api/generate";
+}
+
 // ─────────────────────────────────────────────
 //  ALIVE — 내 캐릭터가 자기 SNS를 운영한다
 //  설정 입력 → 그 보이스로 피드에 글이 올라옴
@@ -2055,7 +2062,7 @@ export function useAliveAppController() {
     }`;
 
     try {
-      const res = await fetch("/api/generate", {
+      const res = await fetch(apiGenerateUrl(), {
         method: "POST",
         cache: "no-store",
         headers: { "Content-Type": "application/json", "X-ALIVE-Flow": "character-analysis-v2" },
@@ -2188,7 +2195,7 @@ ${formatRule}${ANTI_REPEAT_RULES}${recentLinesBlock(posts.slice(0, 6).map((p) =>
       : userMsg;
 
     try {
-      const res = await fetch("/api/generate", {
+      const res = await fetch(apiGenerateUrl(), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -3204,7 +3211,7 @@ ${speechGuideLine(askerChar.speech, "말투")}
 - 본문만 출력.`;
     let line = `나, ${josa(otherName, "이/가")} 좋아진 것 같아요. 좋아해도 될까요?`;
     try {
-      const res = await fetch("/api/generate", {
+      const res = await fetch(apiGenerateUrl(), {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ model: MODEL_CHAT, max_tokens: 200, system: sys,
           messages: [{ role: "user", content: `(${askerName}가 오너에게 ${otherName}에 대한 마음을 털어놓으며 허락을 구한다.)` }] }),
@@ -3285,7 +3292,7 @@ ${otherChar && otherChar.relations ? `${otherName}의 관계망: ${otherChar.rel
 - 호감도가 높으면(50+) 대체로 ACCEPT, 애매하면(20~50) 성격에 따라, 낮거나 음수면 REJECT 경향.
 - ACCEPT 또는 REJECT 한 단어만.`;
     try {
-      const res = await fetch("/api/generate", {
+      const res = await fetch(apiGenerateUrl(), {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ model: MODEL_UTIL, max_tokens: 10, system: sys,
           messages: [{ role: "user", content: "판정:" }] }),
@@ -3435,7 +3442,7 @@ ${otherChar && otherChar.relations ? `${otherName}의 관계망: ${otherChar.rel
 - 보통의 어색함·삐침은 작게(-1~-4). 하지만 ${to}가 ${from}에게 바람·불륜·배신·심한 모욕·일부러 상처주기 같은 과한 행동을 했다면 크게 떨어뜨려라(-12 ~ -30). 그런 게 없으면 작은 범위로.
 - 숫자 하나만 출력. -30 ~ +8 범위 정수. 설명·기호 금지. 예: 5 또는 -20`;
       try {
-        const res = await fetch("/api/generate", {
+        const res = await fetch(apiGenerateUrl(), {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ model: MODEL_UTIL, max_tokens: 10, system: sys,
             messages: [{ role: "user", content: transcript }] }),
@@ -3492,7 +3499,7 @@ ${otherChar && otherChar.relations ? `${otherName}의 관계망: ${otherChar.rel
 기억할 게 없으면 빈 배열.`;
 
     try {
-      const res = await fetch("/api/generate", {
+      const res = await fetch(apiGenerateUrl(), {
         method: "POST", headers: { "Content-Type": "application/json" },
         // 프론트엔드가 max_tokens: 400으로 덮어씌워서 JSON이 잘리는 문제 해결 -> 2048로 상향
         body: JSON.stringify({ model: MODEL_UTIL, max_tokens: 2048, system: sys,
@@ -3678,7 +3685,7 @@ ${senderDesc}${relNote}${worldBridgeBlock(peerChar || { name: peerName, persona:
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 55000);
     try {
-      const res = await fetch("/api/generate", {
+      const res = await fetch(apiGenerateUrl(), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         signal: controller.signal,
@@ -3777,7 +3784,7 @@ ${styleRule}
       apiMsgs = [{ role: "user", content: `(${speaker.name}가 ${listener.name}에게 ${opener} 먼저 말을 건다. 관계와 성격에 맞게, 자기소개 없이 자연스럽게 운을 떼라. 첫 말부터 고백·키스·강한 스킨십·성적 접촉으로 관계를 급진전시키지 마라.)` }];
     }
     try {
-      const res = await fetch("/api/generate", {
+      const res = await fetch(apiGenerateUrl(), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ model: MODEL_AUTO, max_tokens: 2048, system: sys, messages: apiMsgs }),
@@ -3890,7 +3897,7 @@ ${thread ? `- 댓글창 전체에 끼어들지 말고, "${replyTo || postAuthorN
 - 자기소개·설정 설명 금지. AI 상담사처럼 위로·분석·되묻기 하지 마라. 진짜 댓글처럼.
 - 본문만 출력.${ANTI_REPEAT_RULES}`;
     try {
-      const res = await fetch("/api/generate", {
+      const res = await fetch(apiGenerateUrl(), {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ model: MODEL_AUTO, max_tokens: 150, system: sys,
           messages: [{
@@ -3987,7 +3994,7 @@ ${posterImg ? "\n[첨부 이미지]\n네가 올리는 글에는 네 캐릭터 �
 - 본문만 출력.${ANTI_REPEAT_RULES}`;
     let text = "";
     try {
-      const res = await fetch("/api/generate", {
+      const res = await fetch(apiGenerateUrl(), {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ model: MODEL_AUTO, max_tokens: 200, system: sys,
           messages: [{

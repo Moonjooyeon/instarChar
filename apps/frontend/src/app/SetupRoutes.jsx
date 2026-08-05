@@ -65,12 +65,17 @@ export function SetupRoutes({ ctx }) {
         <DumpScreen
           dump={dump}
           examples={EXAMPLES}
+          hasSupabaseConfig={hasSupabaseConfig}
           parsing={parsing}
           parseDump={parseDump}
+          profileName={profileName}
           rpLog={rpLog}
+          saveStatus={saveStatus}
+          session={session}
           setDump={setDump}
           setRpLog={setRpLog}
           setStep={setStep}
+          signOut={signOut}
         />
       )}
 

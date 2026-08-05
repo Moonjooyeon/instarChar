@@ -10,10 +10,10 @@ body{ overflow-x:hidden; }
     radial-gradient(circle at 80% 10%, #3b2032 0%, transparent 45%),
     var(--bg);
   display:flex; flex-direction:column; align-items:center;
-  padding:0 16px;
+  padding:max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
   font-family:'Pretendard','Inter',-apple-system,'Apple SD Gothic Neo',sans-serif; color:var(--ink);
 }
-.al-phone{ width:100%; max-width:420px; min-height:100dvh; background:var(--phone);
+.al-phone{ width:100%; max-width:420px; min-height:calc(100dvh - max(32px, calc(env(safe-area-inset-top) + env(safe-area-inset-bottom)))); background:var(--phone);
   border:1px solid var(--line); border-radius:26px; overflow:hidden;
   box-shadow:0 30px 70px -30px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.05) inset; }
 
@@ -657,6 +657,12 @@ body{ overflow-x:hidden; }
 .al-dump-back{ background:none; border:none; color:var(--soft); font-family:inherit; font-size:13.5px;
   cursor:pointer; padding:14px 16px 0; }
 .al-dump-back:hover{ color:var(--ink); }
+.al-setup-accountbar{ display:flex; align-items:center; gap:8px; margin:14px 16px 0; padding:9px 11px;
+  border:1px solid #2a2440; border-radius:10px; background:#14101e; color:var(--soft); font-size:11.5px; }
+.al-setup-accountbar span{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#c8b3ff; font-weight:800; }
+.al-setup-accountbar b{ font-weight:700; color:#8d849e; }
+.al-setup-accountbar button{ border:none; background:#1f1a2e; color:#c8b3ff; border-radius:8px; padding:5px 8px;
+  font-family:inherit; font-size:11px; font-weight:800; cursor:pointer; }
 
 /* compose row + write */
 .al-compose-row{ display:flex; gap:8px; }
@@ -963,8 +969,8 @@ button.al-fstat{ cursor:pointer; }
 .al-dm-image-btn input{ display:none; }
 
 @media (max-width:430px){
-  .al-root{ padding:0; align-items:stretch; }
-  .al-phone{ max-width:none; min-height:100dvh; border-radius:0; border-left:none; border-right:none; }
+  .al-root{ padding:max(12px, env(safe-area-inset-top)) 0 max(12px, env(safe-area-inset-bottom)); align-items:stretch; }
+  .al-phone{ max-width:none; min-height:calc(100dvh - max(24px, calc(env(safe-area-inset-top) + env(safe-area-inset-bottom)))); border-radius:0; border-left:none; border-right:none; }
   .al-profile-info{ padding-left:12px; padding-right:12px; }
   .al-profile-top{ grid-template-columns:1fr; gap:9px; }
   .al-feed-actions{ justify-content:flex-start; }

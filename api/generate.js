@@ -14,6 +14,13 @@ const usageStore = globalThis.__aliveUsageStore || (globalThis.__aliveUsageStore
   monthly: new Map(),
 });
 
+function applyCors(res) {
+  if (typeof res.setHeader !== "function") return;
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-ALIVE-Flow");
+}
+
 function pickGeminiModel(model) {
   const m = String(model || "");
   if (m.includes("sonnet") || m.includes("opus")) return GOOD;
@@ -130,6 +137,11 @@ async function readJsonResponse(response) {
 }
 
 export default async function handler(req, res) {
+  applyCors(res);
+  if (req.method === "OPTIONS") {
+    if (typeof res.end === "function") return res.status(204).end();
+    return res.status(204).json({});
+  }
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
 
   const key = process.env.GEMINI_API_KEY;

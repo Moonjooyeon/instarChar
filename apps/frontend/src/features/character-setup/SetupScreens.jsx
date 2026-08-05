@@ -3,15 +3,27 @@ import React from "react";
 export function DumpScreen({
   dump,
   examples,
+  hasSupabaseConfig,
   parsing,
   parseDump,
+  profileName,
   rpLog,
+  saveStatus,
+  session,
   setDump,
   setRpLog,
   setStep,
+  signOut,
 }) {
   return (
     <div className="al-phone">
+      {hasSupabaseConfig && (
+        <div className="al-setup-accountbar">
+          <span>{profileName || session?.user?.email || "로그인됨"}</span>
+          <b>{saveStatus}</b>
+          <button onClick={signOut}>로그인/회원가입 화면</button>
+        </div>
+      )}
       <button className="al-dump-back" onClick={() => setStep("home")}>‹ 내 캐릭터들</button>
       <div className="al-setup">
         <div className="al-setup-head">
