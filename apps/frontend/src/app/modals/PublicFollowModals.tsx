@@ -28,7 +28,7 @@ export function PublicFollowModals({ ctx }) {
   return (
     <>
       {canUseApp && publicProfile && (
-        <div className="al-modal-bg" onClick={() => setPublicProfile(null)}>
+        <div className="al-modal-bg al-theme-ready al-public-modal-theme-ready" onClick={() => setPublicProfile(null)}>
           <div className="al-public-profile" onClick={(event) => event.stopPropagation()}>
             <button className="al-public-back" onClick={() => setPublicProfile(null)} aria-label="프로필 닫기"><AliveIcon name="chevron-left" size={21} /></button>
             <div className="al-public-banner">{publicProfile.headerImg && <img src={publicProfile.headerImg} alt="" />}</div>
@@ -45,8 +45,8 @@ export function PublicFollowModals({ ctx }) {
               {publicProfile.surface && <span className="al-public-tag">{publicProfile.surface}</span>}
               <div className="al-public-stats"><b>{publicFollowingCount(publicProfile)}</b> 팔로잉 <b>{publicFollowerCount(publicProfile).toLocaleString()}</b> 팔로워</div>
               <div className="al-public-actions">
-                <button className="al-public-dm" onClick={() => { setPublicProfile(null); requestDmEntry(publicProfile, "char"); }}><AliveIcon name="mail" size={15} /> 바로 DM</button>
-                <button className={`al-public-follow ${isFollowing(publicProfile.id) ? "on" : ""}`} onClick={() => toggleFollow(publicProfile)}>{isFollowing(publicProfile.id) ? <><AliveIcon name="minus" size={15} /> 타임라인에서 빼기</> : <><AliveIcon name="plus" size={15} /> 타임라인에 추가</>}</button>
+                <button className="al-public-dm border-line-strong bg-surface-raised text-accent-ink hover:border-accent hover:bg-accent-soft" onClick={() => { setPublicProfile(null); requestDmEntry(publicProfile, "char"); }}><AliveIcon name="mail" size={15} /> 바로 DM</button>
+                <button className={`al-public-follow ${publicFollowClass(isFollowing(publicProfile.id))}`} onClick={() => toggleFollow(publicProfile)}>{isFollowing(publicProfile.id) ? <><AliveIcon name="minus" size={15} /> 타임라인에서 빼기</> : <><AliveIcon name="plus" size={15} /> 타임라인에 추가</>}</button>
                 <button className="al-public-safety" onClick={() => setReportTarget({
                   targetType: "character",
                   targetOwnerId: publicProfile.ownerId,
@@ -68,7 +68,7 @@ export function PublicFollowModals({ ctx }) {
         </div>
       )}
       {canUseApp && worldModal && (
-        <div className="al-modal-bg" onClick={() => setWorldModal(null)}>
+        <div className="al-modal-bg al-theme-ready al-public-modal-theme-ready" onClick={() => setWorldModal(null)}>
           <div className="al-world-view-modal" onClick={(event) => event.stopPropagation()}>
             <div className="al-world-view-head">
               <div>
@@ -82,7 +82,7 @@ export function PublicFollowModals({ ctx }) {
         </div>
       )}
       {canUseApp && followPanel && !publicProfile && (
-        <div className="al-modal-bg" onClick={() => setFollowPanel(null)}>
+        <div className="al-modal-bg al-theme-ready al-public-modal-theme-ready" onClick={() => setFollowPanel(null)}>
           <div className="al-follow-modal" onClick={(event) => event.stopPropagation()}>
             <div className="al-follow-modal-head">
               <h3>{followPanel === "following" ? "추가한 캐릭터" : "팔로워"}</h3>
@@ -94,6 +94,10 @@ export function PublicFollowModals({ ctx }) {
       )}
     </>
   );
+}
+
+function publicFollowClass(followed: boolean): string {
+  return followed ? "on border-danger bg-danger-soft text-danger hover:bg-danger hover:text-white" : "border-accent bg-accent text-white hover:bg-accent-strong";
 }
 
 function FollowModalList({ ctx }) {

@@ -22,16 +22,23 @@ export function DumpScreen({
   React.useEffect(() => setDump(joinCreationDump(identity, personality)), [identity, personality, setDump]);
   React.useEffect(() => setRpLog(voice), [voice, setRpLog]);
   return (
-    <div className="al-phone al-phone-wizard">
+    <div className="al-phone al-phone-wizard al-theme-ready">
       <button className="al-dump-back" onClick={() => setStep("home")}><AliveIcon name="arrow-left" size={15} /> 내 캐릭터들</button>
       <div className="al-setup al-setup-wizard">
-        <ol className="al-setup-progress" aria-label={`캐릭터 생성 ${creationStage + 1}단계, 총 3단계`}>{CREATION_STAGES.map((label, stage) => <li aria-current={stage === creationStage ? "step" : undefined} className={stage <= creationStage ? "on" : ""} key={label}><i>{String(stage + 1).padStart(2, "0")}</i><b>{label}</b></li>)}</ol>
+        <ol className="m-0 grid list-none grid-cols-3 gap-2 p-0" aria-label={`캐릭터 생성 ${creationStage + 1}단계, 총 3단계`}>{CREATION_STAGES.map((label, stage) => <li aria-current={stage === creationStage ? "step" : undefined} className={creationStageClass(stage, creationStage)} key={label}><i className="text-[10px] not-italic tabular-nums">{String(stage + 1).padStart(2, "0")}</i><b className="text-[10.5px] font-bold tracking-[0.02em]">{label}</b></li>)}</ol>
         {creationStage === 0 && <IdentityStep examples={examples} identity={identity} onChange={setIdentity} onNext={() => setCreationStage(1)} />}
         {creationStage === 1 && <PersonalityStep onBack={() => setCreationStage(0)} onChange={setPersonality} onNext={() => setCreationStage(2)} personality={personality} />}
         {creationStage === 2 && <VoiceStep identity={identity} onBack={() => setCreationStage(1)} onChange={setVoice} onComplete={parseDump} parsing={parsing} voice={voice} />}
       </div>
     </div>
   );
+}
+
+function creationStageClass(stage: number, currentStage: number): string {
+  const baseClass = "grid grid-cols-[auto_1fr] gap-1.5 border-t-2 pt-2";
+  if (stage === currentStage) return `${baseClass} border-accent text-accent-ink`;
+  if (stage < currentStage) return `${baseClass} border-accent/50 text-soft`;
+  return `${baseClass} border-line text-faint`;
 }
 
 function IdentityStep({ examples, identity, onChange, onNext }) {

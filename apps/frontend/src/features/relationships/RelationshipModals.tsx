@@ -1,19 +1,22 @@
 import React from "react";
 import { AliveIcon } from "@/components/ui/AliveIcon";
 
+const PRIMARY_ACTION_CLASS = "al-prop-yes border-accent bg-accent text-white hover:bg-accent-strong";
+const SECONDARY_ACTION_CLASS = "al-prop-no border-line-strong bg-surface-raised text-soft hover:bg-surface-muted hover:text-ink";
+
 export function ProposalModal({ proposal, onResolve }) {
   if (!proposal) return null;
 
   return (
-    <div className="al-modal-bg">
+    <div className="al-modal-bg al-theme-ready al-relationship-modal-theme-ready">
       <div className="al-modal al-proposal" onClick={(e) => e.stopPropagation()}>
         <div className="al-prop-heart"><AliveIcon name="heart-filled" size={34} /></div>
         <div className="al-prop-who">{proposal.asker}</div>
         <p className="al-prop-line">"{proposal.line}"</p>
         <p className="al-prop-sub">{proposal.asker}의 마음이 {proposal.other}에게 기울었어. 어떻게 할까?</p>
         <div className="al-prop-btns">
-          <button className="al-prop-yes" onClick={() => onResolve(true)}><AliveIcon name="heart-filled" size={16} /> 응, 가봐!</button>
-          <button className="al-prop-no" onClick={() => onResolve(false)}>아직은 아냐</button>
+          <button className={PRIMARY_ACTION_CLASS} onClick={() => onResolve(true)}><AliveIcon name="heart-filled" size={16} /> 응, 가봐!</button>
+          <button className={SECONDARY_ACTION_CLASS} onClick={() => onResolve(false)}>아직은 아냐</button>
         </div>
       </div>
     </div>
@@ -24,9 +27,9 @@ export function RelationResultModal({ relationResult, onClose }) {
   if (!relationResult) return null;
 
   return (
-    <div className="al-modal-bg" onClick={onClose}>
+    <div className="al-modal-bg al-theme-ready al-relationship-modal-theme-ready" onClick={onClose}>
       <div className="al-modal al-proposal" onClick={(e) => e.stopPropagation()}>
-        <div className={`al-prop-heart ${relationResult.accepted ? "" : "broken"}`}><AliveIcon name={relationResult.friendship ? "users" : relationResult.accepted ? "heart-filled" : "heart-broken"} size={34} /></div>
+        <div className={`al-prop-heart ${relationResult.friendship ? "friendship" : relationResult.accepted ? "accepted" : "broken"}`}><AliveIcon name={relationResult.friendship ? "users" : relationResult.accepted ? "heart-filled" : "heart-broken"} size={34} /></div>
         {relationResult.friendship ? (
           <>
             <div className="al-prop-who">{relationResult.asker}와 {relationResult.other}, 더 가까워졌어!</div>
@@ -44,7 +47,7 @@ export function RelationResultModal({ relationResult, onClose }) {
           </>
         )}
         <div className="al-prop-btns">
-          <button className="al-prop-yes" onClick={onClose}>확인</button>
+          <button className={PRIMARY_ACTION_CLASS} onClick={onClose}>확인</button>
         </div>
       </div>
     </div>

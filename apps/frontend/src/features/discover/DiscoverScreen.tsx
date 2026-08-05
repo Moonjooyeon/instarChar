@@ -45,7 +45,7 @@ export function DiscoverScreen({
   });
 
   return (
-    <div className="al-phone">
+    <div className="al-phone al-theme-ready al-discover-theme-ready">
       <div className="al-dmhead">
         <button className="al-back-inline" onClick={() => setStep("feed")} aria-label="피드로 돌아가기"><AliveIcon name="chevron-left" size={22} /></button>
         <div className="al-dmhead-info">
@@ -104,8 +104,8 @@ export function DiscoverScreen({
                 </div>
               </div>
               <div className="al-disc-actions">
-                <button className="al-disc-dm" onClick={() => requestDmEntry(c, "char")}><AliveIcon name="mail" size={15} /> DM</button>
-                <button className={`al-disc-follow ${followed ? "on" : ""}`} onClick={() => toggleFollow(c)}>
+                <button className="al-disc-dm bg-accent text-white hover:bg-accent-strong" onClick={() => requestDmEntry(c, "char")}><AliveIcon name="mail" size={15} /> DM</button>
+                <button className={`al-disc-follow ${followed ? "on border-accent bg-accent-soft text-accent-ink" : "border-line-strong bg-surface-raised text-soft hover:border-accent hover:bg-accent-soft hover:text-accent-ink"}`} onClick={() => toggleFollow(c)}>
                   {followed ? <><AliveIcon name="check" size={14} /> 추가됨</> : <><AliveIcon name="plus" size={14} /> 타임라인에 추가</>}
                 </button>
               </div>

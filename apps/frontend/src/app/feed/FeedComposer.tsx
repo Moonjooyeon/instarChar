@@ -33,13 +33,13 @@ export function FeedComposer({ ctx }) {
       <div className="al-composer">
         {!moodOpen ? (
           <div className="al-compose-row">
-            <button className="al-wake" onClick={() => setMoodOpen(true)}><AliveIcon name="sparkle" size={16} /> {josa(char.name, "한테/한테")} 글 부탁하기</button>
-            <button className="al-writeself" onClick={() => setWriteOpen((value) => !value)}><AliveIcon name="pen" size={15} /> 직접 쓰기</button>
+            <button className="al-wake border-line-strong bg-accent-soft text-accent-ink hover:border-accent hover:bg-accent hover:text-white" onClick={() => setMoodOpen(true)}><AliveIcon name="sparkle" size={16} /> {josa(char.name, "한테/한테")} 글 부탁하기</button>
+            <button className="al-writeself border-line bg-surface-raised text-ink hover:border-accent hover:bg-accent-soft" onClick={() => setWriteOpen((value) => !value)}><AliveIcon name="pen" size={15} /> 직접 쓰기</button>
           </div>
         ) : (
           <div className="al-moods"><p className="al-moods-q">{isFirstPost ? `${char.name}의 첫 글은 어떤 장면일까요?` : "어떤 글을 부탁할까요?"}</p><div className="al-moods-grid">{POST_MOODS.map((mood) => <button key={mood} className="al-mood" onClick={() => { setFeedView("mine"); generatePost(mood); }}>{mood}</button>)}</div><button className="al-moods-cancel" onClick={() => setMoodOpen(false)}>닫기</button></div>
         )}
-        {writeOpen && <div className="al-writebox"><p className="al-write-lbl">{char.name}의 목소리로 직접 작성해요.</p><textarea value={writeText} onChange={(event) => setWriteText(event.target.value)} placeholder={`${char.name}의 글을 직접 써보세요.`} /><div className="al-write-actions"><button className="al-write-cancel" onClick={() => { setWriteOpen(false); setWriteText(""); }}>취소</button><button className="al-write-post" disabled={!writeText.trim()} onClick={() => { manualPost(writeText); setWriteText(""); setWriteOpen(false); }}>올리기</button></div></div>}
+        {writeOpen && <div className="al-writebox"><p className="al-write-lbl">{char.name}의 목소리로 직접 작성해요.</p><textarea value={writeText} onChange={(event) => setWriteText(event.target.value)} placeholder={`${char.name}의 글을 직접 써보세요.`} /><div className="al-write-actions"><button className="al-write-cancel border-line bg-transparent text-soft hover:border-line-strong hover:bg-surface-muted hover:text-ink" onClick={() => { setWriteOpen(false); setWriteText(""); }}>취소</button><button className="al-write-post bg-accent text-white hover:bg-accent-strong disabled:bg-surface-muted disabled:text-faint" disabled={!writeText.trim()} onClick={() => { manualPost(writeText); setWriteText(""); setWriteOpen(false); }}>올리기</button></div></div>}
       </div>
       {!isFirstPost && <button className="al-compose-settings-toggle" type="button" aria-expanded={isAdvancedOpen} onClick={() => setIsAdvancedOpen((open) => !open)}>글쓰기 설정 <AliveIcon name={isAdvancedOpen ? "minus" : "plus"} size={13} /></button>}
       {!isFirstPost && isAdvancedOpen && <div className="al-compose-settings"><div className="al-autobar">

@@ -1,0 +1,25 @@
+/* Portal content receives its own theme-ready scope because it renders under document.body. */
+.al-feed-theme-ready .al-feed-help{ border-color:var(--alive-line-strong); background:color-mix(in srgb,var(--alive-surface-raised) 82%,transparent); color:var(--alive-ink); }
+.al-feed-theme-ready .al-feed-help > span{ background:var(--alive-accent); color:white; }
+.al-feed-theme-ready .al-feed-help:hover{ border-color:var(--alive-accent); background:var(--alive-surface-raised); }
+.al-feed-theme-ready .al-feed-help:focus-visible{ outline-color:var(--alive-accent); }
+.al-feed-help-theme-ready .al-help-highlight{ border-color:var(--alive-accent-strong); box-shadow:0 0 0 9999px var(--alive-scrim),0 0 0 5px var(--alive-accent-soft),var(--alive-shadow-control); }
+.al-feed-help-theme-ready .al-help-tap{ border-color:var(--alive-surface-raised); background:var(--alive-accent); box-shadow:0 0 0 0 var(--alive-accent); animation:aliveHelpTap 1.45s ease-out infinite; }
+.al-feed-help-theme-ready .al-help-tap > i{ background:white; }
+.al-feed-help-theme-ready .al-help-coach{ border-color:var(--alive-line-strong); background:color-mix(in srgb,var(--alive-surface-raised) 96%,transparent); color:var(--alive-ink); box-shadow:var(--alive-frame-shadow); font-family:var(--alive-font-sans); }
+.al-feed-help-theme-ready .al-help-close{ color:var(--alive-faint); }
+.al-feed-help-theme-ready .al-help-close:hover{ background:var(--alive-surface-muted); color:var(--alive-ink); }
+.al-feed-help-theme-ready .al-help-coach-copy > span{ border-color:var(--alive-accent); background:var(--alive-accent-soft); color:var(--alive-accent-ink); }
+.al-feed-help-theme-ready .al-help-coach-copy small{ color:var(--alive-accent-ink); }
+.al-feed-help-theme-ready .al-help-coach-copy h2{ color:var(--alive-ink); }
+.al-feed-help-theme-ready .al-help-coach-copy p{ color:var(--alive-soft); }
+.al-feed-help-theme-ready .al-help-coach > footer{ border-top-color:var(--alive-line); background:var(--alive-surface); }
+.al-feed-help-theme-ready .al-help-progress i{ background:var(--alive-line-strong); }
+.al-feed-help-theme-ready .al-help-progress i.done{ background:var(--alive-accent-strong); }
+.al-feed-help-theme-ready .al-help-progress i.on{ background:var(--alive-accent); }
+.al-feed-help-theme-ready .al-help-prev{ border-color:var(--alive-line); background:var(--alive-surface-raised); color:var(--alive-soft); }
+.al-feed-help-theme-ready .al-help-next{ border-color:var(--alive-accent); background:var(--alive-accent); color:white; }
+.al-feed-help-theme-ready .al-help-next > span{ color:white; }
+.al-feed-help-theme-ready .al-help-coach button:focus-visible{ outline-color:var(--alive-accent); }
+
+@keyframes aliveHelpTap{ 0%{ box-shadow:0 0 0 0 var(--alive-accent); transform:scale(.88); } 58%{ box-shadow:0 0 0 13px transparent; transform:scale(1); } 100%{ box-shadow:0 0 0 13px transparent; transform:scale(.88); } }

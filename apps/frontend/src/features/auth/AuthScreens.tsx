@@ -2,20 +2,24 @@ import React from "react";
 
 import { isAppsInTossRuntime, shouldShowAppleLogin } from "@/api/auth";
 import { AliveIcon } from "@/components/ui/AliveIcon";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { ServiceTour } from "@/features/onboarding/ServiceTour";
+
+const PRIMARY_AUTH_ACTION_CLASS = "al-auth-btn bg-accent text-white hover:bg-accent-strong disabled:bg-surface-muted disabled:text-faint";
+const SECONDARY_AUTH_ACTION_CLASS = "al-auth-linkbtn border-line bg-accent-soft text-accent-ink hover:border-accent hover:bg-surface-raised hover:text-accent-strong";
 
 export function AuthLoadingScreen({ authMessage, onRetryCharacters }) {
   const canRetry = String(authMessage || "").includes("캐릭터를 불러오지 못했어요");
 
   return (
-    <div className="al-phone">
+    <div className="al-phone al-theme-ready">
       <div className="al-auth">
         <span className="al-spark"><AliveIcon name="sparkle" size={24} /></span>
         <h1>ALIVE 불러오는 중</h1>
         <p>계정과 저장된 캐릭터를 확인하고 있어.</p>
         {authMessage && <p className="al-auth-msg">{authMessage}</p>}
         {canRetry && (
-          <button className="al-auth-btn" onClick={onRetryCharacters}>
+          <button className={PRIMARY_AUTH_ACTION_CLASS} onClick={onRetryCharacters}>
             다시 불러오기
           </button>
         )}
@@ -29,19 +33,18 @@ export function AuthEntryScreen({
   authMessage,
   signInWithProvider,
   signInWithToss,
+  theme,
 }) {
   const [isTourOpen, setIsTourOpen] = React.useState(false);
   const isAppsInToss = isAppsInTossRuntime();
   const showAppleLogin = shouldShowAppleLogin();
   if (isTourOpen) return <ServiceTour completeLabel="로그인하고 시작하기" onBack={() => setIsTourOpen(false)} onComplete={() => setIsTourOpen(false)} />;
   return (
-    <div className="al-phone">
+    <div className="al-phone al-theme-ready">
       <main className="al-auth al-auth-entry">
         <header className="al-auth-header">
           <div className="al-auth-brand" aria-label="ALIVE">ALIVE<span /></div>
-          <button className="al-auth-tour-link" onClick={() => setIsTourOpen(true)}>
-            <span><AliveIcon name="play" size={10} /></span><b>미리보기</b><i>3장</i>
-          </button>
+          <div className="flex items-center gap-1.5"><ThemeToggle {...theme} /><button className="al-auth-tour-link" onClick={() => setIsTourOpen(true)}><span><AliveIcon name="play" size={10} /></span><b>미리보기</b><i>3장</i></button></div>
         </header>
         <div className="al-auth-panel">
           <div className="al-auth-intro">
@@ -56,7 +59,7 @@ export function AuthEntryScreen({
           </ol>
           <div className="al-social-login">
           {isAppsInToss ? (
-            <button className="al-auth-btn" onClick={signInWithToss} disabled={authLoading} aria-label="토스로 계속">토스로 계속</button>
+            <button className={PRIMARY_AUTH_ACTION_CLASS} onClick={signInWithToss} disabled={authLoading} aria-label="토스로 계속">토스로 계속</button>
           ) : (
             <button className="al-google-login" onClick={() => signInWithProvider("google")} disabled={authLoading} aria-label="Google로 계속">
             <span className="al-google-login-content">
@@ -82,13 +85,13 @@ export function AuthEntryScreen({
 
 export function RecoveryScreen({ authMessage, onHome, onRecoverAuth }) {
   return (
-    <div className="al-phone">
+    <div className="al-phone al-theme-ready">
       <div className="al-auth">
         <span className="al-spark"><AliveIcon name="sparkle" size={24} /></span>
         <h1>화면 복구가 필요해</h1>
         <p>저장된 화면 위치가 꼬였어. 홈으로 돌아가거나 로그인 상태를 초기화할 수 있어.</p>
-        <button className="al-auth-btn" onClick={onHome}>홈으로 돌아가기</button>
-        <button className="al-auth-linkbtn" onClick={onRecoverAuth}>로그인 상태 초기화</button>
+        <button className={PRIMARY_AUTH_ACTION_CLASS} onClick={onHome}>홈으로 돌아가기</button>
+        <button className={SECONDARY_AUTH_ACTION_CLASS} onClick={onRecoverAuth}>로그인 상태 초기화</button>
         {authMessage && <p className="al-auth-msg">{authMessage}</p>}
       </div>
     </div>

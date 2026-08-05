@@ -44,7 +44,7 @@ export function DmListScreen({
     : (personas.find((p) => `p:${p.id}` === safeNewChatSpeaker)?.name || char.name);
 
   return (
-    <div className="al-phone">
+    <div className="al-phone al-theme-ready al-dm-list-theme-ready">
       <div className="al-dmhead">
         <button className="al-back-inline" onClick={() => setStep("feed")} aria-label="피드로 돌아가기"><AliveIcon name="chevron-left" size={22} /></button>
         <div className="al-dmhead-av"><CharacterAvatarImage src={char.avatarImg} /></div>
@@ -112,14 +112,14 @@ export function DmListScreen({
         {!newChatMode ? (
           <>
             <button
-              className="al-owner-entry"
+              className="al-owner-entry border-accent bg-accent-soft text-ink hover:border-accent-strong hover:bg-surface-muted"
               onClick={() => {
                 requestDmEntry({ name: char.name, persona: char.persona, relation: "", asOwner: true }, "owner");
               }}
             >
               <span>나</span><b>{char.name}와 바로 대화하기</b><small>가장 간단하게 시작해요.</small>
             </button>
-            <button className="al-newchat-btn" onClick={() => { setNewChatSpeaker("char"); setNewChatMode("char"); }}>
+            <button className="al-newchat-btn border-line-strong bg-surface text-ink hover:border-accent hover:bg-accent-soft" onClick={() => { setNewChatSpeaker("char"); setNewChatMode("char"); }}>
               <span>캐릭터</span><b>{char.name}와 다른 캐릭터 만나게 하기</b><small>캐릭터끼리 대화가 이어져요.</small>
             </button>
             {USER_PERSONA_FEATURE_ENABLED && <button

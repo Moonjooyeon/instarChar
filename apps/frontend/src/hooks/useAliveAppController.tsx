@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect } from "react";
-import { css } from "@/appStyles";
 import { withRejectTimeout, withTimeout } from "@/domain/app/asyncUtils";
 import {
   ANTI_REPEAT_BASE_RULES,
@@ -1102,7 +1101,6 @@ export function useAliveAppController() {
     ConfirmScreen,
     correctionBlock,
     correctionBlockFor,
-    css,
     currentWorldPref,
     defaultCommentAs,
     defaultDmTitle,

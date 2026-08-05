@@ -8,14 +8,18 @@ const TOUR_STEPS = [
   { label: "03 · TALK", title: "나눈 대화를 기억하며\n다음 장면을 이어가요.", description: "중요한 약속과 감정은 다음 대화에도 자연스럽게 이어져요.", scene: "story" },
 ];
 
+const TOUR_BACK_CLASS = "border-line bg-surface-raised text-accent-ink hover:border-accent hover:bg-accent-soft";
+const TOUR_PREVIOUS_CLASS = "al-tour-prev border-line bg-surface-raised text-soft hover:border-accent hover:bg-accent-soft hover:text-ink";
+const TOUR_NEXT_CLASS = "al-tour-next bg-accent text-white hover:bg-accent-strong";
+
 export function ServiceTour({ completeLabel, onBack, onComplete }) {
   const [stepIndex, setStepIndex] = React.useState(0);
   const step = TOUR_STEPS[stepIndex];
   const isLastStep = stepIndex === TOUR_STEPS.length - 1;
   return (
-    <div className="al-phone">
+    <div className="al-phone al-theme-ready">
       <div className="al-tour">
-        <header className="al-tour-head"><button onClick={onBack} aria-label="이전 화면으로 돌아가기"><AliveIcon name="chevron-left" size={21} /></button><span>ALIVE 미리보기</span><small>{stepIndex + 1} / {TOUR_STEPS.length}</small></header>
+        <header className="al-tour-head"><button className={TOUR_BACK_CLASS} onClick={onBack} aria-label="이전 화면으로 돌아가기"><AliveIcon name="chevron-left" size={21} /></button><span>ALIVE 미리보기</span><small>{stepIndex + 1} / {TOUR_STEPS.length}</small></header>
         <main key={step.scene} className="al-tour-chapter">
           <span className="al-tour-label">{step.label}</span>
           <h1>{step.title.split("\n").map((line) => <React.Fragment key={line}>{line}<br /></React.Fragment>)}</h1>
@@ -24,7 +28,7 @@ export function ServiceTour({ completeLabel, onBack, onComplete }) {
         </main>
         <footer className="al-tour-foot">
           <div className="al-tour-progress" aria-label={`${stepIndex + 1}번째 안내, 총 ${TOUR_STEPS.length}개`}>{TOUR_STEPS.map((item, index) => <i key={item.scene} className={index === stepIndex ? "on" : ""} />)}</div>
-          <div className="al-tour-actions"><button className="al-tour-prev" disabled={stepIndex === 0} onClick={() => setStepIndex((index) => index - 1)}>이전</button><button className="al-tour-next" onClick={() => isLastStep ? onComplete() : setStepIndex((index) => index + 1)}>{isLastStep ? completeLabel : "다음 장면"}</button></div>
+          <div className="al-tour-actions"><button className={TOUR_PREVIOUS_CLASS} disabled={stepIndex === 0} onClick={() => setStepIndex((index) => index - 1)}>이전</button><button className={TOUR_NEXT_CLASS} onClick={() => isLastStep ? onComplete() : setStepIndex((index) => index + 1)}>{isLastStep ? completeLabel : "다음 장면"}</button></div>
         </footer>
       </div>
     </div>

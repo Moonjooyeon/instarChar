@@ -1,0 +1,15 @@
+.al-dm-setup-modal-theme-ready{ background:var(--alive-scrim); }
+.al-dm-setup-modal-theme-ready .al-world-modal{ border-color:var(--alive-line); background:var(--alive-phone); color:var(--alive-ink); box-shadow:var(--alive-frame-shadow); }
+.al-dm-setup-modal-theme-ready .al-world-modal h3{ color:var(--alive-ink); }
+.al-dm-setup-modal-theme-ready .al-world-modal p{ color:var(--alive-soft); }
+.al-dm-setup-modal-theme-ready .al-world-options button{ border-color:var(--alive-line); background:var(--alive-surface-sunken); color:var(--alive-ink); }
+.al-dm-setup-modal-theme-ready .al-world-options button:hover{ border-color:var(--alive-accent); background:var(--alive-accent-soft); }
+.al-dm-setup-modal-theme-ready .al-world-options button.on{ border-color:var(--alive-accent); background:var(--alive-accent-soft); }
+.al-dm-setup-modal-theme-ready .al-world-options span{ color:var(--alive-soft); }
+.al-dm-setup-modal-theme-ready .al-world-note{ border-color:var(--alive-line); background:var(--alive-surface-raised); color:var(--alive-ink); }
+.al-dm-setup-modal-theme-ready .al-world-note::placeholder{ color:var(--alive-faint); }
+.al-dm-setup-modal-theme-ready .al-world-note:focus{ border-color:var(--alive-accent); box-shadow:0 0 0 3px var(--alive-accent-soft); }
+.al-dm-setup-modal-theme-ready .al-world-actions button{ border-color:var(--alive-line-strong); background:var(--alive-surface-raised); color:var(--alive-soft); }
+.al-dm-setup-modal-theme-ready .al-world-actions button:hover{ background:var(--alive-surface-muted); color:var(--alive-ink); }
+.al-dm-setup-modal-theme-ready .al-world-actions button.primary{ border-color:var(--alive-accent); background:var(--alive-accent); color:white; }
+.al-dm-setup-modal-theme-ready .al-world-actions button.primary:hover{ background:var(--alive-accent-strong); }

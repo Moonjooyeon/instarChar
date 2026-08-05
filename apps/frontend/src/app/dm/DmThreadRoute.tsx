@@ -38,7 +38,7 @@ export function DmThreadRoute({ ctx }) {
   } = ctx;
   const state = dmThreadState({ activePersona, affOf, attachStage, char, currentWorldPref, dm, dmAffOf, dmKey, dmThreadTitles, findPeerChar, josa, meName, OWNER, ownerLabel, peer, relationHintFor, relationStageLabel, roomAffOf, roomMemoryEntries, symmetricRelationBaseFromLabel });
   return (
-    <div className="al-phone">
+    <div className="al-phone al-theme-ready al-dm-thread-theme-ready">
       <div className="al-dmhead">
         <button className="al-back-inline" aria-label="대화 목록으로" onClick={() => {
           const recentLines = dm.slice(-8).map((message) => ({ who: message.from, text: message.text }));
@@ -53,8 +53,8 @@ export function DmThreadRoute({ ctx }) {
         </div>
         {!peer.asOwner && !peer.readOnly && (
           <div className="al-dm-head-actions">
-            <button className="al-dm-settings-btn" onClick={ctx.openDmSettings}>장면 설정</button>
-            <button className={`al-dm-settings-btn ${showPeerMem ? "on" : ""}`} onClick={() => setShowPeerMem((value) => !value)}>기억 {state.visibleMems.length}</button>
+            <button className="al-dm-settings-btn border-line-strong bg-surface-raised text-accent-ink hover:border-accent hover:bg-accent-soft" onClick={ctx.openDmSettings}>장면 설정</button>
+            <button className={`al-dm-settings-btn border-line-strong bg-surface-raised text-accent-ink hover:border-accent hover:bg-accent-soft ${showPeerMem ? "on border-accent bg-accent-soft" : ""}`} onClick={() => setShowPeerMem((value) => !value)}>기억 {state.visibleMems.length}</button>
           </div>
         )}
       </div>

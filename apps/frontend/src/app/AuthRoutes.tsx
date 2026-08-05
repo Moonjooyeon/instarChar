@@ -1,6 +1,13 @@
 import React from "react";
+import type { useAliveAppController } from "@/hooks/useAliveAppController";
+import type { ThemeController } from "@/hooks/useAliveTheme";
 
-export function AuthRoutes({ ctx }) {
+interface AuthRoutesProps {
+  ctx: ReturnType<typeof useAliveAppController>;
+  theme: ThemeController;
+}
+
+export function AuthRoutes({ ctx, theme }: AuthRoutesProps) {
   const {
     authBusy,
     AuthEntryScreen,
@@ -36,6 +43,7 @@ export function AuthRoutes({ ctx }) {
           authMessage={authMessage}
           signInWithProvider={signInWithProvider}
           signInWithToss={signInWithToss}
+          theme={theme}
         />
       )}
     </>

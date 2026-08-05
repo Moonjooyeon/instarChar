@@ -1,0 +1,34 @@
+.al-dm-list-theme-ready .al-dmhead{ border-bottom-color:var(--alive-line); background:var(--alive-phone); }
+.al-dm-list-theme-ready .al-back-inline,.al-dm-list-theme-ready .al-dmhead-name{ color:var(--alive-ink); }
+.al-dm-list-theme-ready .al-dmhead-sub{ color:var(--alive-soft); }
+.al-dm-list-theme-ready .al-dmhead-av,.al-dm-list-theme-ready .al-convitem-av,.al-dm-list-theme-ready .al-nt-av{ background:linear-gradient(135deg,var(--alive-accent-strong),var(--alive-accent)); color:white; }
+.al-dm-list-theme-ready .al-conv-empty{ color:var(--alive-ink); }
+.al-dm-list-theme-ready .al-conv-empty span{ color:var(--alive-soft); }
+.al-dm-list-theme-ready .al-convitem{ border-bottom-color:var(--alive-line); color:var(--alive-ink); }
+.al-dm-list-theme-ready .al-convitem:hover{ background:var(--alive-surface); }
+.al-dm-list-theme-ready .al-convmain,.al-dm-list-theme-ready .al-convitem-name{ color:var(--alive-ink); }
+.al-dm-list-theme-ready .al-convitem-last{ color:var(--alive-soft); }
+.al-dm-list-theme-ready .al-convitem-count{ background:var(--alive-accent-soft); color:var(--alive-accent-ink); }
+.al-dm-list-theme-ready .al-conv-actions button{ border-color:var(--alive-line-strong); background:var(--alive-surface-raised); color:var(--alive-accent-ink); }
+.al-dm-list-theme-ready .al-conv-actions button:hover{ border-color:var(--alive-accent); background:var(--alive-accent-soft); }
+.al-dm-list-theme-ready .al-conv-actions button.danger{ border-color:var(--alive-danger); background:var(--alive-danger-soft); color:var(--alive-danger); }
+.al-dm-list-theme-ready .al-newchat{ border-top-color:var(--alive-line); background:var(--alive-phone); }
+.al-dm-list-theme-ready .al-owner-entry{ border-color:var(--alive-accent); background:var(--alive-accent-soft); color:var(--alive-ink); }
+.al-dm-list-theme-ready .al-owner-entry > span{ border-color:var(--alive-accent); color:var(--alive-accent-ink); }
+.al-dm-list-theme-ready .al-owner-entry b,.al-dm-list-theme-ready .al-newchat-btn b{ color:var(--alive-ink); }
+.al-dm-list-theme-ready .al-owner-entry small,.al-dm-list-theme-ready .al-newchat-btn small{ color:var(--alive-soft); }
+.al-dm-list-theme-ready .al-newchat-btn{ border-color:var(--alive-line-strong); background:var(--alive-surface); color:var(--alive-ink); }
+.al-dm-list-theme-ready .al-newchat-btn > span{ border-color:var(--alive-line-strong); color:var(--alive-soft); }
+.al-dm-list-theme-ready .al-newchat-lbl,.al-dm-list-theme-ready .al-nt-none{ color:var(--alive-soft); }
+.al-dm-list-theme-ready .al-newchat-target{ border-color:var(--alive-line); background:var(--alive-surface); color:var(--alive-ink); }
+.al-dm-list-theme-ready .al-newchat-target:hover,.al-dm-list-theme-ready .al-newchat-target.mine{ border-color:var(--alive-accent); background:var(--alive-accent-soft); }
+.al-dm-list-theme-ready .al-nt-name{ color:var(--alive-ink); }
+.al-dm-list-theme-ready .al-nt-rel,.al-dm-list-theme-ready .al-nt-mine-tag{ color:var(--alive-accent-ink); }
+.al-dm-list-theme-ready .al-nt-mine-tag{ background:var(--alive-accent-soft); }
+.al-dm-list-theme-ready .al-nt-ext{ color:var(--alive-success); }
+.al-dm-list-theme-ready .al-newchat-cancel{ color:var(--alive-soft); }
+.al-dm-list-theme-ready .al-newchat-cancel:hover{ color:var(--alive-ink); }
+.al-dm-list-theme-ready .al-spk-chip,.al-dm-list-theme-ready .al-persona-entry{ border-color:var(--alive-line); background:var(--alive-surface-raised); color:var(--alive-soft); }
+.al-dm-list-theme-ready .al-spk-chip:hover,.al-dm-list-theme-ready .al-persona-entry:hover{ border-color:var(--alive-accent); }
+.al-dm-list-theme-ready .al-spk-chip.on,.al-dm-list-theme-ready .al-spk-chip.persona.on{ border-color:var(--alive-accent); background:var(--alive-accent-soft); color:var(--alive-accent-ink); }
+.al-dm-list-theme-ready .al-spk-chip.add{ color:var(--alive-success); }

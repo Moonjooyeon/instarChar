@@ -1,5 +1,8 @@
 import React from "react";
 
+const MEMORY_ACTION_CLASS = "border-line-strong bg-surface-raised text-accent-ink hover:border-accent hover:bg-accent-soft";
+const MEMORY_DANGER_ACTION_CLASS = "danger border-danger bg-danger-soft text-danger hover:bg-danger hover:text-white";
+
 export function DmMemoryPanel({ ctx }) {
   const { deleteMemory, deleteRoomMemory, dmKey, editingMemoryId, editMemory, peerName, setEditingMemoryId, showPeerMem, updateRoomMemory, visibleMems } = ctx;
   if (!showPeerMem) return null;
@@ -15,8 +18,8 @@ export function DmMemoryPanel({ ctx }) {
               <div className="al-peermem-top">
                 <span>{entry.scope === "room" ? "이 방" : "전역"}</span>
                 <div>
-                  <button onClick={() => setEditingMemoryId(editing ? null : `${entry.scope}:${entry.id}`)}>{editing ? "닫기" : "수정"}</button>
-                  <button className="danger" onClick={() => entry.scope === "room" ? deleteRoomMemory(dmKey, peerName, entry.id) : deleteMemory(entry.id)}>삭제</button>
+                  <button className={MEMORY_ACTION_CLASS} onClick={() => setEditingMemoryId(editing ? null : `${entry.scope}:${entry.id}`)}>{editing ? "닫기" : "수정"}</button>
+                  <button className={MEMORY_DANGER_ACTION_CLASS} onClick={() => entry.scope === "room" ? deleteRoomMemory(dmKey, peerName, entry.id) : deleteMemory(entry.id)}>삭제</button>
                 </div>
               </div>
               {editing ? (

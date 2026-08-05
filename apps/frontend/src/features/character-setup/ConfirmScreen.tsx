@@ -2,6 +2,10 @@ import React from "react";
 import { AliveIcon } from "@/components/ui/AliveIcon";
 import { CharacterAvatarImage } from "@/components/ui/CharacterAvatarImage";
 
+const RETRY_ACTION_CLASS = "al-retry border-accent bg-accent-soft text-accent-ink hover:bg-surface-raised";
+const BACK_ACTION_CLASS = "al-reparse border-line bg-surface text-soft hover:border-accent hover:bg-accent-soft hover:text-ink";
+const SAVE_ACTION_CLASS = "al-start al-confirm-go bg-accent text-white hover:bg-accent-strong disabled:bg-surface-muted disabled:text-faint";
+
 export function ConfirmScreen({
   activeId,
   char,
@@ -20,7 +24,7 @@ export function ConfirmScreen({
 }) {
   const [isCoreEditing, setIsCoreEditing] = React.useState(Boolean(parseFailed));
   const [isDetailsOpen, setIsDetailsOpen] = React.useState(Boolean(parseFailed));
-  return <div className="al-phone"><div className="al-setup al-confirm-setup">
+  return <div className="al-phone al-theme-ready"><div className="al-setup al-confirm-setup">
     <div className="al-confirm-progress"><b>마지막 확인</b><span>필수 정보만 확인해요.</span></div>
     <header className="al-confirm-hero">
       <span className="al-confirm-avatar"><CharacterAvatarImage src={char.avatarImg} /></span>
@@ -38,7 +42,7 @@ export function ConfirmScreen({
 }
 
 function ParseFailure({ error, onRetry }) {
-  return <><div className="al-parse-error"><span>분석을 끝내지 못했어요</span>{error && <p>{error}</p>}</div><button className="al-retry" onClick={onRetry}><AliveIcon name="refresh" size={15} /> 다시 정리해보기</button></>;
+  return <><div className="al-parse-error"><span>분석을 끝내지 못했어요</span>{error && <p>{error}</p>}</div><button className={RETRY_ACTION_CLASS} onClick={onRetry}><AliveIcon name="refresh" size={15} /> 다시 정리해보기</button></>;
 }
 
 function CoreProfile({ char, handleAvailability, handleError, isEditing, onEdit, update }) {
@@ -67,7 +71,7 @@ function RelationsField({ char, parseRelations, update }) {
 
 function ConfirmActions({ activeId, char, confirmReady, onBack, onSave, waking }) {
   const label = waking ? "저장 중..." : activeId ? "수정 완료" : confirmReady ? `${char.name.trim()}의 SNS 시작하기` : "필수 항목을 확인해줘";
-  return <div className="al-confirm-actions"><button className="al-reparse" onClick={onBack}><AliveIcon name="arrow-left" size={15} /> {activeId ? "목록으로" : "다시 입력"}</button><button className="al-start al-confirm-go" disabled={!confirmReady || waking} onClick={onSave}>{label}</button></div>;
+  return <div className="al-confirm-actions"><button className={BACK_ACTION_CLASS} onClick={onBack}><AliveIcon name="arrow-left" size={15} /> {activeId ? "목록으로" : "다시 입력"}</button><button className={SAVE_ACTION_CLASS} disabled={!confirmReady || waking} onClick={onSave}>{label}</button></div>;
 }
 
 function handleStatusClass(state, handleError) {

@@ -54,10 +54,10 @@ export function FeedTimeline({ ctx }) {
   return (
     <>
       {!isFirstPost && <div className="al-feed-tabs">
-        <button className={feedView === "mine" ? "on" : ""} onClick={() => setFeedView("mine")}>
+        <button className={feedTabClass(feedView === "mine")} onClick={() => setFeedView("mine")}>
           내 글 <b>{myPosts.length}</b>
         </button>
-        <button className={feedView === "timeline" ? "on" : ""} onClick={() => setFeedView("timeline")}>
+        <button className={feedTabClass(feedView === "timeline")} onClick={() => setFeedView("timeline")}>
           타임라인 <b>{timelinePosts.length}</b>
         </button>
       </div>}
@@ -80,7 +80,7 @@ export function FeedTimeline({ ctx }) {
 
 function EmptyFeed({ char, feedView, onStart }) {
   if (feedView === "timeline") return <div className="al-empty"><span>타임라인이 아직 조용해요.</span><p>새로운 캐릭터를 추가하면 그 아이의 글도 이곳에 나타나요.</p></div>;
-  return <div className="al-first-feed"><span className="al-first-feed-avatar"><CharacterAvatarImage src={char.avatarImg} /></span><div><span>첫 글까지 한 단계</span><h3>{char.name}의 첫 글을<br />만나볼까요?</h3><p>장면만 고르면 {char.name}가 이어서 써요.</p><button aria-label="첫 글의 장면 고르기" type="button" onClick={onStart}>첫 장면 고르기</button></div></div>;
+  return <div className="al-first-feed"><span className="al-first-feed-avatar"><CharacterAvatarImage src={char.avatarImg} /></span><div><span>첫 글까지 한 단계</span><h3>{char.name}의 첫 글을<br />만나볼까요?</h3><p>장면만 고르면 {char.name}가 이어서 써요.</p><button className="border-accent bg-accent-soft text-accent-ink hover:bg-accent hover:text-white" aria-label="첫 글의 장면 고르기" type="button" onClick={onStart}>첫 장면 고르기</button></div></div>;
 }
 
 function GeneratingPost({ char }) {
@@ -88,7 +88,7 @@ function GeneratingPost({ char }) {
 }
 
 function GenerationFailure({ message, onRetry }: GenerationFailureProps): React.ReactElement {
-  return <div className="al-generation-failure" role="alert"><div><b>글을 완성하지 못했어요.</b><p>{message.replace(/^글 생성 실패:\s*/, "")}</p></div><button type="button" onClick={onRetry}>다시 장면 고르기</button></div>;
+  return <div className="al-generation-failure" role="alert"><div><b>글을 완성하지 못했어요.</b><p>{message.replace(/^글 생성 실패:\s*/, "")}</p></div><button className="border-danger bg-danger-soft text-danger hover:bg-danger hover:text-white" type="button" onClick={onRetry}>다시 장면 고르기</button></div>;
 }
 
 function FeedPostCard({ post, ctx }) {
@@ -148,12 +148,12 @@ function FeedPostCard({ post, ctx }) {
         )}
         <FeedPostMedia post={post} />
         <div className="al-post-actions">
-          <button className={`al-like ${post.liked ? "on" : ""}`} disabled={isLikePending(post.id)} onClick={() => toggleLike(post.id)}><AliveIcon name={post.liked ? "heart-filled" : "heart"} size={15} /> {post.likes}</button>
+          <button className={`al-like ${post.liked ? "on text-like" : "text-soft hover:text-like"}`} disabled={isLikePending(post.id)} onClick={() => toggleLike(post.id)}><AliveIcon name={post.liked ? "heart-filled" : "heart"} size={15} /> {post.likes}</button>
           {canManage && !post.byUser && <button className="al-fixbtn" onClick={() => { setFixTarget({ type: "post", id: post.id, text: post.text }); setFixText(""); }}>캐릭터답지 않아요</button>}
           {(canManage || !post.byUser) && <details className="al-post-more"><summary aria-label={canManage ? "게시물 관리" : "게시물 더보기"}><span>{canManage ? "관리" : "더보기"}</span><i><AliveIcon name="more" size={14} /></i></summary><div>{canManage && <button onClick={() => setEditingPost({ id: post.id, text: post.text })}>수정</button>}{canManage && <button className="danger" onClick={() => deletePost(post.id)}>삭제</button>}{!post.byUser && <button className="safety" onClick={() => setReportTarget(postReportTarget(post, activeId))}>신고</button>}</div></details>}
         </div>
         <FeedComments post={post} ctx={{ char, commentAs, commentOn, commentText, deleteComment, editingComment, personas, saveCommentEdit, setCommentAs, setCommentOn, setCommentText, setEditingComment, setPersonaDraft, setReportTarget, submitUserComment, isExt }} />
-        {commentOn !== post.id && <button className="al-cmt-open" onClick={() => openCommentBox(post.id)}><AliveIcon name="message" size={15} /> 댓글 달기</button>}
+        {commentOn !== post.id && <button className="al-cmt-open border-line bg-surface text-soft hover:border-accent hover:bg-accent-soft hover:text-accent-ink" onClick={() => openCommentBox(post.id)}><AliveIcon name="message" size={15} /> 댓글 달기</button>}
       </div>
     </div>
   );
@@ -231,7 +231,7 @@ function FeedComments({ post, ctx }) {
           {USER_PERSONA_FEATURE_ENABLED && <div className="al-cmtbox-who"><button className={`al-spk-chip ${commentAs === "char" ? "on" : ""}`} onClick={() => setCommentAs("char")}>{char.name}</button>{personas.map((persona) => <button key={persona.id} className={`al-spk-chip persona ${commentAs === `p:${persona.id}` ? "on" : ""}`} onClick={() => setCommentAs(`p:${persona.id}`)}><AliveIcon name="masks" size={14} /> {persona.name}</button>)}<button className="al-spk-chip add" onClick={() => setPersonaDraft({ name: "", age: "", persona: "", speech: "" })}><AliveIcon name="plus" size={14} /> 페르소나</button></div>}
           <div className="al-cmtbox-row">
             <input className="al-cmtbox-input" value={commentText} autoFocus enterKeyHint="send" aria-label={`${commentSpeakerName} 계정으로 댓글 입력`} onChange={(event) => setCommentText(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) submitUserComment(post.id, isExt ? post.author : null); }} placeholder="댓글을 입력하세요" />
-            <button className="al-cmtbox-send" type="button" disabled={!commentText.trim()} aria-label="댓글 보내기" onClick={() => submitUserComment(post.id, isExt ? post.author : null)}><AliveIcon name="send" size={18} /></button>
+            <button className="al-cmtbox-send bg-accent text-white hover:bg-accent-strong disabled:bg-surface-muted disabled:text-faint" type="button" disabled={!commentText.trim()} aria-label="댓글 보내기" onClick={() => submitUserComment(post.id, isExt ? post.author : null)}><AliveIcon name="send" size={18} /></button>
           </div>
         </div>
       )}
@@ -242,6 +242,10 @@ function FeedComments({ post, ctx }) {
 function displayName(value: unknown, fallback = "?"): string {
   const text = typeof value === "string" ? value.trim() : "";
   return text || fallback;
+}
+
+function feedTabClass(active: boolean): string {
+  return active ? "on border-accent bg-accent-soft text-ink" : "border-transparent bg-transparent text-soft hover:bg-surface hover:text-ink";
 }
 
 function recordValue(value: unknown): Record<string, unknown> | null {

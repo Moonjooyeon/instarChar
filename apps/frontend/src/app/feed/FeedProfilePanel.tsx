@@ -90,14 +90,14 @@ export function FeedProfilePanel({ ctx }) {
             </div>
             <span className="al-handle">@{char.handle || char.name.replace(/\s/g, "").toLowerCase()}</span>
           </div>
-          {!isFirstPost && <div className="al-feed-actions"><button className="al-dmbtn" onClick={() => setStep("dmlist")} title="대화"><span><AliveIcon name="mail" size={15} /></span><b>대화</b></button></div>}
+          {!isFirstPost && <div className="al-feed-actions"><button className="al-dmbtn inline-flex min-h-[34px] items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-line-strong bg-surface-raised px-3 py-2 text-xs font-extrabold leading-none text-ink transition-colors hover:border-accent hover:bg-accent-soft" onClick={() => setStep("dmlist")} title="대화"><span className="text-accent-ink"><AliveIcon name="mail" size={15} /></span><b>대화</b></button></div>}
         </div>
         {(char.age || !isFirstPost) && <div className="al-profile-meta-row">{char.age && <span className="al-profile-meta">{char.age}</span>}{!isFirstPost && <WorldChip character={char} fallback="current-character" onOpen={setWorldModal} />}</div>}
         {char.surface && <p className="al-profile-intro">{char.surface}</p>}
         {char.persona && <p className="al-bio-text"><span>소개</span><b>{char.persona}</b></p>}
         {shareStatus && <p className="al-share-status">{shareStatus}</p>}
         {isFirstPost && <p className="al-first-profile-note">프로필은 준비됐어요. 이제 첫 글 하나만 만들면 시작됩니다.</p>}
-        {!isFirstPost && <button className="al-profile-more" type="button" aria-expanded={isProfileToolsOpen} onClick={() => setIsProfileToolsOpen((open) => !open)}><span><b>기억·관계·공개 설정</b><small>필요할 때만 열어보세요.</small></span><i><AliveIcon name={isProfileToolsOpen ? "minus" : "plus"} size={19} /></i></button>}
+        {!isFirstPost && <button className="al-profile-more border-line bg-surface text-ink hover:border-accent hover:bg-accent-soft" type="button" aria-expanded={isProfileToolsOpen} onClick={() => setIsProfileToolsOpen((open) => !open)}><span><b>기억·관계·공개 설정</b><small className="text-faint">필요할 때만 열어보세요.</small></span><i className="text-accent-ink"><AliveIcon name={isProfileToolsOpen ? "minus" : "plus"} size={19} /></i></button>}
         {!isFirstPost && isProfileToolsOpen && <div className="al-profile-tools"><div className="al-profile-tool-actions"><button onClick={() => { setDiscoverQuery(""); setSharedFocusId(""); setStep("discover"); }}>새 캐릭터 만나기</button><button onClick={shareCurrentCharacter}>내 캐릭터 공개하기</button></div><div className="al-follow-stats">
           <button className={`al-fstat ${followPanel === "following" ? "on" : ""}`} onClick={() => toggleFollowPanel("following")}>
             <b>{following.length}</b> 추가한 캐릭터

@@ -2,8 +2,8 @@
 title: Frontend Structure
 author: black (black@ashwoodfriends.com)
 created: 2026-05-07
-updated: 2026-07-30
-version: 3.3.0
+updated: 2026-08-05
+version: 3.4.0
 status: approved
 ---
 
@@ -27,7 +27,6 @@ apps/frontend/
 │   └── e2e/
 └── src/
     ├── App.tsx
-    ├── appStyles.ts
     ├── main.tsx
     ├── api/
     │   ├── auth.ts
@@ -60,6 +59,11 @@ apps/frontend/
     │   ├── home/
     │   └── relationships/
     ├── hooks/
+    ├── styles/
+    │   ├── index.css
+    │   ├── legacy.css
+    │   ├── theme.css
+    │   └── screens/
     └── types/
 ```
 
@@ -74,6 +78,7 @@ apps/frontend/
 | Domain | `apps/frontend/src/domain/` | Pure helpers for app state, feed, DM, discover, relationships, and session state |
 | API client | `apps/frontend/src/api/` | FastAPI fetch boundary and response adapters |
 | Shared UI | `apps/frontend/src/components/ui/` | Small reusable UI controls |
+| Styles | `apps/frontend/src/styles/` | Tailwind entry point, theme tokens, temporary legacy CSS, and screen migration layers |
 | Tests | `apps/frontend/tests/` | Domain unit tests and Playwright E2E tests |
 
 ## Character Handle Flow
@@ -93,7 +98,7 @@ npm run test:domain
 npm run build
 ```
 
-The current domain suite contains 90 passing tests. Playwright handle scenarios require an already-running app at `ALIVE_E2E_BASE_URL` (default `http://127.0.0.1:5179`).
+The current domain suite contains 121 passing tests. Playwright handle scenarios require an already-running app at `ALIVE_E2E_BASE_URL` (default `http://127.0.0.1:5179`).
 
 ## Build Output
 

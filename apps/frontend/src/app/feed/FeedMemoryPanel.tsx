@@ -11,6 +11,8 @@ type FeedMemoryEntry = {
   source?: string;
 };
 
+const MEMORY_ADD_TOGGLE_CLASS = "al-mem-add-toggle border-line-strong bg-surface-raised text-accent-ink transition-colors hover:border-accent hover:bg-accent-soft hover:text-accent-strong focus-visible:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-soft";
+
 export function FeedMemoryPanel({ ctx }) {
   const {
     addManualMemory,
@@ -99,7 +101,7 @@ function FeedMemoryDetail({ ctx }) {
           <FeedMemoryCard entry={entry} ctx={{ deleteMemory, editingMemoryId, editMemory, setEditingMemoryId, updateMemory }} />
         </React.Fragment>
       ))}
-      <button className="al-mem-add-toggle" onClick={() => setShowMemoryAdd((value) => !value)}>
+      <button className={MEMORY_ADD_TOGGLE_CLASS} onClick={() => setShowMemoryAdd((value) => !value)}>
         <AliveIcon name="plus" size={15} /> {memFilter === "*" ? "전체 설정" : memFilter} 기억 남기기
       </button>
       {showMemoryAdd && (
@@ -149,7 +151,7 @@ function FeedMemoryAdd({ compact = false, ctx }) {
   const { addManualMemory, lorePeerOptions, memDraftText, renderLorePeerSelect, setMemDraftText, setShowMemoryAdd, showMemoryAdd } = ctx;
   return (
     <>
-      <button className="al-mem-add-toggle" onClick={() => setShowMemoryAdd((value) => !value)}>
+      <button className={MEMORY_ADD_TOGGLE_CLASS} onClick={() => setShowMemoryAdd((value) => !value)}>
         <AliveIcon name="plus" size={15} /> 기억 직접 남기기
       </button>
       {showMemoryAdd && (

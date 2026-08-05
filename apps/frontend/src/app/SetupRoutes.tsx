@@ -1,6 +1,13 @@
 import React from "react";
+import type { useAliveAppController } from "@/hooks/useAliveAppController";
+import type { ThemeController } from "@/hooks/useAliveTheme";
 
-export function SetupRoutes({ ctx }) {
+interface SetupRoutesProps {
+  ctx: ReturnType<typeof useAliveAppController>;
+  theme: ThemeController;
+}
+
+export function SetupRoutes({ ctx, theme }: SetupRoutesProps) {
   const {
     accounts,
     activeId,
@@ -61,6 +68,7 @@ export function SetupRoutes({ ctx }) {
           signOut={signOut}
           startNewCharacter={startNewCharacter}
           switchAccount={switchAccount}
+          theme={theme}
         />
       )}
 
