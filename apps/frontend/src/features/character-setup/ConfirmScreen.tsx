@@ -1,5 +1,6 @@
 import React from "react";
 import { AliveIcon } from "@/components/ui/AliveIcon";
+import { CharacterAvatarImage } from "@/components/ui/CharacterAvatarImage";
 
 export function ConfirmScreen({
   activeId,
@@ -22,7 +23,7 @@ export function ConfirmScreen({
   return <div className="al-phone"><div className="al-setup al-confirm-setup">
     <div className="al-confirm-progress"><b>마지막 확인</b><span>필수 정보만 확인해요.</span></div>
     <header className="al-confirm-hero">
-      <span className="al-confirm-avatar" aria-hidden="true"><img src="/character-placeholder.svg" alt="" /></span>
+      <span className="al-confirm-avatar"><CharacterAvatarImage src={char.avatarImg} /></span>
       <div><h1 className="al-flow-title">{parseFailed ? "필수 정보만 확인할게요." : "이대로 시작할까요?"}</h1><p className="al-flow-copy">{parseFailed ? "이름과 아이디를 채우면 시작할 수 있어요." : "틀린 부분만 고치면 돼요."}</p></div>
     </header>
     {parseFailed && <ParseFailure error={parseError} onRetry={() => setStep("dump")} />}

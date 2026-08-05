@@ -915,13 +915,13 @@ body{ overflow-x:hidden; }
 .al-cast-list{ margin-top:21px; }
 .al-cast-entry{ margin:0; padding:0; border:0; border-bottom:1px solid #37323e; border-radius:0; background:transparent; overflow:visible; }
 .al-cast-main{ gap:14px; padding:15px 0 13px; }
-.al-cast-avatar{ width:61px; height:72px; flex-basis:61px; border-color:#4d4658; border-radius:4px; background:#24212c; }
+.al-cast-avatar{ width:64px; height:64px; flex-basis:64px; border-color:#4d4658; border-radius:8px; background:#24212c; }
 .al-cast-copy{ gap:2px; }
 .al-cast-copy small{ color:#9991a2; font-size:10.5px; font-variant-numeric:tabular-nums; }
 .al-cast-copy b{ font-size:18px; }
 .al-cast-copy em{ color:#bbb4c2; font-size:12px; line-height:1.55; -webkit-line-clamp:2; }
 .al-cast-main > i{ align-self:flex-start; margin-top:3px; color:#b49bd8; font-size:10.5px; font-weight:750; }
-.al-cast-entry footer{ justify-content:space-between; min-height:39px; padding:0 0 9px 75px; border:0; }
+.al-cast-entry footer{ justify-content:space-between; min-height:39px; padding:0 0 9px 78px; border:0; }
 .al-cast-entry footer > span{ color:#8f8795; font-size:10.5px; }
 .al-cast-entry footer > div{ gap:14px; }
 .al-cast-entry footer button{ min-height:32px; font-size:11px; }
@@ -1209,15 +1209,20 @@ button.al-fstat{ cursor:pointer; }
 .al-cmt-open{ margin-top:9px; padding:7px 12px; border-radius:9px; cursor:pointer; font-family:inherit;
   font-size:12px; font-weight:700; border:1px solid var(--line); background:#16131f; color:var(--soft); }
 .al-cmt-open:hover{ border-color:var(--accent); color:#c8b3ff; }
-.al-cmtbox{ margin-top:10px; padding:10px; border:1px solid #2a2440; border-radius:11px; background:#15131c; }
-.al-cmtbox-who{ display:flex; flex-wrap:wrap; gap:5px; margin-bottom:8px; }
-.al-cmtbox-row{ display:flex; gap:6px; }
-.al-cmtbox-input{ flex:1; background:#1a1626; border:1px solid #2a2440; border-radius:9px; padding:9px 11px;
-  color:var(--ink); font-family:inherit; font-size:13px; }
-.al-cmtbox-input:focus{ outline:none; border-color:var(--accent); }
-.al-cmtbox-send{ flex:0 0 auto; width:38px; border:none; border-radius:9px; cursor:pointer;
-  background:linear-gradient(135deg,var(--accent),#9d6bff); color:#fff; font-size:15px; font-weight:800; }
-.al-cmtbox-cancel{ margin-top:7px; background:none; border:none; color:var(--soft); font-size:11px; cursor:pointer; font-family:inherit; }
+.al-cmtbox{ position:relative; margin-top:10px; padding:10px 11px 11px; border:1px solid #3a3248; border-radius:13px; background:#17141d; box-shadow:0 10px 26px rgba(0,0,0,.16); scroll-margin-bottom:calc(env(safe-area-inset-bottom) + 18px); }
+.al-cmtbox-head{ display:flex; align-items:center; min-height:32px; margin-bottom:7px; padding-right:34px; }
+.al-cmtbox-avatar{ display:grid; place-items:center; width:25px; height:25px; overflow:hidden; flex:0 0 25px; border:1px solid #57476b; border-radius:50%; background:#251d31; color:#cdb8ff; }
+.al-cmtbox-context{ min-width:0; margin-left:8px; color:#847c8d; font-size:11.5px; line-height:1.3; }
+.al-cmtbox-context b{ color:#dcd5e3; font-weight:850; }
+.al-cmtbox-cancel{ position:absolute; top:4px; right:3px; display:grid; place-items:center; width:44px; height:44px; padding:0; border:0; border-radius:50%; background:transparent; color:#817989; cursor:pointer; }
+.al-cmtbox-cancel:hover{ background:#24202a; color:#ded6e7; }
+.al-cmtbox-who{ display:flex; flex-wrap:wrap; gap:5px; margin:0 0 8px 33px; }
+.al-cmtbox-row{ display:flex; align-items:center; gap:7px; }
+.al-cmtbox-input{ min-width:0; min-height:44px; flex:1; padding:10px 13px; border:1px solid #3b3447; border-radius:11px; background:#121017; color:var(--ink); font-family:inherit; font-size:13.5px; }
+.al-cmtbox-input::placeholder{ color:#706978; }
+.al-cmtbox-input:focus{ outline:none; border-color:#9370dd; box-shadow:0 0 0 2px rgba(157,107,255,.11); }
+.al-cmtbox-send{ width:44px; height:44px; flex:0 0 44px; border:0; border-radius:11px; background:linear-gradient(135deg,#aa83ff,#8957ec); color:#fff; cursor:pointer; box-shadow:0 5px 14px rgba(116,75,199,.24); }
+.al-cmtbox-send:disabled{ background:#2a2630; color:#696270; cursor:default; box-shadow:none; }
 
 /* DM screen */
 .al-dmhead{ display:flex; align-items:center; gap:11px; padding:14px 16px; border-bottom:1px solid var(--line); }

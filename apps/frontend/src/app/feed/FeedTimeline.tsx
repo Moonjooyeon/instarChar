@@ -183,6 +183,8 @@ function FeedPostMedia({ post }) {
 function FeedComments({ post, ctx }) {
   const { char, commentAs, commentOn, commentText, deleteComment, editingComment, personas, saveCommentEdit, setCommentAs, setCommentOn, setCommentText, setEditingComment, setPersonaDraft, setReportTarget, submitUserComment, isExt } = ctx;
   const comments = Array.isArray(post.comments) ? post.comments : [];
+  const selectedPersona = personas.find((persona) => `p:${persona.id}` === commentAs);
+  const commentSpeakerName = commentAs === "char" ? char.name : (selectedPersona?.name || char.name);
   return (
     <>
       {comments.length > 0 && (
@@ -220,19 +222,17 @@ function FeedComments({ post, ctx }) {
         </div>
       )}
       {commentOn === post.id && (
-        <div className="al-cmtbox">
-          <div className="al-cmtbox-who">
-            <button className={`al-spk-chip ${commentAs === "char" ? "on" : ""}`} onClick={() => setCommentAs("char")}>{char.name}</button>
-            {USER_PERSONA_FEATURE_ENABLED && personas.map((persona) => (
-              <button key={persona.id} className={`al-spk-chip persona ${commentAs === `p:${persona.id}` ? "on" : ""}`} onClick={() => setCommentAs(`p:${persona.id}`)}><AliveIcon name="masks" size={14} /> {persona.name}</button>
-            ))}
-            {USER_PERSONA_FEATURE_ENABLED && <button className="al-spk-chip add" onClick={() => setPersonaDraft({ name: "", age: "", persona: "", speech: "" })}><AliveIcon name="plus" size={14} /> 페르소나</button>}
+        <div className="al-cmtbox" aria-label="댓글 작성">
+          <div className="al-cmtbox-head">
+            <span className="al-cmtbox-avatar">{commentAs === "char" ? <CharacterAvatarImage src={char.avatarImg} /> : <AliveIcon name="masks" size={15} />}</span>
+            <span className="al-cmtbox-context"><b>{commentSpeakerName}</b> 계정으로 댓글</span>
+            <button className="al-cmtbox-cancel" type="button" aria-label="댓글 작성 닫기" onClick={() => { setCommentOn(null); setCommentText(""); }}><AliveIcon name="close" size={16} /></button>
           </div>
+          {USER_PERSONA_FEATURE_ENABLED && <div className="al-cmtbox-who"><button className={`al-spk-chip ${commentAs === "char" ? "on" : ""}`} onClick={() => setCommentAs("char")}>{char.name}</button>{personas.map((persona) => <button key={persona.id} className={`al-spk-chip persona ${commentAs === `p:${persona.id}` ? "on" : ""}`} onClick={() => setCommentAs(`p:${persona.id}`)}><AliveIcon name="masks" size={14} /> {persona.name}</button>)}<button className="al-spk-chip add" onClick={() => setPersonaDraft({ name: "", age: "", persona: "", speech: "" })}><AliveIcon name="plus" size={14} /> 페르소나</button></div>}
           <div className="al-cmtbox-row">
-            <input className="al-cmtbox-input" value={commentText} autoFocus onChange={(event) => setCommentText(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) submitUserComment(post.id, isExt ? post.author : null); }} placeholder={`${commentAs === "char" ? char.name : (personas.find((persona) => `p:${persona.id}` === commentAs)?.name || "")}(으)로 댓글…`} />
-            <button className="al-cmtbox-send" aria-label="댓글 보내기" onClick={() => submitUserComment(post.id, isExt ? post.author : null)}><AliveIcon name="send" size={17} /></button>
+            <input className="al-cmtbox-input" value={commentText} autoFocus enterKeyHint="send" aria-label={`${commentSpeakerName} 계정으로 댓글 입력`} onChange={(event) => setCommentText(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) submitUserComment(post.id, isExt ? post.author : null); }} placeholder="댓글을 입력하세요" />
+            <button className="al-cmtbox-send" type="button" disabled={!commentText.trim()} aria-label="댓글 보내기" onClick={() => submitUserComment(post.id, isExt ? post.author : null)}><AliveIcon name="send" size={18} /></button>
           </div>
-          <button className="al-cmtbox-cancel" onClick={() => { setCommentOn(null); setCommentText(""); }}>닫기</button>
         </div>
       )}
     </>

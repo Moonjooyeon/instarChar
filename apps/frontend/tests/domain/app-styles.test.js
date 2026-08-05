@@ -46,3 +46,21 @@ test("social login uses bundled official brand assets", () => {
   assert.deepEqual([...appleAsset.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
   assert.deepEqual([...googleAsset.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
 });
+
+test("empty character avatars preserve the neutral square default artwork", () => {
+  const componentPath = path.resolve(process.cwd(), "src/components/ui/CharacterAvatarImage.tsx");
+  const confirmPath = path.resolve(process.cwd(), "src/features/character-setup/ConfirmScreen.tsx");
+  const assetPath = path.resolve(process.cwd(), "public/character-placeholder.svg");
+  const stylesPath = path.resolve(process.cwd(), "src/appStyles.ts");
+  const component = readFileSync(componentPath, "utf8");
+  const confirm = readFileSync(confirmPath, "utf8");
+  const asset = readFileSync(assetPath, "utf8");
+  const styles = readFileSync(stylesPath, "utf8");
+  assert.match(component, /DEFAULT_CHARACTER_AVATAR = "\/character-placeholder\.svg"/);
+  assert.match(confirm, /<CharacterAvatarImage src=\{char\.avatarImg\} \/>/);
+  assert.match(asset, /viewBox="0 0 160 160"/);
+  assert.match(asset, /width="160" height="160"/);
+  assert.doesNotMatch(asset, /#756180/);
+  assert.match(styles, /\.al-cast-avatar\{ width:64px; height:64px; flex-basis:64px/);
+  assert.match(styles, /\.al-cmtbox-cancel\{ position:absolute;[^}]*width:44px; height:44px/);
+});

@@ -215,6 +215,22 @@ test("first-post picker hides the duplicate empty state and post management open
   expect(menuBox.y + menuBox.height).toBeLessThanOrEqual(summaryBox.y + 1);
 });
 
+test("comment composer keeps the active speaker clear and prevents blank sends", async ({ page }) => {
+  await createCharacter(page);
+  await createFirstPost(page);
+  await page.getByRole("button", { name: "댓글 달기" }).click();
+  const composer = page.locator(".al-cmtbox");
+  await expect(composer).toContainText("테스트린 계정으로 댓글");
+  const input = page.getByRole("textbox", { name: "테스트린 계정으로 댓글 입력" });
+  const send = page.getByRole("button", { name: "댓글 보내기" });
+  await expect(send).toBeDisabled();
+  await input.fill("오늘 장면 좋다.");
+  await expect(send).toBeEnabled();
+  await send.click();
+  await expect(composer).toHaveCount(0);
+  await expect(page.getByText("오늘 장면 좋다.")).toBeVisible();
+});
+
 test("character, follow, DM world modal, back and forward stay consistent", async ({ page }) => {
   await createCharacter(page);
   await createFirstPost(page);
