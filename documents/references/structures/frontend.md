@@ -98,7 +98,7 @@ npm run test:domain
 npm run build
 ```
 
-The current domain suite contains 121 passing tests. Playwright handle scenarios require an already-running app at `ALIVE_E2E_BASE_URL` (default `http://127.0.0.1:5179`).
+The current domain suite contains 122 passing tests. Playwright handle scenarios require an already-running app at `ALIVE_E2E_BASE_URL` (default `http://127.0.0.1:5179`).
 
 ## Build Output
 

@@ -2,7 +2,6 @@ import React from "react";
 
 import { isAppsInTossRuntime, shouldShowAppleLogin } from "@/api/auth";
 import { AliveIcon } from "@/components/ui/AliveIcon";
-import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { ServiceTour } from "@/features/onboarding/ServiceTour";
 
 const PRIMARY_AUTH_ACTION_CLASS = "al-auth-btn bg-accent text-white hover:bg-accent-strong disabled:bg-surface-muted disabled:text-faint";
@@ -33,7 +32,6 @@ export function AuthEntryScreen({
   authMessage,
   signInWithProvider,
   signInWithToss,
-  theme,
 }) {
   const [isTourOpen, setIsTourOpen] = React.useState(false);
   const isAppsInToss = isAppsInTossRuntime();
@@ -44,7 +42,7 @@ export function AuthEntryScreen({
       <main className="al-auth al-auth-entry">
         <header className="al-auth-header">
           <div className="al-auth-brand" aria-label="ALIVE">ALIVE<span /></div>
-          <div className="flex items-center gap-1.5"><ThemeToggle {...theme} /><button className="al-auth-tour-link" onClick={() => setIsTourOpen(true)}><span><AliveIcon name="play" size={10} /></span><b>미리보기</b><i>3장</i></button></div>
+          <button className="al-auth-tour-link" onClick={() => setIsTourOpen(true)}><span><AliveIcon name="play" size={10} /></span><b>미리보기</b><i>3장</i></button>
         </header>
         <div className="al-auth-panel">
           <div className="al-auth-intro">

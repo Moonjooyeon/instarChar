@@ -4,7 +4,6 @@ import { CharacterAvatarImage } from "@/components/ui/CharacterAvatarImage";
 import { USER_PERSONA_FEATURE_ENABLED } from "@/domain/app/featureFlags";
 import { ServiceTour } from "@/features/onboarding/ServiceTour";
 import { CreditShortcut } from "@/features/credits/CreditShortcut";
-import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import {
   ACCOUNT_DELETION_URL,
   PRIVACY_POLICY_URL,
@@ -32,7 +31,6 @@ export function HomeScreen({
   signOut,
   startNewCharacter,
   switchAccount,
-  theme,
 }) {
   const hasCharacters = accounts.length > 0;
   const saveMessage = /중$|실패|오류/.test(saveStatus) ? saveStatus : "";
@@ -45,7 +43,6 @@ export function HomeScreen({
           <span>{hasBackendApiConfig ? (profileName || session?.user?.email || "로그인됨") : "로컬 모드"}</span>
           {saveMessage && <b role="status">{saveMessage}</b>}
           <CreditShortcut onOpen={openCredits} />
-          <ThemeToggle {...theme} />
           {hasBackendApiConfig && <button className={HOME_SIGN_OUT_CLASS} onClick={signOut}>로그아웃</button>}
         </div>
         {hasCharacters ? <CharacterShelf accounts={accounts} editAccount={editAccount} onDelete={setDeleteTarget} onOpen={switchAccount} onStartNew={startNewCharacter} /> : <FirstCharacterEntry onStart={startNewCharacter} onTour={() => setIsTourOpen(true)} />}

@@ -1,14 +1,12 @@
 import React from "react";
 import { CreditStoreScreen } from "@/features/credits/CreditStoreScreen";
 import type { useAliveAppController } from "@/hooks/useAliveAppController";
-import type { ThemeController } from "@/hooks/useAliveTheme";
 
 interface SetupRoutesProps {
   ctx: ReturnType<typeof useAliveAppController>;
-  theme: ThemeController;
 }
 
-export function SetupRoutes({ ctx, theme }: SetupRoutesProps) {
+export function SetupRoutes({ ctx }: SetupRoutesProps) {
   const {
     accounts,
     activeId,
@@ -72,7 +70,6 @@ export function SetupRoutes({ ctx, theme }: SetupRoutesProps) {
           signOut={signOut}
           startNewCharacter={startNewCharacter}
           switchAccount={switchAccount}
-          theme={theme}
         />
       )}
 

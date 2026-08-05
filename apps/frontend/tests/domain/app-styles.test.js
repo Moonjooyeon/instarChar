@@ -318,14 +318,14 @@ test("entry routes use semantic Tailwind classes for their primary actions", () 
   assert.match(confirm, /al-start al-confirm-go bg-accent text-white hover:bg-accent-strong/);
 });
 
-test("light and dark mode use a compact icon toggle at the top of entry screens", () => {
+test("entry screens expose no theme toggle and bootstrap remains dark-only", () => {
+  const app = readFileSync(path.resolve(process.cwd(), "src/App.tsx"), "utf8");
   const auth = readFileSync(path.resolve(process.cwd(), "src/features/auth/AuthScreens.tsx"), "utf8");
   const home = readFileSync(path.resolve(process.cwd(), "src/features/home/HomeScreen.tsx"), "utf8");
-  const toggle = readFileSync(path.resolve(process.cwd(), "src/components/ui/ThemeToggle.tsx"), "utf8");
-  assert.match(auth, /<ThemeToggle \{\.\.\.theme\} \/>/);
-  assert.match(home, /<ThemeToggle \{\.\.\.theme\} \/>/);
-  assert.doesNotMatch(home, /ThemePicker|화면 모드/);
-  assert.match(toggle, /name=\{isDark \? "sun" : "moon"\}/);
+  const themeUtils = readFileSync(path.resolve(process.cwd(), "src/domain/app/themeUtils.ts"), "utf8");
+  assert.doesNotMatch(app, /useAliveTheme/);
+  assert.doesNotMatch(`${auth}\n${home}`, /ThemeToggle|ThemePicker|화면 모드|라이트 모드/);
+  assert.match(themeUtils, /clearThemePreference\(window\.localStorage\);\s+applyTheme\("dark"\);/);
 });
 
 test("shared modals use semantic Tailwind input and action states", () => {
