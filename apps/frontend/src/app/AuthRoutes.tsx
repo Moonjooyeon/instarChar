@@ -1,6 +1,11 @@
 import React from "react";
+import type { useAliveAppController } from "@/hooks/useAliveAppController";
 
-export function AuthRoutes({ ctx }) {
+interface AuthRoutesProps {
+  ctx: ReturnType<typeof useAliveAppController>;
+}
+
+export function AuthRoutes({ ctx }: AuthRoutesProps) {
   const {
     authBusy,
     AuthEntryScreen,

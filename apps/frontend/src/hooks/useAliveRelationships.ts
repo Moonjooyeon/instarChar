@@ -1,5 +1,5 @@
 import { useState, type Dispatch, type SetStateAction } from "react";
-import type { RelationEntry } from "@/domain/app/aliveCore";
+import type { ProposalState, RelationEntry } from "@/domain/app/aliveCore";
 import {
   RELATION_BASE,
   SYMMETRIC_RELATION_BASE,
@@ -28,7 +28,7 @@ type AccountLike = {
   char: CharacterLike;
 };
 
-type RoomAffinityPref = {
+export type RoomAffinityPref = {
   affinity?: Record<string, unknown>;
   affinityBase?: Record<string, unknown>;
   [key: string]: unknown;
@@ -66,7 +66,7 @@ export function useAliveRelationships({
   setDmWorldPrefs,
 }: RelationshipsOptions) {
   const [affinity, setAffinity] = useState<Record<string, number>>({});
-  const [proposal, setProposal] = useState<unknown>(null);
+  const [proposal, setProposal] = useState<ProposalState | null>(null);
   const [relationResult, setRelationResult] = useState<unknown>(null);
   const [affinityOpen, setAffinityOpen] = useState(false);
   const isOwnerName = (name: string): boolean => name === "나";

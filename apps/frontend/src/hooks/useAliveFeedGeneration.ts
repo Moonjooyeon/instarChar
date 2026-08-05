@@ -33,17 +33,20 @@ export function useAliveFeedGeneration({
   mutatePosts,
   setSaveStatus,
 }) {
-  async function generatePost(mood) {
+  async function generatePost(mood: string): Promise<void> {
     if (loadingRef.current) return;
     loadingRef.current = true;
     setLoading(true);
     setMoodOpen(false);
+    setSaveStatus("글 생성 중");
     try {
       const post = await generateServerPost(mood);
+      if (!post) throw new Error("생성된 글이 없습니다.");
+      setSaveStatus("저장됨");
       if (post && following.length > 0) setTimeout(() => followersReactTo(post.id, post.text), 1800 + Math.random() * 2000);
-    } catch (e) {
-      console.error("게시글 생성 실패:", e);
-      setSaveStatus(e.message === API_LIMIT_MESSAGE ? API_LIMIT_MESSAGE : "게시글 생성 실패");
+    } catch (error) {
+      console.error("게시글 생성 실패:", error);
+      setSaveStatus(`글 생성 실패: ${generationFailureMessage(error)}`);
     } finally {
       setLoading(false);
       loadingRef.current = false;
@@ -114,6 +117,11 @@ export function useAliveFeedGeneration({
     if (quoteTarget) bumpAffinity(poster.name, char.name, 1, []);
   }
   return { addCommentFrom, followerPost, followersReactTo, generatePost, submitUserComment };
+}
+
+function generationFailureMessage(error: unknown): string {
+  if (error instanceof Error && error.message === API_LIMIT_MESSAGE) return API_LIMIT_MESSAGE;
+  return "잠시 후 다시 시도해주세요.";
 }
 
 function commentRelationshipBlock({ affOf, commenter, postAuthorName, relLabelFor }) {

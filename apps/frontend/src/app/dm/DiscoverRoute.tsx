@@ -13,6 +13,7 @@ export function DiscoverRoute({ ctx }) {
     hasBackendApiConfig,
     isFollowing,
     loadSharedCharacters,
+    openCredits,
     publicFollowerCount,
     requestDmEntry,
     session,
@@ -39,6 +40,7 @@ export function DiscoverRoute({ ctx }) {
       hasBackendApiConfig={hasBackendApiConfig}
       isFollowing={isFollowing}
       loadSharedCharacters={loadSharedCharacters}
+      openCredits={openCredits}
       publicFollowerCount={publicFollowerCount}
       requestDmEntry={requestDmEntry}
       session={session}

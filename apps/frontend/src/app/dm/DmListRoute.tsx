@@ -9,11 +9,11 @@ export function DmListRoute({ ctx }) {
     displayDmTitle,
     DmListScreen,
     following,
-    initial,
     myConversations,
     nameMatch,
     newChatMode,
     newChatSpeaker,
+    openCredits,
     personas,
     relationMatched,
     requestDmEntry,
@@ -33,10 +33,10 @@ export function DmListRoute({ ctx }) {
       deleteDmThread={deleteDmThread}
       displayDmTitle={displayDmTitle}
       following={following}
-      initial={initial}
       nameMatch={nameMatch}
       newChatMode={newChatMode}
       newChatSpeaker={newChatSpeaker}
+      openCredits={openCredits}
       personas={personas}
       relationMatched={relationMatched}
       requestDmEntry={requestDmEntry}

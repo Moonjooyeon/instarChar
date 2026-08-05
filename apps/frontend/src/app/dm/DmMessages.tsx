@@ -1,12 +1,13 @@
 import React from "react";
+import { CharacterAvatarImage } from "@/components/ui/CharacterAvatarImage";
 
 export function DmMessages({ ctx }) {
-  const { char, dm, dmEndRef, dmKey, dmSending, josa, peer, peerInitial, peerName, setFixTarget, setFixText, setReportTarget, speakerName } = ctx;
+  const { char, dm, dmEndRef, dmKey, dmSending, josa, peer, peerAvatar, peerName, setFixTarget, setFixText, setReportTarget, speakerName } = ctx;
   return (
     <div className="al-dmscroll">
       {dm.length === 0 && (
         <div className="al-dm-empty">
-          <p>{peer.asOwner ? `${josa(peerName, "에게/에게")} 나(오너)로서 말을 걸어봐.` : `${josa(peerName, "에게/에게")} ${josa(speakerName, "으로/로")} 말을 걸어봐.`}</p>
+          <p>{peer.asOwner ? `${josa(peerName, "에게/에게")} 편하게 첫 말을 건네보세요.` : `${speakerName}와 ${peerName}의 첫 장면을 시작해보세요.`}</p>
         </div>
       )}
       {dm.map((message, index) => {
@@ -16,12 +17,12 @@ export function DmMessages({ ctx }) {
         const canFixDmLine = fromPeer && peer.asOwner && message.from === char.name;
         return (
           <div key={index} className={`al-bubble-row ${mine ? "me" : "char"}`}>
-            {fromPeer && <div className="al-bubble-av">{peerInitial}</div>}
+            {fromPeer && <div className="al-bubble-av"><CharacterAvatarImage src={peerAvatar} /></div>}
             <div className={`al-bubble ${mine ? "me" : "char"}`}>
               {showLabel && <span className="al-bubble-spk">{message.from}</span>}
               {message.img && <img className="al-bubble-img" src={message.img} alt="" />}
               {message.text && !(message.img && message.text === "(사진)") && <span className="al-bubble-text">{message.text}</span>}
-              {canFixDmLine && <button className="al-fixbtn-dm" onClick={() => { setFixTarget({ type: "dm", index, text: message.text, who: message.from }); setFixText(""); }}>⚠ 캐해 아님</button>}
+              {canFixDmLine && <button className="al-fixbtn-dm" onClick={() => { setFixTarget({ type: "dm", index, text: message.text, who: message.from }); setFixText(""); }}>캐릭터답지 않아요</button>}
               {fromPeer && <button className="al-fixbtn-dm safety" onClick={() => setReportTarget({
                 targetType: peer.ownerId ? "dm_message" : "ai_content",
                 targetOwnerId: peer.ownerId || undefined,
@@ -35,7 +36,7 @@ export function DmMessages({ ctx }) {
       })}
       {dmSending && (
         <div className="al-bubble-row char">
-          <div className="al-bubble-av">{peerInitial}</div>
+          <div className="al-bubble-av"><CharacterAvatarImage src={peerAvatar} /></div>
           <div className="al-bubble char typing"><span className="al-typing"><i/><i/><i/></span></div>
         </div>
       )}

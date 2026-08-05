@@ -2,8 +2,8 @@
 title: Frontend Tech Stack
 author: black (black@ashwoodfriends.com)
 created: 2026-05-07
-updated: 2026-07-13
-version: 2.1.2
+updated: 2026-08-05
+version: 2.2.0
 status: approved
 ---
 
@@ -29,18 +29,19 @@ alive's frontend is currently a TypeScript React app built with Vite and wrapped
 | `@capacitor/ios` | `^8.4.0` | iOS native shell integration |
 | `@capacitor/android` | `^8.4.0` | Android native shell integration |
 | `@playwright/test` | `^1.61.0` | Frontend end-to-end tests |
+| `tailwindcss` | `^4.3.3` | Utility-first styling and CSS design-token generation; added 2026-08-05 |
+| `@tailwindcss/vite` | `^4.3.3` | Tailwind CSS integration for Vite; added 2026-08-05 |
 
 ## Source Shape
 
 - The app entry point is `src/main.tsx`.
 - The main React surface is split across `src/app`, `src/features`, `src/hooks`, and `src/domain`.
 - Shared app constants and helper functions live in `src/domain/app/aliveCore.ts`.
-- CSS is currently defined in `src/appStyles.ts` and injected by the app.
+- CSS enters through `src/styles/index.css`; theme tokens live in `src/styles/theme.css` and unmigrated rules remain temporarily in `src/styles/legacy.css`.
 - AI generation requests are routed through the FastAPI `/api/ai/generate` endpoint.
 
 ## Not Currently Used
 
-- Tailwind CSS is not installed or configured.
 - Lucide React is not installed.
 
 ## Removed Runtime Dependencies

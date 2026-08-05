@@ -8,7 +8,7 @@ export function FeedRoute({ ctx }) {
   return (
     <>
       {canUseApp && step === "feed" && (
-        <div className="al-phone">
+        <div className="al-phone al-theme-ready al-feed-theme-ready">
           <FeedProfilePanel ctx={ctx} />
           <FeedComposer ctx={ctx} />
           <FeedTimeline ctx={ctx} />

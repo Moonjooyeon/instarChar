@@ -4,11 +4,15 @@ import { AuthRoutes } from "@/app/AuthRoutes";
 import { ExploreDmRoutes } from "@/app/ExploreDmRoutes";
 import { FeedRoute } from "@/app/FeedRoute";
 import { SetupRoutes } from "@/app/SetupRoutes";
+import type { useAliveAppController } from "@/hooks/useAliveAppController";
 
-export function AppView({ ctx }) {
+interface AppViewProps {
+  ctx: ReturnType<typeof useAliveAppController>;
+}
+
+export function AppView({ ctx }: AppViewProps) {
   return (
     <div className="al-root">
-      <style>{ctx.css}</style>
       <AuthRoutes ctx={ctx} />
       <SetupRoutes ctx={ctx} />
       <FeedRoute ctx={ctx} />

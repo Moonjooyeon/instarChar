@@ -1,6 +1,6 @@
 import { postGenerateContent } from "@/api/generate";
 import { fieldText, normalizeHandle } from "@/domain/app/textUtils";
-import { MODEL_CHAT } from "@/domain/app/aliveCore";
+import { MODEL_CHAT, type AppStep } from "@/domain/app/aliveCore";
 
 type SetState<T> = (value: T | ((prev: T) => T)) => void;
 
@@ -23,7 +23,7 @@ type CharacterAnalysisOptions = {
   setParseError: (value: string) => void;
   setParseFailed: (value: boolean) => void;
   setParsing: (value: boolean) => void;
-  setStep: (value: string) => void;
+  setStep: (value: AppStep) => void;
 };
 
 export function useAliveCharacterAnalysis({
