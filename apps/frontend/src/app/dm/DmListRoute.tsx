@@ -13,6 +13,7 @@ export function DmListRoute({ ctx }) {
     nameMatch,
     newChatMode,
     newChatSpeaker,
+    openCredits,
     personas,
     relationMatched,
     requestDmEntry,
@@ -35,6 +36,7 @@ export function DmListRoute({ ctx }) {
       nameMatch={nameMatch}
       newChatMode={newChatMode}
       newChatSpeaker={newChatSpeaker}
+      openCredits={openCredits}
       personas={personas}
       relationMatched={relationMatched}
       requestDmEntry={requestDmEntry}

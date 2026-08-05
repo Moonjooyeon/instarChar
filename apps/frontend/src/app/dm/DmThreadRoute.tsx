@@ -5,6 +5,7 @@ import { DmMemoryPanel } from "@/app/dm/DmMemoryPanel";
 import { DmMessages } from "@/app/dm/DmMessages";
 import { AliveIcon } from "@/components/ui/AliveIcon";
 import { CharacterAvatarImage } from "@/components/ui/CharacterAvatarImage";
+import { CreditShortcut } from "@/features/credits/CreditShortcut";
 
 export function DmThreadRoute({ ctx }) {
   const {
@@ -23,6 +24,7 @@ export function DmThreadRoute({ ctx }) {
     meName,
     OWNER,
     ownerLabel,
+    openCredits,
     peer,
     processSession,
     PROPOSAL_THRESHOLD,
@@ -51,6 +53,7 @@ export function DmThreadRoute({ ctx }) {
           <span className="al-dmhead-name">{state.roomTitle}</span>
           <span className="al-dmhead-sub">{state.headSub}</span>
         </div>
+        <CreditShortcut onOpen={openCredits} />
         {!peer.asOwner && !peer.readOnly && (
           <div className="al-dm-head-actions">
             <button className="al-dm-settings-btn border-line-strong bg-surface-raised text-accent-ink hover:border-accent hover:bg-accent-soft" onClick={ctx.openDmSettings}>장면 설정</button>

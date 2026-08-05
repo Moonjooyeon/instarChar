@@ -225,6 +225,17 @@ test("first profile offers a direct scene instead of another setup task", async 
   await expect(page.getByRole("dialog", { name: "테스트린 피드 도움말" })).toBeVisible();
 });
 
+test("credit mockup opens from the feed and returns to the same screen without starting a payment", async ({ page }) => {
+  await createCharacter(page);
+  await page.getByRole("button", { name: /크레딧.*충전 화면 열기/ }).click();
+  await expect(page).toHaveURL(/\/app\/credits$/);
+  await expect(page.getByRole("heading", { name: "이야기를 이어갈 크레딧" })).toBeVisible();
+  await page.getByRole("button", { name: /가볍게 이어가기/ }).click();
+  await expect(page.getByRole("button", { name: "결제 준비 중" })).toBeDisabled();
+  await page.getByRole("button", { name: "이전 화면으로" }).click();
+  await expect(page).toHaveURL(/\/app\/feed$/);
+});
+
 test("comment composer keeps the active speaker clear and prevents blank sends", async ({ page }) => {
   await createCharacter(page);
   await createFirstPost(page);

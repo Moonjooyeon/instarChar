@@ -3,6 +3,7 @@ import { AliveIcon } from "@/components/ui/AliveIcon";
 import { CharacterAvatarImage } from "@/components/ui/CharacterAvatarImage";
 import { USER_PERSONA_FEATURE_ENABLED } from "@/domain/app/featureFlags";
 import { ServiceTour } from "@/features/onboarding/ServiceTour";
+import { CreditShortcut } from "@/features/credits/CreditShortcut";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import {
   ACCOUNT_DELETION_URL,
@@ -21,6 +22,7 @@ export function HomeScreen({
   deletePersona,
   editAccount,
   hasBackendApiConfig,
+  openCredits,
   personas,
   profileName,
   saveStatus,
@@ -42,6 +44,7 @@ export function HomeScreen({
         <div className="al-accountbar">
           <span>{hasBackendApiConfig ? (profileName || session?.user?.email || "로그인됨") : "로컬 모드"}</span>
           {saveMessage && <b role="status">{saveMessage}</b>}
+          <CreditShortcut onOpen={openCredits} />
           <ThemeToggle {...theme} />
           {hasBackendApiConfig && <button className={HOME_SIGN_OUT_CLASS} onClick={signOut}>로그아웃</button>}
         </div>

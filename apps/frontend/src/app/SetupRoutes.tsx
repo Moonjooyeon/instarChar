@@ -1,4 +1,5 @@
 import React from "react";
+import { CreditStoreScreen } from "@/features/credits/CreditStoreScreen";
 import type { useAliveAppController } from "@/hooks/useAliveAppController";
 import type { ThemeController } from "@/hooks/useAliveTheme";
 
@@ -14,6 +15,7 @@ export function SetupRoutes({ ctx, theme }: SetupRoutesProps) {
     canUseApp,
     char,
     characterSaveError,
+    closeCredits,
     confirmReady,
     ConfirmScreen,
     deleteAccount,
@@ -31,6 +33,7 @@ export function SetupRoutes({ ctx, theme }: SetupRoutesProps) {
     parseFailed,
     parseRelations,
     parsing,
+    openCredits,
     personas,
     profileName,
     rpLog,
@@ -61,6 +64,7 @@ export function SetupRoutes({ ctx, theme }: SetupRoutesProps) {
           hasBackendApiConfig={hasBackendApiConfig}
           personas={personas}
           profileName={profileName}
+          openCredits={openCredits}
           saveStatus={saveStatus}
           session={session}
           setDeleteTarget={setDeleteTarget}
@@ -70,6 +74,10 @@ export function SetupRoutes({ ctx, theme }: SetupRoutesProps) {
           switchAccount={switchAccount}
           theme={theme}
         />
+      )}
+
+      {canUseApp && step === "credits" && (
+        <CreditStoreScreen onBack={closeCredits} />
       )}
 
       {canUseApp && step === "dump" && (

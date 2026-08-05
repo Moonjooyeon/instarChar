@@ -80,6 +80,27 @@ test("theme-ready entry screens use layered legacy CSS and Tailwind utilities", 
   assert.match(confirmScreen, /al-phone al-theme-ready/);
 });
 
+test("the credit mockup uses a dedicated semantic screen and shared shortcuts", () => {
+  const indexStyles = readFileSync(path.resolve(process.cwd(), "src/styles/index.css"), "utf8");
+  const homeScreen = readFileSync(path.resolve(process.cwd(), "src/features/home/HomeScreen.tsx"), "utf8");
+  const feedScreen = readFileSync(path.resolve(process.cwd(), "src/app/feed/FeedProfilePanel.tsx"), "utf8");
+  const discoverScreen = readFileSync(path.resolve(process.cwd(), "src/features/discover/DiscoverScreen.tsx"), "utf8");
+  const dmListScreen = readFileSync(path.resolve(process.cwd(), "src/features/dm/DmListScreen.tsx"), "utf8");
+  const dmThreadScreen = readFileSync(path.resolve(process.cwd(), "src/app/dm/DmThreadRoute.tsx"), "utf8");
+  const creditScreen = readFileSync(path.resolve(process.cwd(), "src/features/credits/CreditStoreScreen.tsx"), "utf8");
+  const creditStyles = readFileSync(path.resolve(process.cwd(), "src/styles/screens/credit.css"), "utf8");
+  assert.match(indexStyles, /screens\/credit\.css" layer\(components\)/);
+  assert.match(homeScreen, /CreditShortcut/);
+  assert.match(feedScreen, /CreditShortcut/);
+  assert.match(discoverScreen, /CreditShortcut/);
+  assert.match(dmListScreen, /CreditShortcut/);
+  assert.match(dmThreadScreen, /CreditShortcut/);
+  assert.match(creditScreen, /al-phone al-theme-ready al-credit-theme-ready/);
+  assert.match(creditStyles, /\.al-credit-theme-ready \.al-credit-screen/);
+  assert.match(creditStyles, /\.al-theme-ready \.al-credit-shortcut/);
+  assert.doesNotMatch(creditStyles, /#[0-9a-fA-F]{3,8}/);
+});
+
 test("the staged feed profile uses semantic Tailwind colors", () => {
   const indexStyles = readFileSync(path.resolve(process.cwd(), "src/styles/index.css"), "utf8");
   const profileScreen = readFileSync(path.resolve(process.cwd(), "src/app/feed/FeedProfilePanel.tsx"), "utf8");

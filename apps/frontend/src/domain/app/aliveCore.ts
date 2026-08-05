@@ -5,7 +5,7 @@ export const MODEL_UTIL = "claude-haiku-4-5-20251001";
 export const LOCAL_STATE_KEY = "alive_app_state_v1";
 export const API_LIMIT_MESSAGE = "오늘 한정된 API는 다 사용했어요! 다음에 만나요.";
 
-export type AppStep = "home" | "dump" | "confirm" | "feed" | "discover" | "dmlist" | "dm";
+export type AppStep = "home" | "credits" | "dump" | "confirm" | "feed" | "discover" | "dmlist" | "dm";
 
 export type ProposalState = {
   asker: string;
@@ -66,9 +66,10 @@ type DiscoverCharacter = CharacterLike & {
   tags: string[];
 };
 
-export const RENDERABLE_STEPS = new Set<AppStep>(["home", "dump", "confirm", "feed", "discover", "dmlist", "dm"]);
+export const RENDERABLE_STEPS = new Set<AppStep>(["home", "credits", "dump", "confirm", "feed", "discover", "dmlist", "dm"]);
 export const STEP_TO_PATH: Record<AppStep, string> = {
   home: "/app",
+  credits: "/app/credits",
   dump: "/app/new",
   confirm: "/app/confirm",
   feed: "/app/feed",
@@ -79,6 +80,7 @@ export const STEP_TO_PATH: Record<AppStep, string> = {
 export const PATH_TO_STEP: Record<string, AppStep> = {
   "/app": "home",
   "/app/": "home",
+  "/app/credits": "credits",
   "/app/new": "dump",
   "/app/confirm": "confirm",
   "/app/feed": "feed",
@@ -91,9 +93,15 @@ export const SHARED_LINK_PATH = "/app/discover";
 export function normalizeSavedStep(savedStep: unknown, hasActiveAccount: boolean): AppStep {
   if (!isAppStep(savedStep)) return "home";
   if (["dump", "confirm"].includes(savedStep)) return "home";
-  if (!hasActiveAccount && savedStep !== "home") return "home";
+  if (!hasActiveAccount && !["home", "credits"].includes(savedStep)) return "home";
   if (savedStep === "dm") return "dmlist";
   return savedStep;
+}
+
+export function resolveCreditReturnStep(returnStep: AppStep, hasActiveAccount: boolean): AppStep {
+  if (returnStep === "credits") return "home";
+  if (!hasActiveAccount && returnStep !== "home") return "home";
+  return returnStep;
 }
 
 export function stepFromPath(pathname: string, hasActiveAccount: boolean): AppStep {

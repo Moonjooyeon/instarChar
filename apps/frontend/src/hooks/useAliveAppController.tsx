@@ -53,6 +53,7 @@ import {
   POST_MOODS,
   QUICK_FIXES,
   RENDERABLE_STEPS,
+  resolveCreditReturnStep,
   TONE_PRESETS,
   type AppStep,
   hasBatchim,
@@ -121,6 +122,7 @@ export function useAliveAppController() {
   const [characterSaveError, setCharacterSaveError] = useState("");
   const [stateReady, setStateReady] = useState(!hasBackendApiConfig);
   const [step, setStep] = useState<AppStep>("home");
+  const creditReturnStepRef = useRef<AppStep>("home");
   const {
     accounts,
     activeId,
@@ -708,12 +710,19 @@ export function useAliveAppController() {
   const canUseApp = !hasBackendApiConfig || (session && stateReady && consentLoaded && consentAccepted);
   const authBusy = hasBackendApiConfig && (authLoading || profileLoading || (session && (!stateReady || !consentLoaded)));
   const appScreenVisible = canUseApp && (
-    ["home", "dump", "confirm", "feed", "discover", "dmlist"].includes(step)
+    ["home", "credits", "dump", "confirm", "feed", "discover", "dmlist"].includes(step)
     || (step === "dm" && peer)
   );
   const needsSafetyConsent = Boolean(hasBackendApiConfig && session && consentLoaded && !consentAccepted);
   const hasMainScreen = authBusy || needsSafetyConsent || (hasBackendApiConfig && !authLoading && !session) || appScreenVisible;
   const showRecoveryScreen = !hasMainScreen;
+  const openCredits = (): void => {
+    if (step !== "credits") creditReturnStepRef.current = step;
+    setStep("credits");
+  };
+  const closeCredits = (): void => {
+    setStep(resolveCreditReturnStep(creditReturnStepRef.current, Boolean(activeId)));
+  };
   const {
     navApplyingRef,
     navInitRef,
@@ -1089,6 +1098,7 @@ export function useAliveAppController() {
     cleanMemItems,
     clearLocalAuthStorage,
     closeProfilePanels,
+    closeCredits,
     commentAs,
     commentOn,
     commentText,
@@ -1234,6 +1244,7 @@ export function useAliveAppController() {
     normalizeMemoryEntry,
     normalizeRelationLabelsForChar,
     onboardingOpen,
+    openCredits,
     OOC_GUARD_RULE,
     openCommentBox,
     openDmSettings,

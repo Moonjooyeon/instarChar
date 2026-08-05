@@ -35,6 +35,7 @@ const ICONS = {
   "swap": <><path d="M7 7h11l-3-3" /><path d="M17 17H6l3 3" /></>,
   "user": <><circle cx="12" cy="8" r="4" /><path d="M5 21a7 7 0 0 1 14 0" /></>,
   "users": <><circle cx="9" cy="9" r="3" /><circle cx="17" cy="10" r="2.5" /><path d="M3.5 20a5.5 5.5 0 0 1 11 0M14 16a4.5 4.5 0 0 1 6.5 4" /></>,
+  "wallet": <><path d="M5 6h12a3 3 0 0 1 3 3v9H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h10" /><path d="M14 10h7v5h-7a2.5 2.5 0 0 1 0-5Z" /><path d="M16.5 12.5h.1" /></>,
 } as const;
 
 type AliveIconName = keyof typeof ICONS;

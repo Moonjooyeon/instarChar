@@ -2,6 +2,7 @@
 @import "./theme.css";
 @import "./legacy.css" layer(components);
 @import "./screens/home.css" layer(components);
+@import "./screens/credit.css" layer(components);
 @import "./screens/entry.css" layer(components);
 @import "./screens/feed-profile.css" layer(components);
 @import "./screens/feed-composer.css" layer(components);

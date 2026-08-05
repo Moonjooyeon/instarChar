@@ -1,6 +1,7 @@
 import React from "react";
 import { AliveIcon } from "@/components/ui/AliveIcon";
 import { CharacterAvatarImage } from "@/components/ui/CharacterAvatarImage";
+import { CreditShortcut } from "@/features/credits/CreditShortcut";
 import { USER_PERSONA_FEATURE_ENABLED, normalizeUserPersonaSpeaker } from "@/domain/app/featureFlags";
 
 interface AvatarCharacter {
@@ -27,6 +28,7 @@ export function DmListScreen({
   nameMatch,
   newChatMode,
   newChatSpeaker,
+  openCredits,
   personas,
   relationMatched,
   requestDmEntry,
@@ -52,6 +54,7 @@ export function DmListScreen({
           <span className="al-dmhead-name">{char.name}의 대화</span>
           <span className="al-dmhead-sub">바로 말하거나 캐릭터끼리 만나게 해요.</span>
         </div>
+        <CreditShortcut onOpen={openCredits} />
       </div>
 
       <div className="al-convlist">

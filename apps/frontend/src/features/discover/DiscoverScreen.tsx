@@ -1,6 +1,7 @@
 ﻿import React from "react";
 import { AliveIcon } from "@/components/ui/AliveIcon";
 import { CharacterAvatarImage } from "@/components/ui/CharacterAvatarImage";
+import { CreditShortcut } from "@/features/credits/CreditShortcut";
 
 export function DiscoverScreen({
   activeId,
@@ -13,6 +14,7 @@ export function DiscoverScreen({
   hasBackendApiConfig,
   isFollowing,
   loadSharedCharacters,
+  openCredits,
   publicFollowerCount,
   requestDmEntry,
   session,
@@ -52,6 +54,7 @@ export function DiscoverScreen({
           <span className="al-dmhead-name">새로운 캐릭터 만나기</span>
           <span className="al-dmhead-sub">추가하고 글을 보거나 바로 대화해요.</span>
         </div>
+        <CreditShortcut onOpen={openCredits} />
       </div>
       <div className="al-disc-search">
         <input

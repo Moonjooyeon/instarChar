@@ -3,6 +3,7 @@ import { FeedHelpTour } from "@/app/feed/FeedHelpTour";
 import { FeedMemoryPanel } from "@/app/feed/FeedMemoryPanel";
 import { AliveIcon } from "@/components/ui/AliveIcon";
 import { CharacterAvatarImage } from "@/components/ui/CharacterAvatarImage";
+import { CreditShortcut } from "@/features/credits/CreditShortcut";
 import { knownCharacterRelations } from "@/domain/app/aliveCore";
 import { useFeedHelpTour } from "@/hooks/useFeedHelpTour";
 
@@ -34,6 +35,7 @@ export function FeedProfilePanel({ ctx }) {
     loading,
     myPosts,
     myFollowers,
+    openCredits,
     parseRelations,
     relationStageLabel,
     relLabelFor,
@@ -72,7 +74,7 @@ export function FeedProfilePanel({ ctx }) {
       <div className="al-banner">
         {char.headerImg && <img src={char.headerImg} alt="" />}
         {isFirstPost && !char.headerImg && <FirstSceneBanner char={char} />}
-        <button className="al-feed-help" type="button" disabled={loading} onClick={openHelp} aria-label="피드 도움말 열기"><span><AliveIcon name="help" size={15} /></span><b>도움말</b></button>
+        <div className="al-feed-utilities"><CreditShortcut onOpen={openCredits} overlay /><button className="al-feed-help" type="button" disabled={loading} onClick={openHelp} aria-label="피드 도움말 열기"><span><AliveIcon name="help" size={15} /></span><b>도움말</b></button></div>
         {!isFirstPost && isProfileToolsOpen && <div className="al-cover-tools">
           <label title="헤더 등록">
             헤더 편집
