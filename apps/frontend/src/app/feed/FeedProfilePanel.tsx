@@ -6,6 +6,14 @@ import { CharacterAvatarImage } from "@/components/ui/CharacterAvatarImage";
 import { knownCharacterRelations } from "@/domain/app/aliveCore";
 import { useFeedHelpTour } from "@/hooks/useFeedHelpTour";
 
+interface FirstSceneCharacter {
+  age?: unknown;
+  catchphrase?: unknown;
+  interests?: unknown;
+  name: string;
+  world?: unknown;
+}
+
 export function FeedProfilePanel({ ctx }) {
   const {
     activeSharedId,
@@ -59,10 +67,11 @@ export function FeedProfilePanel({ ctx }) {
   }, [feedView, isFirstPost, isHelpOpen, setFeedView]);
   const relCount = relations.length;
   return (
-    <div className="al-profile">
+    <div className={`al-profile ${isFirstPost ? "al-profile-first" : ""}`}>
       <button className="al-back" onClick={goHome} aria-label="내 캐릭터 목록으로"><AliveIcon name="chevron-left" size={21} /></button>
       <div className="al-banner">
         {char.headerImg && <img src={char.headerImg} alt="" />}
+        {isFirstPost && !char.headerImg && <FirstSceneBanner char={char} />}
         <button className="al-feed-help" type="button" disabled={loading} onClick={openHelp} aria-label="피드 도움말 열기"><span><AliveIcon name="help" size={15} /></span><b>도움말</b></button>
         {!isFirstPost && isProfileToolsOpen && <div className="al-cover-tools">
           <label title="헤더 등록">
@@ -92,11 +101,10 @@ export function FeedProfilePanel({ ctx }) {
           </div>
           {!isFirstPost && <div className="al-feed-actions"><button className="al-dmbtn inline-flex min-h-[34px] items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-line-strong bg-surface-raised px-3 py-2 text-xs font-extrabold leading-none text-ink transition-colors hover:border-accent hover:bg-accent-soft" onClick={() => setStep("dmlist")} title="대화"><span className="text-accent-ink"><AliveIcon name="mail" size={15} /></span><b>대화</b></button></div>}
         </div>
-        {(char.age || !isFirstPost) && <div className="al-profile-meta-row">{char.age && <span className="al-profile-meta">{char.age}</span>}{!isFirstPost && <WorldChip character={char} fallback="current-character" onOpen={setWorldModal} />}</div>}
-        {char.surface && <p className="al-profile-intro">{char.surface}</p>}
-        {char.persona && <p className="al-bio-text"><span>소개</span><b>{char.persona}</b></p>}
+        {(char.age || char.world || !isFirstPost) && <div className="al-profile-meta-row">{char.age && <span className="al-profile-meta">{char.age}</span>}{(char.world || !isFirstPost) && <WorldChip character={char} fallback="current-character" onOpen={setWorldModal} />}</div>}
+        {char.surface && (isFirstPost ? <FirstImpression text={char.surface} /> : <p className="al-profile-intro">{char.surface}</p>)}
+        {char.persona && !isFirstPost && <p className="al-bio-text"><span>소개</span><b>{char.persona}</b></p>}
         {shareStatus && <p className="al-share-status">{shareStatus}</p>}
-        {isFirstPost && <p className="al-first-profile-note">프로필은 준비됐어요. 이제 첫 글 하나만 만들면 시작됩니다.</p>}
         {!isFirstPost && <button className="al-profile-more border-line bg-surface text-ink hover:border-accent hover:bg-accent-soft" type="button" aria-expanded={isProfileToolsOpen} onClick={() => setIsProfileToolsOpen((open) => !open)}><span><b>기억·관계·공개 설정</b><small className="text-faint">필요할 때만 열어보세요.</small></span><i className="text-accent-ink"><AliveIcon name={isProfileToolsOpen ? "minus" : "plus"} size={19} /></i></button>}
         {!isFirstPost && isProfileToolsOpen && <div className="al-profile-tools"><div className="al-profile-tool-actions"><button onClick={() => { setDiscoverQuery(""); setSharedFocusId(""); setStep("discover"); }}>새 캐릭터 만나기</button><button onClick={shareCurrentCharacter}>내 캐릭터 공개하기</button></div><div className="al-follow-stats">
           <button className={`al-fstat ${followPanel === "following" ? "on" : ""}`} onClick={() => toggleFollowPanel("following")}>
@@ -142,6 +150,29 @@ export function FeedProfilePanel({ ctx }) {
       <FeedHelpTour characterName={char.name} hasPosts={!isFirstPost} isOpen={isHelpOpen} onClose={closeHelp} />
     </div>
   );
+}
+
+function FirstSceneBanner({ char }: { char: FirstSceneCharacter }): React.ReactElement {
+  const line = compactSceneText(char.catchphrase, `${char.name}의 첫 문장을 기다리는 중`);
+  const context = compactSceneText(char.world || char.interests || char.age, "설정에서 장면을 준비하고 있어요");
+  return <div className="al-first-banner-copy"><small>첫 장면의 단서</small><p>“{line}”</p><span>{context}</span></div>;
+}
+
+function FirstImpression({ text }: { text: unknown }): React.ReactElement {
+  return <div className="al-first-impression"><span>첫인상</span><p>{firstImpressionText(text)}</p></div>;
+}
+
+function firstImpressionText(value: unknown): string {
+  const text = typeof value === "string" ? value.trim().replace(/\s+/g, " ") : "";
+  if (!text) return "아직 첫인상을 알아가는 중이에요.";
+  const sentence = text.match(/^.*?[.!?](?=\s|$)/)?.[0] || text;
+  return sentence.length > 68 ? `${sentence.slice(0, 68).trim()}…` : sentence;
+}
+
+function compactSceneText(value: unknown, fallback: string): string {
+  const text = typeof value === "string" ? value.trim().replace(/\s+/g, " ") : "";
+  if (!text) return fallback;
+  return text.length > 42 ? `${text.slice(0, 42).trim()}…` : text;
 }
 
 function FeedRelations({ ctx }) {

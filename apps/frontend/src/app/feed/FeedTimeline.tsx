@@ -9,6 +9,25 @@ interface GenerationFailureProps {
   onRetry: () => void;
 }
 
+interface FirstPostScene {
+  description: string;
+  label: string;
+  mood: string;
+}
+
+interface EmptyFeedProps {
+  char: { name: string };
+  feedView: string;
+  onGenerate: (mood: string) => void;
+  onStart: () => void;
+}
+
+const FIRST_POST_SCENES: FirstPostScene[] = [
+  { label: "방금 있었던 일", description: "오늘의 한 장면부터", mood: "일상 / 방금 있었던 일" },
+  { label: "혼자 든 생각", description: "속마음부터 조용히", mood: "혼잣말 / 생각" },
+  { label: "캐릭터에게 맡기기", description: "캐릭터가 직접 선택", mood: "랜덤 / 알아서" },
+];
+
 export function FeedTimeline({ ctx }) {
   const {
     activeId,
@@ -22,6 +41,7 @@ export function FeedTimeline({ ctx }) {
     editingPost,
     feedTopRef,
     feedView,
+    generatePost,
     isLikePending,
     loading,
     moodOpen,
@@ -64,9 +84,9 @@ export function FeedTimeline({ ctx }) {
       <div className="al-feed" ref={feedTopRef}>
         {loading && <GeneratingPost char={char} />}
         {!loading && generationError && <GenerationFailure message={generationError} onRetry={() => { setSaveStatus("저장됨"); setFeedView("mine"); setMoodOpen(true); }} />}
-        {isFirstPost && !loading && !moodOpen && !generationError && <EmptyFeed char={char} feedView="mine" onStart={() => { setFeedView("mine"); setMoodOpen(true); }} />}
+        {isFirstPost && !loading && !moodOpen && !generationError && <EmptyFeed char={char} feedView="mine" onGenerate={(mood) => { setFeedView("mine"); generatePost(mood); }} onStart={() => { setFeedView("mine"); setMoodOpen(true); }} />}
         {!isFirstPost && visiblePosts.length === 0 && !loading && (
-          <EmptyFeed char={char} feedView={feedView} onStart={() => { setFeedView("mine"); setMoodOpen(true); }} />
+          <EmptyFeed char={char} feedView={feedView} onGenerate={generatePost} onStart={() => { setFeedView("mine"); setMoodOpen(true); }} />
         )}
         {!isFirstPost && visiblePosts.map((post) => (
           <React.Fragment key={post.id}>
@@ -78,9 +98,9 @@ export function FeedTimeline({ ctx }) {
   );
 }
 
-function EmptyFeed({ char, feedView, onStart }) {
+function EmptyFeed({ char, feedView, onGenerate, onStart }: EmptyFeedProps): React.ReactElement {
   if (feedView === "timeline") return <div className="al-empty"><span>타임라인이 아직 조용해요.</span><p>새로운 캐릭터를 추가하면 그 아이의 글도 이곳에 나타나요.</p></div>;
-  return <div className="al-first-feed"><span className="al-first-feed-avatar"><CharacterAvatarImage src={char.avatarImg} /></span><div><span>첫 글까지 한 단계</span><h3>{char.name}의 첫 글을<br />만나볼까요?</h3><p>장면만 고르면 {char.name}가 이어서 써요.</p><button className="border-accent bg-accent-soft text-accent-ink hover:bg-accent hover:text-white" aria-label="첫 글의 장면 고르기" type="button" onClick={onStart}>첫 장면 고르기</button></div></div>;
+  return <section className="al-first-feed al-first-stage" aria-labelledby="first-stage-title"><header><span>01</span><div><small>이제 캐릭터가 직접 씁니다</small><h3 id="first-stage-title">{char.name}의 오늘을<br />어디서 시작할까요?</h3></div></header><div className="al-first-scenes">{FIRST_POST_SCENES.map((scene, index) => <button key={scene.mood} type="button" onClick={() => onGenerate(scene.mood)}><i>{String(index + 1).padStart(2, "0")}</i><span><b>{index === 2 ? `${char.name}에게 맡기기` : scene.label}</b><small>{scene.description}</small></span><AliveIcon name="arrow-right" size={15} /></button>)}</div><footer><span>다른 분위기로 시작하고 싶다면</span><button aria-label="첫 글의 장면 고르기" type="button" onClick={onStart}>장면 더 보기 <AliveIcon name="arrow-right" size={13} /></button></footer></section>;
 }
 
 function GeneratingPost({ char }) {

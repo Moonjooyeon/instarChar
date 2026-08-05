@@ -73,17 +73,23 @@ export function FeedHelpTour({ characterName, hasPosts, isOpen, onClose }: FeedH
   const isLastStep = stepIndex === steps.length - 1;
   const placement = getTooltipPlacement(rectangle);
   const goNext = (): void => isLastStep ? onClose() : setStepIndex((index) => index + 1);
-  return createPortal(<div className="al-theme-ready al-feed-help-theme-ready"><div className="al-help-shield" aria-hidden="true" onClick={goNext} /><div className="al-help-highlight" style={getHighlightStyle(rectangle)} /><div className="al-help-tap" aria-hidden="true" style={getTapIndicatorStyle(rectangle, step)}><i /></div><section className="al-help-coach" data-placement={placement} ref={dialogReference} role="dialog" aria-modal="true" aria-label={`${characterName} 피드 도움말`} style={getTooltipStyle(rectangle, placement)} tabIndex={-1}><button className="al-help-close" onClick={onClose} aria-label="도움말 닫기"><AliveIcon name="close" size={16} /></button><div className="al-help-coach-copy"><span><AliveIcon name={step.glyph} size={19} /></span><div><small>{String(stepIndex + 1).padStart(2, "0")} / {String(steps.length).padStart(2, "0")}</small><h2>{step.title}</h2><p>{step.description}</p></div></div><footer><div className="al-help-progress" aria-hidden="true">{steps.map((item, index) => <i className={index === stepIndex ? "on" : index < stepIndex ? "done" : ""} key={item.selector} />)}</div><div><button className="al-help-prev border-line bg-surface-raised text-soft hover:bg-surface-muted hover:text-ink" disabled={stepIndex === 0} onClick={() => setStepIndex((index) => index - 1)} aria-label="이전 도움말"><AliveIcon name="arrow-left" size={14} /></button><button className="al-help-next border-accent bg-accent text-white hover:bg-accent-strong" onClick={goNext}>{isLastStep ? "완료" : "다음"} <span><AliveIcon name="arrow-right" size={13} /></span></button></div></footer></section></div>, document.body);
+  return createPortal(<div className="al-theme-ready al-feed-help-theme-ready"><div className="al-help-shield" aria-hidden="true" onClick={goNext} /><div className="al-help-highlight" style={getHighlightStyle(rectangle)} /><div className="al-help-tap" aria-hidden="true" style={getTapIndicatorStyle(rectangle, step)}><i /></div><section className="al-help-coach" data-placement={placement} ref={dialogReference} role="dialog" aria-modal="true" aria-label={`${characterName} 피드 도움말`} style={getTooltipStyle(rectangle, placement)} tabIndex={-1}><button className="al-help-close" onClick={onClose} aria-label="도움말 닫기"><AliveIcon name="close" size={16} /></button><div className="al-help-coach-copy" key={step.selector}><span><AliveIcon name={step.glyph} size={19} /></span><div><small>{String(stepIndex + 1).padStart(2, "0")} / {String(steps.length).padStart(2, "0")}</small><h2>{step.title}</h2><p>{step.description}</p></div></div><footer><div className="al-help-progress" aria-hidden="true">{steps.map((item, index) => <i className={index === stepIndex ? "on" : index < stepIndex ? "done" : ""} key={item.selector} />)}</div><div><button className="al-help-prev border-line bg-surface-raised text-soft hover:bg-surface-muted hover:text-ink" disabled={stepIndex === 0} onClick={() => setStepIndex((index) => index - 1)} aria-label="이전 도움말"><AliveIcon name="arrow-left" size={14} /></button><button className="al-help-next border-accent bg-accent text-white hover:bg-accent-strong" onClick={goNext}>{isLastStep ? "완료" : "다음"} <span><AliveIcon name="arrow-right" size={13} /></span></button></div></footer></section></div>, document.body);
 }
 
 function useTargetRectangle(isOpen: boolean, selector: string): TargetRectangle | null {
   const [measurement, setMeasurement] = React.useState<TargetMeasurement | null>(null);
   React.useEffect(() => {
-    setMeasurement(null);
-    if (!isOpen || !selector) return;
+    if (!isOpen) {
+      setMeasurement(null);
+      return;
+    }
+    if (!selector) return;
     const target = document.querySelector<HTMLElement>(selector);
     if (!target) return;
-    const updateRectangle = (): void => setMeasurement({ rectangle: toTargetRectangle(target.getBoundingClientRect()), selector });
+    const updateRectangle = (): void => {
+      const rectangle = toTargetRectangle(target.getBoundingClientRect());
+      setMeasurement((current) => current && isOutsideViewport(rectangle) ? current : { rectangle, selector });
+    };
     target.scrollIntoView({ behavior: hasReducedMotion() ? "auto" : "smooth", block: "center" });
     updateRectangle();
     const observer = new ResizeObserver(updateRectangle);
@@ -93,7 +99,7 @@ function useTargetRectangle(isOpen: boolean, selector: string): TargetRectangle 
     window.addEventListener("scroll", updateRectangle, true);
     return () => removeTargetObservers({ observer, timeoutId, updateRectangle });
   }, [isOpen, selector]);
-  return measurement?.selector === selector ? measurement.rectangle : null;
+  return measurement?.rectangle || null;
 }
 
 function removeTargetObservers({ observer, timeoutId, updateRectangle }: { observer: ResizeObserver; timeoutId: number; updateRectangle: () => void }): void {
@@ -114,6 +120,10 @@ function registerEscapeClose(isOpen: boolean, onClose: () => void): (() => void)
 
 function toTargetRectangle(rectangle: DOMRect): TargetRectangle {
   return { bottom: rectangle.bottom, height: rectangle.height, left: rectangle.left, top: rectangle.top, width: rectangle.width };
+}
+
+function isOutsideViewport(rectangle: TargetRectangle): boolean {
+  return rectangle.bottom < HIGHLIGHT_VIEWPORT_MARGIN || rectangle.top > window.innerHeight - HIGHLIGHT_VIEWPORT_MARGIN;
 }
 
 function hasReducedMotion(): boolean {

@@ -215,6 +215,16 @@ test("first-post picker hides the duplicate empty state and post management open
   expect(menuBox.y + menuBox.height).toBeLessThanOrEqual(summaryBox.y + 1);
 });
 
+test("first profile offers a direct scene instead of another setup task", async ({ page }) => {
+  await createCharacter(page);
+  await expect(page.getByText("첫 장면의 단서")).toBeVisible();
+  await expect(page.getByText("첫인상")).toBeVisible();
+  await expect(page.getByText("프로필은 준비됐어요")).toHaveCount(0);
+  await page.getByRole("button", { name: /방금 있었던 일/ }).click();
+  await expect(page.locator(".al-post")).toHaveCount(1);
+  await expect(page.getByRole("dialog", { name: "테스트린 피드 도움말" })).toBeVisible();
+});
+
 test("comment composer keeps the active speaker clear and prevents blank sends", async ({ page }) => {
   await createCharacter(page);
   await createFirstPost(page);

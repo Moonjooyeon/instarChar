@@ -37,7 +37,7 @@ export function FeedComposer({ ctx }) {
             <button className="al-writeself border-line bg-surface-raised text-ink hover:border-accent hover:bg-accent-soft" onClick={() => setWriteOpen((value) => !value)}><AliveIcon name="pen" size={15} /> 직접 쓰기</button>
           </div>
         ) : (
-          <div className="al-moods"><p className="al-moods-q">{isFirstPost ? `${char.name}의 첫 글은 어떤 장면일까요?` : "어떤 글을 부탁할까요?"}</p><div className="al-moods-grid">{POST_MOODS.map((mood) => <button key={mood} className="al-mood" onClick={() => { setFeedView("mine"); generatePost(mood); }}>{mood}</button>)}</div><button className="al-moods-cancel" onClick={() => setMoodOpen(false)}>닫기</button></div>
+          <div className="al-moods"><header className="al-moods-head"><small>{isFirstPost ? "다른 시작" : "글 부탁하기"}</small><p className="al-moods-q">{isFirstPost ? `${char.name}의 첫 글은 어떤 장면일까요?` : "어떤 글을 부탁할까요?"}</p></header><div className="al-moods-grid">{POST_MOODS.map((mood) => <MoodButton key={mood} mood={mood} onSelect={(value) => { setFeedView("mine"); generatePost(value); }} />)}</div><button className="al-moods-cancel" onClick={() => setMoodOpen(false)}>닫기</button></div>
         )}
         {writeOpen && <div className="al-writebox"><p className="al-write-lbl">{char.name}의 목소리로 직접 작성해요.</p><textarea value={writeText} onChange={(event) => setWriteText(event.target.value)} placeholder={`${char.name}의 글을 직접 써보세요.`} /><div className="al-write-actions"><button className="al-write-cancel border-line bg-transparent text-soft hover:border-line-strong hover:bg-surface-muted hover:text-ink" onClick={() => { setWriteOpen(false); setWriteText(""); }}>취소</button><button className="al-write-post bg-accent text-white hover:bg-accent-strong disabled:bg-surface-muted disabled:text-faint" disabled={!writeText.trim()} onClick={() => { manualPost(writeText); setWriteText(""); setWriteOpen(false); }}>올리기</button></div></div>}
       </div>
@@ -66,6 +66,19 @@ export function FeedComposer({ ctx }) {
       </div></div>}
     </>
   );
+}
+
+function MoodButton({ mood, onSelect }: { mood: string; onSelect: (mood: string) => void }): React.ReactElement {
+  const label = moodLabel(mood);
+  return <button type="button" className="al-mood" onClick={() => onSelect(mood)}><b>{label.title}</b>{label.hint && <small>{label.hint}</small>}</button>;
+}
+
+function moodLabel(mood: string): { hint: string; title: string } {
+  const slashParts = mood.split(" / ");
+  if (slashParts.length > 1) return { title: slashParts[0], hint: slashParts.slice(1).join(" / ") };
+  const parenthetical = mood.match(/^(.+?)\s*\((.+)\)$/);
+  if (!parenthetical) return { title: mood, hint: "" };
+  return { title: parenthetical[1], hint: parenthetical[2] };
 }
 
 function countdownText(seconds) {

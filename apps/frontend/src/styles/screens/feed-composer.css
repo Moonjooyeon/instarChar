@@ -7,7 +7,13 @@
 .al-feed-theme-ready .al-wake{ border-color:var(--alive-line-strong); background:var(--alive-accent-soft); color:var(--alive-accent-ink); }
 .al-feed-theme-ready .al-writeself{ border-color:var(--alive-line); background:var(--alive-surface-raised); color:var(--alive-ink); }
 .al-feed-theme-ready .al-moods-q,.al-feed-theme-ready .al-write-lbl{ color:var(--alive-soft); }
+.al-feed-theme-ready .al-moods-head{ margin-bottom:12px; }
+.al-feed-theme-ready .al-moods-head small{ display:block; margin-bottom:3px; color:var(--alive-accent-ink); font-size:9px; font-weight:850; letter-spacing:.08em; }
+.al-feed-theme-ready .al-moods-head .al-moods-q{ margin:0; color:var(--alive-ink); font-size:15px; font-weight:780; }
 .al-feed-theme-ready .al-mood{ border-color:var(--alive-line); background:var(--alive-surface-raised); color:var(--alive-ink); }
+.al-feed-theme-ready .al-mood{ display:flex; min-height:58px; flex-direction:column; align-items:flex-start; justify-content:center; gap:2px; text-align:left; }
+.al-feed-theme-ready .al-mood b{ font-size:12.5px; font-weight:800; }
+.al-feed-theme-ready .al-mood small{ color:var(--alive-soft); font-size:10px; }
 .al-feed-theme-ready .al-mood:hover{ border-color:var(--alive-accent); background:var(--alive-accent-soft); color:var(--alive-accent-ink); }
 .al-feed-theme-ready .al-mood:focus-visible{ border-color:var(--alive-accent); outline:none; box-shadow:0 0 0 3px var(--alive-accent-soft); }
 .al-feed-theme-ready .al-moods-cancel{ color:var(--alive-soft); }

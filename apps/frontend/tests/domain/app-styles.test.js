@@ -87,7 +87,11 @@ test("the staged feed profile uses semantic Tailwind colors", () => {
   assert.match(indexStyles, /screens\/feed-profile\.css" layer\(components\)/);
   assert.match(profileScreen, /border-line-strong bg-surface-raised/);
   assert.match(profileScreen, /al-profile-more border-line bg-surface text-ink/);
+  assert.match(profileScreen, /function FirstSceneBanner/);
+  assert.match(profileScreen, /function FirstImpression/);
   assert.match(profileStyles, /\.al-feed-theme-ready \.al-profile/);
+  assert.match(profileStyles, /\.al-feed-theme-ready \.al-profile-first \.al-banner/);
+  assert.match(profileStyles, /\.al-feed-theme-ready \.al-first-impression/);
   assert.doesNotMatch(profileStyles.replaceAll("#fff", ""), /#[0-9a-fA-F]{3,8}/);
 });
 
@@ -108,7 +112,9 @@ test("the staged feed composer uses semantic controls and its own style bridge",
   assert.match(indexStyles, /screens\/feed-composer\.css" layer\(components\)/);
   assert.match(composer, /al-wake border-line-strong bg-accent-soft text-accent-ink/);
   assert.match(composer, /al-write-post bg-accent text-white/);
+  assert.match(composer, /function MoodButton/);
   assert.match(composerStyles, /\.al-feed-theme-ready \.al-composer/);
+  assert.match(composerStyles, /\.al-feed-theme-ready \.al-moods-head/);
   assert.match(composerStyles, /@keyframes aliveComposerPulse/);
   assert.doesNotMatch(composerStyles, /#[0-9a-fA-F]{3,8}/);
 });
@@ -119,7 +125,9 @@ test("the staged feed timeline base uses semantic states without migrating comme
   const timelineStyles = readFileSync(path.resolve(process.cwd(), "src/styles/screens/feed-timeline.css"), "utf8");
   assert.match(indexStyles, /screens\/feed-timeline\.css" layer\(components\)/);
   assert.match(timeline, /function feedTabClass\(active: boolean\): string/);
+  assert.match(timeline, /FIRST_POST_SCENES/);
   assert.match(timeline, /al-like \$\{post\.liked \? "on text-like"/);
+  assert.match(timelineStyles, /\.al-feed-theme-ready \.al-first-stage/);
   assert.match(timelineStyles, /\.al-feed-theme-ready \.al-generating-post/);
   assert.match(timelineStyles, /\.al-feed-theme-ready \.al-post-more > div/);
   assert.doesNotMatch(timelineStyles, /\.al-comment/);
@@ -146,9 +154,11 @@ test("the feed activates theme scope after its portal-based help surface migrate
   assert.match(feedRoute, /al-phone al-theme-ready al-feed-theme-ready/);
   assert.match(helpTour, /al-theme-ready al-feed-help-theme-ready/);
   assert.match(helpTour, /al-help-next border-accent bg-accent text-white/);
+  assert.match(helpTour, /key=\{step\.selector\}/);
   assert.match(helpStyles, /\.al-feed-help-theme-ready \.al-help-highlight/);
   assert.match(helpStyles, /var\(--alive-scrim\)/);
   assert.match(helpStyles, /@keyframes aliveHelpTap/);
+  assert.match(helpStyles, /@keyframes aliveHelpCopyIn/);
   assert.doesNotMatch(helpStyles, /#[0-9a-fA-F]{3,8}/);
 });
 
