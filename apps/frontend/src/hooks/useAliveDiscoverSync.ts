@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { loadActiveSharedCharacterId } from "@/api/discover";
 import { hasRemoteApiClient } from "@/api/client";
-import { sharedIdFromSearch } from "@/domain/app/aliveCore";
+import { sharedIdFromSearch, type AppStep } from "@/domain/app/aliveCore";
 
 type SessionLike = {
   user?: {
@@ -35,8 +35,8 @@ type DiscoverSyncOptions = {
   setDiscoverQuery: (value: string) => void;
   setPublicProfile: (value: unknown) => void;
   setSharedFocusId: (value: string) => void;
-  setStep: (value: string) => void;
-  step: string;
+  setStep: (value: AppStep) => void;
+  step: AppStep;
   verifyMutualLove: (char: DiscoverCharacter, other: DiscoverCharacter) => { mutual: boolean };
 };
 

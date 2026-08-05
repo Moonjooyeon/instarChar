@@ -1,4 +1,6 @@
 import React from "react";
+import { AliveIcon } from "@/components/ui/AliveIcon";
+import { CharacterAvatarImage } from "@/components/ui/CharacterAvatarImage";
 
 type FeedMemoryEntry = {
   content?: string;
@@ -42,7 +44,7 @@ export function FeedMemoryPanel({ ctx }) {
     <div className="al-memlist">
       {allMem.length === 0 ? (
         <>
-          <p className="al-mem-note">아직 쌓인 장기기억이 없어. {char.name}가 대화를 나누면 핵심을 자동으로 기억해 — 약속·사건·감정 같은 걸 잊지 않게.</p>
+          <p className="al-mem-note">아직 남겨둔 기억이 없어요. {char.name}가 대화를 나누면 약속과 중요한 순간을 알아서 기억해요.</p>
           <FeedMemoryAdd ctx={{ addManualMemory, lorePeerOptions, memDraftText, renderLorePeerSelect, setMemDraftText, setShowMemoryAdd, showMemoryAdd }} />
         </>
       ) : (
@@ -55,7 +57,7 @@ export function FeedMemoryPanel({ ctx }) {
           {!memFilter && (
             <FeedMemoryAdd compact ctx={{ addManualMemory, lorePeerOptions, memDraftText, renderLorePeerSelect, setMemDraftText, setShowMemoryAdd, showMemoryAdd }} />
           )}
-          <p className="al-mem-note">{memFilter ? "감정 변화는 원인까지 남겨야 오래 기억해. 필요 없는 항목은 삭제할 수 있어." : "사람을 선택하면 해당 상대와의 장기기억만 열려. 전체 설정은 특정 상대 없이 항상 참고하는 내용이야."}</p>
+          <p className="al-mem-note">{memFilter ? "왜 마음이 달라졌는지 함께 남기면 다음 대화가 더 자연스러워요." : "상대를 선택하면 둘 사이에 남은 기억만 모아볼 수 있어요."}</p>
         </>
       )}
     </div>
@@ -72,7 +74,7 @@ function FeedMemoryPeers({ peerEntries, setMemDraftPeer, setMemFilter }) {
     <div className="al-mem-peers">
       {peerEntries.map(({ peer, count }) => (
         <button key={String(peer)} className="al-mem-peer-card" onClick={() => { setMemFilter(peer); setMemDraftPeer(peer === "*" ? "" : String(peer)); }}>
-          <span className="al-mem-peer-av">{peer === "*" ? "＊" : (String(peer).trim()[0] || "?")}</span>
+          <span className="al-mem-peer-av">{peer === "*" ? <AliveIcon name="memory" size={15} /> : <CharacterAvatarImage />}</span>
           <span className="al-mem-peer-info">
             <b>{peer === "*" ? "전체 설정" : peer}</b>
             <small>{count}개</small>
@@ -88,23 +90,23 @@ function FeedMemoryDetail({ ctx }) {
   return (
     <>
       <div className="al-mem-detail-head">
-        <button onClick={() => setMemFilter(null)}>‹ 사람별 목록</button>
+        <button onClick={() => setMemFilter(null)}><AliveIcon name="chevron-left" size={14} /> 사람별 목록</button>
         <span>{memFilter === "*" ? "전체 설정" : memFilter}</span>
       </div>
-      {shown.length === 0 && <p className="al-mem-note">이 사람에게 남은 장기기억이 없어.</p>}
+      {shown.length === 0 && <p className="al-mem-note">이 사람과 아직 남겨둔 기억이 없어요.</p>}
       {shown.map((entry) => (
         <React.Fragment key={entry.id}>
           <FeedMemoryCard entry={entry} ctx={{ deleteMemory, editingMemoryId, editMemory, setEditingMemoryId, updateMemory }} />
         </React.Fragment>
       ))}
       <button className="al-mem-add-toggle" onClick={() => setShowMemoryAdd((value) => !value)}>
-        + {memFilter === "*" ? "전체 설정" : memFilter} 장기기억 추가
+        <AliveIcon name="plus" size={15} /> {memFilter === "*" ? "전체 설정" : memFilter} 기억 남기기
       </button>
       {showMemoryAdd && (
         <div className="al-mem-add slide">
           {renderLorePeerSelect(peerOptions, memFilter)}
           <textarea value={memDraftText} onChange={(event) => setMemDraftText(event.target.value)} placeholder="감정 변화와 원인, 약속, 사건 같은 핵심만 추가" />
-          <button className="al-mem-add-btn" disabled={!memDraftText.trim()} onClick={addManualMemory}>장기기억 추가</button>
+          <button className="al-mem-add-btn" disabled={!memDraftText.trim()} onClick={addManualMemory}>기억 남기기</button>
         </div>
       )}
     </>
@@ -148,14 +150,14 @@ function FeedMemoryAdd({ compact = false, ctx }) {
   return (
     <>
       <button className="al-mem-add-toggle" onClick={() => setShowMemoryAdd((value) => !value)}>
-        + 새 장기기억 추가
+        <AliveIcon name="plus" size={15} /> 기억 직접 남기기
       </button>
       {showMemoryAdd && (
         <div className={`al-mem-add ${compact ? "compact " : ""}slide`}>
-          {compact && <div className="al-mem-add-title">새 장기기억 추가</div>}
+          {compact && <div className="al-mem-add-title">기억 직접 남기기</div>}
           {renderLorePeerSelect(lorePeerOptions())}
           <textarea value={memDraftText} onChange={(event) => setMemDraftText(event.target.value)} placeholder="감정 변화와 원인, 약속, 사건 같은 핵심만 추가" />
-          <button className="al-mem-add-btn" disabled={!memDraftText.trim()} onClick={addManualMemory}>장기기억 추가</button>
+          <button className="al-mem-add-btn" disabled={!memDraftText.trim()} onClick={addManualMemory}>기억 남기기</button>
         </div>
       )}
     </>

@@ -1,4 +1,5 @@
 import React from "react";
+import { AliveIcon } from "@/components/ui/AliveIcon";
 
 export function ProposalModal({ proposal, onResolve }) {
   if (!proposal) return null;
@@ -6,12 +7,12 @@ export function ProposalModal({ proposal, onResolve }) {
   return (
     <div className="al-modal-bg">
       <div className="al-modal al-proposal" onClick={(e) => e.stopPropagation()}>
-        <div className="al-prop-heart">♥</div>
+        <div className="al-prop-heart"><AliveIcon name="heart-filled" size={34} /></div>
         <div className="al-prop-who">{proposal.asker}</div>
         <p className="al-prop-line">"{proposal.line}"</p>
         <p className="al-prop-sub">{proposal.asker}의 마음이 {proposal.other}에게 기울었어. 어떻게 할까?</p>
         <div className="al-prop-btns">
-          <button className="al-prop-yes" onClick={() => onResolve(true)}>응, 가봐! 💘</button>
+          <button className="al-prop-yes" onClick={() => onResolve(true)}><AliveIcon name="heart-filled" size={16} /> 응, 가봐!</button>
           <button className="al-prop-no" onClick={() => onResolve(false)}>아직은 아냐</button>
         </div>
       </div>
@@ -25,9 +26,7 @@ export function RelationResultModal({ relationResult, onClose }) {
   return (
     <div className="al-modal-bg" onClick={onClose}>
       <div className="al-modal al-proposal" onClick={(e) => e.stopPropagation()}>
-        <div className={`al-prop-heart ${relationResult.accepted ? "" : "broken"}`}>
-          {relationResult.friendship ? "🤝" : (relationResult.accepted ? "💘" : "💔")}
-        </div>
+        <div className={`al-prop-heart ${relationResult.accepted ? "" : "broken"}`}><AliveIcon name={relationResult.friendship ? "users" : relationResult.accepted ? "heart-filled" : "heart-broken"} size={34} /></div>
         {relationResult.friendship ? (
           <>
             <div className="al-prop-who">{relationResult.asker}와 {relationResult.other}, 더 가까워졌어!</div>

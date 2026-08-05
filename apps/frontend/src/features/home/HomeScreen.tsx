@@ -1,4 +1,6 @@
 import React from "react";
+import { AliveIcon } from "@/components/ui/AliveIcon";
+import { CharacterAvatarImage } from "@/components/ui/CharacterAvatarImage";
 import { USER_PERSONA_FEATURE_ENABLED } from "@/domain/app/featureFlags";
 import { ServiceTour } from "@/features/onboarding/ServiceTour";
 import {
@@ -6,8 +8,6 @@ import {
   PRIVACY_POLICY_URL,
   TERMS_URL,
 } from "@/domain/app/legal";
-
-const SERVICE_TOUR_DISMISSED_KEY = "alive_service_tour_dismissed";
 
 export function HomeScreen({
   accounts,
@@ -26,59 +26,21 @@ export function HomeScreen({
   switchAccount,
 }) {
   const hasCharacters = accounts.length > 0;
-  const [isTourOpen, setIsTourOpen] = React.useState(() => !hasCharacters && sessionStorage.getItem(SERVICE_TOUR_DISMISSED_KEY) !== "true");
-  const dismissServiceTour = () => { sessionStorage.setItem(SERVICE_TOUR_DISMISSED_KEY, "true"); setIsTourOpen(false); };
-  const startCharacterCreation = () => { sessionStorage.setItem(SERVICE_TOUR_DISMISSED_KEY, "true"); startNewCharacter(); };
-  if (!hasCharacters && isTourOpen) return <ServiceTour completeLabel="내 캐릭터 만들기" onBack={dismissServiceTour} onComplete={startCharacterCreation} />;
+  const saveMessage = /중$|실패|오류/.test(saveStatus) ? saveStatus : "";
+  const [isTourOpen, setIsTourOpen] = React.useState(false);
+  if (!hasCharacters && isTourOpen) return <ServiceTour completeLabel="내 캐릭터 만들기" onBack={() => setIsTourOpen(false)} onComplete={startNewCharacter} />;
   return (
     <div className="al-phone">
       <div className={`al-home ${hasCharacters ? "" : "al-home-first"}`}>
         <div className="al-accountbar">
           <span>{hasBackendApiConfig ? (profileName || session?.user?.email || "로그인됨") : "로컬 모드"}</span>
-          <b>{saveStatus}</b>
+          {saveMessage && <b role="status">{saveMessage}</b>}
           {hasBackendApiConfig && <button onClick={signOut}>로그아웃</button>}
         </div>
-        <div className="al-home-head">
-          {hasCharacters && <span className="al-spark">★</span>}
-          <h1>{hasCharacters ? "내 캐릭터들" : "내 캐릭터"}</h1>
-          <p>{hasCharacters ? "캐릭터를 골라 들어가거나, 새로 깨워봐." : "0명의 캐릭터"}</p>
-        </div>
-
-        <div className="al-acclist">
-          {!hasCharacters && (
-            <section className="al-first-start" aria-labelledby="first-start-title">
-              <span className="al-first-start-mark" aria-hidden="true">?</span>
-              <span className="al-first-start-label">첫 번째 등장인물</span>
-              <h2 id="first-start-title">누구의 이야기를<br />시작할까요?</h2>
-              <p>그 아이에 대해 아는 것부터 적어 주세요.</p>
-            </section>
-          )}
-          {accounts.map((a) => {
-            const ini = a.char.name.trim() ? a.char.name.trim()[0] : "?";
-            return (
-              <div key={a.id} className="al-acccard">
-                <button className="al-acccard-main" onClick={() => switchAccount(a.id)}>
-                  <div className="al-acccard-av">{ini}</div>
-                  <div className="al-acccard-info">
-                    <span className="al-acccard-name">{a.char.name}</span>
-                    <span className="al-acccard-handle">@{a.char.handle || a.char.name.replace(/\s/g, "").toLowerCase()}</span>
-                    {a.char.relations && <span className="al-acccard-rel">♥ {a.char.relations}</span>}
-                  </div>
-                  <span className="al-acccard-count">{(a.posts || []).length}글</span>
-                </button>
-                <div className="al-acc-actions">
-                  <button className="al-accedit" onClick={() => editAccount(a.id)} aria-label={`${a.char.name} 수정`}>수정</button>
-                  <button className="al-accdel" onClick={() => setDeleteTarget(a)} aria-label={`${a.char.name} 삭제`}>삭제</button>
-                </div>
-              </div>
-            );
-          })}
-          <button className={`al-accadd ${hasCharacters ? "" : "first"}`} onClick={hasCharacters ? startNewCharacter : startCharacterCreation}>{hasCharacters ? "+ 새 캐릭터 깨우기" : "+ 캐릭터 만들기"}</button>
-          {!hasCharacters && <button className="al-first-demo-link" onClick={() => setIsTourOpen(true)}>데모 다시 보기</button>}
-        </div>
+        {hasCharacters ? <CharacterShelf accounts={accounts} editAccount={editAccount} onDelete={setDeleteTarget} onOpen={switchAccount} onStartNew={startNewCharacter} /> : <FirstCharacterEntry onStart={startNewCharacter} onTour={() => setIsTourOpen(true)} />}
 
         {USER_PERSONA_FEATURE_ENABLED && <div className="al-persona-mgr">
-          <div className="al-pm-head">🎭 내 페르소나 <span>{personas.length > 0 && `(${personas.length})`}</span></div>
+          <div className="al-pm-head"><AliveIcon name="masks" size={17} /> 내 페르소나 <span>{personas.length > 0 && `(${personas.length})`}</span></div>
           <p className="al-pm-desc">캐릭터에게 다가갈 또 다른 나. DM에서 골라 쓰면 캐릭터처럼 호감도·관계가 따로 쌓여.</p>
           <div className="al-pm-list">
             {personas.map((p) => (
@@ -96,7 +58,7 @@ export function HomeScreen({
                 </div>
               </div>
             ))}
-            <button className="al-pm-add" onClick={() => setPersonaDraft({ name: "", age: "", persona: "", speech: "" })}>+ 페르소나 만들기</button>
+            <button className="al-pm-add" onClick={() => setPersonaDraft({ name: "", age: "", persona: "", speech: "" })}><AliveIcon name="plus" size={15} /> 페르소나 만들기</button>
           </div>
         </div>}
         {hasBackendApiConfig && (
@@ -112,4 +74,20 @@ export function HomeScreen({
       </div>
     </div>
   );
+}
+
+function CharacterShelf({ accounts, editAccount, onDelete, onOpen, onStartNew }) {
+  return <><header className="al-cast-head"><span className="al-flow-eyebrow">이어지는 이야기</span><div><h1>내 캐릭터들</h1><b>{String(accounts.length).padStart(2, "0")}명</b></div></header><section className="al-cast-list" aria-label="내 캐릭터 목록">{accounts.map((account, index) => <CharacterEntry account={account} editAccount={editAccount} index={index} key={account.id} onDelete={onDelete} onOpen={onOpen} />)}<button className="al-cast-add" onClick={onStartNew}><span><AliveIcon name="plus" size={18} /></span><div><b>새 캐릭터</b><small>또 다른 이야기 시작하기</small></div><i>만들기 <AliveIcon name="arrow-up-right" size={12} /></i></button></section></>;
+}
+
+function CharacterEntry({ account, editAccount, index, onDelete, onOpen }) {
+  const name = account.char.name || "이름 없는 인물";
+  const handle = account.char.handle || name.replace(/\s/g, "").toLowerCase();
+  const description = account.char.persona || account.char.surface || "아직 이 인물의 이야기를 시작하지 않았어요.";
+  const postCount = (account.posts || []).length;
+  return <article className="al-cast-entry"><button aria-label={`${name} 계정 열기`} className="al-cast-main" onClick={() => onOpen(account.id)}><span className="al-cast-avatar"><CharacterAvatarImage src={account.char.avatarImg} /></span><span className="al-cast-copy"><small>{String(index + 1).padStart(2, "0")} · @{handle}</small><b>{name}</b><em>{description}</em></span><i>열기 <AliveIcon name="arrow-up-right" size={12} /></i></button><footer><span>{postCount > 0 ? `${postCount}개의 기록` : "아직 첫 기록 전"}</span><div><button onClick={() => editAccount(account.id)}>프로필 수정</button><button className="danger" onClick={() => onDelete(account)}>삭제</button></div></footer></article>;
+}
+
+function FirstCharacterEntry({ onStart, onTour }) {
+  return <><header className="al-home-head"><span className="al-flow-eyebrow">첫 번째 이야기</span><h1>한 줄만 남기면<br />캐릭터가 이어가요.</h1><p>첫 글과 대화는 ALIVE가 이어갑니다.</p></header><div className="al-acclist"><section className="al-first-sequence" aria-label="캐릭터 이야기가 시작되는 과정"><div className="al-first-scene"><span>01</span><div><small>당신의 설정</small><p>“리안, 21세. 마법학교 야간 조교.”</p></div></div><div className="al-first-scene"><span>02</span><div><small>캐릭터의 첫 기록</small><p>오늘도 마지막 순찰은 혼자였다.</p></div></div><div className="al-first-scene"><span>03</span><div><small>이어지는 대화</small><p><b>카엘</b> 오늘 밤도 교실에 있어?</p></div></div></section><button aria-label="첫 캐릭터 만들기" className="al-accadd first" onClick={onStart}><span>첫 캐릭터 만들기</span><i>01 <AliveIcon name="arrow-up-right" size={11} /></i></button><button className="al-first-demo-link" onClick={onTour}><span className="al-first-demo-icon"><AliveIcon name="play" size={11} /></span><span><b>서비스 먼저 둘러보기</b><small>3개의 실제 장면으로 미리 보기</small></span><i><AliveIcon name="arrow-right" size={15} /></i></button></div></>;
 }

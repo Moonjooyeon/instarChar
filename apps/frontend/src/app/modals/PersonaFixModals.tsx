@@ -1,4 +1,5 @@
 import React from "react";
+import { AliveIcon } from "@/components/ui/AliveIcon";
 import { USER_PERSONA_FEATURE_ENABLED } from "@/domain/app/featureFlags";
 
 export function PersonaFixModals({ ctx }) {
@@ -33,7 +34,7 @@ export function PersonaFixModals({ ctx }) {
       {USER_PERSONA_FEATURE_ENABLED && canUseApp && personaDraft && (
         <div className="al-modal-bg" onClick={() => setPersonaDraft(null)}>
           <div className="al-modal" onClick={(event) => event.stopPropagation()}>
-            <h3 className="al-modal-title">🎭 {personaDraft.id ? "페르소나 수정" : "새 페르소나"}</h3>
+            <h3 className="al-modal-title"><AliveIcon name="masks" size={20} /> {personaDraft.id ? "페르소나 수정" : "새 페르소나"}</h3>
             <p className="al-modal-sub">캐릭터에게 다가갈 또 다른 나. 캐릭터처럼 호감도·관계가 따로 쌓여.</p>
             <input className="al-pd-input" placeholder="이름" value={personaDraft.name} onChange={(event) => setPersonaDraft({ ...personaDraft, name: event.target.value })} />
             <input className="al-pd-input" placeholder="나이·한 줄 설정 (예: 24, 떠돌이 사진가)" value={personaDraft.age} onChange={(event) => setPersonaDraft({ ...personaDraft, age: event.target.value })} />

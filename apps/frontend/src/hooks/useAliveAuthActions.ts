@@ -7,7 +7,7 @@ import {
   signOutAuthSession,
 } from "@/api/auth";
 import { upsertProfile } from "@/api/profiles";
-import { LOCAL_STATE_KEY } from "@/domain/app/aliveCore";
+import { LOCAL_STATE_KEY, type AppStep } from "@/domain/app/aliveCore";
 
 type MutableRef<T> = {
   current: T;
@@ -33,7 +33,7 @@ type AuthActionsOptions = {
   setSaveStatus: (value: string) => void;
   setSession: (value: SessionLike | null) => void;
   setStateReady: (value: boolean) => void;
-  setStep: (value: string) => void;
+  setStep: (value: AppStep) => void;
 };
 
 export function useAliveAuthActions({

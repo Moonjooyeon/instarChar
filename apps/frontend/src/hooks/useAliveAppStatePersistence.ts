@@ -1,6 +1,8 @@
 import { sanitizePosts, type FeedPost } from "@/domain/feed/feedUtils";
 import { hasRemoteApiClient, hasBackendApiConfig } from "@/api/client";
 import { upsertProfile } from "@/api/profiles";
+import type { AppStep } from "@/domain/app/aliveCore";
+import type { RoomAffinityPref } from "@/hooks/useAliveRelationships";
 
 type SetState<T> = (value: T | ((prev: T) => T)) => void;
 
@@ -30,14 +32,14 @@ type AppState = {
   discoverQuery?: string;
   dmThreadTitles?: Record<string, string>;
   dmThreads?: Record<string, unknown>;
-  dmWorldPrefs?: Record<string, unknown>;
+  dmWorldPrefs?: Record<string, RoomAffinityPref>;
   following?: unknown[];
   gallery?: unknown[];
   ownerPersona?: string;
   personas?: unknown[];
   posts?: FeedPost[];
   profileName?: string;
-  step?: string;
+  step?: AppStep;
   version?: number;
 };
 
@@ -66,7 +68,7 @@ type AppStatePersistenceOptions = {
   deletedDmKeysRef: MutableRef<Set<string>>;
   dmThreadTitles: Record<string, string>;
   dmThreads: Record<string, unknown>;
-  dmWorldPrefs: Record<string, unknown>;
+  dmWorldPrefs: Record<string, RoomAffinityPref>;
   feedInitRef: MutableRef<boolean>;
   following: unknown[];
   gallery: unknown[];
@@ -92,9 +94,9 @@ type AppStatePersistenceOptions = {
   setDmInput: (value: string) => void;
   setDmThreads: SetState<Record<string, unknown>>;
   setDmThreadTitles: SetState<Record<string, string>>;
-  setDmWorldPrefs: SetState<Record<string, unknown>>;
+  setDmWorldPrefs: SetState<Record<string, RoomAffinityPref>>;
   setEditingDmTitle: (value: unknown) => void;
-  setFollowerCounts: (value: Record<string, unknown>) => void;
+  setFollowerCounts: SetState<Record<string, number>>;
   setFollowing: SetState<unknown[]>;
   setGallery: SetState<unknown[]>;
   setNewChatMode: (value: unknown) => void;
@@ -106,7 +108,7 @@ type AppStatePersistenceOptions = {
   setSaveStatus: (value: string) => void;
   setSharedFocusId: (value: string) => void;
   setShareStatus: (value: string) => void;
-  setStep: (value: string) => void;
+  setStep: (value: AppStep) => void;
 };
 
 export function useAliveAppStatePersistence({

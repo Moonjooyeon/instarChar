@@ -1,9 +1,11 @@
 import React from "react";
+import { AliveIcon } from "@/components/ui/AliveIcon";
+import { CharacterAvatarImage } from "@/components/ui/CharacterAvatarImage";
 
 const TOUR_STEPS = [
-  { label: "01 · FEED", title: "그 아이가 오늘을\n어떻게 보내는지 봐요.", description: "말투와 세계관을 담은 피드가 스스로 올라와요.", scene: "feed" },
-  { label: "02 · DISCOVER", title: "이야기에 새로운 인물을\n들여와요.", description: "다른 캐릭터를 팔로우하고 관계를 시작해요.", scene: "connection" },
-  { label: "03 · DM", title: "대화가 다음 장면까지\n이어져요.", description: "DM에서 생긴 감정과 약속을 기억해요.", scene: "story" },
+  { label: "01 · FEED", title: "한 줄만 적으면\n캐릭터가 먼저 써요.", description: "장면 하나를 고르면 캐릭터의 목소리로 첫 글이 시작돼요.", scene: "feed" },
+  { label: "02 · MEET", title: "새로운 캐릭터를\n이야기에 들여와요.", description: "타임라인에 추가하면 글을 보고 바로 대화할 수 있어요.", scene: "connection" },
+  { label: "03 · TALK", title: "나눈 대화를 기억하며\n다음 장면을 이어가요.", description: "중요한 약속과 감정은 다음 대화에도 자연스럽게 이어져요.", scene: "story" },
 ];
 
 export function ServiceTour({ completeLabel, onBack, onComplete }) {
@@ -13,7 +15,7 @@ export function ServiceTour({ completeLabel, onBack, onComplete }) {
   return (
     <div className="al-phone">
       <div className="al-tour">
-        <header className="al-tour-head"><button onClick={onBack} aria-label="이전 화면으로 돌아가기">‹</button><span>ALIVE 미리보기</span><small>{stepIndex + 1} / {TOUR_STEPS.length}</small></header>
+        <header className="al-tour-head"><button onClick={onBack} aria-label="이전 화면으로 돌아가기"><AliveIcon name="chevron-left" size={21} /></button><span>ALIVE 미리보기</span><small>{stepIndex + 1} / {TOUR_STEPS.length}</small></header>
         <main key={step.scene} className="al-tour-chapter">
           <span className="al-tour-label">{step.label}</span>
           <h1>{step.title.split("\n").map((line) => <React.Fragment key={line}>{line}<br /></React.Fragment>)}</h1>
@@ -36,13 +38,13 @@ function TourScene({ scene }) {
 }
 
 function FeedDemo() {
-  return <div className="al-tour-scene feed"><div className="al-tour-demo-head"><span>‹</span><b>리안</b><i>⋯</i></div><div className="al-tour-demo-tabs"><b>내 글 <small>2</small></b><span>타임라인 <small>5</small></span></div><div className="al-tour-demo-post"><i>리</i><div><b>리안 <small>@rian · 방금</small></b><p>밤 산책 끝. 별이 생각보다 가까웠다…</p><span>♡ 12&nbsp;&nbsp; 💬 댓글 달기</span></div></div></div>;
+  return <div className="al-tour-scene feed"><div className="al-tour-demo-head"><span><AliveIcon name="chevron-left" size={17} /></span><b>리안</b><i><AliveIcon name="more" size={17} /></i></div><div className="al-tour-demo-tabs"><b>내 글 <small>2</small></b><span>타임라인 <small>5</small></span></div><div className="al-tour-demo-post"><i><CharacterAvatarImage /></i><div><b>리안 <small>@rian · 방금</small></b><p>밤 산책 끝. 별이 생각보다 가까웠다…</p><span><AliveIcon name="heart" size={12} /> 12&nbsp;&nbsp; <AliveIcon name="message" size={12} /> 댓글 달기</span></div></div></div>;
 }
 
 function DiscoverDemo() {
-  return <div className="al-tour-scene discover"><div className="al-tour-demo-head"><span>‹</span><b>🔍 캐릭터 탐색</b></div><div className="al-tour-demo-search">사용자·이름·성격·태그 검색</div><div className="al-tour-demo-discover-card"><i>세</i><div><b>세인 <small>달빛 도서관</small></b><p>밤의 도서관 사서. 조용한 이야기를 모아둔다.</p><span>#판타지&nbsp; #사서</span><button>+ 팔로우</button></div></div></div>;
+  return <div className="al-tour-scene discover"><div className="al-tour-demo-head"><span><AliveIcon name="chevron-left" size={17} /></span><b>새로운 캐릭터 만나기</b></div><div className="al-tour-demo-search">이름·성격·태그 검색</div><div className="al-tour-demo-discover-card"><i><CharacterAvatarImage /></i><div><b>세인 <small>달빛 도서관</small></b><p>밤의 도서관 사서. 조용한 이야기를 모아둔다.</p><span>#판타지&nbsp; #사서</span><button><AliveIcon name="plus" size={10} /> 추가</button></div></div></div>;
 }
 
 function DmDemo() {
-  return <div className="al-tour-scene dm"><div className="al-tour-demo-head"><span>‹</span><b>세인과의 DM <small>NPC 채팅</small></b><i>⚙</i></div><div className="al-tour-demo-messages"><p>오늘도 산책해?</p><p>…응. 별 보러 갈 거야.</p><p>그럼 나도 같이 갈래.</p></div><div className="al-tour-demo-memory"><span>1 장기기억</span><p>두 사람은 밤 산책을 함께하기 시작했다.</p></div><div className="al-tour-demo-input">리안(으)로 메시지… <b>↑</b></div></div>;
+  return <div className="al-tour-scene dm"><div className="al-tour-demo-head"><span><AliveIcon name="chevron-left" size={17} /></span><b>세인과의 대화 <small>나만 보는 대화</small></b><i><AliveIcon name="settings" size={15} /></i></div><div className="al-tour-demo-messages"><p>오늘도 산책해?</p><p>…응. 별 보러 갈 거야.</p><p>그럼 나도 같이 갈래.</p></div><div className="al-tour-demo-memory"><span>이 말을 기억했어요</span><p>두 사람은 밤 산책을 함께하기 시작했다.</p></div><div className="al-tour-demo-input">리안(으)로 메시지… <b><AliveIcon name="send" size={13} /></b></div></div>;
 }

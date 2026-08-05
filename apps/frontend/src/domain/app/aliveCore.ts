@@ -7,6 +7,12 @@ export const API_LIMIT_MESSAGE = "오늘 한정된 API는 다 사용했어요! �
 
 export type AppStep = "home" | "dump" | "confirm" | "feed" | "discover" | "dmlist" | "dm";
 
+export type ProposalState = {
+  asker: string;
+  other: string;
+  pairKey: string;
+};
+
 export type RelationEntry = {
   who: string;
   label: string;

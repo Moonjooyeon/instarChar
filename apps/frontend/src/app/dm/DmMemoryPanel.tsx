@@ -7,7 +7,7 @@ export function DmMemoryPanel({ ctx }) {
     <div className="al-peermem">
       <div className="al-peermem-list">
         {visibleMems.length === 0 ? (
-          <div className="al-peermem-item muted">아직 이 DM방에 남은 장기기억이 없어.</div>
+          <div className="al-peermem-item muted">아직 이 대화에 남은 기억이 없어요.</div>
         ) : visibleMems.slice(-8).reverse().map((entry) => {
           const editing = editingMemoryId === `${entry.scope}:${entry.id}`;
           return (

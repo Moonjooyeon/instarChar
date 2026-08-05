@@ -1,4 +1,6 @@
 ﻿import React from "react";
+import { AliveIcon } from "@/components/ui/AliveIcon";
+import { CharacterAvatarImage } from "@/components/ui/CharacterAvatarImage";
 
 export function DiscoverScreen({
   activeId,
@@ -35,8 +37,6 @@ export function DiscoverScreen({
     (activeSharedId && (c.sharedId === activeSharedId || c.id === `shared_${activeSharedId}`)) ||
     (session?.user?.id && activeId && c.ownerId === session.user.id && c.sourceAccountId === activeId)
   );
-  const hiddenActive = mergedDiscover.filter((c) => isActiveShared(c)).length;
-  const hiddenFollowed = mergedDiscover.filter((c) => !isActiveShared(c) && isFollowing(c.id)).length;
   const list = mergedDiscover.filter((c) => {
     if (sharedFocusId) return c.sharedId === sharedFocusId || c.id === sharedFocusId;
     if (isActiveShared(c)) return false;
@@ -47,10 +47,10 @@ export function DiscoverScreen({
   return (
     <div className="al-phone">
       <div className="al-dmhead">
-        <button className="al-back-inline" onClick={() => setStep("feed")}>‹</button>
+        <button className="al-back-inline" onClick={() => setStep("feed")} aria-label="피드로 돌아가기"><AliveIcon name="chevron-left" size={22} /></button>
         <div className="al-dmhead-info">
-          <span className="al-dmhead-name">🔍 캐릭터 탐색</span>
-          <span className="al-dmhead-sub">다른 사용자와 캐릭터를 찾아 팔로우해봐</span>
+          <span className="al-dmhead-name">새로운 캐릭터 만나기</span>
+          <span className="al-dmhead-sub">추가하고 글을 보거나 바로 대화해요.</span>
         </div>
       </div>
       <div className="al-disc-search">
@@ -71,26 +71,26 @@ export function DiscoverScreen({
           <span>
             {safeSharedLoadState.loading
               ? "사용자 캐릭터 불러오는 중"
-              : `DB 불러옴 ${mergedDiscover.length}개 · 표시 ${list.length}개${q ? " · 검색 적용" : ""}${hiddenFollowed ? ` · 팔로잉 ${hiddenFollowed}개 포함` : ""}${hiddenActive ? ` · 현재 캐릭터 제외 ${hiddenActive}개` : ""}`}
+              : `만날 수 있는 캐릭터 ${list.length}명${q ? " · 검색 결과" : ""}`}
           </span>
           {(q || sharedFocusId) && (
             <button type="button" onClick={() => { setDiscoverQuery(""); setSharedFocusId(""); }}>전체 보기</button>
           )}
-          <button onClick={loadSharedCharacters} disabled={safeSharedLoadState.loading}>새로고침</button>
+          <button onClick={loadSharedCharacters} disabled={safeSharedLoadState.loading}>다시 불러오기</button>
         </div>
       )}
       {safeSharedLoadState.error && <p className="al-disc-error">탐색 로딩 실패: {safeSharedLoadState.error}</p>}
       <div className="al-disc-list">
         {list.length === 0 && (
           <div className="al-disc-none">
-            <p>{sharedFocusId ? "이 공유 링크의 캐릭터를 찾지 못했어." : discoverQuery ? `"${discoverQuery}"에 맞는 새 캐릭터가 없어.` : safeSharedCharacters.length > 0 ? "팔로우하지 않은 새 캐릭터가 없어." : "아직 공유된 사용자 캐릭터가 없어."}</p>
+            <p>{sharedFocusId ? "이 공유 링크의 캐릭터를 찾지 못했어." : discoverQuery ? `"${discoverQuery}"에 맞는 새 캐릭터가 없어.` : safeSharedCharacters.length > 0 ? "아직 추가하지 않은 새 캐릭터가 없어." : "아직 공유된 사용자 캐릭터가 없어."}</p>
           </div>
         )}
         {list.map((c) => {
           const followed = isFollowing(c.id);
           return (
             <div key={c.id} className={`al-disc-card ${followed ? "on" : ""}`}>
-              <button className="al-disc-av" onClick={() => setPublicProfile(c)} aria-label={`${c.name} 프로필 보기`}>{c.name.trim()[0]}</button>
+              <button className="al-disc-av" onClick={() => setPublicProfile(c)} aria-label={`${c.name} 프로필 보기`}><CharacterAvatarImage src={c.avatarImg} /></button>
               <div className="al-disc-body">
                 <div className="al-disc-top">
                   <button className="al-disc-name" onClick={() => setPublicProfile(c)}>{c.name}</button>
@@ -100,13 +100,13 @@ export function DiscoverScreen({
                 </div>
                 <p className="al-disc-persona">{c.persona}</p>
                 <div className="al-disc-tags">
-                  {(c.tags || []).map((t) => <span key={t} className="al-disc-tag">#{t}</span>)}
+                  {(c.tags || []).slice(0, 2).map((t) => <span key={t} className="al-disc-tag">#{t}</span>)}
                 </div>
               </div>
               <div className="al-disc-actions">
-                <button className="al-disc-dm" onClick={() => requestDmEntry(c, "char")}>✉ DM</button>
+                <button className="al-disc-dm" onClick={() => requestDmEntry(c, "char")}><AliveIcon name="mail" size={15} /> DM</button>
                 <button className={`al-disc-follow ${followed ? "on" : ""}`} onClick={() => toggleFollow(c)}>
-                  {followed ? "팔로잉 ✓" : "+ 팔로우"}
+                  {followed ? <><AliveIcon name="check" size={14} /> 추가됨</> : <><AliveIcon name="plus" size={14} /> 타임라인에 추가</>}
                 </button>
               </div>
             </div>
@@ -115,7 +115,7 @@ export function DiscoverScreen({
       </div>
       {safeFollowing.length > 0 && (
         <div className="al-disc-foot">
-          팔로잉 {safeFollowing.length} · DM에서 {char.name}(으)로 말 걸 수 있어
+          타임라인에 추가한 캐릭터 {safeFollowing.length}명
         </div>
       )}
     </div>

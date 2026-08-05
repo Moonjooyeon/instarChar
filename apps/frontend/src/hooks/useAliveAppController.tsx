@@ -55,6 +55,7 @@ import {
   QUICK_FIXES,
   RENDERABLE_STEPS,
   TONE_PRESETS,
+  type AppStep,
   hasBatchim,
   josa,
   parseRelations,
@@ -120,7 +121,7 @@ export function useAliveAppController() {
   const [saveStatus, setSaveStatus] = useState(hasBackendApiConfig ? "로그인 대기" : "로컬 저장");
   const [characterSaveError, setCharacterSaveError] = useState("");
   const [stateReady, setStateReady] = useState(!hasBackendApiConfig);
-  const [step, setStep] = useState("home"); // home | dump | confirm | feed | dm
+  const [step, setStep] = useState<AppStep>("home");
   const {
     accounts,
     activeId,
@@ -467,13 +468,13 @@ export function useAliveAppController() {
   });
   const proposalRef = useRef(null);
   // 진도질문 띄운 쌍 — 거절/처리 후 당분간 다시 안 물어봄 (쌍키 → true)
-  const proposalCooldownRef = useRef({});
+  const proposalCooldownRef = useRef<Record<string, boolean>>({});
   const proposingRef = useRef(false); // 진도질문 생성 중복 방지
   const dmEndRef = useRef(null);
   const loadingRef = useRef(false);
   const feedTopRef = useRef(null);
   const feedInitRef = useRef(false);
-  const followBackSyncRef = useRef(new Set());
+  const followBackSyncRef = useRef<Set<string>>(new Set());
   const wakingRef = useRef(false);
   const authResolvedRef = useRef(false);
   const profileLoadedRef = useRef(false);
@@ -482,8 +483,8 @@ export function useAliveAppController() {
   const dmSendingRef = useRef(false);
   const dmRequestSeqRef = useRef(0);
   const dmKeyRef = useRef("");
-  const affinityRemainderRef = useRef({});
-  const deletedDmKeysRef = useRef(new Set());
+  const affinityRemainderRef = useRef<Record<string, number>>({});
+  const deletedDmKeysRef = useRef<Set<string>>(new Set());
   const {
     hasUsableSavedState,
     persistLocalSnapshot,
@@ -1032,8 +1033,6 @@ export function useAliveAppController() {
   // 진도질문 모달 상태를 ref에 미러 (자동대화 루프에서 최신값 참조)
   useEffect(() => { proposalRef.current = proposal; }, [proposal]);
 
-  const initial = char.name.trim() ? char.name.trim()[0] : "?";
-
   const appViewCtx = {
     acceptTerms,
     accounts,
@@ -1186,7 +1185,6 @@ export function useAliveAppController() {
     hasMainScreen,
     hasUsableSavedState,
     HomeScreen,
-    initial,
     intimacyBoundaryRules,
     isFollowing,
     isFollowedCharacterName,

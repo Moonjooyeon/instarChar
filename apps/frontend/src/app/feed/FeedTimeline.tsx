@@ -1,6 +1,13 @@
 import React from "react";
+import { AliveIcon } from "@/components/ui/AliveIcon";
+import { CharacterAvatarImage } from "@/components/ui/CharacterAvatarImage";
 import { USER_PERSONA_FEATURE_ENABLED } from "@/domain/app/featureFlags";
 import { canManagePost } from "@/domain/feed/feedUtils";
+
+interface GenerationFailureProps {
+  message: string;
+  onRetry: () => void;
+}
 
 export function FeedTimeline({ ctx }) {
   const {
@@ -17,9 +24,11 @@ export function FeedTimeline({ ctx }) {
     feedView,
     isLikePending,
     loading,
+    moodOpen,
     myPosts,
     openCommentBox,
     personas,
+    saveStatus,
     saveCommentEdit,
     savePostEdit,
     setCommentAs,
@@ -30,32 +39,36 @@ export function FeedTimeline({ ctx }) {
     setFeedView,
     setFixTarget,
     setFixText,
+    setMoodOpen,
     setPersonaDraft,
     setReportTarget,
+    setSaveStatus,
     submitUserComment,
     timeAgo,
     timelinePosts,
     toggleLike,
     visiblePosts,
   } = ctx;
+  const isFirstPost = myPosts.length === 0;
+  const generationError = typeof saveStatus === "string" && saveStatus.startsWith("글 생성 실패:") ? saveStatus : "";
   return (
     <>
-      <div className="al-feed-tabs">
+      {!isFirstPost && <div className="al-feed-tabs">
         <button className={feedView === "mine" ? "on" : ""} onClick={() => setFeedView("mine")}>
           내 글 <b>{myPosts.length}</b>
         </button>
         <button className={feedView === "timeline" ? "on" : ""} onClick={() => setFeedView("timeline")}>
           타임라인 <b>{timelinePosts.length}</b>
         </button>
-      </div>
+      </div>}
       <div className="al-feed" ref={feedTopRef}>
-        {visiblePosts.length === 0 && !loading && (
-          <div className="al-empty">
-            <span>{feedView === "mine" ? `${char.name}의 글이 아직 없어.` : "타임라인에 아직 글이 없어."}</span>
-            <p>{feedView === "mine" ? "위에서 직접 시키거나 내가 쓰기로 첫 글을 올려봐." : "내 글과 팔로우한 캐릭터의 글이 여기에 같이 올라와."}</p>
-          </div>
+        {loading && <GeneratingPost char={char} />}
+        {!loading && generationError && <GenerationFailure message={generationError} onRetry={() => { setSaveStatus("저장됨"); setFeedView("mine"); setMoodOpen(true); }} />}
+        {isFirstPost && !loading && !moodOpen && !generationError && <EmptyFeed char={char} feedView="mine" onStart={() => { setFeedView("mine"); setMoodOpen(true); }} />}
+        {!isFirstPost && visiblePosts.length === 0 && !loading && (
+          <EmptyFeed char={char} feedView={feedView} onStart={() => { setFeedView("mine"); setMoodOpen(true); }} />
         )}
-        {visiblePosts.map((post) => (
+        {!isFirstPost && visiblePosts.map((post) => (
           <React.Fragment key={post.id}>
             <FeedPostCard post={post} ctx={{ activeId, char, commentAs, commentOn, commentText, deleteComment, deletePost, editingComment, editingPost, isLikePending, openCommentBox, personas, saveCommentEdit, savePostEdit, setCommentAs, setCommentOn, setCommentText, setEditingComment, setEditingPost, setFixTarget, setFixText, setPersonaDraft, setReportTarget, submitUserComment, timeAgo, toggleLike }} />
           </React.Fragment>
@@ -63,6 +76,19 @@ export function FeedTimeline({ ctx }) {
       </div>
     </>
   );
+}
+
+function EmptyFeed({ char, feedView, onStart }) {
+  if (feedView === "timeline") return <div className="al-empty"><span>타임라인이 아직 조용해요.</span><p>새로운 캐릭터를 추가하면 그 아이의 글도 이곳에 나타나요.</p></div>;
+  return <div className="al-first-feed"><span className="al-first-feed-avatar"><CharacterAvatarImage src={char.avatarImg} /></span><div><span>첫 글까지 한 단계</span><h3>{char.name}의 첫 글을<br />만나볼까요?</h3><p>장면만 고르면 {char.name}가 이어서 써요.</p><button aria-label="첫 글의 장면 고르기" type="button" onClick={onStart}>첫 장면 고르기</button></div></div>;
+}
+
+function GeneratingPost({ char }) {
+  return <div className="al-generating-post" role="status" aria-live="polite"><span className="al-generating-avatar"><CharacterAvatarImage src={char.avatarImg} /><i /></span><div><small>새 글을 쓰는 중</small><b>{char.name}가 장면을 떠올리고 있어요</b><p>말투와 설정을 살펴보고 있어요.</p><span className="al-generating-line"><i /><i /><i /></span></div></div>;
+}
+
+function GenerationFailure({ message, onRetry }: GenerationFailureProps): React.ReactElement {
+  return <div className="al-generation-failure" role="alert"><div><b>글을 완성하지 못했어요.</b><p>{message.replace(/^글 생성 실패:\s*/, "")}</p></div><button type="button" onClick={onRetry}>다시 장면 고르기</button></div>;
 }
 
 function FeedPostCard({ post, ctx }) {
@@ -97,17 +123,16 @@ function FeedPostCard({ post, ctx }) {
   const isExt = Boolean(post.author);
   const pName = isExt ? displayName(post.author) : displayName(char.name);
   const pHandle = isExt ? displayName(post.authorHandle || post.author) : (char.handle || pName.replace(/\s/g, "").toLowerCase());
-  const pInitial = initialForName(pName);
   const pAvatar = isExt ? post.authorAvatarImg : char.avatarImg;
   const canManage = canManagePost(post);
   return (
     <div className="al-post">
-      <div className={`al-post-av ${isExt ? "ext" : ""}`}>{pAvatar ? <img src={pAvatar} alt="" /> : pInitial}</div>
+      <div className={`al-post-av ${isExt ? "ext" : ""}`}><CharacterAvatarImage src={pAvatar} /></div>
       <div className="al-post-body">
         <div className="al-post-head">
           <span className="al-post-name">{pName}</span>
           <span className="al-post-handle">@{pHandle}</span>
-          {isExt && <span className="al-post-extbadge">팔로잉</span>}
+          {isExt && <span className="al-post-extbadge">추가한 캐릭터</span>}
           <span className="al-post-time">· {timeAgo(post.time)}</span>
         </div>
         {editingPost?.id === post.id ? (
@@ -123,14 +148,12 @@ function FeedPostCard({ post, ctx }) {
         )}
         <FeedPostMedia post={post} />
         <div className="al-post-actions">
-          <button className={`al-like ${post.liked ? "on" : ""}`} disabled={isLikePending(post.id)} onClick={() => toggleLike(post.id)}>{post.liked ? "♥" : "♡"} {post.likes}</button>
-          {canManage && !post.byUser && <button className="al-fixbtn" onClick={() => { setFixTarget({ type: "post", id: post.id, text: post.text }); setFixText(""); }}>⚠ 캐해 아님</button>}
-          {canManage && <button className="al-mini-action" onClick={() => setEditingPost({ id: post.id, text: post.text })}>수정</button>}
-          {canManage && <button className="al-mini-action danger" onClick={() => deletePost(post.id)}>삭제</button>}
-          {!post.byUser && <button className="al-mini-action safety" onClick={() => setReportTarget(postReportTarget(post, activeId))}>신고</button>}
+          <button className={`al-like ${post.liked ? "on" : ""}`} disabled={isLikePending(post.id)} onClick={() => toggleLike(post.id)}><AliveIcon name={post.liked ? "heart-filled" : "heart"} size={15} /> {post.likes}</button>
+          {canManage && !post.byUser && <button className="al-fixbtn" onClick={() => { setFixTarget({ type: "post", id: post.id, text: post.text }); setFixText(""); }}>캐릭터답지 않아요</button>}
+          {(canManage || !post.byUser) && <details className="al-post-more"><summary aria-label={canManage ? "게시물 관리" : "게시물 더보기"}><span>{canManage ? "관리" : "더보기"}</span><i><AliveIcon name="more" size={14} /></i></summary><div>{canManage && <button onClick={() => setEditingPost({ id: post.id, text: post.text })}>수정</button>}{canManage && <button className="danger" onClick={() => deletePost(post.id)}>삭제</button>}{!post.byUser && <button className="safety" onClick={() => setReportTarget(postReportTarget(post, activeId))}>신고</button>}</div></details>}
         </div>
         <FeedComments post={post} ctx={{ char, commentAs, commentOn, commentText, deleteComment, editingComment, personas, saveCommentEdit, setCommentAs, setCommentOn, setCommentText, setEditingComment, setPersonaDraft, setReportTarget, submitUserComment, isExt }} />
-        {commentOn !== post.id && <button className="al-cmt-open" onClick={() => openCommentBox(post.id)}>💬 댓글 달기</button>}
+        {commentOn !== post.id && <button className="al-cmt-open" onClick={() => openCommentBox(post.id)}><AliveIcon name="message" size={15} /> 댓글 달기</button>}
       </div>
     </div>
   );
@@ -143,7 +166,7 @@ function FeedPostMedia({ post }) {
       {quoted && (
         <div className="al-quoted">
           <div className="al-quoted-head">
-            <span className="al-quoted-av">{initialForName(quoted.name)}</span>
+            <span className="al-quoted-av"><CharacterAvatarImage src={quoted.avatarImg} /></span>
             <span className="al-quoted-name">{displayName(quoted.name)}</span>
             <span className="al-quoted-handle">@{displayName(quoted.handle, "")}</span>
           </div>
@@ -151,8 +174,8 @@ function FeedPostMedia({ post }) {
         </div>
       )}
       {post.img && <div className="al-post-img"><img src={post.img} alt="" /></div>}
-      {post.photoDesc && !post.img && <div className="al-post-photo"><span className="al-photo-frame">◹</span><span className="al-photo-desc">{post.photoDesc}</span></div>}
-      {post.moodDesc && <div className="al-post-moodcard">♫ {post.moodDesc}</div>}
+      {post.photoDesc && !post.img && <div className="al-post-photo"><span className="al-photo-frame"><AliveIcon name="image" size={16} /></span><span className="al-photo-desc">{post.photoDesc}</span></div>}
+      {post.moodDesc && <div className="al-post-moodcard"><AliveIcon name="music" size={16} /> {post.moodDesc}</div>}
     </>
   );
 }
@@ -170,7 +193,7 @@ function FeedComments({ post, ctx }) {
             const replyToName = displayName(commentRecord.replyTo, "");
             return (
               <div className="al-comment" key={index}>
-                <div className={`al-comment-av ${commentRecord.byUser ? "mine" : ""}`}>{initialForName(commentName)}</div>
+                <div className={`al-comment-av ${commentRecord.byUser ? "mine" : ""}`}><CharacterAvatarImage src={commentRecord.byUser ? char.avatarImg : commentRecord.avatarImg} /></div>
                 <div className="al-comment-body">
                   <span className="al-comment-name">{commentName}{commentRecord.byUser && <i className="al-cmt-mine">나</i>}</span>
                   {replyToName && replyToName !== commentName && <span className="al-replyto"> @{replyToName}에게 답글</span>}
@@ -201,13 +224,13 @@ function FeedComments({ post, ctx }) {
           <div className="al-cmtbox-who">
             <button className={`al-spk-chip ${commentAs === "char" ? "on" : ""}`} onClick={() => setCommentAs("char")}>{char.name}</button>
             {USER_PERSONA_FEATURE_ENABLED && personas.map((persona) => (
-              <button key={persona.id} className={`al-spk-chip persona ${commentAs === `p:${persona.id}` ? "on" : ""}`} onClick={() => setCommentAs(`p:${persona.id}`)}>🎭 {persona.name}</button>
+              <button key={persona.id} className={`al-spk-chip persona ${commentAs === `p:${persona.id}` ? "on" : ""}`} onClick={() => setCommentAs(`p:${persona.id}`)}><AliveIcon name="masks" size={14} /> {persona.name}</button>
             ))}
-            {USER_PERSONA_FEATURE_ENABLED && <button className="al-spk-chip add" onClick={() => setPersonaDraft({ name: "", age: "", persona: "", speech: "" })}>+ 페르소나</button>}
+            {USER_PERSONA_FEATURE_ENABLED && <button className="al-spk-chip add" onClick={() => setPersonaDraft({ name: "", age: "", persona: "", speech: "" })}><AliveIcon name="plus" size={14} /> 페르소나</button>}
           </div>
           <div className="al-cmtbox-row">
             <input className="al-cmtbox-input" value={commentText} autoFocus onChange={(event) => setCommentText(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) submitUserComment(post.id, isExt ? post.author : null); }} placeholder={`${commentAs === "char" ? char.name : (personas.find((persona) => `p:${persona.id}` === commentAs)?.name || "")}(으)로 댓글…`} />
-            <button className="al-cmtbox-send" onClick={() => submitUserComment(post.id, isExt ? post.author : null)}>↑</button>
+            <button className="al-cmtbox-send" aria-label="댓글 보내기" onClick={() => submitUserComment(post.id, isExt ? post.author : null)}><AliveIcon name="send" size={17} /></button>
           </div>
           <button className="al-cmtbox-cancel" onClick={() => { setCommentOn(null); setCommentText(""); }}>닫기</button>
         </div>
@@ -219,10 +242,6 @@ function FeedComments({ post, ctx }) {
 function displayName(value: unknown, fallback = "?"): string {
   const text = typeof value === "string" ? value.trim() : "";
   return text || fallback;
-}
-
-function initialForName(value: unknown): string {
-  return displayName(value).trim()[0] || "?";
 }
 
 function recordValue(value: unknown): Record<string, unknown> | null {

@@ -1,5 +1,6 @@
 import { useRef } from "react";
 import { CharacterApiError, saveCharacter, type CharacterWrite } from "@/api/characters";
+import type { AppStep } from "@/domain/app/aliveCore";
 import type { FeedPost } from "@/domain/feed/feedUtils";
 
 type SetState<T> = (value: T | ((prev: T) => T)) => void;
@@ -69,7 +70,7 @@ type CharacterLifecycleOptions = {
   setPosts: SetState<FeedPost[]>;
   setRpLog: (value: string) => void;
   setSaveStatus: (value: string) => void;
-  setStep: (value: string) => void;
+  setStep: (value: AppStep) => void;
   setWaking: (value: boolean) => void;
   syncActiveSharedCharacter: (following: unknown[], char: CharacterState) => unknown;
   syncOwnFollowRows: (following: unknown[], char: CharacterState) => unknown;

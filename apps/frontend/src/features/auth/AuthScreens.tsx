@@ -1,6 +1,7 @@
 import React from "react";
 
 import { isAppsInTossRuntime, shouldShowAppleLogin } from "@/api/auth";
+import { AliveIcon } from "@/components/ui/AliveIcon";
 import { ServiceTour } from "@/features/onboarding/ServiceTour";
 
 export function AuthLoadingScreen({ authMessage, onRetryCharacters }) {
@@ -9,7 +10,7 @@ export function AuthLoadingScreen({ authMessage, onRetryCharacters }) {
   return (
     <div className="al-phone">
       <div className="al-auth">
-        <span className="al-spark">★</span>
+        <span className="al-spark"><AliveIcon name="sparkle" size={24} /></span>
         <h1>ALIVE 불러오는 중</h1>
         <p>계정과 저장된 캐릭터를 확인하고 있어.</p>
         {authMessage && <p className="al-auth-msg">{authMessage}</p>}
@@ -35,12 +36,25 @@ export function AuthEntryScreen({
   if (isTourOpen) return <ServiceTour completeLabel="로그인하고 시작하기" onBack={() => setIsTourOpen(false)} onComplete={() => setIsTourOpen(false)} />;
   return (
     <div className="al-phone">
-      <div className="al-auth">
-        <span className="al-spark">★</span>
-        <h1>ALIVE 로그인</h1>
-        <p>{isAppsInToss ? "토스 계정으로 저장된 캐릭터와 대화를 불러올게." : showAppleLogin ? "Google 또는 Apple 계정으로 저장된 캐릭터와 대화를 불러올게." : "Google 계정으로 저장된 캐릭터와 대화를 불러올게."}</p>
-        <button className="al-auth-tour-link" onClick={() => setIsTourOpen(true)}>ALIVE에서 무엇을 할 수 있나요? <span>둘러보기 →</span></button>
-        <div className="al-social-login">
+      <main className="al-auth al-auth-entry">
+        <header className="al-auth-header">
+          <div className="al-auth-brand" aria-label="ALIVE">ALIVE<span /></div>
+          <button className="al-auth-tour-link" onClick={() => setIsTourOpen(true)}>
+            <span><AliveIcon name="play" size={10} /></span><b>미리보기</b><i>3장</i>
+          </button>
+        </header>
+        <div className="al-auth-panel">
+          <div className="al-auth-intro">
+            <span>한 줄에서 시작되는 이야기</span>
+            <h1>캐릭터가 먼저 글을 쓰고,<br />당신의 말을 기억해요.</h1>
+            <p>{isAppsInToss ? "로그인하고 설정 한 줄만 남겨보세요. 나머지는 ALIVE가 이어가요." : "계정으로 시작하고 설정 한 줄만 남겨보세요. 나머지는 ALIVE가 이어가요."}</p>
+          </div>
+          <ol className="al-auth-archive" aria-label="계정에 이어서 저장되는 이야기">
+            <li><small>01</small><b>한 줄 입력</b><span>이름과 설정</span></li>
+            <li><small>02</small><b>첫 피드</b><span>먼저 쓰는 글</span></li>
+            <li><small>03</small><b>대화</b><span>기억하는 순간</span></li>
+          </ol>
+          <div className="al-social-login">
           {isAppsInToss ? (
             <button className="al-auth-btn" onClick={signInWithToss} disabled={authLoading} aria-label="토스로 계속">토스로 계속</button>
           ) : (
@@ -56,9 +70,11 @@ export function AuthEntryScreen({
               <img src="/apple-sign-in-continue-ko.png" alt="" aria-hidden="true" />
             </button>
           )}
+          </div>
+          <p className="al-auth-new">로그인하면 이야기가 계정에 이어져요.</p>
+          {authMessage && <p className="al-auth-msg" role="status">{authMessage}</p>}
         </div>
-        {authMessage && <p className="al-auth-msg">{authMessage}</p>}
-      </div>
+      </main>
     </div>
   );
 }
@@ -68,7 +84,7 @@ export function RecoveryScreen({ authMessage, onHome, onRecoverAuth }) {
   return (
     <div className="al-phone">
       <div className="al-auth">
-        <span className="al-spark">★</span>
+        <span className="al-spark"><AliveIcon name="sparkle" size={24} /></span>
         <h1>화면 복구가 필요해</h1>
         <p>저장된 화면 위치가 꼬였어. 홈으로 돌아가거나 로그인 상태를 초기화할 수 있어.</p>
         <button className="al-auth-btn" onClick={onHome}>홈으로 돌아가기</button>

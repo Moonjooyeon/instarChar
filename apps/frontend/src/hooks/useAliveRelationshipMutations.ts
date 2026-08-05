@@ -5,6 +5,7 @@ import {
   josa,
   parseRelations,
   speechGuideLine,
+  type ProposalState,
   type RelationEntry,
 } from "@/domain/app/aliveCore";
 import {
@@ -38,12 +39,6 @@ type CharacterLike = {
 
 type AccountLike = {
   char: CharacterLike;
-};
-
-type ProposalState = {
-  asker: string;
-  other: string;
-  pairKey: string;
 };
 
 type RelationshipMutationsOptions = {

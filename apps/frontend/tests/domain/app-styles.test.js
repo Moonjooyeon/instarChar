@@ -39,7 +39,7 @@ test("social login uses bundled official brand assets", () => {
   const appleAsset = readFileSync(appleAssetPath);
   const googleAsset = readFileSync(googleAssetPath);
   assert.match(screen, /const showAppleLogin = shouldShowAppleLogin\(\)/);
-  assert.match(screen, /"Google 계정으로 저장된 캐릭터와 대화를 불러올게\."/);
+  assert.match(screen, /"계정으로 시작하고 설정 한 줄만 남겨보세요\. 나머지는 ALIVE가 이어가요\."/);
   assert.match(screen, /aria-label="Apple로 계속"/);
   assert.match(screen, /src="\/apple-sign-in-continue-ko\.png"/);
   assert.match(screen, /src="\/google-g-logo\.png"/);

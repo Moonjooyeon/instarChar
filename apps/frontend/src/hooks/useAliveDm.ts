@@ -5,6 +5,7 @@ import {
   roomKeyFromDmThreadKey,
   scopedLocalDmKey,
 } from "@/domain/dm/dmKeyUtils";
+import type { RoomAffinityPref } from "@/hooks/useAliveRelationships";
 
 type DmCharacter = {
   name?: string;
@@ -51,7 +52,7 @@ type DmOptions = {
 export function useAliveDm({ activeId, char }: DmOptions) {
   const [autoChatting, setAutoChatting] = useState(false);
   const [dmThreads, setDmThreads] = useState<Record<string, DmMessage[]>>({});
-  const [dmWorldPrefs, setDmWorldPrefs] = useState<Record<string, unknown>>({});
+  const [dmWorldPrefs, setDmWorldPrefs] = useState<Record<string, RoomAffinityPref>>({});
   const [deletedDmKeys, setDeletedDmKeys] = useState<string[]>([]);
   const [pendingDm, setPendingDm] = useState<unknown>(null);
   const [dmWorldDraft, setDmWorldDraft] = useState("");

@@ -16,6 +16,21 @@ test("Android exposes system bar insets to the app shell", () => {
   assert.equal(config.plugins?.SystemBars?.style, "DARK");
 });
 
+test("Android hides the persistent navigation buttons", () => {
+  const entryPath = path.resolve(process.cwd(), "src/main.tsx");
+  const entry = readFileSync(entryPath, "utf8");
+  assert.match(entry, /Capacitor\.getPlatform\(\) !== "android"/);
+  assert.match(entry, /SystemBars\.hide\(\{ bar: SystemBarType\.NavigationBar \}\)/);
+});
+
+test("Android requires two root back presses before closing the app", () => {
+  const activityPath = path.resolve(process.cwd(), "../../android/app/src/main/java/com/ashwoodfriends/alive/MainActivity.java");
+  const activity = readFileSync(activityPath, "utf8");
+  assert.match(activity, /bridge\.getWebView\(\)\.canGoBack\(\)/);
+  assert.match(activity, /EXIT_CONFIRMATION_WINDOW_MS = 2000L/);
+  assert.match(activity, /finishAndRemoveTask\(\)/);
+});
+
 test("iOS delegates safe-area layout to the responsive app shell", () => {
   const configPath = path.resolve(process.cwd(), "../../capacitor.config.json");
   const config = JSON.parse(readFileSync(configPath, "utf8"));
