@@ -53,7 +53,11 @@ class DmThreadRepository:
         if not existing:
             return
         self._require_shared_participant(user, existing)
-        await self.session.execute(delete(SharedDmThread).where(SharedDmThread.thread_key == thread_key))
+        participants = [item for item in existing.participant_user_ids if item != user.id]
+        if participants:
+            existing.participant_user_ids = participants
+        else:
+            await self.session.delete(existing)
         await self.session.commit()
 
     async def _shared_dm_by_key(self, thread_key: str) -> Optional[SharedDmThread]:

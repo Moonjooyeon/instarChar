@@ -183,7 +183,7 @@ function splitDmRows(snapshot: AppSnapshot, ownerId: string, deletedKeys: Set<st
   });
   deletedKeys.forEach((threadKey) => {
     if (!threadKey) return;
-    pushDeletedDmRow({ ownerDmRows, ownerId, sharedDmRows, threadKey });
+    pushDeletedDmRow({ ownerDmRows, ownerId, threadKey });
   });
   return { ownerDmRows, sharedDmRows };
 }
@@ -210,21 +210,17 @@ function pushDmRow({ messages, ownerDmRows, ownerId, sharedCharacters, sharedDmR
   ownerDmRows.push({ ...row, owner_id: ownerId });
 }
 
-function pushDeletedDmRow({ ownerDmRows, ownerId, sharedDmRows, threadKey }: {
+function pushDeletedDmRow({ ownerDmRows, ownerId, threadKey }: {
   ownerDmRows: OwnerDmRow[];
   ownerId: string;
-  sharedDmRows: SharedDmRow[];
   threadKey: string;
 }): void {
+  if (threadKey.startsWith("dm::")) return;
   const deletedRow = {
     thread_key: threadKey,
     messages: [],
     world_pref: { deleted: true, deleted_at: new Date().toISOString() },
   };
-  if (threadKey.startsWith("dm::")) {
-    sharedDmRows.push({ ...deletedRow, participant_user_ids: [ownerId], participant_labels: roomKeyFromDmThreadKey(threadKey).split("|"), created_by: ownerId });
-    return;
-  }
   ownerDmRows.push({ ...deletedRow, owner_id: ownerId });
 }
 
@@ -269,7 +265,16 @@ function applyCharacterRows(next: AppSnapshot, baseState: AppSnapshot, charsResu
   const cachedAccounts = new Map((baseState.accounts || []).map((account) => [account.id, account]));
   const chars = fulfilledRows(charsResult);
   const detailsById = new Map(fulfilledRows(charDetailsResult).map((row) => [row.source_account_id, row]));
-  if (!chars.length) return;
+  if (!loadedWithoutError(charsResult)) return;
+  if (!chars.length) {
+    next.accounts = [];
+    next.activeId = null;
+    next.char = {};
+    next.gallery = [];
+    next.posts = [];
+    next.following = [];
+    return;
+  }
   next.accounts = chars.map((row) => characterAccountFromRow(row, detailsById, cachedAccounts));
   const activeStillExists = next.activeId && next.accounts.some((account) => account.id === next.activeId);
   if (!activeStillExists) next.activeId = next.accounts[0]?.id || null;
@@ -289,10 +294,12 @@ function characterAccountFromRow(row: Record<string, unknown>, detailsById: Map<
 }
 
 function applyPersonaRows(next: AppSnapshot, personasResult: SettledQueryResult): void {
-  const personaRows = fulfilledRows(personasResult);
-  if (personaRows.length) {
-    next.personas = personaRows.map((row) => personaFromRow(row));
-  }
+  if (!loadedWithoutError(personasResult)) return;
+  next.personas = fulfilledRows(personasResult).map((row) => personaFromRow(row));
+}
+
+function loadedWithoutError(result: SettledQueryResult): boolean {
+  return result.status === "fulfilled" && !result.value.error;
 }
 
 function applyDmRows(next: AppSnapshot, dmResult: SettledQueryResult, sharedDmResult: SettledQueryResult, deletedDmKeysRef: DeletedDmKeysRef): void {

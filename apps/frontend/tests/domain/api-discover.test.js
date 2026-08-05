@@ -104,6 +104,7 @@ test("upsertFollowRow sends follower payload to target shared character", async 
       target_shared_character_id: "shared-b",
     });
     assert.equal(result.error, null);
+    assert.equal(result.ok, true);
     assert.equal(globalThis.fetch.calls[0].input, "/api/shared-characters/shared-b/follow");
     assert.equal(globalThis.fetch.calls[0].init.method, "PUT");
     assert.deepEqual(JSON.parse(globalThis.fetch.calls[0].init.body), {
@@ -111,6 +112,17 @@ test("upsertFollowRow sends follower payload to target shared character", async 
       follower_character: { name: "A" },
       follower_name: "tester",
     });
+  } finally {
+    restoreFetch();
+  }
+});
+
+test("upsertFollowRow preserves a server-side rejection", async () => {
+  const restoreFetch = stubFetch(jsonResponse({ ok: false }));
+  try {
+    const result = await upsertFollowRow({ target_shared_character_id: "shared-b" });
+    assert.equal(result.error, null);
+    assert.equal(result.ok, false);
   } finally {
     restoreFetch();
   }

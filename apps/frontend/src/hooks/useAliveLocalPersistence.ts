@@ -11,11 +11,6 @@ export function useAliveLocalPersistence(): {
 } {
   function persistLocalSnapshot(snapshot: LocalSnapshot): void {
     try {
-      const oldRaw = localStorage.getItem(LOCAL_STATE_KEY);
-      if ((!snapshot.accounts || snapshot.accounts.length === 0) && oldRaw) {
-        const oldState = JSON.parse(oldRaw);
-        if (Array.isArray(oldState.accounts) && oldState.accounts.length > 0) return;
-      }
       localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(snapshot));
     } catch (e) {
       console.warn("로컬 즉시 저장 실패:", e);

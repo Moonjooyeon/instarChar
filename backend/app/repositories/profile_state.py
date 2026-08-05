@@ -144,6 +144,11 @@ class ProfileStateRepository:
             return None
 
     async def _upsert_personas(self, user_id: UUID, payload: StructuredStateUpdate) -> None:
+        persona_ids = [item.persona_id for item in payload.personas]
+        stmt = delete(UserPersona).where(UserPersona.owner_id == user_id)
+        if persona_ids:
+            stmt = stmt.where(UserPersona.persona_id.not_in(persona_ids))
+        await self.session.execute(stmt)
         rows = [item.model_dump(mode="python") | {"owner_id": user_id} for item in payload.personas]
         await self._upsert(UserPersona, rows, ["owner_id", "persona_id"])
 

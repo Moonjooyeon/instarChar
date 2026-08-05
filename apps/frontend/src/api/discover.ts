@@ -70,6 +70,10 @@ type FollowPayload = Record<string, unknown> & {
   target_shared_character_id?: string;
 };
 
+type FollowResponse = {
+  ok?: boolean;
+};
+
 export async function listFollowerTargetRows(ids: string[]): Promise<ApiResult<FollowRow[]>> {
   const result = await apiResult<FollowerCountsResponse>("/shared-characters/follower-counts", { query: { ids } });
   if (result.error) return { data: null, error: result.error };
@@ -132,12 +136,13 @@ export function deleteFollowRow(_userId: string, activeId: string, sharedId: str
   });
 }
 
-export function upsertFollowRow(payload: unknown): Promise<{ error: ApiError | null }> {
+export async function upsertFollowRow(payload: unknown): Promise<{ error: ApiError | null; ok: boolean }> {
   const next = followPayload(payload);
-  return apiNoContent(`/shared-characters/${encodeURIComponent(next.target_shared_character_id || "")}/follow`, {
+  const result = await apiResult<FollowResponse>(`/shared-characters/${encodeURIComponent(next.target_shared_character_id || "")}/follow`, {
     method: "PUT",
     body: JSON.stringify(followBody(next)),
   });
+  return { error: result.error, ok: Boolean(result.data?.ok) };
 }
 
 export async function loadActiveSharedCharacterId(_ownerId: string, sourceAccountId: string): Promise<{ data: { id?: string } | null; error: ApiError | null }> {

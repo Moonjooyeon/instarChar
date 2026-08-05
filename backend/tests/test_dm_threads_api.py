@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from types import SimpleNamespace
@@ -30,6 +31,18 @@ class StubUser:
 class StubSession:
     async def commit(self) -> None:
         return None
+
+
+class SharedThreadSession:
+    def __init__(self, row: object) -> None:
+        self.row = row
+        self.deleted: list[object] = []
+
+    async def commit(self) -> None:
+        return None
+
+    async def delete(self, row: object) -> None:
+        self.deleted.append(row)
 
 
 async def stub_db_session() -> AsyncIterator[StubSession]:
@@ -121,6 +134,22 @@ def test_repository_rejects_shared_dm_non_participant() -> None:
     except ForbiddenError:
         return
     raise AssertionError("expected ForbiddenError")
+
+
+def test_repository_removes_only_requesting_shared_dm_participant(monkeypatch) -> None:
+    user = StubUser(id=uuid4(), email="tester@example.com", provider=UserProvider.google, profile=StubProfile())
+    peer_id = uuid4()
+    row = SimpleNamespace(participant_user_ids=[user.id, peer_id])
+    session = SharedThreadSession(row)
+    repo = DmThreadRepository(session)
+
+    async def shared_thread(thread_key: str) -> object:
+        return row
+
+    monkeypatch.setattr(repo, "_shared_dm_by_key", shared_thread)
+    asyncio.run(repo.delete_shared_thread(user, "dm::a|b"))
+    assert row.participant_user_ids == [peer_id]
+    assert session.deleted == []
 
 
 def make_test_client() -> TestClient:

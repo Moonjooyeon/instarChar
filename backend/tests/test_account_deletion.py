@@ -13,6 +13,7 @@ from app.core.config import Settings
 from app.core.errors import ServiceUnavailableError
 from app.core.token_encryption import TokenCipher
 from app.models import User, UserProvider
+from app.repositories.users import UserRepository
 from app.services.account_deletion import AccountDeletionService
 from app.services.apple_token_revocation import AppleTokenRevoker
 
@@ -34,6 +35,18 @@ class StubCredentials:
 class StubSession:
     async def commit(self) -> None:
         return None
+
+
+class SharedThreadSession:
+    def __init__(self, rows: list[object]) -> None:
+        self.rows = rows
+        self.deleted: list[object] = []
+
+    async def delete(self, row: object) -> None:
+        self.deleted.append(row)
+
+    async def execute(self, statement: object) -> object:
+        return SimpleNamespace(scalars=lambda: self.rows)
 
 
 def test_apple_account_revokes_before_local_deletion() -> None:
@@ -66,6 +79,17 @@ def test_google_account_skips_apple_revocation() -> None:
     service.users = StubUsers()
     asyncio.run(service.delete(cast(User, StubUser(uuid4(), UserProvider.google))))
     assert events == ["delete"]
+
+
+def test_account_deletion_preserves_shared_dm_for_other_participants() -> None:
+    deleted_user_id = uuid4()
+    remaining_user_id = uuid4()
+    shared_thread = SimpleNamespace(participant_user_ids=[deleted_user_id, remaining_user_id])
+    solo_thread = SimpleNamespace(participant_user_ids=[deleted_user_id])
+    session = SharedThreadSession([shared_thread, solo_thread])
+    asyncio.run(UserRepository(cast(AsyncSession, session))._remove_user_from_shared_threads(deleted_user_id))
+    assert shared_thread.participant_user_ids == [remaining_user_id]
+    assert session.deleted == [solo_thread]
 
 
 def test_revoker_decrypts_stored_refresh_token(monkeypatch: MonkeyPatch) -> None:

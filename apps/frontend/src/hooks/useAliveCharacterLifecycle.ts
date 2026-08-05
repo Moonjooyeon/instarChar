@@ -186,12 +186,20 @@ export function useAliveCharacterLifecycle({
     if (!deleteTarget) return;
     const targetId = deleteTarget.id;
     const deletion = deleteCharacterState(targetId);
-    applyCharacterDeletion(deletion);
-    setDeleteTarget(null);
     setSaveStatus("삭제 저장 중");
-    const structuredOk = await deleteStructuredCharacterAccount(targetId);
-    await saveAppStateSnapshot(deletion.nextSnapshot);
-    if (structuredOk === false) setSaveStatus("삭제 저장 일부 실패");
+    try {
+      const structuredOk = await deleteStructuredCharacterAccount(targetId);
+      if (structuredOk === false) {
+        setSaveStatus("삭제 저장 실패");
+        return;
+      }
+      persistLocalSnapshot(deletion.nextSnapshot);
+      applyCharacterDeletion(deletion);
+      setDeleteTarget(null);
+      await saveAppStateSnapshot(deletion.nextSnapshot);
+    } catch (error) {
+      setSaveStatus("삭제 저장 실패");
+    }
   }
   async function wakeNewCharacter(): Promise<void> {
     const id = draftIdRef.current || newDraftId();

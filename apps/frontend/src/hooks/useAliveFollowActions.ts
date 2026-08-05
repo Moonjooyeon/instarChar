@@ -87,6 +87,13 @@ export function useAliveFollowActions({
     syncActiveSharedCharacter(nextFollowing);
     syncOwnFollowRows(nextFollowing);
     const followSaved = await recordFollowChange(poolChar, already);
+    if (followSaved === false) {
+      setFollowing(following);
+      setPosts((items) => nextPostsForFollowToggle(items, poolChar, !already));
+      syncActiveSharedCharacter(following);
+      syncOwnFollowRows(following);
+      return;
+    }
     if (!already) applyFollowBackSeed({ char, followSaved, poolChar, recordRelationshipFollowBack, relationBaseFor, setAffinity, verifyMutualLove });
   }
   return { applyRelationshipAutoFollowsToAccounts, relationAutoFollowsFor, toggleFollow, verifyMutualLove };

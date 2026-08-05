@@ -72,7 +72,6 @@ type AppStatePersistenceOptions = {
   feedInitRef: MutableRef<boolean>;
   following: unknown[];
   gallery: unknown[];
-  hasUsableSavedState: (state: unknown) => boolean;
   onboardingOpen: boolean;
   ownerPersona: string;
   persistLocalSnapshot: (snapshot: AppState) => void;
@@ -125,7 +124,6 @@ export function useAliveAppStatePersistence({
   feedInitRef,
   following,
   gallery,
-  hasUsableSavedState,
   onboardingOpen,
   ownerPersona,
   persistLocalSnapshot,
@@ -234,7 +232,7 @@ export function useAliveAppStatePersistence({
       display_name: profileName.trim() || session.user.email?.split("@")[0] || "",
       onboarded: !onboardingOpen,
     };
-    if (hasUsableSavedState(snapshot)) payload.app_state = compactProfileBackup(snapshot);
+    payload.app_state = compactProfileBackup(snapshot);
     return payload;
   }
   async function saveAppStateSnapshot(snapshot: AppState | null | undefined): Promise<void> {

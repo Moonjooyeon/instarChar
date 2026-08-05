@@ -370,9 +370,9 @@ async function deleteFollowRow(userId: string, activeId: string, sharedId: strin
 
 async function upsertFollowRow({ activeId, char, poolChar, profileName, session }: UpsertFollowRowOptions): Promise<boolean> {
   const payload = { follower_id: session.user.id, follower_name: profileName || session.user.email?.split("@")[0] || "user", follower_account_id: activeId, follower_character: { ...char }, target_shared_character_id: poolChar.sharedId };
-  const { error } = await upsertRemoteFollowRow(payload);
+  const { error, ok } = await upsertRemoteFollowRow(payload);
   if (error) console.warn("팔로우 저장 실패:", error);
-  return !error;
+  return !error && ok;
 }
 
 function errorMessage(error: unknown): string {

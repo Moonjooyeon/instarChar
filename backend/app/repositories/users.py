@@ -1,7 +1,7 @@
 from uuid import UUID
 from typing import Optional
 
-from sqlalchemy import delete, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -35,6 +35,15 @@ class UserRepository:
         return await self.create_provider_user(email, provider, subject, display_name)
 
     async def delete_account(self, user: User) -> None:
-        statement = delete(SharedDmThread).where(SharedDmThread.participant_user_ids.contains([user.id]))
-        await self.session.execute(statement)
+        await self._remove_user_from_shared_threads(user.id)
         await self.session.delete(user)
+
+    async def _remove_user_from_shared_threads(self, user_id: UUID) -> None:
+        statement = select(SharedDmThread).where(SharedDmThread.participant_user_ids.contains([user_id]))
+        result = await self.session.execute(statement)
+        for thread in result.scalars():
+            participants = [item for item in thread.participant_user_ids if item != user_id]
+            if participants:
+                thread.participant_user_ids = participants
+                continue
+            await self.session.delete(thread)

@@ -616,7 +616,6 @@ export function useAliveAppController() {
     feedInitRef,
     following,
     gallery,
-    hasUsableSavedState,
     onboardingOpen,
     ownerPersona,
     persistLocalSnapshot,
