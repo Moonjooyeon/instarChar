@@ -123,6 +123,7 @@ export function useAliveAppController() {
   const [stateReady, setStateReady] = useState(!hasBackendApiConfig);
   const [step, setStep] = useState<AppStep>("home");
   const creditReturnStepRef = useRef<AppStep>("home");
+  const profileEditReturnStepRef = useRef<AppStep>("home");
   const {
     accounts,
     activeId,
@@ -1018,6 +1019,28 @@ export function useAliveAppController() {
     wakingRef,
   });
 
+  function editAccountFromHome(id: string): void {
+    profileEditReturnStepRef.current = "home";
+    editAccount(id);
+  }
+
+  function editActiveProfile(): void {
+    if (!activeId) return;
+    profileEditReturnStepRef.current = "feed";
+    editAccount(activeId);
+  }
+
+  function exitProfileEdit(): void {
+    setStep(profileEditReturnStepRef.current);
+  }
+
+  function clearActiveProfileImage(kind: "avatar" | "header"): void {
+    const field = kind === "avatar" ? "avatarImg" : "headerImg";
+    update(field, "");
+    if (!activeId) return;
+    setAccounts((items) => items.map((account) => account.id === activeId ? { ...account, char: { ...account.char, [field]: "" } } : account));
+  }
+
   function deletePersona(id) {
     deletePersonaFromDm(id, commentAs, setCommentAs);
   }
@@ -1096,6 +1119,7 @@ export function useAliveAppController() {
     canUseApp,
     char,
     characterSaveError,
+    clearActiveProfileImage,
     chatMode,
     chatSafetyRules,
     chooseDmWorldMode,
@@ -1157,7 +1181,8 @@ export function useAliveAppController() {
     dmWorldPrefs,
     dump,
     DumpScreen,
-    editAccount,
+    editAccount: editAccountFromHome,
+    editActiveProfile,
     editingComment,
     editingDmTitle,
     editingMemoryId,
@@ -1165,6 +1190,7 @@ export function useAliveAppController() {
     editMemory,
     enterDm,
     EXAMPLES,
+    exitProfileEdit,
     exportAppState,
     feedInitRef,
     feedTopRef,
@@ -1273,6 +1299,7 @@ export function useAliveAppController() {
     profileLoadedRef,
     profileLoading,
     profileLoadRetry,
+    profileEditBackLabel: profileEditReturnStepRef.current === "feed" ? "피드로" : "목록으로",
     profileName,
     profileTableBrokenRef,
     profileUpsertPayload,

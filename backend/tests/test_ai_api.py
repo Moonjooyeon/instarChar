@@ -54,6 +54,21 @@ def test_generate_returns_empty_response_error(monkeypatch) -> None:
     assert response.json()["finishReason"] == "SAFETY"
 
 
+def test_generate_retries_empty_json_with_fast_model(monkeypatch) -> None:
+    calls: list[tuple[str, dict[str, object]]] = []
+    async def call_gemini_once(self: object, model_name: str, body: dict[str, object]) -> GeminiResponse:
+        calls.append((model_name, body))
+        if model_name == "gemini-good-test":
+            return GeminiResponse(200, {"candidates": [{"finishReason": "STOP", "content": {"parts": []}}]})
+        return GeminiResponse(200, {"candidates": [{"content": {"parts": [{"text": "{\"name\":\"리안\"}"}]}}]})
+    monkeypatch.setattr(GeminiGenerateService, "_call_gemini_once", call_gemini_once)
+    with make_test_client(monkeypatch, gemini_model_good="gemini-good-test") as client:
+        response = client.post("/api/ai/generate", json={**generate_body(), "flow": "character-analysis-v2", "model": "claude-sonnet", "system": "반드시 JSON 객체로 답해"})
+    assert response.status_code == 200
+    assert response.json()["content"][0]["text"] == "{\"name\":\"리안\"}"
+    assert [model_name for model_name, _ in calls] == ["gemini-good-test", "gemini-good-test", "gemini-fast-test"]
+
+
 def test_generate_returns_provider_error(monkeypatch) -> None:
     async def call_gemini_once(self: object, model_name: str, body: dict[str, object]) -> GeminiResponse:
         return GeminiResponse(400, {"error": {"message": "bad request"}})

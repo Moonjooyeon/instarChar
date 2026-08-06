@@ -68,8 +68,9 @@
 .al-theme-ready .al-confirm-details-toggle{ border-color:var(--alive-line); color:var(--alive-ink); }
 .al-theme-ready .al-confirm-details-toggle b em,.al-theme-ready .al-confirm-details-toggle small{ color:var(--alive-faint); }
 .al-theme-ready .al-confirm-details-toggle i{ color:var(--alive-accent-ink); }
-.al-theme-ready .al-parse-error{ border-color:color-mix(in srgb,var(--alive-danger) 45%,var(--alive-line)); background:var(--alive-danger-soft); color:var(--alive-danger); }
-.al-theme-ready .al-parse-error span{ color:var(--alive-danger); }
+.al-theme-ready .al-parse-fallback{ border-color:var(--alive-line); }
+.al-theme-ready .al-parse-fallback b{ color:var(--alive-ink); }
+.al-theme-ready .al-parse-fallback p{ color:var(--alive-soft); }
 .al-theme-ready .al-retry{ border-color:var(--alive-accent); background:var(--alive-accent-soft); color:var(--alive-accent-ink); }
 .al-theme-ready .al-retry:hover{ background:var(--alive-surface-raised); }
 .al-theme-ready .al-reparse{ border-color:var(--alive-line); background:var(--alive-surface); color:var(--alive-soft); }

@@ -59,6 +59,11 @@ class GeminiGenerateService:
             if response.status_code >= 400:
                 return self._provider_error(response)
             text_result = self._text_result(response.body)
+        if not text_result["text"] and payload.flow == "character-analysis-v2" and model_name != self.settings.gemini_model_fast:
+            response = await self._call_with_retries(self.settings.gemini_model_fast, self._retry_body(payload, gemini_body))
+            if response.status_code >= 400:
+                return self._provider_error(response)
+            text_result = self._text_result(response.body)
         return self._final_result(text_result, response.body)
 
     async def _retry_empty_response(self, payload: GenerateRequest, model_name: str, body: dict[str, object]) -> GeminiResponse:

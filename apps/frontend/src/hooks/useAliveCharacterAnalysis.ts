@@ -1,4 +1,5 @@
 import { postGenerateContent } from "@/api/generate";
+import { analysisFallbackProfile } from "@/domain/app/analysisFallback";
 import { fieldText, normalizeHandle } from "@/domain/app/textUtils";
 import { MODEL_CHAT, type AppStep } from "@/domain/app/aliveCore";
 
@@ -63,6 +64,7 @@ export function useAliveCharacterAnalysis({
       setStep("confirm");
     } catch (e) {
       console.error("분석 중 에러:", e);
+      setChar((prev) => characterFromFallback(prev, dump, rpLog));
       setParseError(cleanApiFailureMessage(e, "AI 응답이 잠깐 비었어. 다시 분석해줘."));
       setParseFailed(true);
       setStep("confirm");
@@ -139,6 +141,15 @@ function characterFromAnalysis(prev: CharacterDraft, obj: JsonRecord): Character
     directions: prev.directions || "",
     lorebook: prev.lorebook || [],
   };
+}
+
+function characterFromFallback(prev: CharacterDraft, dump: string, rpLog: string): CharacterDraft {
+  const fallback = analysisFallbackProfile(dump, rpLog, fallbackHandleSuffix());
+  return { ...prev, ...fallback, tone: prev.tone || "calm", surface: fallback.persona, corrections: prev.corrections || [], directions: prev.directions || "", lorebook: prev.lorebook || [] };
+}
+
+function fallbackHandleSuffix(): string {
+  return `${Date.now().toString(36).slice(-5)}${Math.random().toString(36).slice(2, 5)}`;
 }
 
 function warmthValue(value: unknown): string {

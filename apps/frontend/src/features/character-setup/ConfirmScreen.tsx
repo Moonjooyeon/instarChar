@@ -13,9 +13,12 @@ export function ConfirmScreen({
   confirmReady,
   handleAvailability,
   handleError,
-  parseError,
+  onBack,
   parseFailed,
   parseRelations,
+  parsing,
+  parseDump,
+  profileEditBackLabel,
   saveCharacterEdits,
   setStep,
   update,
@@ -23,32 +26,32 @@ export function ConfirmScreen({
   waking,
 }) {
   const [isCoreEditing, setIsCoreEditing] = React.useState(Boolean(parseFailed));
-  const [isDetailsOpen, setIsDetailsOpen] = React.useState(Boolean(parseFailed));
+  const [isDetailsOpen, setIsDetailsOpen] = React.useState(false);
   return <div className="al-phone al-theme-ready"><div className="al-setup al-confirm-setup">
     <div className="al-confirm-progress"><b>마지막 확인</b><span>필수 정보만 확인해요.</span></div>
     <header className="al-confirm-hero">
       <span className="al-confirm-avatar"><CharacterAvatarImage src={char.avatarImg} /></span>
-      <div><h1 className="al-flow-title">{parseFailed ? "필수 정보만 확인할게요." : "이대로 시작할까요?"}</h1><p className="al-flow-copy">{parseFailed ? "이름과 아이디를 채우면 시작할 수 있어요." : "틀린 부분만 고치면 돼요."}</p></div>
+      <div><h1 className="al-flow-title">{parseFailed ? "일단 이대로 시작할까요?" : "이대로 시작할까요?"}</h1><p className="al-flow-copy">{parseFailed ? "입력한 내용을 바탕으로 프로필을 준비했어요." : "틀린 부분만 고치면 돼요."}</p></div>
     </header>
-    {parseFailed && <ParseFailure error={parseError} onRetry={() => setStep("dump")} />}
-    <CoreProfile char={char} handleAvailability={handleAvailability} handleError={handleError} isEditing={isCoreEditing} onEdit={() => setIsCoreEditing((editing) => !editing)} update={update} />
+    {parseFailed && <ParseFallback onRetry={parseDump} retrying={parsing} />}
+    <CoreProfile char={char} handleAvailability={handleAvailability} handleError={handleError} isEditing={isCoreEditing} onEdit={() => setIsCoreEditing((editing) => !editing)} showEditToggle={!parseFailed} update={update} />
     <button className="al-confirm-details-toggle" type="button" aria-expanded={isDetailsOpen} onClick={() => setIsDetailsOpen((open) => !open)}>
       <span><b>더 다듬기 <em>선택</em></b><small>지금은 건너뛰어도 괜찮아요.</small></span><i><AliveIcon name={isDetailsOpen ? "minus" : "plus"} size={19} /></i>
     </button>
     {isDetailsOpen && <CharacterDetails char={char} parseRelations={parseRelations} update={update} />}
-    <ConfirmActions activeId={activeId} char={char} confirmReady={confirmReady} onBack={() => setStep(activeId ? "home" : "dump")} onSave={activeId ? saveCharacterEdits : wakeCharacter} waking={waking} />
+    <ConfirmActions activeId={activeId} backLabel={profileEditBackLabel} char={char} confirmReady={confirmReady} onBack={activeId ? onBack : () => setStep("dump")} onSave={activeId ? saveCharacterEdits : wakeCharacter} waking={waking} />
     {characterSaveError && <div className="al-character-save-error" role="alert">{characterSaveError}</div>}
   </div></div>;
 }
 
-function ParseFailure({ error, onRetry }) {
-  return <><div className="al-parse-error"><span>분석을 끝내지 못했어요</span>{error && <p>{error}</p>}</div><button className={RETRY_ACTION_CLASS} onClick={onRetry}><AliveIcon name="refresh" size={15} /> 다시 정리해보기</button></>;
+function ParseFallback({ onRetry, retrying }) {
+  return <aside className="al-parse-fallback" role="status"><div><b>AI 정리는 나중에 다시 해도 돼요.</b><p>지금은 이 캐릭터를 먼저 만나보세요.</p></div><button className={RETRY_ACTION_CLASS} disabled={retrying} type="button" onClick={onRetry}><AliveIcon name="refresh" size={15} /> {retrying ? "정리 중..." : "다시 정리"}</button></aside>;
 }
 
-function CoreProfile({ char, handleAvailability, handleError, isEditing, onEdit, update }) {
-  if (!isEditing) return <section className="al-confirm-summary" aria-label="정리된 기본 프로필"><header><div><small>기본 프로필</small><b>{char.name || "이름을 확인해주세요"}</b><span>@{char.handle || "아이디 확인 필요"}</span></div><button aria-label="틀린 부분 수정" type="button" onClick={onEdit}>수정</button></header><p>{char.persona || "아직 한 줄 소개가 비어 있어요."}</p>{(handleError || handleAvailability.state === "taken") && <small className="al-confirm-summary-error">{handleError || handleAvailability.message}</small>}</section>;
+function CoreProfile({ char, handleAvailability, handleError, isEditing, onEdit, showEditToggle, update }) {
+  if (!isEditing) return <section className="al-confirm-summary" aria-label="정리된 기본 프로필"><header><div><small>기본 프로필</small><b>{char.name || "이름을 확인해주세요"}</b><span>@{char.handle || "아이디 확인 필요"}</span></div>{showEditToggle && <button aria-label="틀린 부분 수정" type="button" onClick={onEdit}>수정</button>}</header><p>{char.persona || "아직 한 줄 소개가 비어 있어요."}</p>{(handleError || handleAvailability.state === "taken") && <small className="al-confirm-summary-error">{handleError || handleAvailability.message}</small>}</section>;
   return <section className="al-confirm-core" aria-label="필수 프로필 정보">
-    <div className="al-confirm-section-head"><b>기본 프로필 수정</b><button type="button" onClick={onEdit}>수정 닫기</button></div>
+    <div className="al-confirm-section-head"><b>기본 프로필 수정</b>{showEditToggle && <button type="button" onClick={onEdit}>수정 닫기</button>}</div>
     <label className="al-field"><span>이름 <i className="al-field-required">필수</i></span><input value={char.name} onChange={(event) => update("name", event.target.value)} placeholder="캐릭터 이름" /></label>
     <label className="al-field"><span>아이디 <i className="al-field-required">필수</i></span><input aria-describedby="character-handle-status" aria-invalid={Boolean(handleError || handleAvailability.state === "taken")} value={char.handle} onChange={(event) => update("handle", event.target.value)} placeholder="@id" /><small id="character-handle-status" aria-live="polite" className={`al-handle-status ${handleStatusClass(handleAvailability.state, handleError)}`}>{handleError || handleAvailability.message}</small></label>
     <label className="al-field"><span>이 아이를 가장 잘 설명하는 한 줄 <i className="al-field-required">필수</i></span><textarea value={char.persona} onChange={(event) => update("persona", event.target.value)} placeholder="성격, 정체성, 태도가 드러나는 한 줄" /></label>
@@ -69,9 +72,9 @@ function RelationsField({ char, parseRelations, update }) {
   return <div className="al-relbox"><div className="al-relbox-head"><span>관계 <i>선택</i></span><span className="al-relbox-hint">이름 — 관계, 쉼표로 구분</span></div>{relations.length > 0 && <div className="al-relviz">{relations.map(({ who, label }, index) => <div key={index} className="al-relviz-item"><div className="al-relviz-line2"><span className="al-relviz-me">{char.name || "이 캐릭터"}</span><span className="al-relviz-arrow"><AliveIcon name="arrow-right" size={14} /></span><span className="al-relviz-peer">{who}</span></div>{label && <span className="al-relviz-rel">{label}</span>}</div>)}</div>}<input className="al-relinput" value={char.relations} onChange={(event) => update("relations", event.target.value)} placeholder="예: 선우 연 — 애인, 카엘 — 라이벌" /></div>;
 }
 
-function ConfirmActions({ activeId, char, confirmReady, onBack, onSave, waking }) {
-  const label = waking ? "저장 중..." : activeId ? "수정 완료" : confirmReady ? `${char.name.trim()}의 SNS 시작하기` : "필수 항목을 확인해줘";
-  return <div className="al-confirm-actions"><button className={BACK_ACTION_CLASS} onClick={onBack}><AliveIcon name="arrow-left" size={15} /> {activeId ? "목록으로" : "다시 입력"}</button><button className={SAVE_ACTION_CLASS} disabled={!confirmReady || waking} onClick={onSave}>{label}</button></div>;
+function ConfirmActions({ activeId, backLabel, char, confirmReady, onBack, onSave, waking }) {
+  const label = waking ? "저장 중..." : activeId ? "수정 완료" : confirmReady ? "SNS 시작하기" : "필수 항목을 확인해줘";
+  return <div className="al-confirm-actions"><button className={BACK_ACTION_CLASS} onClick={onBack}><AliveIcon name="arrow-left" size={15} /> {activeId ? backLabel : "다시 입력"}</button><button className={SAVE_ACTION_CLASS} disabled={!confirmReady || waking} onClick={onSave}>{label}</button></div>;
 }
 
 function handleStatusClass(state, handleError) {

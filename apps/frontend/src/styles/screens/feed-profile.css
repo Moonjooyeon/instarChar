@@ -28,8 +28,11 @@
 .al-feed-theme-ready .al-first-impression > span{ display:flex; align-items:center; gap:7px; color:var(--alive-accent-ink); font-size:9.5px; font-weight:850; letter-spacing:.06em; }
 .al-feed-theme-ready .al-first-impression > span::before{ width:17px; height:1px; background:var(--alive-accent); content:""; }
 .al-feed-theme-ready .al-first-impression > p{ max-width:33ch; margin:7px 0 0; color:var(--alive-ink); font-size:14px; font-weight:590; line-height:1.68; letter-spacing:-.018em; }
-.al-feed-theme-ready .al-profile-tool-actions button{ border-color:var(--alive-line); background:var(--alive-surface); color:var(--alive-soft); }
-.al-feed-theme-ready .al-profile-tool-actions button:hover{ border-color:var(--alive-accent); background:var(--alive-accent-soft); color:var(--alive-ink); }
+.al-feed-theme-ready .al-profile-photos{ border-color:var(--alive-line); background:var(--alive-surface); }
+.al-feed-theme-ready .al-profile-photos b{ color:var(--alive-ink); }
+.al-feed-theme-ready .al-profile-photos small,.al-feed-theme-ready .al-profile-image-removals button{ color:var(--alive-soft); }
+.al-feed-theme-ready .al-profile-photo-actions label{ border-color:var(--alive-line-strong); background:var(--alive-surface-raised); color:var(--alive-accent-ink); }
+.al-feed-theme-ready .al-profile-photo-actions label:hover{ border-color:var(--alive-accent); background:var(--alive-accent-soft); color:var(--alive-ink); }
 .al-feed-theme-ready .al-world-chip{ border-color:var(--alive-line); background:var(--alive-accent-soft); color:var(--alive-accent-ink); }
 .al-feed-theme-ready .al-world-chip:hover,.al-feed-theme-ready .al-world-chip.on{ border-color:var(--alive-accent); background:var(--alive-accent); color:#fff; }
 .al-feed-theme-ready .al-fstat{ color:var(--alive-soft); }

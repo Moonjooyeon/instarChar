@@ -1,5 +1,8 @@
 import { useEffect } from "react";
-import { createProfileShell as createRemoteProfileShell, loadProfileRow } from "@/api/profiles";
+import {
+  createProfileShell as createRemoteProfileShell,
+  loadProfileRow,
+} from "@/api/profiles";
 import { hasBackendApiConfig } from "@/api/client";
 
 type MutableRef<T> = {
@@ -36,7 +39,10 @@ type ProfileBootstrapOptions = {
   blankAppState: (name?: string) => AppState;
   cancelled?: () => boolean;
   hasUsableSavedState: (state: unknown) => boolean;
-  loadStructuredStateFallback: (baseState: AppState, ownerId: string) => Promise<AppState>;
+  loadStructuredStateFallback: (
+    baseState: AppState,
+    ownerId: string,
+  ) => Promise<AppState>;
   profileLoadedRef: MutableRef<boolean>;
   profileLoadRetry: unknown;
   profileTableBrokenRef: MutableRef<boolean>;
@@ -97,7 +103,9 @@ export function useAliveProfileBootstrap({
       setSaveStatus,
       setStateReady,
     });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [session?.user?.id, profileLoadRetry]);
 }
 
@@ -113,19 +121,34 @@ async function loadProfile(options: LoadProfileOptions): Promise<void> {
   try {
     await loadRemoteProfile(options, cachedState, hasCachedState, names);
   } catch (error) {
-    await loadFallbackProfile(options, cachedState, hasCachedState, names.fallbackName, error);
+    await loadFallbackProfile(
+      options,
+      cachedState,
+      hasCachedState,
+      names.fallbackName,
+      error,
+    );
   }
 }
 
 function profileNames(user: UserLike): ProfileNames {
-  const metadataName = stringValue(user.user_metadata?.name || user.user_metadata?.full_name || user.user_metadata?.preferred_username);
+  const metadataName = stringValue(
+    user.user_metadata?.name ||
+      user.user_metadata?.full_name ||
+      user.user_metadata?.preferred_username,
+  );
   return {
     fallbackName: user.email?.split("@")[0] || metadataName || "사용자",
     metadataName,
   };
 }
 
-function applyCachedState(options: LoadProfileOptions, cachedState: unknown, hasCachedState: boolean, fallbackName: string): void {
+function applyCachedState(
+  options: LoadProfileOptions,
+  cachedState: unknown,
+  hasCachedState: boolean,
+  fallbackName: string,
+): void {
   if (hasCachedState) {
     const state = appStateFromUnknown(cachedState);
     options.applyAppState(state);
@@ -135,7 +158,7 @@ function applyCachedState(options: LoadProfileOptions, cachedState: unknown, has
     options.setStateReady(true);
     options.setProfileLoading(false);
     options.setSaveStatus("로컬 캐시");
-    options.setAuthMessage("저장된 캐릭터를 먼저 보여주고 있어. 최신 데이터는 뒤에서 확인 중이야.");
+    options.setAuthMessage("");
   } else {
     options.setStateReady(false);
   }
@@ -144,28 +167,64 @@ function applyCachedState(options: LoadProfileOptions, cachedState: unknown, has
   if (!hasCachedState) options.setAuthMessage("");
 }
 
-async function loadRemoteProfile(options: LoadProfileOptions, cachedState: unknown, hasCachedState: boolean, names: ProfileNames): Promise<void> {
+async function loadRemoteProfile(
+  options: LoadProfileOptions,
+  cachedState: unknown,
+  hasCachedState: boolean,
+  names: ProfileNames,
+): Promise<void> {
   if (!options.session?.user) return;
   const { data, error } = await loadProfileRow(options.session.user.id);
   if (options.cancelled()) return;
   if (error) throw error;
-  const defaultName = data?.display_name || options.session.user.email?.split("@")[0] || names.metadataName || "사용자";
-  const profileState = data?.app_state && typeof data.app_state === "object" ? data.app_state : null;
-  const backupState = hasCachedState ? appStateFromUnknown(cachedState) : (options.hasUsableSavedState(profileState) ? appStateFromUnknown(profileState) : null);
-  const baseState = baseProfileState(options.blankAppState, backupState, defaultName);
-  const mergedState = await options.loadStructuredStateFallback(baseState, options.session.user.id);
+  const defaultName =
+    data?.display_name ||
+    options.session.user.email?.split("@")[0] ||
+    names.metadataName ||
+    "사용자";
+  const profileState =
+    data?.app_state && typeof data.app_state === "object"
+      ? data.app_state
+      : null;
+  const backupState = hasCachedState
+    ? appStateFromUnknown(cachedState)
+    : options.hasUsableSavedState(profileState)
+      ? appStateFromUnknown(profileState)
+      : null;
+  const baseState = baseProfileState(
+    options.blankAppState,
+    backupState,
+    defaultName,
+  );
+  const mergedState = await options.loadStructuredStateFallback(
+    baseState,
+    options.session.user.id,
+  );
   if (options.cancelled()) return;
   applyLoadedProfile(options, mergedState, defaultName, data);
   if (!data) await createProfileShell(options, defaultName);
 }
 
-function baseProfileState(blankAppState: (name?: string) => AppState, backupState: AppState | null, defaultName: string): AppState {
+function baseProfileState(
+  blankAppState: (name?: string) => AppState,
+  backupState: AppState | null,
+  defaultName: string,
+): AppState {
   return backupState
-    ? { ...blankAppState(defaultName), ...backupState, profileName: backupState.profileName || defaultName }
+    ? {
+        ...blankAppState(defaultName),
+        ...backupState,
+        profileName: backupState.profileName || defaultName,
+      }
     : blankAppState(defaultName);
 }
 
-function applyLoadedProfile(options: LoadProfileOptions, mergedState: AppState, defaultName: string, data: ProfileRow | null): void {
+function applyLoadedProfile(
+  options: LoadProfileOptions,
+  mergedState: AppState,
+  defaultName: string,
+  data: ProfileRow | null,
+): void {
   options.applyAppState(mergedState);
   options.setProfileName(defaultName);
   options.setOnboardingOpen(!data?.onboarded);
@@ -175,7 +234,10 @@ function applyLoadedProfile(options: LoadProfileOptions, mergedState: AppState, 
   options.setSaveStatus(data ? "저장됨" : "새 프로필");
 }
 
-async function createProfileShell(options: LoadProfileOptions, defaultName: string): Promise<void> {
+async function createProfileShell(
+  options: LoadProfileOptions,
+  defaultName: string,
+): Promise<void> {
   if (!options.session?.user) return;
   const { error } = await createRemoteProfileShell({
     id: options.session.user.id,
@@ -186,15 +248,29 @@ async function createProfileShell(options: LoadProfileOptions, defaultName: stri
   if (error) options.setSaveStatus(`프로필 생성 실패: ${error.message}`);
 }
 
-async function loadFallbackProfile(options: LoadProfileOptions, cachedState: unknown, hasCachedState: boolean, fallbackName: string, error: unknown): Promise<void> {
+async function loadFallbackProfile(
+  options: LoadProfileOptions,
+  cachedState: unknown,
+  hasCachedState: boolean,
+  fallbackName: string,
+  error: unknown,
+): Promise<void> {
   if (!options.session?.user) return;
   if (options.cancelled()) return;
   console.warn("프로필 메타 로드 실패:", error);
   try {
     const baseState = hasCachedState
-      ? { ...options.blankAppState(fallbackName), ...appStateFromUnknown(cachedState), profileName: appStateFromUnknown(cachedState).profileName || fallbackName }
+      ? {
+          ...options.blankAppState(fallbackName),
+          ...appStateFromUnknown(cachedState),
+          profileName:
+            appStateFromUnknown(cachedState).profileName || fallbackName,
+        }
       : options.blankAppState(fallbackName);
-    const mergedState = await options.loadStructuredStateFallback(baseState, options.session.user.id);
+    const mergedState = await options.loadStructuredStateFallback(
+      baseState,
+      options.session.user.id,
+    );
     if (options.cancelled()) return;
     applyStructuredFallback(options, mergedState, fallbackName);
   } catch (fallbackError) {
@@ -202,7 +278,11 @@ async function loadFallbackProfile(options: LoadProfileOptions, cachedState: unk
   }
 }
 
-function applyStructuredFallback(options: LoadProfileOptions, mergedState: AppState, fallbackName: string): void {
+function applyStructuredFallback(
+  options: LoadProfileOptions,
+  mergedState: AppState,
+  fallbackName: string,
+): void {
   options.applyAppState(mergedState);
   options.setProfileName(fallbackName);
   options.setOnboardingOpen(false);
@@ -210,10 +290,16 @@ function applyStructuredFallback(options: LoadProfileOptions, mergedState: AppSt
   options.setProfileLoading(false);
   options.setStateReady(true);
   options.setSaveStatus("저장됨");
-  options.setAuthMessage("저장된 캐릭터를 불러왔어. 저장 상태는 뒤에서 다시 확인할게.");
+  options.setAuthMessage(
+    "저장된 캐릭터를 불러왔어. 저장 상태는 뒤에서 다시 확인할게.",
+  );
 }
 
-function applyTemporaryProfile(options: LoadProfileOptions, fallbackName: string, fallbackError: unknown): void {
+function applyTemporaryProfile(
+  options: LoadProfileOptions,
+  fallbackName: string,
+  fallbackError: unknown,
+): void {
   if (options.cancelled()) return;
   console.warn("캐릭터 데이터 로드 실패:", fallbackError);
   options.applyAppState(options.blankAppState(fallbackName));
@@ -223,11 +309,13 @@ function applyTemporaryProfile(options: LoadProfileOptions, fallbackName: string
   options.setProfileLoading(false);
   options.setStateReady(true);
   options.setSaveStatus("임시 진입");
-  options.setAuthMessage("저장된 캐릭터 로드가 느려서 일단 앱에 들어왔어. 새로고침 대신 다시 불러오기를 눌러줘.");
+  options.setAuthMessage(
+    "저장된 캐릭터 로드가 느려서 일단 앱에 들어왔어. 새로고침 대신 다시 불러오기를 눌러줘.",
+  );
 }
 
 function appStateFromUnknown(value: unknown): AppState {
-  return value && typeof value === "object" ? value as AppState : {};
+  return value && typeof value === "object" ? (value as AppState) : {};
 }
 
 function stringValue(value: unknown): string {

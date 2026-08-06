@@ -23,7 +23,9 @@ export function FeedProfilePanel({ ctx }) {
     affOf,
     affinityStage,
     char,
+    clearActiveProfileImage,
     deleteRelationAt,
+    editActiveProfile,
     feedView,
     followerCounts,
     following,
@@ -56,7 +58,6 @@ export function FeedProfilePanel({ ctx }) {
     toggleFollowPanel,
     toggleMemoryPanel,
     toggleRelationsPanel,
-    update,
     WorldChip,
   } = ctx;
   const candidates = [...accounts.map((item) => item.char), ...following, ...sharedCharacters];
@@ -76,23 +77,9 @@ export function FeedProfilePanel({ ctx }) {
         {char.headerImg && <img src={mediaUrl(char.headerImg)} alt="" />}
         {isFirstPost && !char.headerImg && <FirstSceneBanner char={char} />}
         <div className="al-feed-utilities"><CreditShortcut onOpen={openCredits} overlay /><button className="al-feed-help" type="button" disabled={loading} onClick={openHelp} aria-label="피드 도움말 열기"><span><AliveIcon name="help" size={15} /></span><b>도움말</b></button></div>
-        {!isFirstPost && isProfileToolsOpen && <div className="al-cover-tools">
-          <label title="헤더 등록">
-            헤더 편집
-            <input type="file" accept="image/*" onChange={(e) => handleProfileImage("header", e)} hidden />
-          </label>
-          {char.headerImg && <button onClick={() => update("headerImg", "")}>삭제</button>}
-        </div>}
       </div>
       <div className="al-avatar-wrap">
         <div className="al-avatar"><CharacterAvatarImage src={char.avatarImg} /></div>
-        {!isFirstPost && isProfileToolsOpen && <div className="al-avatar-tools">
-          <label title="인장 등록">
-            편집
-            <input type="file" accept="image/*" onChange={(e) => handleProfileImage("avatar", e)} hidden />
-          </label>
-          {char.avatarImg && <button onClick={() => update("avatarImg", "")}>삭제</button>}
-        </div>}
       </div>
       <div className="al-profile-info">
         <div className="al-profile-top">
@@ -102,12 +89,12 @@ export function FeedProfilePanel({ ctx }) {
             </div>
             <span className="al-handle">@{char.handle || char.name.replace(/\s/g, "").toLowerCase()}</span>
           </div>
-          {!isFirstPost && <div className="al-feed-actions"><button className="al-dmbtn inline-flex min-h-[34px] items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-line-strong bg-surface-raised px-3 py-2 text-xs font-extrabold leading-none text-ink transition-colors hover:border-accent hover:bg-accent-soft" onClick={() => setStep("dmlist")} title="대화"><span className="text-accent-ink"><AliveIcon name="mail" size={15} /></span><b>대화</b></button></div>}
+          {!isFirstPost && <div className="al-feed-actions"><button aria-label="공유 링크 복사" className="al-dmbtn ghost inline-flex min-h-[34px] items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-line-strong bg-surface-raised px-3 py-2 text-xs font-extrabold leading-none text-ink transition-colors hover:border-accent hover:bg-accent-soft" onClick={shareCurrentCharacter} title="공유 링크 복사"><span className="text-accent-ink"><AliveIcon name="arrow-up-right" size={14} /></span><b>공유</b></button><button className="al-dmbtn ghost inline-flex min-h-[34px] items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-line-strong bg-surface-raised px-3 py-2 text-xs font-extrabold leading-none text-ink transition-colors hover:border-accent hover:bg-accent-soft" onClick={editActiveProfile} title="프로필 수정"><span className="text-accent-ink"><AliveIcon name="pen" size={14} /></span><b>수정</b></button><button className="al-dmbtn inline-flex min-h-[34px] items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-line-strong bg-surface-raised px-3 py-2 text-xs font-extrabold leading-none text-ink transition-colors hover:border-accent hover:bg-accent-soft" onClick={() => setStep("dmlist")} title="대화"><span className="text-accent-ink"><AliveIcon name="mail" size={15} /></span><b>대화</b></button></div>}
         </div>
+        {shareStatus && <p className="al-share-status" role="status">{shareStatus}</p>}
         {(char.age || char.world || !isFirstPost) && <div className="al-profile-meta-row">{char.age && <span className="al-profile-meta">{char.age}</span>}{(char.world || !isFirstPost) && <WorldChip character={char} fallback="current-character" onOpen={setWorldModal} />}</div>}
         {char.surface && isFirstPost && <FirstImpression text={char.surface} />}
         {char.persona && !isFirstPost && <p className="al-bio-text"><span>소개</span><b>{char.persona}</b></p>}
-        {shareStatus && <p className="al-share-status">{shareStatus}</p>}
         {!isFirstPost && <div className="al-profile-network" aria-label="캐릭터 관계와 활동">
           <div className="al-profile-network-head"><span><small>함께하는 세계</small><b>관계와 기억을 이어가 보세요.</b></span><button className="al-profile-discover" type="button" onClick={() => { setDiscoverQuery(""); setSharedFocusId(""); setStep("discover"); }}><AliveIcon name="sparkle" size={14} /> 추천 캐릭터</button></div>
           <div className="al-follow-stats">
@@ -130,8 +117,8 @@ export function FeedProfilePanel({ ctx }) {
         </div>}
         {showRelations && relCount > 0 && <FeedRelations ctx={{ affOf, affinityStage, char, deleteRelationAt, isFollowedCharacterName, relationStageLabel, relations, relLabelFor, setAffinityManual }} />}
         {showMemory && <FeedMemoryPanel ctx={ctx} />}
-        {!isFirstPost && <button className="al-profile-more border-line bg-surface text-ink hover:border-accent hover:bg-accent-soft" type="button" aria-expanded={isProfileToolsOpen} onClick={() => setIsProfileToolsOpen((open) => !open)}><span><b>프로필·공개 설정</b><small className="text-faint">사진과 공개 상태를 관리해요.</small></span><i className="text-accent-ink"><AliveIcon name={isProfileToolsOpen ? "minus" : "plus"} size={19} /></i></button>}
-        {!isFirstPost && isProfileToolsOpen && <div className="al-profile-tools"><div className="al-profile-tool-actions"><button onClick={shareCurrentCharacter}>내 캐릭터 공개하기</button></div><div className="al-gallery">
+        {!isFirstPost && <button className="al-profile-more border-line bg-surface text-ink hover:border-accent hover:bg-accent-soft" type="button" aria-controls="profile-media-tools" aria-expanded={isProfileToolsOpen} onClick={() => setIsProfileToolsOpen((open) => !open)}><span><b>사진 관리</b><small className="text-faint">인장, 헤더, 캐릭터 그림을 바꿔요.</small></span><i className={`text-accent-ink ${isProfileToolsOpen ? "open" : ""}`}><AliveIcon name="chevron-down" size={19} /></i></button>}
+        {!isFirstPost && isProfileToolsOpen && <div className="al-profile-tools" id="profile-media-tools"><section className="al-profile-photos" aria-label="프로필 사진 관리"><div><b>프로필 사진</b><small>인장과 헤더를 직접 바꿔보세요.</small></div><div className="al-profile-photo-actions"><label><AliveIcon name="user" size={14} /> 인장 사진<input type="file" accept="image/*" onChange={(e) => handleProfileImage("avatar", e)} hidden /></label><label><AliveIcon name="image" size={14} /> 헤더 사진<input type="file" accept="image/*" onChange={(e) => handleProfileImage("header", e)} hidden /></label></div>{(char.avatarImg || char.headerImg) && <div className="al-profile-image-removals">{char.avatarImg && <button type="button" onClick={() => clearActiveProfileImage("avatar")}>인장 지우기</button>}{char.headerImg && <button type="button" onClick={() => clearActiveProfileImage("header")}>헤더 지우기</button>}</div>}</section><div className="al-gallery">
           <div className="al-gallery-head">
             <span>{char.name}의 그림 {gallery.length > 0 && `(${gallery.length})`}</span>
             <label className="al-upload">

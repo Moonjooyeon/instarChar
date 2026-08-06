@@ -21,16 +21,17 @@ export function SetupRoutes({ ctx }: SetupRoutesProps) {
     dump,
     DumpScreen,
     editAccount,
+    exitProfileEdit,
     EXAMPLES,
     hasBackendApiConfig,
     HomeScreen,
     handleAvailability,
     handleError,
     parseDump,
-    parseError,
     parseFailed,
     parseRelations,
     parsing,
+    profileEditBackLabel,
     openCredits,
     personas,
     profileName,
@@ -99,9 +100,12 @@ export function SetupRoutes({ ctx }: SetupRoutesProps) {
           confirmReady={confirmReady}
           handleAvailability={handleAvailability}
           handleError={handleError}
-          parseError={parseError}
           parseFailed={parseFailed}
           parseRelations={parseRelations}
+          parsing={parsing}
+          parseDump={parseDump}
+          onBack={exitProfileEdit}
+          profileEditBackLabel={profileEditBackLabel}
           saveCharacterEdits={saveCharacterEdits}
           setStep={setStep}
           update={update}
