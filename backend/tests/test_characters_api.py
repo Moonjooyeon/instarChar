@@ -14,7 +14,7 @@ from app.models import UserProvider
 from app.repositories.character_posts import CharacterPostsRepository
 from app.repositories.characters import CharacterRepository
 from app.repositories.profile_state import ProfileStateRepository
-from app.schemas.character_posts import CharacterPostsResponse
+from app.schemas.character_posts import CharacterPostCommentsResponse, CharacterPostsResponse
 from app.schemas.characters import CharacterHandleAvailabilityResponse, CharacterWriteResponse
 from app.services.ai import GenerateApiResult
 from app.services.feed_generation import FeedGenerationService
@@ -145,6 +145,23 @@ def test_generate_character_post_uses_backend_service(monkeypatch: MonkeyPatch) 
         response = client.post("/api/characters/char-1/posts/generate", json={"mood": "일상"})
     assert response.status_code == 200
     assert response.json()["post"]["text"] == "새 글"
+
+
+def test_create_public_post_comment_uses_the_authoritative_post(monkeypatch: MonkeyPatch) -> None:
+    character_id = uuid4()
+
+    async def append_public_comment(self: object, user: StubUser, target_id: object, post_id: str, payload: object) -> CharacterPostCommentsResponse:
+        assert target_id == character_id
+        assert post_id == "post-1"
+        assert payload.commenter_account_id == "char-1"
+        return CharacterPostCommentsResponse(comments=[{"name": "세인", "text": "좋은 밤"}])
+
+    monkeypatch.setattr(CharacterPostsRepository, "append_public_comment", append_public_comment)
+    body = {"commenter_account_id": "char-1", "name": "세인", "handle": "sein", "reply_to": "리안", "text": "좋은 밤"}
+    with make_test_client() as client:
+        response = client.post(f"/api/characters/public/{character_id}/posts/post-1/comments", json=body)
+    assert response.status_code == 200
+    assert response.json()["comments"][0]["text"] == "좋은 밤"
 
 
 def make_test_client() -> TestClient:

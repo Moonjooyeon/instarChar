@@ -287,6 +287,7 @@ export function useAliveAppController() {
   });
   const {
     auto,
+    canLikePost,
     commentAs,
     commentOn,
     commentText,
@@ -309,6 +310,8 @@ export function useAliveAppController() {
     openCommentBox,
     posts,
     publicPostSnapshot,
+    recommendationPosts,
+    recommendationUsesInterests,
     saveCommentEdit,
     savePostEdit,
     setAuto,
@@ -327,6 +330,7 @@ export function useAliveAppController() {
     setWriteOpen,
     setWriteText,
     sortedPosts,
+    submitExternalComment,
     timeAgo,
     timelinePosts,
     isLikePending,
@@ -335,7 +339,7 @@ export function useAliveAppController() {
     writeOpen,
     writeText,
     generateServerPost,
-  } = useAliveFeed({ activeId, following: feedFollowing, personas, setSaveStatus, step });
+  } = useAliveFeed({ activeId, activeSharedId, following: feedFollowing, personas, recommendationCandidates: sharedCharacters, recommendationProfile: char, setSaveStatus, step });
   const {
     recordFollowChange,
     recordRelationshipFollowBack,
@@ -591,6 +595,7 @@ export function useAliveAppController() {
     setMoodOpen,
     mutatePosts,
     setSaveStatus,
+    submitExternalComment,
   });
   const {
     accountSnapshot,
@@ -1073,6 +1078,7 @@ export function useAliveAppController() {
     authResolvedRef,
     auto,
     autoIntervalSeconds,
+    canLikePost,
     autoChatRef,
     autoChatting,
     baseFollowerCount,
@@ -1279,6 +1285,8 @@ export function useAliveAppController() {
     publicFollowerCount,
     publicFollowingCount,
     publicPostSnapshot,
+    recommendationPosts,
+    recommendationUsesInterests,
     publicProfile,
     reportTarget,
     POST_MOODS,
@@ -1433,6 +1441,7 @@ export function useAliveAppController() {
     signInWithToss,
     signOut,
     sortedPosts,
+    submitExternalComment,
     speakAs,
     speakerNameFor,
     stageLabelFor,

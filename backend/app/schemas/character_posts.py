@@ -39,3 +39,15 @@ class AutoPostUpdate(BaseModel):
 
 class FeedPostGenerateRequest(BaseModel):
     mood: str = "랜덤 / 알아서"
+
+
+class CharacterPostCommentCreate(BaseModel):
+    commenter_account_id: str = Field(min_length=1, max_length=120)
+    handle: str = Field(default="", max_length=120)
+    name: str = Field(min_length=1, max_length=120)
+    reply_to: str = Field(default="", max_length=120)
+    text: str = Field(min_length=1, max_length=500)
+
+
+class CharacterPostCommentsResponse(BaseModel):
+    comments: list[object] = Field(default_factory=list)

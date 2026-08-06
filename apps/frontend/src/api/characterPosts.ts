@@ -16,6 +16,14 @@ export type GeneratedCharacterPost = {
   state: CharacterPostsState;
 };
 
+export type CharacterPostComment = {
+  byUser: boolean;
+  handle: string;
+  name: string;
+  replyTo: string;
+  text: string;
+};
+
 export class CharacterPostsApiError extends Error {
   code: string;
   status: number;
@@ -44,6 +52,13 @@ export async function updateCharacterAutoPost(sourceAccountId: string, enabled: 
 export async function generateCharacterPost(sourceAccountId: string, mood: string): Promise<GeneratedCharacterPost> {
   const path = `${postsPath(sourceAccountId)}/generate`;
   return postsRequest<GeneratedCharacterPost>(path, jsonOptions("POST", { mood }));
+}
+
+export async function createCharacterPostComment(characterId: string, postId: string, commenterAccountId: string, comment: Omit<CharacterPostComment, "byUser">): Promise<CharacterPostComment[]> {
+  const path = `/characters/public/${encodeURIComponent(characterId)}/posts/${encodeURIComponent(postId)}/comments`;
+  const body = { commenter_account_id: commenterAccountId, handle: comment.handle, name: comment.name, reply_to: comment.replyTo, text: comment.text };
+  const response = await postsRequest<{ comments?: CharacterPostComment[] }>(path, jsonOptions("POST", body));
+  return Array.isArray(response.comments) ? response.comments : [];
 }
 
 function postsPath(sourceAccountId: string): string {

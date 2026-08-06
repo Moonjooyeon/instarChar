@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
 import {
   CharacterPostsApiError,
+  createCharacterPostComment,
   generateCharacterPost,
   getCharacterPosts,
   saveCharacterPosts,
@@ -9,7 +10,7 @@ import {
 } from "@/api/characterPosts";
 import { queryPostLikes, updatePostLike, type PostLikeItem, type PostLikeTarget } from "@/api/postLikes";
 import { USER_PERSONA_FEATURE_ENABLED } from "@/domain/app/featureFlags";
-import { applyFollowedLikeState, followedLikeKey, followedLikeState, followedPostTarget, followedPostTargets, formatPostTime, mergeTimelinePosts, optimisticFollowedLike, postTimeMs, postsFromFollowedCharacter, sanitizePosts, type FeedPost, type FollowedCharacter, type FollowedLikeState } from "@/domain/feed/feedUtils";
+import { applyFollowedLikeState, followedLikeKey, followedLikeState, followedPostTarget, followedPostTargets, formatPostTime, optimisticFollowedLike, postTimeMs, postsFromFollowedCharacter, postsFromRecommendedCharacter, recommendedCharacters, sanitizePosts, type FeedPost, type FollowedCharacter, type FollowedLikeState, type RecommendationProfile } from "@/domain/feed/feedUtils";
 
 type PersonaOption = {
   id?: string | number;
@@ -26,10 +27,20 @@ type FeedComment = Record<string, unknown> & {
   text?: string;
 };
 
+type ExternalComment = {
+  handle: string;
+  name: string;
+  replyTo: string;
+  text: string;
+};
+
 type FeedOptions = {
   activeId: string | null;
+  activeSharedId: string;
   following: FollowedCharacter[];
   personas: PersonaOption[];
+  recommendationCandidates: FollowedCharacter[];
+  recommendationProfile: RecommendationProfile;
   setSaveStatus: Dispatch<SetStateAction<string>>;
   step: string;
 };
@@ -41,6 +52,7 @@ type AliveFeedReturn = {
   commentAs: string;
   commentOn: FeedPost["id"] | null;
   commentText: string;
+  canLikePost: (post: FeedPost) => boolean;
   defaultCommentAs: () => string;
   deleteComment: (postId: FeedPost["id"], index: number) => void;
   deletePost: (postId: FeedPost["id"]) => void;
@@ -58,6 +70,8 @@ type AliveFeedReturn = {
   nextIn: number;
   openCommentBox: (postId: FeedPost["id"]) => void;
   posts: FeedPost[];
+  recommendationPosts: FeedPost[];
+  recommendationUsesInterests: boolean;
   publicPostSnapshot: (sourcePosts?: FeedPost[]) => FeedPost[];
   saveCommentEdit: () => void;
   savePostEdit: () => void;
@@ -77,6 +91,7 @@ type AliveFeedReturn = {
   setWriteOpen: Dispatch<SetStateAction<boolean>>;
   setWriteText: Dispatch<SetStateAction<string>>;
   sortedPosts: FeedPost[];
+  submitExternalComment: (post: FeedPost, comment: ExternalComment) => Promise<void>;
   timeAgo: (time: string | number | Date) => string;
   timelinePosts: FeedPost[];
   toggleLike: (id: FeedPost["id"]) => void;
@@ -88,13 +103,13 @@ type AliveFeedReturn = {
   writeText: string;
 };
 
-export function useAliveFeed({ activeId, following, personas, setSaveStatus, step }: FeedOptions): AliveFeedReturn {
+export function useAliveFeed({ activeId, activeSharedId, following, personas, recommendationCandidates, recommendationProfile, setSaveStatus, step }: FeedOptions): AliveFeedReturn {
   const [posts, setPosts] = useState<FeedPost[]>([]);
   const [loading, setLoading] = useState(false);
   const [moodOpen, setMoodOpen] = useState(false);
   const [writeOpen, setWriteOpen] = useState(false);
   const [writeText, setWriteText] = useState("");
-  const [feedView, setFeedView] = useState("timeline");
+  const [feedView, setFeedView] = useState("mine");
   const [fixTarget, setFixTarget] = useState<unknown>(null);
   const [fixText, setFixText] = useState("");
   const [auto, setAutoState] = useState(false);
@@ -108,14 +123,19 @@ export function useAliveFeed({ activeId, following, personas, setSaveStatus, ste
   const [commentText, setCommentText] = useState("");
   const [editingPost, setEditingPost] = useState<FeedPost | null>(null);
   const [editingComment, setEditingComment] = useState<EditingComment | null>(null);
-  const sortedPosts = sanitizePosts(posts).sort((a, b) => postTimeMs(b) - postTimeMs(a));
-  const myPosts = sortedPosts.filter((post) => !post.author);
-  const rawFollowedPosts = (following || []).flatMap((item) => postsFromFollowedCharacter(item));
+  const [externalComments, setExternalComments] = useState<Record<string, unknown[]>>({});
+  const sortedPosts = useMemo(() => sanitizePosts(posts).sort((a, b) => postTimeMs(b) - postTimeMs(a)), [posts]);
+  const myPosts = useMemo(() => sortedPosts.filter((post) => !post.author), [sortedPosts]);
+  const rawFollowedPosts = useMemo(() => (following || []).flatMap((item) => postsFromFollowedCharacter(item)), [following]);
   const followedLikes = useFollowedLikes({ activeId, posts: rawFollowedPosts, setSaveStatus, step });
-  const followedTimelinePosts = rawFollowedPosts.map((post) => applyFollowedLikeState(post, followedLikes.state));
-  const timelinePosts = mergeTimelinePosts(sortedPosts, followedTimelinePosts);
-  const visiblePosts = feedView === "mine" ? myPosts : timelinePosts;
+  const followedTimelinePosts = useMemo(() => rawFollowedPosts.map((post) => applyExternalComments(applyFollowedLikeState(post, followedLikes.state), externalComments)), [externalComments, followedLikes.state, rawFollowedPosts]);
+  const timelinePosts = useMemo(() => [...followedTimelinePosts].sort((a, b) => postTimeMs(b) - postTimeMs(a)), [followedTimelinePosts]);
+  const rankedRecommendations = useMemo(() => recommendedCharacters(recommendationCandidates, following, recommendationProfile, activeId, activeSharedId), [activeId, activeSharedId, following, recommendationCandidates, recommendationProfile]);
+  const recommendationPosts = useMemo(() => rankedRecommendations.flatMap(postsFromRecommendedCharacter).map((post) => applyExternalComments(post, externalComments)).sort((a, b) => postTimeMs(b) - postTimeMs(a)), [externalComments, rankedRecommendations]);
+  const recommendationUsesInterests = useMemo(() => recommendationPosts.some((post) => post.recommendationReason === "interest"), [recommendationPosts]);
+  const visiblePosts = feedView === "mine" ? myPosts : feedView === "recommendations" ? recommendationPosts : timelinePosts;
   useEffect(() => { postsRef.current = posts; }, [posts]);
+  useEffect(() => { setExternalComments({}); }, [activeId]);
   const applyServerState = useCallback((state: CharacterPostsState): void => {
     const nextPosts = sanitizePosts(state.posts);
     revisionRef.current = state.revision;
@@ -216,11 +236,22 @@ export function useAliveFeed({ activeId, following, personas, setSaveStatus, ste
       followedLikes.toggle(followedPost);
       return;
     }
+    if (recommendationPosts.some((post) => post.id === id)) return;
     mutatePosts((items) => items.map((item) => item.id === id ? { ...item, liked: !item.liked, likes: Number(item.likes || 0) + (item.liked ? -1 : 1) } : item));
   }
   function isLikePending(id: FeedPost["id"]): boolean {
     const post = followedTimelinePosts.find((item) => item.id === id);
     return post ? followedLikes.isPending(post) : false;
+  }
+  function canLikePost(post: FeedPost): boolean {
+    if (!post.importedFromRecommendation) return true;
+    return followedTimelinePosts.some((item) => item.authorSharedId === post.authorSharedId);
+  }
+  async function submitExternalComment(post: FeedPost, comment: ExternalComment): Promise<void> {
+    const target = followedPostTarget(post);
+    if (!activeId || !target) throw new Error("댓글을 저장할 게시글을 찾지 못했습니다.");
+    const comments = await createCharacterPostComment(target.target_character_id, target.post_id, activeId, comment);
+    setExternalComments((current) => ({ ...current, [followedLikeKey(target)]: comments }));
   }
   function publicPostSnapshot(sourcePosts: FeedPost[] = posts): FeedPost[] {
     return sanitizePosts(sourcePosts).filter((post) => !post.author && post.text).sort((a, b) => postTimeMs(b) - postTimeMs(a)).slice(0, 30).map(publicPostFromPost);
@@ -229,7 +260,7 @@ export function useAliveFeed({ activeId, following, personas, setSaveStatus, ste
     setCommentOn(null);
     setCommentText("");
   }
-  return { auto, autoIntervalSeconds, commentAs, commentOn, commentText, defaultCommentAs, deleteComment, deletePost, editingComment, editingPost, feedView, fixTarget, fixText, followedTimelinePosts, generateServerPost, isLikePending, loading, manualPost, moodOpen, mutatePosts, myPosts, nextIn, openCommentBox, posts, publicPostSnapshot, saveCommentEdit, savePostEdit, setAuto, setAutoInterval, setCommentAs, setCommentOn, setCommentText, setEditingComment, setEditingPost, setFeedView, setFixTarget, setFixText, setLoading, setMoodOpen, setPosts, setWriteOpen, setWriteText, sortedPosts, timeAgo: formatPostTime, timelinePosts, toggleLike, visiblePosts, writeOpen, writeText };
+  return { auto, autoIntervalSeconds, canLikePost, commentAs, commentOn, commentText, defaultCommentAs, deleteComment, deletePost, editingComment, editingPost, feedView, fixTarget, fixText, followedTimelinePosts, generateServerPost, isLikePending, loading, manualPost, moodOpen, mutatePosts, myPosts, nextIn, openCommentBox, posts, publicPostSnapshot, recommendationPosts, recommendationUsesInterests, saveCommentEdit, savePostEdit, setAuto, setAutoInterval, setCommentAs, setCommentOn, setCommentText, setEditingComment, setEditingPost, setFeedView, setFixTarget, setFixText, setLoading, setMoodOpen, setPosts, setWriteOpen, setWriteText, sortedPosts, submitExternalComment, timeAgo: formatPostTime, timelinePosts, toggleLike, visiblePosts, writeOpen, writeText };
 }
 
 type FollowedLikesOptions = {
@@ -392,6 +423,13 @@ function updateEditedComment(post: FeedPost, editingComment: EditingComment, tex
 
 function asFeedComment(value: unknown): FeedComment {
   return value && typeof value === "object" ? value as FeedComment : {};
+}
+
+function applyExternalComments(post: FeedPost, state: Record<string, unknown[]>): FeedPost {
+  const target = followedPostTarget(post);
+  if (!target) return post;
+  const comments = state[followedLikeKey(target)];
+  return comments ? { ...post, comments } : post;
 }
 
 function publicPostFromPost(post: FeedPost): FeedPost {

@@ -32,6 +32,7 @@ export function useAliveFeedGeneration({
   setMoodOpen,
   mutatePosts,
   setSaveStatus,
+  submitExternalComment,
 }) {
   async function generatePost(mood: string): Promise<void> {
     if (loadingRef.current) return;
@@ -68,14 +69,20 @@ export function useAliveFeedGeneration({
       return null;
     }
   }
-  function submitUserComment(postId, postAuthorName) {
+  async function submitUserComment(post) {
+    const postId = post.id;
+    const postAuthorName = post.author || null;
     const txt = commentText.trim();
     if (!txt) return;
     const persona = commentAs.startsWith("p:") ? personas.find((item) => `p:${item.id}` === commentAs) : null;
     const name = persona ? persona.name : char.name;
     const handle = persona ? name : (char.handle || char.name);
     const rootAuthor = postAuthorName || char.name;
-    const target = posts.find((post) => post.id === postId);
+    if (postAuthorName) {
+      await submitRemoteComment({ bumpAffinity, comment: { handle, name, replyTo: rootAuthor, text: txt }, post, postAuthorName, setCommentOn, setCommentText, setSaveStatus, submitExternalComment });
+      return;
+    }
+    const target = posts.find((item) => item.id === postId);
     const priorComments = [...((target && target.comments) || []), { name, text: txt, replyTo: rootAuthor }];
     appendUserComment(mutatePosts, postId, { handle, name, rootAuthor, txt });
     if (postAuthorName && postAuthorName !== name) bumpAffinity(postAuthorName, name, 1, []);
@@ -117,6 +124,17 @@ export function useAliveFeedGeneration({
     if (quoteTarget) bumpAffinity(poster.name, char.name, 1, []);
   }
   return { addCommentFrom, followerPost, followersReactTo, generatePost, submitUserComment };
+}
+
+async function submitRemoteComment({ bumpAffinity, comment, post, postAuthorName, setCommentOn, setCommentText, setSaveStatus, submitExternalComment }) {
+  try {
+    await submitExternalComment(post, comment);
+    bumpAffinity(postAuthorName, comment.name, 1, []);
+    setCommentText("");
+    setCommentOn(null);
+  } catch (error) {
+    setSaveStatus(`댓글 저장 실패: ${generationFailureMessage(error)}`);
+  }
 }
 
 function generationFailureMessage(error: unknown): string {

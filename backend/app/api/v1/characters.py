@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,7 +13,7 @@ from app.repositories.ai_usage import AiUsageRepository
 from app.repositories.character_posts import CharacterPostsRepository
 from app.repositories.characters import CharacterRepository
 from app.repositories.profile_state import ProfileStateRepository
-from app.schemas.character_posts import AutoPostUpdate, CharacterPostsResponse, CharacterPostsUpdate, FeedPostGenerateRequest
+from app.schemas.character_posts import AutoPostUpdate, CharacterPostCommentCreate, CharacterPostCommentsResponse, CharacterPostsResponse, CharacterPostsUpdate, FeedPostGenerateRequest
 from app.schemas.characters import CharacterHandleAvailabilityResponse, CharacterWrite, CharacterWriteResponse
 from app.services.feed_generation import FeedGenerationService
 
@@ -53,6 +55,11 @@ async def generate_character_post(source_account_id: str, payload: FeedPostGener
     service = FeedGenerationService(CharacterPostsRepository(session), AiUsageRepository(session), settings)
     result = await service.generate(user.id, source_account_id, payload)
     return JSONResponse(status_code=result.status_code, content=result.body)
+
+
+@router.post("/public/{character_id}/posts/{post_id}/comments", response_model=CharacterPostCommentsResponse)
+async def create_public_post_comment(character_id: UUID, post_id: str, payload: CharacterPostCommentCreate, user: User = Depends(get_current_user), session: AsyncSession = Depends(get_db_session)) -> CharacterPostCommentsResponse:
+    return await CharacterPostsRepository(session).append_public_comment(user, character_id, post_id, payload)
 
 
 @router.delete("/{source_account_id}", status_code=status.HTTP_204_NO_CONTENT)

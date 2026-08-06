@@ -61,7 +61,11 @@ export function useAliveDiscoverSync({
   verifyMutualLove,
 }: DiscoverSyncOptions): void {
   useEffect(() => {
-    if (canUseApp && ["discover", "dmlist", "dm", "feed"].includes(step)) loadSharedCharacters();
+    if (!canUseApp || !["discover", "dmlist", "dm", "feed"].includes(step)) return;
+    loadSharedCharacters();
+    if (step !== "feed") return;
+    const timer = window.setInterval(() => loadSharedCharacters(), 60_000);
+    return () => window.clearInterval(timer);
   }, [canUseApp, step, session?.user?.id]);
   useEffect(() => {
     if (!canUseApp || !hasRemoteApiClient() || !session?.user || !activeId) {

@@ -13,6 +13,8 @@ import {
   optimisticFollowedLike,
   postTimeMs,
   postsFromFollowedCharacter,
+  postsFromRecommendedCharacter,
+  recommendedCharacters,
   sanitizePosts,
 } from "../../src/domain/feed/feedUtils.js";
 
@@ -46,6 +48,27 @@ test("postsFromFollowedCharacter preserves a zero like count", () => {
   const character = { id: "c1", name: "세인", posts: [{ id: "p1", text: "고요한 밤", likes: 0 }] };
   assert.equal(postsFromFollowedCharacter(character)[0].likes, 0);
   assert.equal(postsFromFollowedCharacter(character)[0].likes, 0);
+});
+
+test("recommendedCharacters prioritizes interests and excludes followed or current characters", () => {
+  const candidates = [
+    { id: "shared-magic", sharedId: "shared-magic", sourceAccountId: "magic", name: "마법사", tags: ["마법", "도서관"], posts: [{ id: "p1", text: "새 글" }] },
+    { id: "shared-followed", sharedId: "shared-followed", sourceAccountId: "followed", name: "친구", tags: ["마법"], posts: [{ id: "p2", text: "친구 글" }] },
+    { id: "shared-me", sharedId: "shared-me", sourceAccountId: "mine", name: "나", posts: [{ id: "p3", text: "내 글" }] },
+    { id: "shared-new", sharedId: "shared-new", sourceAccountId: "new", name: "새 사람", tags: ["여행"], posts: [{ id: "p4", text: "새 글" }] },
+  ];
+  const actual = recommendedCharacters(candidates, [candidates[1]], { interests: "마법, 홍차" }, "mine", "shared-me");
+  assert.deepEqual(actual.map((item) => item.name), ["마법사", "새 사람"]);
+  assert.equal(actual[0].recommendationReason, "interest");
+  assert.equal(actual[1].recommendationReason, "recent");
+});
+
+test("postsFromRecommendedCharacter keeps the source character for a direct follow action", () => {
+  const character = { id: "shared-magic", sharedId: "shared-magic", characterId: "character-magic", name: "마법사", posts: [{ id: "p1", text: "새 글" }] };
+  const actual = postsFromRecommendedCharacter({ ...character, recommendationReason: "interest" });
+  assert.equal(actual[0].importedFromRecommendation, true);
+  assert.equal(actual[0].recommendationReason, "interest");
+  assert.equal(actual[0].recommendedCharacter?.sharedId, "shared-magic");
 });
 
 test("canManagePost allows only the current character's posts", () => {

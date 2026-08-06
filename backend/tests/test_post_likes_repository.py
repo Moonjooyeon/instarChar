@@ -82,22 +82,21 @@ def test_query_returns_available_and_missing_posts() -> None:
 def test_update_like_is_idempotent_and_returns_canonical_count() -> None:
     owner_id = uuid4()
     character_id = uuid4()
-    session = StubSession([StubResult(scalar=uuid4()), StubResult(scalar=character_row(character_id)), StubResult(), StubResult(scalar=1)])
+    session = StubSession([StubResult(scalar=uuid4()), StubResult(scalar=character_row(character_id)), StubResult(scalar=uuid4()), StubResult(), StubResult(scalar=1)])
     payload = PostLikeUpdate(liker_account_id="char-1", target_character_id=character_id, post_id="post-1", liked=True)
     response = asyncio.run(PostLikesRepository(session).update(StubUser(owner_id), payload))
     assert response.liked is True
     assert response.likes == 4
-    assert "ON CONFLICT ON CONSTRAINT uq_character_post_likes DO NOTHING" in str(session.statements[2])
+    assert "ON CONFLICT ON CONSTRAINT uq_character_post_likes DO NOTHING" in str(session.statements[3])
     assert session.commits == 1
 
 
-def test_update_allows_unshared_target_character() -> None:
+def test_update_rejects_an_unfollowed_target_character() -> None:
     character_id = uuid4()
-    session = StubSession([StubResult(scalar=uuid4()), StubResult(scalar=character_row(character_id)), StubResult(), StubResult(scalar=1)])
+    session = StubSession([StubResult(scalar=uuid4()), StubResult(scalar=character_row(character_id)), StubResult()])
     payload = PostLikeUpdate(liker_account_id="char-1", target_character_id=character_id, post_id="post-1", liked=True)
-    response = asyncio.run(PostLikesRepository(session).update(StubUser(uuid4()), payload))
-    assert response.target_character_id == character_id
-    assert response.liked is True
+    with pytest.raises(ForbiddenError):
+        asyncio.run(PostLikesRepository(session).update(StubUser(uuid4()), payload))
 
 
 def test_update_rejects_unowned_liker_character() -> None:
