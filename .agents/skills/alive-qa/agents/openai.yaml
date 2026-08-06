@@ -1,0 +1,7 @@
+interface:
+  display_name: "ALIVE QA"
+  short_description: "Verify ALIVE behavior with focused test and browser evidence"
+  default_prompt: "Use $alive-qa to verify an ALIVE user flow with the smallest suitable evidence."
+
+policy:
+  allow_implicit_invocation: true

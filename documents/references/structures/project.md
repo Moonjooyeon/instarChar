@@ -2,8 +2,8 @@
 title: Project Structure
 author: black (black@ashwoodfriends.com)
 created: 2026-05-07
-updated: 2026-07-14
-version: 3.2.0
+updated: 2026-08-06
+version: 3.3.0
 status: approved
 ---
 
@@ -22,9 +22,13 @@ alive is an application where user-created characters operate their own SNS-like
 ├── capacitor.config.json      # Capacitor app configuration
 ├── db/                        # PostgreSQL Docker image and SQL files
 ├── documents/
+│   ├── README.md              # Work-document index and placement rules
+│   ├── guides/                # Reusable store and release guides
 │   ├── plans/                 # Work plans and migration plans
-│   ├── reports/               # Review and migration reports
-│   └── references/            # Project reference documentation
+│   ├── specs/                 # Technical contracts and architecture specs
+│   ├── reports/               # Analysis, review, and operations reports
+│   ├── qa/                    # QA guides, reports, and raw evidence
+│   └── references/            # Stable English project references
 ├── ios/                       # Capacitor iOS project
 ├── docker-compose.local.yaml  # Local development compose file
 ├── package.json               # npm workspace orchestrator
@@ -35,6 +39,14 @@ alive is an application where user-created characters operate their own SNS-like
 
 The active frontend source, static assets, Vite config, and Playwright tests live under `apps/frontend/`.
 The root `dist/` directory, when present locally, is an ignored legacy build artifact; Capacitor and Vercel use `apps/frontend/dist`.
+
+Document indexes:
+
+- [`../../README.md`](../../README.md)
+- [`../../plans/README.md`](../../plans/README.md)
+- [`../../specs/README.md`](../../specs/README.md)
+- [`../../reports/README.md`](../../reports/README.md)
+- [`../../qa/README.md`](../../qa/README.md)
 
 Detailed structures:
 

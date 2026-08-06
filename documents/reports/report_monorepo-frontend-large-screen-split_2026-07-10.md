@@ -1,3 +1,12 @@
+---
+title: 큰 화면 파일 추가 분해 보고서
+author: black (black@ashwoodfriends.com)
+created: 2026-07-10
+updated: 2026-07-10
+version: 1.0.0
+status: complete
+---
+
 # 큰 화면 파일 추가 분해 보고서
 
 ## 개요

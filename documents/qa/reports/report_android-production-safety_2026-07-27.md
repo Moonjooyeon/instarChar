@@ -1,3 +1,12 @@
+---
+title: Android 운영 백엔드 연동 QA 보고서
+author: black (black@ashwoodfriends.com)
+created: 2026-07-27
+updated: 2026-07-27
+version: 1.0.0
+status: partial
+---
+
 # Android 운영 백엔드 연동 QA 보고서
 
 - 테스트 일시: 2026-07-27 (KST)

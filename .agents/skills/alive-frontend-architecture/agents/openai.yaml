@@ -1,0 +1,7 @@
+interface:
+  display_name: "ALIVE Frontend Architecture"
+  short_description: "Organize React features, state, and components"
+  default_prompt: "Use $alive-frontend-architecture to design or review this ALIVE frontend change with feature boundaries, component rules, and state ownership."
+
+policy:
+  allow_implicit_invocation: true

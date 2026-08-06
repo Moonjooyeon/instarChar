@@ -235,7 +235,7 @@ HTML 파일 입력과 기존 `FileReader` 처리는 유지한다. 이번 작업�
 
 #### 산출물
 
-- `documents/qa/report_ios-app-review-rejection-2026-07-30.md`
+- `documents/qa/reports/report_ios-app-review-rejection-2026-07-30.md` (planned artifact)
   - 크래시 로그의 민감 정보는 제거한다.
   - 예외 유형, 종료 사유, 심볼리케이션 여부만 기록한다.
 
@@ -532,7 +532,7 @@ Thank you.
 | `apps/frontend/tests/domain/capacitor-config.test.js` | 수정 | iOS 개인정보 키 정적 검사 |
 | `ios/App/CapApp-SPM/Package.swift` | 생성 도구에 의한 수정 | Browser 플러그인 iOS 연결 |
 | `ios/App/App.xcodeproj/project.pbxproj` | 제한적 수정 | 최종 빌드 번호 `3`; 기존 기기 설정 변경 보존 |
-| `documents/qa/report_app-store-rejection-remediation-simulator_2026-07-30.md` | 신규 | 시뮬레이터·에뮬레이터 QA 결과 |
+| `documents/qa/reports/report_app-store-rejection-remediation-simulator_2026-07-30.md` | 신규 | 시뮬레이터·에뮬레이터 QA 결과 |
 
 백엔드 소스, 데이터베이스 모델, 마이그레이션은 변경하지 않는다.
 

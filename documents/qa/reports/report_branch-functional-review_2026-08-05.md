@@ -1,3 +1,12 @@
+---
+title: Current Branch Functional Review
+author: black (black@ashwoodfriends.com)
+created: 2026-08-05
+updated: 2026-08-05
+version: 1.0.0
+status: review
+---
+
 # Current Branch Functional Review
 
 - Branch: `style/mockups-design`
@@ -28,7 +37,7 @@ The account-level help-tour sync remains device-local by design in this pass bec
 
 Impact: source-level fixes can look complete while the APK still ships the old UI and the bottom-clipped management menu.
 
-Evidence: [alive_branch_review.png](alive_branch_review.png)
+Evidence: [alive_branch_review.png](../evidence/alive_branch_review.png)
 
 ### P1 — First-post generation failures have no visible feedback on the feed — resolved
 

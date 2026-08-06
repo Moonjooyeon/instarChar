@@ -2,8 +2,8 @@
 title: Frontend Structure
 author: black (black@ashwoodfriends.com)
 created: 2026-05-07
-updated: 2026-08-05
-version: 3.4.0
+updated: 2026-08-06
+version: 3.4.1
 status: approved
 ---
 
@@ -30,13 +30,16 @@ apps/frontend/
     ├── main.tsx
     ├── api/
     │   ├── auth.ts
+    │   ├── characterPosts.ts
     │   ├── characters.ts
     │   ├── client.ts
     │   ├── discover.ts
     │   ├── dm.ts
     │   ├── generate.ts
+    │   ├── media.ts
     │   ├── postLikes.ts
     │   ├── profiles.ts
+    │   ├── safety.ts
     │   └── structured.ts
     ├── app/
     │   ├── dm/
@@ -54,9 +57,11 @@ apps/frontend/
     ├── features/
     │   ├── auth/
     │   ├── character-setup/
+    │   ├── credits/
     │   ├── discover/
     │   ├── dm/
     │   ├── home/
+    │   ├── onboarding/
     │   └── relationships/
     ├── hooks/
     ├── styles/
@@ -98,7 +103,7 @@ npm run test:domain
 npm run build
 ```
 
-The current domain suite contains 122 passing tests. Playwright handle scenarios require an already-running app at `ALIVE_E2E_BASE_URL` (default `http://127.0.0.1:5179`).
+The current domain suite contains 126 passing tests. Playwright scenarios require an already-running app at `ALIVE_E2E_BASE_URL` (default `http://127.0.0.1:5179`).
 
 ## Build Output
 

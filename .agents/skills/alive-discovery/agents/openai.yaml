@@ -1,0 +1,7 @@
+interface:
+  display_name: "ALIVE Discovery"
+  short_description: "Turn ambiguous ALIVE ideas into scoped, testable work"
+  default_prompt: "Use $alive-discovery to clarify an ALIVE idea into scope, non-goals, and acceptance criteria."
+
+policy:
+  allow_implicit_invocation: true

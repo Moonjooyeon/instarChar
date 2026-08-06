@@ -1,0 +1,7 @@
+interface:
+  display_name: "ALIVE Debugging"
+  short_description: "Reproduce, isolate, fix, and verify ALIVE bugs"
+  default_prompt: "Use $alive-debugging for a reproducible ALIVE bug or regression."
+
+policy:
+  allow_implicit_invocation: true

@@ -63,7 +63,7 @@ Release B까지 완료해야 App Store 제출 준비가 끝난 것으로 판정�
 | 사용자 생성 및 세션 발급 | `backend/app/repositories/users.py`, `backend/app/core/security.py` | 그대로 재사용한다. |
 | 계정 삭제 API | `DELETE /api/auth/account` | Apple 사용자는 토큰 폐기 후 삭제하도록 확장한다. |
 | Apple 로그인 백엔드 테스트 | `backend/tests/test_auth_api.py` | 성공·실패 분기를 확장한다. |
-| iOS Apple 로그인 QA 결과 | `documents/qa/report_ios-apple-login_2026-07-28.md` | 플러그인 등록 회귀 테스트의 기준으로 사용한다. |
+| iOS Apple 로그인 QA 결과 | `documents/qa/reports/report_ios-apple-login_2026-07-28.md` | 플러그인 등록 회귀 테스트의 기준으로 사용한다. |
 
 ## 5. 목표 구조
 

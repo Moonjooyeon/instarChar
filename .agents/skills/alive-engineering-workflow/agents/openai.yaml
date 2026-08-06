@@ -1,0 +1,7 @@
+interface:
+  display_name: "ALIVE Engineering Workflow"
+  short_description: "Plan, build, verify, and document ALIVE tasks"
+  default_prompt: "Use $alive-engineering-workflow to handle this ALIVE task with explicit scope, evidence, tests, and handoff."
+
+policy:
+  allow_implicit_invocation: true

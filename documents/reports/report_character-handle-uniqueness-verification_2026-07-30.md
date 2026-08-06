@@ -1,3 +1,12 @@
+---
+title: Character Handle Uniqueness Verification
+author: black (black@ashwoodfriends.com)
+created: 2026-07-30
+updated: 2026-07-30
+version: 1.0.0
+status: partial
+---
+
 # Character Handle Uniqueness Verification
 
 Date: 2026-07-30

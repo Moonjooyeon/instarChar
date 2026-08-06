@@ -1,3 +1,12 @@
+---
+title: Supabase API Client Boundary Report
+author: black (black@ashwoodfriends.com)
+created: 2026-07-10
+updated: 2026-07-10
+version: 1.0.0
+status: complete
+---
+
 # Supabase API Client Boundary Report
 
 ## 개요

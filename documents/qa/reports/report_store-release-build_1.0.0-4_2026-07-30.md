@@ -1,3 +1,12 @@
+---
+title: Store release build report — 1.0.0 (4)
+author: black (black@ashwoodfriends.com)
+created: 2026-07-30
+updated: 2026-07-30
+version: 1.0.0
+status: complete
+---
+
 # Store release build report — 1.0.0 (4)
 
 ## Release metadata

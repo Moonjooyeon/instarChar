@@ -89,8 +89,8 @@ Keep components under 200 lines. Break down large components into smaller, reusa
 ### State Management
 
 - Use `useState` / `useReducer` for local component state.
-- Use **Zustand** for global client state (UI state, auth, preferences).
-- Avoid prop drilling deeper than 2 levels — use Context or Zustand.
+- ALIVE currently has no adopted global state library. Keep state local or in the existing hooks/context boundaries; propose a library only with a focused comparison and migration plan.
+- Avoid prop drilling deeper than 2 levels, but do not introduce Context or a global store solely to avoid one or two explicit props.
 - Keep state as close to where it's used as possible.
 
 ### Performance
@@ -124,15 +124,11 @@ Keep components under 200 lines. Break down large components into smaller, reusa
 
 ## API & Data Fetching Guidelines
 
-### Generated API Client
+### API Client
 
-- Always use the typed API client from `packages/api-client/` to call backend APIs.
-- Never call `fetch` or `axios` directly from components — go through the client.
-- API contracts (TypeScript types) are auto-generated from OpenAPI specs in `packages/contracts/`. Regenerate after backend schema changes:
-
-```bash
-make contracts
-```
+- Use the typed clients in `apps/frontend/src/api/` for backend calls.
+- Never call `fetch` directly from React components; keep transport and response adaptation in `src/api/`.
+- When backend schemas change, update the corresponding frontend API types and focused tests. There is no active `packages/api-client/` or generated-contract command in this repository.
 
 ### Environment Variables
 

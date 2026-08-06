@@ -1,0 +1,7 @@
+interface:
+  display_name: "ALIVE AI Quality"
+  short_description: "Evaluate character, prompt, safety, cost, and AI regressions"
+  default_prompt: "Use $alive-ai-quality to review or verify an ALIVE AI behavior change."
+
+policy:
+  allow_implicit_invocation: true

@@ -6,14 +6,22 @@ Document management conventions for the project.
 
 ## Directory Structure
 
-```
+```text
 documents/
-├── references/
-│   ├── README.md           # Index of all reference documents
-│   ├── guidelines/         # Coding conventions (common + project-specific)
-│   ├── plans/              # Service and feature plans
-│   └── specs/              # Technical specs, architecture, DB design
-└── app_tech_stacks.md      # Static tech stack reference
+├── README.md               # Entry point for all work and reference documents
+├── guides/                 # Reusable Korean user, store, and release guides
+├── plans/                  # Korean implementation and migration plans
+├── specs/                  # Korean technical contracts and architecture specs
+├── reports/                # Korean analysis, review, and operations reports
+├── qa/                     # QA guides, reports, and evidence
+│   ├── evidence/           # PNG/XML and other raw artifacts
+│   ├── guides/
+│   └── reports/
+└── references/             # Stable English project references
+    ├── README.md
+    ├── guidelines/
+    ├── structures/
+    └── tech-stacks/
 ```
 
 - `references/README.md` is the single entry point for all reference documents — keep it up to date when adding or removing files.
@@ -24,7 +32,7 @@ documents/
 ## Language
 
 - Documents under `documents/references/` must be written in **English**.
-- Documents under all other folders (e.g., `documents/plan/`, `documents/spec/`) must be written in **Korean**.
+- Documents under all other folders (e.g., `documents/plans/`, `documents/specs/`) must be written in **Korean**, except for quoted product names, API identifiers, and historical documents whose language is preserved.
 
 ---
 
@@ -61,7 +69,7 @@ Always read **both** files for the relevant scope before starting work. When add
 
 ## Front Matter
 
-Every document must start with:
+Every substantive document must start with:
 
 ```markdown
 ---
@@ -70,9 +78,11 @@ author: black (black@ashwoodfriends.com)
 created:
 updated:
 version:
-status: draft | review | approved | deprecated
+status: draft | in_progress | review | ready | approved | implemented | implemented-local | active | partial | complete | deprecated
 ---
 ```
+
+Directory index files such as `README.md` and the reusable guideline files under `references/guidelines/` may omit front matter when their purpose is navigation or policy.
 
 ---
 
@@ -104,10 +114,10 @@ Use paths relative to the linking file:
 
 ```markdown
 <!-- From documents/references/README.md linking to a guideline -->
-[Express guidelines](guidelines/express.md)
+[React/Vite guidelines](guidelines/react+vite.md)
 
 <!-- From a guideline file linking to another guideline -->
-[Project-specific conventions](express-project.md)
+[Backend conventions](../structures/backend.md)
 ```
 
 ---
@@ -128,7 +138,7 @@ Use paths relative to the linking file:
 ### project.md
 - Maximum directory depth: **3 levels**.
 - Describe only top-level concerns: which apps exist under `apps/`, which shared packages are used, and what `scripts/`, `manifests/`, or other root folders are for.
-- For each described folder, link to its `README.md` using a **relative path**.
+- For each described work-artifact folder, link to its `README.md` using a **relative path**.
 - `project.md` serves as a table of contents; detailed explanations live in each folder's `README.md`.
 
 ### frontend.md / backend.md
