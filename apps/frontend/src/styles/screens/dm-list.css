@@ -23,7 +23,8 @@
 .al-dm-list-theme-ready .al-newchat-target{ border-color:var(--alive-line); background:var(--alive-surface); color:var(--alive-ink); }
 .al-dm-list-theme-ready .al-newchat-target:hover,.al-dm-list-theme-ready .al-newchat-target.mine{ border-color:var(--alive-accent); background:var(--alive-accent-soft); }
 .al-dm-list-theme-ready .al-nt-name{ color:var(--alive-ink); }
-.al-dm-list-theme-ready .al-nt-rel,.al-dm-list-theme-ready .al-nt-mine-tag{ color:var(--alive-accent-ink); }
+.al-dm-list-theme-ready .al-nt-rel{ border-color:var(--alive-line); background:var(--alive-accent-soft); color:var(--alive-accent-ink); }
+.al-dm-list-theme-ready .al-nt-mine-tag{ color:var(--alive-accent-ink); }
 .al-dm-list-theme-ready .al-nt-mine-tag{ background:var(--alive-accent-soft); }
 .al-dm-list-theme-ready .al-nt-ext{ color:var(--alive-success); }
 .al-dm-list-theme-ready .al-newchat-cancel{ color:var(--alive-soft); }

@@ -13,6 +13,7 @@
 .al-cast-avatar{ border-color:var(--alive-line-strong); background:var(--alive-surface-muted); }
 .al-cast-copy b{ color:var(--alive-ink); }
 .al-cast-copy small,.al-cast-copy em{ color:var(--alive-soft); }
+.al-cast-relation-line{ color:var(--alive-accent-strong); }
 .al-cast-main > i{ color:var(--alive-accent-ink); }
 .al-cast-main:hover .al-cast-avatar{ border-color:var(--alive-accent); }
 .al-cast-main:hover > i{ color:var(--alive-accent-strong); }

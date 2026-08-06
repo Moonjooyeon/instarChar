@@ -93,7 +93,12 @@ function CharacterEntry({ account, editAccount, index, onDelete, onOpen }) {
   const handle = account.char.handle || name.replace(/\s/g, "").toLowerCase();
   const description = account.char.persona || account.char.surface || "아직 이 인물의 이야기를 시작하지 않았어요.";
   const postCount = (account.posts || []).length;
-  return <article className="al-cast-entry"><button aria-label={`${name} 계정 열기`} className="al-cast-main" onClick={() => onOpen(account.id)}><span className="al-cast-avatar"><CharacterAvatarImage src={account.char.avatarImg} /></span><span className="al-cast-copy"><small>{String(index + 1).padStart(2, "0")} · @{handle}</small><b>{name}</b><em>{description}</em></span><i>열기 <AliveIcon name="arrow-up-right" size={12} /></i></button><footer><span>{postCount > 0 ? `${postCount}개의 기록` : "아직 첫 기록 전"}</span><div><button onClick={() => editAccount(account.id)}>프로필 수정</button><button className="danger" onClick={() => onDelete(account)}>삭제</button></div></footer></article>;
+  const relationText = typeof account.char.relations === "string" ? account.char.relations.trim() : "";
+  return <article className="al-cast-entry"><button aria-label={`${name} 계정 열기`} className="al-cast-main" onClick={() => onOpen(account.id)}><span className="al-cast-avatar"><CharacterAvatarImage src={account.char.avatarImg} /></span><span className="al-cast-copy"><small>{String(index + 1).padStart(2, "0")} · @{handle}</small><b>{name}</b><em>{description}</em>{relationText && <CharacterRelationSummary relationText={relationText} />}</span><i>열기 <AliveIcon name="arrow-up-right" size={12} /></i></button><footer><span>{postCount > 0 ? `${postCount}개의 기록` : "아직 첫 기록 전"}</span><div><button onClick={() => editAccount(account.id)}>프로필 수정</button><button className="danger" onClick={() => onDelete(account)}>삭제</button></div></footer></article>;
+}
+
+function CharacterRelationSummary({ relationText }) {
+  return <span className="al-cast-relation-line" aria-label={`관계 ${relationText}`}><AliveIcon name="heart-filled" size={13} /> {relationText}</span>;
 }
 
 function FirstCharacterEntry({ onStart, onTour }) {
