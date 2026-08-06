@@ -104,11 +104,12 @@ export function FeedProfilePanel({ ctx }) {
           {!isFirstPost && <div className="al-feed-actions"><button className="al-dmbtn inline-flex min-h-[34px] items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-line-strong bg-surface-raised px-3 py-2 text-xs font-extrabold leading-none text-ink transition-colors hover:border-accent hover:bg-accent-soft" onClick={() => setStep("dmlist")} title="대화"><span className="text-accent-ink"><AliveIcon name="mail" size={15} /></span><b>대화</b></button></div>}
         </div>
         {(char.age || char.world || !isFirstPost) && <div className="al-profile-meta-row">{char.age && <span className="al-profile-meta">{char.age}</span>}{(char.world || !isFirstPost) && <WorldChip character={char} fallback="current-character" onOpen={setWorldModal} />}</div>}
-        {char.surface && (isFirstPost ? <FirstImpression text={char.surface} /> : <p className="al-profile-intro">{char.surface}</p>)}
+        {char.surface && isFirstPost && <FirstImpression text={char.surface} />}
         {char.persona && !isFirstPost && <p className="al-bio-text"><span>소개</span><b>{char.persona}</b></p>}
         {shareStatus && <p className="al-share-status">{shareStatus}</p>}
-        {!isFirstPost && <button className="al-profile-more border-line bg-surface text-ink hover:border-accent hover:bg-accent-soft" type="button" aria-expanded={isProfileToolsOpen} onClick={() => setIsProfileToolsOpen((open) => !open)}><span><b>기억·관계·공개 설정</b><small className="text-faint">필요할 때만 열어보세요.</small></span><i className="text-accent-ink"><AliveIcon name={isProfileToolsOpen ? "minus" : "plus"} size={19} /></i></button>}
-        {!isFirstPost && isProfileToolsOpen && <div className="al-profile-tools"><div className="al-profile-tool-actions"><button onClick={() => { setDiscoverQuery(""); setSharedFocusId(""); setStep("discover"); }}>새 캐릭터 만나기</button><button onClick={shareCurrentCharacter}>내 캐릭터 공개하기</button></div><div className="al-follow-stats">
+        {!isFirstPost && <div className="al-profile-network" aria-label="캐릭터 관계와 활동">
+          <div className="al-profile-network-head"><span><small>함께하는 세계</small><b>관계와 기억을 이어가 보세요.</b></span><button className="al-profile-discover" type="button" onClick={() => { setDiscoverQuery(""); setSharedFocusId(""); setStep("discover"); }}><AliveIcon name="sparkle" size={14} /> 추천 캐릭터</button></div>
+          <div className="al-follow-stats">
           <button className={`al-fstat ${followPanel === "following" ? "on" : ""}`} onClick={() => toggleFollowPanel("following")}>
             <b>{following.length}</b> 추가한 캐릭터
           </button>
@@ -124,10 +125,12 @@ export function FeedProfilePanel({ ctx }) {
             </button>
           )}
           {myFollowers().length > 0 && <span className="al-fstat-new">친해진 캐가 맞팔했어!</span>}
-        </div>
+          </div>
+        </div>}
         {showRelations && relCount > 0 && <FeedRelations ctx={{ affOf, affinityStage, char, deleteRelationAt, isFollowedCharacterName, relationStageLabel, relations, relLabelFor, setAffinityManual }} />}
         {showMemory && <FeedMemoryPanel ctx={ctx} />}
-        <div className="al-gallery">
+        {!isFirstPost && <button className="al-profile-more border-line bg-surface text-ink hover:border-accent hover:bg-accent-soft" type="button" aria-expanded={isProfileToolsOpen} onClick={() => setIsProfileToolsOpen((open) => !open)}><span><b>프로필·공개 설정</b><small className="text-faint">사진과 공개 상태를 관리해요.</small></span><i className="text-accent-ink"><AliveIcon name={isProfileToolsOpen ? "minus" : "plus"} size={19} /></i></button>}
+        {!isFirstPost && isProfileToolsOpen && <div className="al-profile-tools"><div className="al-profile-tool-actions"><button onClick={shareCurrentCharacter}>내 캐릭터 공개하기</button></div><div className="al-gallery">
           <div className="al-gallery-head">
             <span>{char.name}의 그림 {gallery.length > 0 && `(${gallery.length})`}</span>
             <label className="al-upload">

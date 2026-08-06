@@ -259,6 +259,13 @@ body{ overflow-x:hidden; }
 .al-profile-info{ padding:11px 18px 0; }
 .al-profile-info h2{ margin:0; font-size:20px; font-weight:800; letter-spacing:-.01em; }
 .al-first-profile-note{ margin:14px 0 0; padding:10px 12px; border-left:2px solid #8267bc; background:#1c1922; color:#a9a1b2; font-size:11.5px; line-height:1.55; }
+.al-profile-network{ margin-top:16px; padding:12px 0 11px; border-top:1px solid #302b36; border-bottom:1px solid #302b36; }
+.al-profile-network-head{ display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.al-profile-network-head > span{ display:flex; min-width:0; flex-direction:column; gap:3px; }
+.al-profile-network-head small{ color:var(--faint); font-size:9px; font-weight:800; letter-spacing:.06em; }
+.al-profile-network-head b{ color:var(--soft); font-size:11px; font-weight:650; }
+.al-profile-discover{ display:inline-flex; flex:0 0 auto; align-items:center; gap:5px; min-height:30px; padding:6px 9px; border:1px solid #4d405e; border-radius:999px; background:#211b29; color:#cbb5fb; cursor:pointer; font-family:inherit; font-size:10px; font-weight:800; }
+.al-profile-discover:hover{ border-color:#8066aa; background:#2a2135; color:#eee7f7; }
 .al-profile-more{ display:flex; align-items:center; justify-content:space-between; width:100%; margin-top:15px; padding:13px 12px; border:1px solid #35303d; border-radius:10px; background:#1b1820; color:var(--ink); cursor:pointer; font-family:inherit; text-align:left; transition:background .16s,border-color .16s; }
 .al-profile-more span{ display:flex; flex-direction:column; gap:2px; }
 .al-profile-more b{ font-size:11.5px; }
@@ -311,7 +318,6 @@ body{ overflow-x:hidden; }
 .al-handle{ font-size:13.5px; color:var(--soft); }
 .al-profile-meta-row{ display:flex; align-items:center; gap:7px; min-height:22px; margin-top:9px; flex-wrap:wrap; }
 .al-profile-meta{ color:#b2a9b9; font-size:11.5px; line-height:1.35; }
-.al-profile-intro{ display:-webkit-box; max-width:36ch; overflow:hidden; margin:13px 0 0; color:#e1dbe6; font-size:14px; font-weight:620; line-height:1.65; letter-spacing:-.014em; -webkit-box-orient:vertical; -webkit-line-clamp:2; }
 .al-bio-text{ display:grid; grid-template-columns:35px 1fr; gap:8px; max-width:38ch; margin:8px 0 0; color:#aaa3b0; font-size:12.5px; line-height:1.65; letter-spacing:-.012em; }
 .al-bio-text > span{ padding-top:1px; color:#7e7488; font-size:9px; font-weight:800; letter-spacing:.05em; }
 .al-bio-text > b{ display:-webkit-box; overflow:hidden; font:inherit; -webkit-box-orient:vertical; -webkit-line-clamp:2; }
@@ -321,8 +327,15 @@ body{ overflow-x:hidden; }
 
 /* composer */
 .al-composer{ padding:17px 16px; border-bottom:1px solid var(--line); }
-.al-compose-settings-toggle{ width:100%; padding:10px 16px; border:0; border-bottom:1px solid var(--line); background:#15131a; color:#8e8798; cursor:pointer; font-family:inherit; font-size:11px; text-align:right; }
-.al-compose-settings-toggle:hover{ color:#c8b3ff; }
+.al-compose-settings-toggle{ display:flex; align-items:center; justify-content:space-between; width:100%; min-height:58px; padding:10px 16px; border:0; border-bottom:1px solid var(--line); background:#15131a; color:#8e8798; cursor:pointer; font-family:inherit; text-align:left; }
+.al-compose-settings-copy{ display:flex; min-width:0; align-items:center; gap:9px; }
+.al-compose-settings-copy > i{ display:grid; place-items:center; width:28px; height:28px; border:1px solid #42354f; border-radius:9px; background:#211a29; color:#c8b3ff; }
+.al-compose-settings-copy > span{ display:flex; min-width:0; flex-direction:column; gap:2px; }
+.al-compose-settings-copy b{ color:var(--ink); font-size:11px; font-weight:800; }
+.al-compose-settings-copy small{ overflow:hidden; color:#8e8798; font-size:9.5px; text-overflow:ellipsis; white-space:nowrap; }
+.al-compose-settings-icon{ display:grid; flex:0 0 auto; place-items:center; width:26px; height:26px; border:1px solid #393240; border-radius:50%; color:#c8b3ff; }
+.al-compose-settings-toggle:hover{ background:#1b1720; }
+.al-compose-settings-toggle:hover .al-compose-settings-copy > i,.al-compose-settings-toggle:hover .al-compose-settings-icon{ border-color:#8066aa; color:#e8ddff; }
 .al-compose-settings{ border-bottom:1px solid var(--line); background:#111018; }
 .al-compose-settings .al-autobar,.al-compose-settings .al-directive{ border-bottom:0; }
 .al-wake{ width:100%; padding:13px 14px; border-radius:10px; cursor:pointer; font-family:inherit;
@@ -1032,6 +1045,7 @@ body{ overflow-x:hidden; }
 .al-nt-ext{ font-size:10px; color:#9eddb0; margin-left:auto; }
 /* 팔로우 통계 */
 .al-follow-stats{ display:flex; gap:8px; align-items:center; margin-top:9px; flex-wrap:wrap; min-width:0; }
+.al-profile-network .al-follow-stats{ gap:13px; margin-top:11px; }
 .al-fstat{ background:none; border:none; padding:2px 0; font-family:inherit; font-size:12.5px; color:var(--soft); cursor:default;
   min-width:0; max-width:100%; overflow-wrap:anywhere; }
 button.al-fstat{ cursor:pointer; }

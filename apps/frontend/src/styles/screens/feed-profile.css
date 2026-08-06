@@ -5,9 +5,13 @@
 .al-feed-theme-ready .al-avatar{ border-color:var(--alive-phone); }
 .al-feed-theme-ready .al-profile-info h2{ color:var(--alive-ink); }
 .al-feed-theme-ready .al-handle,.al-feed-theme-ready .al-profile-meta{ color:var(--alive-soft); }
-.al-feed-theme-ready .al-profile-intro{ color:var(--alive-ink); }
 .al-feed-theme-ready .al-bio-text{ color:var(--alive-soft); }
 .al-feed-theme-ready .al-bio-text > span{ color:var(--alive-faint); }
+.al-feed-theme-ready .al-profile-network{ border-color:var(--alive-line); }
+.al-feed-theme-ready .al-profile-network-head small{ color:var(--alive-faint); }
+.al-feed-theme-ready .al-profile-network-head b{ color:var(--alive-soft); }
+.al-feed-theme-ready .al-profile-discover{ border-color:var(--alive-line-strong); background:var(--alive-accent-soft); color:var(--alive-accent-ink); }
+.al-feed-theme-ready .al-profile-discover:hover{ border-color:var(--alive-accent); background:var(--alive-accent); color:#fff; }
 .al-feed-theme-ready .al-share-status{ color:var(--alive-accent-ink); }
 .al-feed-theme-ready .al-first-profile-note{ border-left-color:var(--alive-accent); background:var(--alive-accent-soft); color:var(--alive-soft); }
 .al-feed-theme-ready .al-profile-first .al-banner{ height:136px; background:radial-gradient(circle at 16% 112%,var(--alive-accent-soft) 0 34%,transparent 35%),linear-gradient(128deg,var(--alive-surface-muted),var(--alive-surface-sunken)); }
