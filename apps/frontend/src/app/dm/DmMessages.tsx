@@ -1,4 +1,5 @@
 import React from "react";
+import { mediaUrl } from "@/api/media";
 import { CharacterAvatarImage } from "@/components/ui/CharacterAvatarImage";
 
 export function DmMessages({ ctx }) {
@@ -20,7 +21,7 @@ export function DmMessages({ ctx }) {
             {fromPeer && <div className="al-bubble-av"><CharacterAvatarImage src={peerAvatar} /></div>}
             <div className={`al-bubble ${mine ? "me" : "char"}`}>
               {showLabel && <span className="al-bubble-spk">{message.from}</span>}
-              {message.img && <img className="al-bubble-img" src={message.img} alt="" />}
+              {message.img && <img className="al-bubble-img" src={mediaUrl(message.img, dmKey)} alt="" />}
               {message.text && !(message.img && message.text === "(사진)") && <span className="al-bubble-text">{message.text}</span>}
               {canFixDmLine && <button className="al-fixbtn-dm" onClick={() => { setFixTarget({ type: "dm", index, text: message.text, who: message.from }); setFixText(""); }}>캐릭터답지 않아요</button>}
               {fromPeer && <button className="al-fixbtn-dm safety" onClick={() => setReportTarget({

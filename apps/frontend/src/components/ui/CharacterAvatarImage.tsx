@@ -1,4 +1,5 @@
 import React, { type SyntheticEvent } from "react";
+import { mediaUrl } from "@/api/media";
 
 const DEFAULT_CHARACTER_AVATAR = "/character-placeholder.svg";
 
@@ -7,7 +8,7 @@ interface CharacterAvatarImageProps {
 }
 
 export function CharacterAvatarImage({ src }: CharacterAvatarImageProps): React.ReactElement {
-  const imageSource = typeof src === "string" && src.trim() ? src : DEFAULT_CHARACTER_AVATAR;
+  const imageSource = mediaUrl(src) || DEFAULT_CHARACTER_AVATAR;
   return <img className="al-character-avatar-image" src={imageSource} alt="" aria-hidden="true" onError={replaceBrokenAvatar} />;
 }
 

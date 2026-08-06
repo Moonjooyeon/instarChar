@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.character_handles import next_available_character_handle
 from app.models import Character, CharacterFollow, DmThread, Profile, SharedCharacter, SharedDmThread, User, UserPersona
+from app.repositories.media_assets import MediaAssetRepository
 from app.schemas.profile import CharacterState, ProfileStateResponse, ProfileStateUpdate, StructuredStateUpdate
 
 
@@ -40,6 +41,7 @@ class ProfileStateRepository:
         await self._commit()
 
     async def upsert_structured_state(self, user: User, payload: StructuredStateUpdate) -> None:
+        await self._require_media_references(user, payload)
         handles = await self._upsert_characters(user.id, payload)
         await self._sync_character_follows(user, payload, handles)
         await self._upsert_personas(user.id, payload)
@@ -82,6 +84,15 @@ class ProfileStateRepository:
         rows = [self._character_row(user_id, item, handles[item.source_account_id]) for item in payload.characters]
         await self._upsert(Character, rows, ["owner_id", "source_account_id"], {"handle", "posts"})
         return handles
+
+    async def _require_media_references(self, user: User, payload: StructuredStateUpdate) -> None:
+        assets = MediaAssetRepository(self.session)
+        for character in payload.characters:
+            await assets.require_owned_ready_references(user, [character.character, character.gallery, character.posts], _PUBLIC_MEDIA_PURPOSES, character.source_account_id)
+        for thread in payload.dm_threads:
+            await assets.require_owned_ready_references(user, thread.messages, {"dm_attachment"})
+        for thread in payload.shared_dm_threads:
+            await assets.require_shared_dm_references(user, thread.thread_key, thread.messages)
 
     async def _sync_character_follows(self, user: User, payload: StructuredStateUpdate, handles: dict[str, str]) -> None:
         rows = self._character_follow_rows(user, payload, handles)
@@ -177,3 +188,6 @@ class ProfileStateRepository:
 
     async def _commit(self) -> None:
         await self.session.commit()
+
+
+_PUBLIC_MEDIA_PURPOSES = {"profile_avatar", "profile_header", "gallery", "feed_post"}

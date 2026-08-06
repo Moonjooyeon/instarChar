@@ -1,7 +1,12 @@
 /* Phase 3B remains staged until every visible feed surface supports both themes. */
 .al-feed-theme-ready .al-composer{ border-bottom-color:var(--alive-line); background:var(--alive-phone); }
 .al-feed-theme-ready .al-compose-settings-toggle{ border-bottom-color:var(--alive-line); background:var(--alive-surface-sunken); color:var(--alive-faint); }
+.al-feed-theme-ready .al-compose-settings-copy > i{ border-color:var(--alive-line-strong); background:var(--alive-accent-soft); color:var(--alive-accent-ink); }
+.al-feed-theme-ready .al-compose-settings-copy b{ color:var(--alive-ink); }
+.al-feed-theme-ready .al-compose-settings-copy small{ color:var(--alive-faint); }
+.al-feed-theme-ready .al-compose-settings-icon{ border-color:var(--alive-line); color:var(--alive-accent-ink); }
 .al-feed-theme-ready .al-compose-settings-toggle:hover{ background:var(--alive-surface); color:var(--alive-accent-ink); }
+.al-feed-theme-ready .al-compose-settings-toggle:hover .al-compose-settings-copy > i,.al-feed-theme-ready .al-compose-settings-toggle:hover .al-compose-settings-icon{ border-color:var(--alive-accent); color:var(--alive-accent-ink); }
 .al-feed-theme-ready .al-compose-settings-toggle:focus-visible{ outline:2px solid var(--alive-accent); outline-offset:-2px; }
 .al-feed-theme-ready .al-compose-settings{ border-bottom-color:var(--alive-line); background:var(--alive-surface-sunken); }
 .al-feed-theme-ready .al-wake{ border-color:var(--alive-line-strong); background:var(--alive-accent-soft); color:var(--alive-accent-ink); }

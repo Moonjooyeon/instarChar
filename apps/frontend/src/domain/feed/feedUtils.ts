@@ -9,6 +9,7 @@ export type FeedPost = {
   liked?: boolean;
   comments?: unknown[];
   importedFromFollow?: boolean;
+  importedFromRecommendation?: boolean;
   author?: string;
   authorHandle?: string;
   authorAvatarImg?: string;
@@ -16,6 +17,8 @@ export type FeedPost = {
   authorOwnerId?: string;
   authorSharedId?: string;
   mood?: string;
+  recommendationReason?: "interest" | "recent";
+  recommendedCharacter?: FollowedCharacter;
   [key: string]: unknown;
 };
 
@@ -24,10 +27,24 @@ export type FollowedCharacter = {
   ownerId?: string;
   characterId?: string;
   sharedId?: string;
+  sourceAccountId?: string;
   name?: string;
   handle?: string;
   avatarImg?: string;
   posts?: FeedPost[];
+  interests?: string;
+  persona?: string;
+  surface?: string;
+  tags?: unknown[];
+  world?: string;
+  recommendationReason?: "interest" | "recent";
+};
+
+export type RecommendationProfile = {
+  interests?: string;
+  persona?: string;
+  surface?: string;
+  world?: string;
 };
 
 export type FollowedPostLike = {
@@ -145,6 +162,41 @@ export function postsFromFollowedCharacter(poolChar: FollowedCharacter): FeedPos
     }));
 }
 
+export function recommendedCharacters(candidates: FollowedCharacter[], following: FollowedCharacter[], profile: RecommendationProfile, activeId: string | null, activeSharedId: string): FollowedCharacter[] {
+  const followedIds = new Set(following.map(characterIdentity).filter(Boolean));
+  const terms = recommendationTerms(profile);
+  return candidates
+    .filter((item) => hasRecommendationPosts(item) && item.sourceAccountId !== activeId && item.sharedId !== activeSharedId && !followedIds.has(characterIdentity(item)))
+    .map((item) => ({ item, score: recommendationScore(item, terms), recent: latestPostTime(item) }))
+    .sort((left, right) => right.score - left.score || right.recent - left.recent || String(left.item.name).localeCompare(String(right.item.name), "ko"))
+    .map(({ item, score }) => ({ ...item, recommendationReason: score > 0 ? "interest" : "recent" }));
+}
+
+export function postsFromRecommendedCharacter(poolChar: FollowedCharacter): FeedPost[] {
+  const sourceId = poolChar.sharedId || poolChar.id || poolChar.name;
+  return sanitizePosts(poolChar.posts)
+    .filter((post) => post?.text)
+    .map((post, index) => ({
+      ...post,
+      id: `recommended:${followedPostId(sourceId, post.id, index)}`,
+      originalPostId: post.id,
+      importedFromRecommendation: true,
+      author: poolChar.name,
+      authorHandle: poolChar.handle || poolChar.name,
+      authorAvatarImg: poolChar.avatarImg || "",
+      authorCharacterId: poolChar.characterId || "",
+      authorOwnerId: poolChar.ownerId || "",
+      authorSharedId: poolChar.sharedId || "",
+      mood: post.mood || "추천",
+      recommendationReason: poolChar.recommendationReason,
+      recommendedCharacter: poolChar,
+      time: post.time || new Date().toISOString(),
+      likes: typeof post.likes === "number" && Number.isFinite(post.likes) ? post.likes : 0,
+      liked: false,
+      comments: Array.isArray(post.comments) ? post.comments : [],
+    }));
+}
+
 export function mergeTimelinePosts(current: FeedPost[], incoming: FeedPost[]): FeedPost[] {
   const incomingById = new Map(incoming.map((post) => [String(post.id), post]));
   const refreshedCurrent = current.map((post) => {
@@ -160,4 +212,30 @@ export function mergeTimelinePosts(current: FeedPost[], incoming: FeedPost[]): F
     seen.add(id);
     return true;
   })].sort((a, b) => postTimeMs(b) - postTimeMs(a));
+}
+
+function characterIdentity(character: FollowedCharacter): string {
+  return character.sharedId || character.characterId || character.id || "";
+}
+
+function hasRecommendationPosts(character: FollowedCharacter): boolean {
+  return sanitizePosts(character.posts).some((post) => Boolean(post.text));
+}
+
+function recommendationTerms(profile: RecommendationProfile): string[] {
+  return [profile.interests, profile.world, profile.persona, profile.surface]
+    .flatMap((value) => String(value || "").toLowerCase().split(/[\s,./·|]+/))
+    .map((value) => value.trim())
+    .filter((value) => value.length >= 2)
+    .slice(0, 18);
+}
+
+function recommendationScore(character: FollowedCharacter, terms: string[]): number {
+  const tags = (character.tags || []).map((tag) => String(tag).toLowerCase());
+  const description = [character.interests, character.world, character.persona, character.surface, ...tags].join(" ").toLowerCase();
+  return terms.reduce((score, term) => score + (tags.some((tag) => tag.includes(term)) ? 3 : description.includes(term) ? 1 : 0), 0);
+}
+
+function latestPostTime(character: FollowedCharacter): number {
+  return Math.max(...sanitizePosts(character.posts).map(postTimeMs), 0);
 }

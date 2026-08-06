@@ -108,6 +108,8 @@ test("the staged feed profile uses semantic Tailwind colors", () => {
   assert.match(indexStyles, /screens\/feed-profile\.css" layer\(components\)/);
   assert.match(profileScreen, /border-line-strong bg-surface-raised/);
   assert.match(profileScreen, /al-profile-more border-line bg-surface text-ink/);
+  assert.match(profileScreen, /al-profile-network/);
+  assert.match(profileScreen, /추천 캐릭터/);
   assert.match(profileScreen, /function FirstSceneBanner/);
   assert.match(profileScreen, /function FirstImpression/);
   assert.match(profileStyles, /\.al-feed-theme-ready \.al-profile/);
@@ -133,6 +135,8 @@ test("the staged feed composer uses semantic controls and its own style bridge",
   assert.match(indexStyles, /screens\/feed-composer\.css" layer\(components\)/);
   assert.match(composer, /al-wake border-line-strong bg-accent-soft text-accent-ink/);
   assert.match(composer, /al-write-post bg-accent text-white/);
+  assert.match(composer, /캐릭터 글 설정/);
+  assert.match(composer, /자동 게시와 지금 상황을 정해요/);
   assert.match(composer, /function MoodButton/);
   assert.match(composerStyles, /\.al-feed-theme-ready \.al-composer/);
   assert.match(composerStyles, /\.al-feed-theme-ready \.al-moods-head/);

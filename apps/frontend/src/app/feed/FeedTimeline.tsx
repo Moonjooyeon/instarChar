@@ -1,6 +1,7 @@
 import React from "react";
 import { AliveIcon } from "@/components/ui/AliveIcon";
 import { CharacterAvatarImage } from "@/components/ui/CharacterAvatarImage";
+import { mediaUrl } from "@/api/media";
 import { USER_PERSONA_FEATURE_ENABLED } from "@/domain/app/featureFlags";
 import { canManagePost } from "@/domain/feed/feedUtils";
 
@@ -31,6 +32,7 @@ const FIRST_POST_SCENES: FirstPostScene[] = [
 export function FeedTimeline({ ctx }) {
   const {
     activeId,
+    canLikePost,
     char,
     commentAs,
     commentOn,
@@ -51,6 +53,8 @@ export function FeedTimeline({ ctx }) {
     saveStatus,
     saveCommentEdit,
     savePostEdit,
+    recommendationPosts,
+    recommendationUsesInterests,
     setCommentAs,
     setCommentOn,
     setCommentText,
@@ -63,9 +67,11 @@ export function FeedTimeline({ ctx }) {
     setPersonaDraft,
     setReportTarget,
     setSaveStatus,
+    setStep,
     submitUserComment,
     timeAgo,
     timelinePosts,
+    toggleFollow,
     toggleLike,
     visiblePosts,
   } = ctx;
@@ -73,24 +79,28 @@ export function FeedTimeline({ ctx }) {
   const generationError = typeof saveStatus === "string" && saveStatus.startsWith("글 생성 실패:") ? saveStatus : "";
   return (
     <>
-      {!isFirstPost && <div className="al-feed-tabs">
-        <button className={feedTabClass(feedView === "mine")} onClick={() => setFeedView("mine")}>
+      <div className="al-feed-tabs" role="tablist" aria-label="게시글 공간">
+        <button aria-selected={feedView === "mine"} className={feedTabClass(feedView === "mine")} role="tab" onClick={() => setFeedView("mine")}>
           내 글 <b>{myPosts.length}</b>
         </button>
-        <button className={feedTabClass(feedView === "timeline")} onClick={() => setFeedView("timeline")}>
-          타임라인 <b>{timelinePosts.length}</b>
+        <button aria-selected={feedView === "timeline"} className={feedTabClass(feedView === "timeline")} role="tab" onClick={() => setFeedView("timeline")}>
+          팔로잉 <b>{timelinePosts.length}</b>
         </button>
-      </div>}
+        <button aria-selected={feedView === "recommendations"} className={feedTabClass(feedView === "recommendations")} role="tab" onClick={() => setFeedView("recommendations")}>
+          추천 <b>{recommendationPosts.length}</b>
+        </button>
+      </div>
       <div className="al-feed" ref={feedTopRef}>
         {loading && <GeneratingPost char={char} />}
         {!loading && generationError && <GenerationFailure message={generationError} onRetry={() => { setSaveStatus("저장됨"); setFeedView("mine"); setMoodOpen(true); }} />}
-        {isFirstPost && !loading && !moodOpen && !generationError && <EmptyFeed char={char} feedView="mine" onGenerate={(mood) => { setFeedView("mine"); generatePost(mood); }} onStart={() => { setFeedView("mine"); setMoodOpen(true); }} />}
-        {!isFirstPost && visiblePosts.length === 0 && !loading && (
-          <EmptyFeed char={char} feedView={feedView} onGenerate={generatePost} onStart={() => { setFeedView("mine"); setMoodOpen(true); }} />
+        {feedView === "recommendations" && !loading && recommendationPosts.length > 0 && <RecommendationIntro usesInterests={recommendationUsesInterests} />}
+        {isFirstPost && feedView === "mine" && !loading && !moodOpen && !generationError && <EmptyFeed char={char} feedView="mine" onExplore={() => setStep("discover")} onGenerate={(mood) => { setFeedView("mine"); generatePost(mood); }} onStart={() => { setFeedView("mine"); setMoodOpen(true); }} />}
+        {!(isFirstPost && feedView === "mine") && visiblePosts.length === 0 && !loading && (
+          <EmptyFeed char={char} feedView={feedView} onExplore={() => setStep("discover")} onGenerate={generatePost} onStart={() => { setFeedView("mine"); setMoodOpen(true); }} />
         )}
-        {!isFirstPost && visiblePosts.map((post) => (
+        {visiblePosts.map((post) => (
           <React.Fragment key={post.id}>
-            <FeedPostCard post={post} ctx={{ activeId, char, commentAs, commentOn, commentText, deleteComment, deletePost, editingComment, editingPost, isLikePending, openCommentBox, personas, saveCommentEdit, savePostEdit, setCommentAs, setCommentOn, setCommentText, setEditingComment, setEditingPost, setFixTarget, setFixText, setPersonaDraft, setReportTarget, submitUserComment, timeAgo, toggleLike }} />
+            <FeedPostCard post={post} ctx={{ activeId, canLikePost, char, commentAs, commentOn, commentText, deleteComment, deletePost, editingComment, editingPost, isLikePending, openCommentBox, personas, saveCommentEdit, savePostEdit, setCommentAs, setCommentOn, setCommentText, setEditingComment, setEditingPost, setFixTarget, setFixText, setPersonaDraft, setReportTarget, submitUserComment, timeAgo, toggleFollow, toggleLike }} />
           </React.Fragment>
         ))}
       </div>
@@ -98,9 +108,15 @@ export function FeedTimeline({ ctx }) {
   );
 }
 
-function EmptyFeed({ char, feedView, onGenerate, onStart }: EmptyFeedProps): React.ReactElement {
-  if (feedView === "timeline") return <div className="al-empty"><span>타임라인이 아직 조용해요.</span><p>새로운 캐릭터를 추가하면 그 아이의 글도 이곳에 나타나요.</p></div>;
+function EmptyFeed({ char, feedView, onExplore, onGenerate, onStart }: EmptyFeedProps & { onExplore: () => void }): React.ReactElement {
+  if (feedView === "timeline") return <div className="al-empty"><span>아직 추가한 캐릭터의 글이 없어요.</span><p>캐릭터를 추가하면 새 글이 이곳에 시간순으로 도착해요.</p><button type="button" onClick={onExplore}>새 캐릭터 둘러보기 <AliveIcon name="arrow-right" size={14} /></button></div>;
+  if (feedView === "recommendations") return <div className="al-empty"><span>새로 발견할 글을 준비하고 있어요.</span><p>공개된 게시글이 생기면 관심사와 세계관을 바탕으로 먼저 보여드릴게요.</p><button type="button" onClick={onExplore}>캐릭터 둘러보기 <AliveIcon name="arrow-right" size={14} /></button></div>;
   return <section className="al-first-feed al-first-stage" aria-labelledby="first-stage-title"><header><span>01</span><div><small>이제 캐릭터가 직접 씁니다</small><h3 id="first-stage-title">{char.name}의 오늘을<br />어디서 시작할까요?</h3></div></header><div className="al-first-scenes">{FIRST_POST_SCENES.map((scene, index) => <button key={scene.mood} type="button" onClick={() => onGenerate(scene.mood)}><i>{String(index + 1).padStart(2, "0")}</i><span><b>{index === 2 ? `${char.name}에게 맡기기` : scene.label}</b><small>{scene.description}</small></span><AliveIcon name="arrow-right" size={15} /></button>)}</div><footer><span>다른 분위기로 시작하고 싶다면</span><button aria-label="첫 글의 장면 고르기" type="button" onClick={onStart}>장면 더 보기 <AliveIcon name="arrow-right" size={13} /></button></footer></section>;
+}
+
+function RecommendationIntro({ usesInterests }: { usesInterests: boolean }): React.ReactElement {
+  const text = usesInterests ? "관심사와 세계관이 닿는 캐릭터의 글이에요." : "새롭게 공개된 캐릭터의 글을 모았어요.";
+  return <div className="al-recommendation-intro"><span><AliveIcon name="sparkle" size={15} /></span><p><b>{usesInterests ? "취향을 따라 발견한 이야기" : "새롭게 도착한 이야기"}</b>{text}</p></div>;
 }
 
 function GeneratingPost({ char }) {
@@ -114,6 +130,7 @@ function GenerationFailure({ message, onRetry }: GenerationFailureProps): React.
 function FeedPostCard({ post, ctx }) {
   const {
     activeId,
+    canLikePost,
     char,
     commentAs,
     commentOn,
@@ -138,6 +155,7 @@ function FeedPostCard({ post, ctx }) {
     setReportTarget,
     submitUserComment,
     timeAgo,
+    toggleFollow,
     toggleLike,
   } = ctx;
   const isExt = Boolean(post.author);
@@ -152,7 +170,7 @@ function FeedPostCard({ post, ctx }) {
         <div className="al-post-head">
           <span className="al-post-name">{pName}</span>
           <span className="al-post-handle">@{pHandle}</span>
-          {isExt && <span className="al-post-extbadge">추가한 캐릭터</span>}
+          {isExt && <span className="al-post-extbadge">{post.importedFromRecommendation ? (post.recommendationReason === "interest" ? "취향 추천" : "새 이야기") : "추가한 캐릭터"}</span>}
           <span className="al-post-time">· {timeAgo(post.time)}</span>
         </div>
         {editingPost?.id === post.id ? (
@@ -168,7 +186,8 @@ function FeedPostCard({ post, ctx }) {
         )}
         <FeedPostMedia post={post} />
         <div className="al-post-actions">
-          <button className={`al-like ${post.liked ? "on text-like" : "text-soft hover:text-like"}`} disabled={isLikePending(post.id)} onClick={() => toggleLike(post.id)}><AliveIcon name={post.liked ? "heart-filled" : "heart"} size={15} /> {post.likes}</button>
+          <button className={`al-like ${post.liked ? "on text-like" : "text-soft hover:text-like"}`} disabled={isLikePending(post.id) || !canLikePost(post)} title={!canLikePost(post) ? "타임라인에 추가한 뒤 공감할 수 있어요." : undefined} onClick={() => toggleLike(post.id)}><AliveIcon name={post.liked ? "heart-filled" : "heart"} size={15} /> {post.likes}</button>
+          {post.importedFromRecommendation && post.recommendedCharacter && <button className="al-follow-recommendation" type="button" onClick={() => toggleFollow(post.recommendedCharacter)}>타임라인에 추가 <AliveIcon name="plus" size={13} /></button>}
           {canManage && !post.byUser && <button className="al-fixbtn" onClick={() => { setFixTarget({ type: "post", id: post.id, text: post.text }); setFixText(""); }}>캐릭터답지 않아요</button>}
           {(canManage || !post.byUser) && <details className="al-post-more"><summary aria-label={canManage ? "게시물 관리" : "게시물 더보기"}><span>{canManage ? "관리" : "더보기"}</span><i><AliveIcon name="more" size={14} /></i></summary><div>{canManage && <button onClick={() => setEditingPost({ id: post.id, text: post.text })}>수정</button>}{canManage && <button className="danger" onClick={() => deletePost(post.id)}>삭제</button>}{!post.byUser && <button className="safety" onClick={() => setReportTarget(postReportTarget(post, activeId))}>신고</button>}</div></details>}
         </div>
@@ -193,7 +212,7 @@ function FeedPostMedia({ post }) {
           <p className="al-quoted-text">{displayName(quoted.text, "")}</p>
         </div>
       )}
-      {post.img && <div className="al-post-img"><img src={post.img} alt="" /></div>}
+      {post.img && <div className="al-post-img"><img src={mediaUrl(post.img)} alt="" /></div>}
       {post.photoDesc && !post.img && <div className="al-post-photo"><span className="al-photo-frame"><AliveIcon name="image" size={16} /></span><span className="al-photo-desc">{post.photoDesc}</span></div>}
       {post.moodDesc && <div className="al-post-moodcard"><AliveIcon name="music" size={16} /> {post.moodDesc}</div>}
     </>
@@ -250,8 +269,8 @@ function FeedComments({ post, ctx }) {
           </div>
           {USER_PERSONA_FEATURE_ENABLED && <div className="al-cmtbox-who"><button className={`al-spk-chip ${commentAs === "char" ? "on" : ""}`} onClick={() => setCommentAs("char")}>{char.name}</button>{personas.map((persona) => <button key={persona.id} className={`al-spk-chip persona ${commentAs === `p:${persona.id}` ? "on" : ""}`} onClick={() => setCommentAs(`p:${persona.id}`)}><AliveIcon name="masks" size={14} /> {persona.name}</button>)}<button className="al-spk-chip add" onClick={() => setPersonaDraft({ name: "", age: "", persona: "", speech: "" })}><AliveIcon name="plus" size={14} /> 페르소나</button></div>}
           <div className="al-cmtbox-row">
-            <input className="al-cmtbox-input" value={commentText} autoFocus enterKeyHint="send" aria-label={`${commentSpeakerName} 계정으로 댓글 입력`} onChange={(event) => setCommentText(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) submitUserComment(post.id, isExt ? post.author : null); }} placeholder="댓글을 입력하세요" />
-            <button className="al-cmtbox-send bg-accent text-white hover:bg-accent-strong disabled:bg-surface-muted disabled:text-faint" type="button" disabled={!commentText.trim()} aria-label="댓글 보내기" onClick={() => submitUserComment(post.id, isExt ? post.author : null)}><AliveIcon name="send" size={18} /></button>
+            <input className="al-cmtbox-input" value={commentText} autoFocus enterKeyHint="send" aria-label={`${commentSpeakerName} 계정으로 댓글 입력`} onChange={(event) => setCommentText(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) void submitUserComment(post); }} placeholder="댓글을 입력하세요" />
+            <button className="al-cmtbox-send bg-accent text-white hover:bg-accent-strong disabled:bg-surface-muted disabled:text-faint" type="button" disabled={!commentText.trim()} aria-label="댓글 보내기" onClick={() => void submitUserComment(post)}><AliveIcon name="send" size={18} /></button>
           </div>
         </div>
       )}

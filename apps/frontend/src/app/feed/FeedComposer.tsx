@@ -41,11 +41,11 @@ export function FeedComposer({ ctx }) {
         )}
         {writeOpen && <div className="al-writebox"><p className="al-write-lbl">{char.name}의 목소리로 직접 작성해요.</p><textarea value={writeText} onChange={(event) => setWriteText(event.target.value)} placeholder={`${char.name}의 글을 직접 써보세요.`} /><div className="al-write-actions"><button className="al-write-cancel border-line bg-transparent text-soft hover:border-line-strong hover:bg-surface-muted hover:text-ink" onClick={() => { setWriteOpen(false); setWriteText(""); }}>취소</button><button className="al-write-post bg-accent text-white hover:bg-accent-strong disabled:bg-surface-muted disabled:text-faint" disabled={!writeText.trim()} onClick={() => { manualPost(writeText); setWriteText(""); setWriteOpen(false); }}>올리기</button></div></div>}
       </div>
-      {!isFirstPost && <button className="al-compose-settings-toggle" type="button" aria-expanded={isAdvancedOpen} onClick={() => setIsAdvancedOpen((open) => !open)}>글쓰기 설정 <AliveIcon name={isAdvancedOpen ? "minus" : "plus"} size={13} /></button>}
+      {!isFirstPost && <button className="al-compose-settings-toggle" type="button" aria-expanded={isAdvancedOpen} onClick={() => setIsAdvancedOpen((open) => !open)}><span className="al-compose-settings-copy"><i><AliveIcon name="sparkle" size={15} /></i><span><b>캐릭터 글 설정</b><small>{composerSettingsSummary(auto, char.directions)}</small></span></span><i className="al-compose-settings-icon"><AliveIcon name={isAdvancedOpen ? "minus" : "plus"} size={15} /></i></button>}
       {!isFirstPost && isAdvancedOpen && <div className="al-compose-settings"><div className="al-autobar">
         <button className={`al-autotoggle ${auto ? "on" : ""}`} onClick={() => setAuto(!auto)}>
           <span className="al-autodot" />
-          {auto ? `${josa(char.name, "이/가")} 스스로 글 쓰는 중` : "스스로 글 쓰기 꺼짐"}
+          {auto ? `${josa(char.name, "이/가")} 자동으로 글 쓰는 중` : "자동 게시 꺼짐"}
         </button>
         <div className="al-autometa">
           <div className="al-autointerval">
@@ -60,7 +60,7 @@ export function FeedComposer({ ctx }) {
         </div>
       </div>
       <div className="al-directive">
-        <span className="al-directive-lbl">지금 상황</span>
+        <span className="al-directive-lbl">글에 반영할 지금 상황</span>
         <input className="al-directive-input" value={char.directions || ""} onChange={(event) => update("directions", event.target.value)} placeholder="예: 연이랑 데이트하고 기분 좋음 / 시험 끝나서 들뜬 상태" />
         {(char.directions || "").trim() && <span className="al-directive-on">적용 중</span>}
       </div></div>}
@@ -79,6 +79,12 @@ function moodLabel(mood: string): { hint: string; title: string } {
   const parenthetical = mood.match(/^(.+?)\s*\((.+)\)$/);
   if (!parenthetical) return { title: mood, hint: "" };
   return { title: parenthetical[1], hint: parenthetical[2] };
+}
+
+function composerSettingsSummary(auto: boolean, directions: unknown): string {
+  if (auto) return "자동 게시가 켜져 있어요.";
+  if (typeof directions === "string" && directions.trim()) return "지금 상황을 다음 글에 반영해요.";
+  return "자동 게시와 지금 상황을 정해요.";
 }
 
 function countdownText(seconds) {

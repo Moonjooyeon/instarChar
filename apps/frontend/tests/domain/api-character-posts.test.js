@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   CharacterPostsApiError,
+  createCharacterPostComment,
   getCharacterPosts,
   saveCharacterPosts,
   updateCharacterAutoPost,
@@ -59,6 +60,18 @@ test("post API exposes revision conflicts for one retry", async () => {
       assert.equal(error.code, "CONFLICT");
       return true;
     });
+  } finally {
+    restoreFetch();
+  }
+});
+
+test("createCharacterPostComment sends a current-character identity to the public post", async () => {
+  const restoreFetch = stubFetch(jsonResponse({ comments: [{ name: "세인", text: "좋은 밤" }] }));
+  try {
+    const comments = await createCharacterPostComment("character 1", "post/1", "char-1", { handle: "sein", name: "세인", replyTo: "리안", text: "좋은 밤" });
+    assert.deepEqual(comments, [{ name: "세인", text: "좋은 밤" }]);
+    assert.equal(globalThis.fetch.calls[0].input, "/api/characters/public/character%201/posts/post%2F1/comments");
+    assert.deepEqual(JSON.parse(globalThis.fetch.calls[0].init.body), { commenter_account_id: "char-1", handle: "sein", name: "세인", reply_to: "리안", text: "좋은 밤" });
   } finally {
     restoreFetch();
   }

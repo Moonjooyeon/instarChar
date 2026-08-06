@@ -7,7 +7,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ForbiddenError, NotFoundError
-from app.models import Character, CharacterPostLike, User
+from app.models import Character, CharacterFollow, CharacterPostLike, SharedCharacter, User
 from app.schemas.post_likes import PostLikeItem, PostLikesQuery, PostLikesResponse, PostLikeTarget, PostLikeUpdate
 
 
@@ -31,6 +31,7 @@ class PostLikesRepository:
     async def update(self, user: User, payload: PostLikeUpdate) -> PostLikeItem:
         await self._require_owned_character(user.id, payload.liker_account_id)
         target = await self._require_character(payload.target_character_id)
+        await self._require_active_follow(user.id, payload.liker_account_id, target)
         base_likes = self._post_base_likes(target, payload.post_id)
         if base_likes is None:
             raise NotFoundError("Post not found")
@@ -51,6 +52,19 @@ class PostLikesRepository:
         if not row:
             raise NotFoundError("Character not found")
         return row
+
+    async def _require_active_follow(self, owner_id: UUID, account_id: str, target: Character) -> None:
+        if target.owner_id == owner_id:
+            return
+        stmt = select(CharacterFollow.id).join(SharedCharacter, CharacterFollow.target_shared_character_id == SharedCharacter.id).where(
+            CharacterFollow.follower_id == owner_id,
+            CharacterFollow.follower_account_id == account_id,
+            SharedCharacter.owner_id == target.owner_id,
+            SharedCharacter.source_account_id == target.source_account_id,
+        )
+        result = await self.session.execute(stmt)
+        if result.scalar_one_or_none() is None:
+            raise ForbiddenError("Character does not follow the post author")
 
     async def _set_like(self, owner_id: UUID, payload: PostLikeUpdate) -> None:
         values = {"liker_owner_id": owner_id, "liker_account_id": payload.liker_account_id, "target_character_id": payload.target_character_id, "target_post_id": payload.post_id}
