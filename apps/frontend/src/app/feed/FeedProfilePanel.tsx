@@ -2,6 +2,7 @@ import React from "react";
 import { FeedHelpTour } from "@/app/feed/FeedHelpTour";
 import { FeedMemoryPanel } from "@/app/feed/FeedMemoryPanel";
 import { AliveIcon } from "@/components/ui/AliveIcon";
+import { mediaUrl } from "@/api/media";
 import { CharacterAvatarImage } from "@/components/ui/CharacterAvatarImage";
 import { CreditShortcut } from "@/features/credits/CreditShortcut";
 import { knownCharacterRelations } from "@/domain/app/aliveCore";
@@ -72,7 +73,7 @@ export function FeedProfilePanel({ ctx }) {
     <div className={`al-profile ${isFirstPost ? "al-profile-first" : ""}`}>
       <button className="al-back" onClick={goHome} aria-label="내 캐릭터 목록으로"><AliveIcon name="chevron-left" size={21} /></button>
       <div className="al-banner">
-        {char.headerImg && <img src={char.headerImg} alt="" />}
+        {char.headerImg && <img src={mediaUrl(char.headerImg)} alt="" />}
         {isFirstPost && !char.headerImg && <FirstSceneBanner char={char} />}
         <div className="al-feed-utilities"><CreditShortcut onOpen={openCredits} overlay /><button className="al-feed-help" type="button" disabled={loading} onClick={openHelp} aria-label="피드 도움말 열기"><span><AliveIcon name="help" size={15} /></span><b>도움말</b></button></div>
         {!isFirstPost && isProfileToolsOpen && <div className="al-cover-tools">
@@ -142,7 +143,7 @@ export function FeedProfilePanel({ ctx }) {
             <div className="al-gallery-strip">
               {gallery.map((g, i) => (
                 <div className="al-thumb" key={i}>
-                  <img src={g} alt="" />
+                  <img src={mediaUrl(g)} alt="" />
                   <button className="al-thumb-x" onClick={() => setGallery((arr) => arr.filter((_, idx) => idx !== i))} aria-label="그림 삭제"><AliveIcon name="close" size={11} /></button>
                 </div>
               ))}

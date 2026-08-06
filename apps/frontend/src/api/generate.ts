@@ -23,6 +23,7 @@ export type GenerateMessage = {
 export type GenerateRequest = {
   flow?: string;
   max_tokens: number;
+  media_thread_key?: string;
   messages: GenerateMessage[];
   model: string;
   system: string;

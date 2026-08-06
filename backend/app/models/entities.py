@@ -35,6 +35,26 @@ class ReportStatus(str, enum.Enum):
     dismissed = "dismissed"
 
 
+class MediaPurpose(str, enum.Enum):
+    profile_avatar = "profile_avatar"
+    profile_header = "profile_header"
+    gallery = "gallery"
+    feed_post = "feed_post"
+    dm_attachment = "dm_attachment"
+
+
+class MediaVisibility(str, enum.Enum):
+    public = "public"
+    private = "private"
+
+
+class MediaStatus(str, enum.Enum):
+    pending = "pending"
+    ready = "ready"
+    rejected = "rejected"
+    deleted = "deleted"
+
+
 class TimestampMixin:
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
@@ -129,6 +149,24 @@ class Profile(TimestampMixin, Base):
     onboarded: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     app_state: Mapped[JsonMap] = mapped_column(JSONB, nullable=False, default=dict)
     user: Mapped[User] = relationship(back_populates="profile")
+
+
+class MediaAsset(TimestampMixin, Base):
+    __tablename__ = "media_assets"
+    __table_args__ = (UniqueConstraint("storage_key", name="uq_media_assets_storage_key"), Index("ix_media_assets_owner_status", "owner_id", "status"))
+    id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid4)
+    owner_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    source_account_id: Mapped[Optional[str]] = mapped_column(String(120))
+    purpose: Mapped[MediaPurpose] = mapped_column(Enum(MediaPurpose, name="media_purpose"), nullable=False)
+    visibility: Mapped[MediaVisibility] = mapped_column(Enum(MediaVisibility, name="media_visibility"), nullable=False)
+    status: Mapped[MediaStatus] = mapped_column(Enum(MediaStatus, name="media_status"), nullable=False, default=MediaStatus.pending)
+    storage_key: Mapped[str] = mapped_column(String(512), nullable=False)
+    content_type: Mapped[str] = mapped_column(String(120), nullable=False)
+    byte_size: Mapped[int] = mapped_column(Integer, nullable=False)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    width: Mapped[Optional[int]] = mapped_column(Integer)
+    height: Mapped[Optional[int]] = mapped_column(Integer)
+    deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
 
 class Character(TimestampMixin, Base):

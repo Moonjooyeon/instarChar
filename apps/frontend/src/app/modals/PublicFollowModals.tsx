@@ -1,6 +1,7 @@
 import React from "react";
 import { AliveIcon } from "@/components/ui/AliveIcon";
 import { CharacterAvatarImage } from "@/components/ui/CharacterAvatarImage";
+import { mediaUrl } from "@/api/media";
 
 export function PublicFollowModals({ ctx }) {
   const {
@@ -31,7 +32,7 @@ export function PublicFollowModals({ ctx }) {
         <div className="al-modal-bg al-theme-ready al-public-modal-theme-ready" onClick={() => setPublicProfile(null)}>
           <div className="al-public-profile" onClick={(event) => event.stopPropagation()}>
             <button className="al-public-back" onClick={() => setPublicProfile(null)} aria-label="프로필 닫기"><AliveIcon name="chevron-left" size={21} /></button>
-            <div className="al-public-banner">{publicProfile.headerImg && <img src={publicProfile.headerImg} alt="" />}</div>
+            <div className="al-public-banner">{publicProfile.headerImg && <img src={mediaUrl(publicProfile.headerImg)} alt="" />}</div>
             <div className="al-public-avatar"><CharacterAvatarImage src={publicProfile.avatarImg} /></div>
             <div className="al-public-body">
               <div className="al-public-main">

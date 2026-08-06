@@ -51,6 +51,14 @@ class Settings(BaseSettings):
     auto_post_poll_seconds: int = 30
     auto_post_batch_size: int = 10
     auto_post_default_interval_seconds: int = 900
+    s3_bucket: str = ""
+    s3_region: str = ""
+    s3_access_key_id: str = ""
+    s3_secret_access_key: str = ""
+    s3_prefix: str = "alive"
+    s3_presign_expires_seconds: int = 600
+    media_max_upload_bytes: int = 10 * 1024 * 1024
+    media_max_image_pixels: int = 40_000_000
 
     @computed_field
     @property

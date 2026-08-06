@@ -1,6 +1,7 @@
 import React from "react";
 import { AliveIcon } from "@/components/ui/AliveIcon";
 import { CharacterAvatarImage } from "@/components/ui/CharacterAvatarImage";
+import { mediaUrl } from "@/api/media";
 import { USER_PERSONA_FEATURE_ENABLED } from "@/domain/app/featureFlags";
 import { canManagePost } from "@/domain/feed/feedUtils";
 
@@ -211,7 +212,7 @@ function FeedPostMedia({ post }) {
           <p className="al-quoted-text">{displayName(quoted.text, "")}</p>
         </div>
       )}
-      {post.img && <div className="al-post-img"><img src={post.img} alt="" /></div>}
+      {post.img && <div className="al-post-img"><img src={mediaUrl(post.img)} alt="" /></div>}
       {post.photoDesc && !post.img && <div className="al-post-photo"><span className="al-photo-frame"><AliveIcon name="image" size={16} /></span><span className="al-photo-desc">{post.photoDesc}</span></div>}
       {post.moodDesc && <div className="al-post-moodcard"><AliveIcon name="music" size={16} /> {post.moodDesc}</div>}
     </>

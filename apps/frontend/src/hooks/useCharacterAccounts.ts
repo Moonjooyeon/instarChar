@@ -1,4 +1,5 @@
 import { useState, type ChangeEvent, type Dispatch, type SetStateAction } from "react";
+import { uploadImage } from "@/api/media";
 
 type CharacterDraft = {
   [key: string]: unknown;
@@ -68,13 +69,13 @@ export function useCharacterAccounts(): CharacterAccountsReturn {
   const update = (key: string, value: unknown): void => setChar((current) => ({ ...current, [key]: value }));
   function handleUpload(event: ChangeEvent<HTMLInputElement>): void {
     const files = filesFromInput(event.target);
-    files.forEach((file) => readGalleryFile(file, setGallery));
+    void uploadGallery(files, activeId, setGallery);
     event.target.value = "";
   }
   function handleProfileImage(kind: string, event: ChangeEvent<HTMLInputElement>): void {
     const file = filesFromInput(event.target)[0];
     if (!file) return;
-    readProfileImageFile(kind, file, update);
+    void uploadProfileImage(kind, file, activeId, update);
     event.target.value = "";
   }
   return { accounts, activeId, blankChar, char, deleteTarget, dump, gallery, handleProfileImage, handleUpload, parseError, parseFailed, parsing, rpLog, setAccounts, setActiveId, setChar, setDeleteTarget, setDump, setGallery, setParseError, setParseFailed, setParsing, setRpLog, setWaking, update, waking };
@@ -88,19 +89,20 @@ function filesFromInput(input: HTMLInputElement): File[] {
   return Array.from(input.files || []) as File[];
 }
 
-function readGalleryFile(file: File, setGallery: Dispatch<SetStateAction<string[]>>): void {
-  const reader = new FileReader();
-  reader.onload = (event) => appendReaderResult(event.target?.result, setGallery);
-  reader.readAsDataURL(file);
+async function uploadGallery(files: File[], sourceAccountId: string | null, setGallery: Dispatch<SetStateAction<string[]>>): Promise<void> {
+  try {
+    const references = await Promise.all(files.map((file) => uploadImage(file, "gallery", sourceAccountId || "")));
+    setGallery((items) => [...items, ...references]);
+  } catch (error) {
+    console.error("갤러리 업로드 실패:", error);
+  }
 }
 
-function readProfileImageFile(kind: string, file: File, update: (key: string, value: unknown) => void): void {
-  const reader = new FileReader();
-  reader.onload = (event) => update(kind === "avatar" ? "avatarImg" : "headerImg", event.target?.result || "");
-  reader.readAsDataURL(file);
-}
-
-function appendReaderResult(result: string | ArrayBuffer | null | undefined, setGallery: Dispatch<SetStateAction<string[]>>): void {
-  if (typeof result !== "string") return;
-  setGallery((items) => [...items, result]);
+async function uploadProfileImage(kind: string, file: File, sourceAccountId: string | null, update: (key: string, value: unknown) => void): Promise<void> {
+  try {
+    const purpose = kind === "avatar" ? "profile_avatar" : "profile_header";
+    update(kind === "avatar" ? "avatarImg" : "headerImg", await uploadImage(file, purpose, sourceAccountId || ""));
+  } catch (error) {
+    console.error("프로필 이미지 업로드 실패:", error);
+  }
 }

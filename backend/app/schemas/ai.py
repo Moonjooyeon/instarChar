@@ -9,6 +9,7 @@ class GenerateMessage(BaseModel):
 class GenerateRequest(BaseModel):
     flow: str = ""
     max_tokens: int = 2048
+    media_thread_key: str = ""
     messages: list[GenerateMessage] = Field(default_factory=list)
     model: str = ""
     system: str = ""

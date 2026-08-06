@@ -1,5 +1,6 @@
 import React from "react";
 import { AliveIcon } from "@/components/ui/AliveIcon";
+import { mediaUrl } from "@/api/media";
 import { USER_PERSONA_FEATURE_ENABLED } from "@/domain/app/featureFlags";
 
 export function DmControls({ ctx }) {
@@ -68,7 +69,7 @@ export function DmControls({ ctx }) {
           {USER_PERSONA_FEATURE_ENABLED && activePersona && <div className="al-persona-active"><AliveIcon name="masks" size={14} /> {activePersona.name}(으)로 대화 중 · {activePersona.persona?.slice(0, 30)}</div>}
         </div>
       )}
-      {dmImageDraft && <div className="al-dm-preview"><img src={dmImageDraft} alt="" /><button type="button" onClick={() => setDmImageDraft(null)} aria-label="첨부 이미지 제거"><AliveIcon name="close" size={16} /></button></div>}
+      {dmImageDraft && <div className="al-dm-preview"><img src={mediaUrl(dmImageDraft)} alt="" /><button type="button" onClick={() => setDmImageDraft(null)} aria-label="첨부 이미지 제거"><AliveIcon name="close" size={16} /></button></div>}
       <div className="al-dminput">
         <label className="al-dm-image-btn border-line-strong bg-surface-raised text-accent-ink hover:border-accent hover:bg-accent-soft" title="사진 보내기"><AliveIcon name="image" size={20} /><input type="file" accept="image/*" onChange={handleDmImage} /></label>
         <input value={dmInput} onChange={(event) => setDmInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) sendDM(); }} placeholder={autoChatting ? `끼어들기: ${meName}(으)로 입력…` : `${meName}(으)로 메시지…`} />

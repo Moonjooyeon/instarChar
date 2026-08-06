@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import BadRequestError, ConflictError
 from app.models import Character, SharedCharacter, User
+from app.repositories.media_assets import MediaAssetRepository
 from app.schemas.character_posts import AutoPostUpdate, CharacterPostCommentCreate, CharacterPostCommentsResponse, CharacterPostsResponse, CharacterPostsUpdate
 from app.services.content_safety import require_safe_content
 
@@ -22,6 +23,7 @@ class CharacterPostsRepository:
 
     async def save(self, user: User, source_account_id: str, payload: CharacterPostsUpdate) -> CharacterPostsResponse:
         require_safe_content(payload.posts)
+        await MediaAssetRepository(self.session).require_owned_ready_references(user, payload.posts, {"feed_post"}, source_account_id)
         row = await self.owned_character(user.id, source_account_id, lock=True)
         if row.posts_revision != payload.revision:
             raise ConflictError("Post revision is stale")

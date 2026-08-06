@@ -72,7 +72,7 @@ export function useAliveDmGeneration({
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 55000);
     try {
-      const text = await postGenerateContent({ model: MODEL_DIRECT, max_tokens: 2048, system: context.sys, messages: apiMsgs }, "DM 답장 API", { signal: controller.signal });
+      const text = await postGenerateContent({ media_thread_key: requestKey, model: MODEL_DIRECT, max_tokens: 2048, system: context.sys, messages: apiMsgs }, "DM 답장 API", { signal: controller.signal });
       if (dmRequestSeqRef.current !== requestId || dmKeyRef.current !== requestKey) return;
       setDmThread((items) => [...items, { from: context.peerName, text }]);
       applyDmAffinity({ bumpAffinity, bumpMutual, bumpRoomAffinity, bumpRoomMutual, context, meName, newHist, ownerLabel, peer, relationHintFor, requestKey, text });

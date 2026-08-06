@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ForbiddenError
 from app.models import DmThread, SharedDmThread, User
+from app.repositories.media_assets import MediaAssetRepository
 from app.repositories.moderation import ModerationRepository
 from app.schemas.dm_threads import DmThreadPayload, SharedDmThreadPayload
 from app.services.content_safety import require_safe_content
@@ -21,6 +22,7 @@ class DmThreadRepository:
         return result.scalar_one_or_none()
 
     async def upsert_owner_thread(self, user: User, payload: DmThreadPayload) -> None:
+        await MediaAssetRepository(self.session).require_owned_ready_references(user, payload.messages, {"dm_attachment"})
         row = payload.model_dump(mode="python") | {"owner_id": user.id}
         await self._upsert(DmThread, [row], ["owner_id", "thread_key"])
         await self.session.commit()
@@ -44,6 +46,7 @@ class DmThreadRepository:
         existing = await self._shared_dm_by_key(payload.thread_key)
         if existing:
             self._require_shared_participant(user, existing)
+        await MediaAssetRepository(self.session).require_shared_dm_references(user, payload.thread_key, payload.messages)
         row = self._shared_payload_row(user, payload, existing)
         await self._upsert(SharedDmThread, [row], ["thread_key"])
         await self.session.commit()

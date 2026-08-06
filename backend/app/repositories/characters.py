@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import CharacterHandleTakenError
 from app.models import Character, CharacterFollow, SharedCharacter, User
+from app.repositories.media_assets import MediaAssetRepository
 from app.schemas.characters import CharacterHandleAvailabilityResponse, CharacterWrite, CharacterWriteResponse
 from app.services.content_safety import require_safe_content
 
@@ -26,6 +27,7 @@ class CharacterRepository:
 
     async def save(self, user: User, source_account_id: str, payload: CharacterWrite) -> CharacterWriteResponse:
         require_safe_content(payload.model_dump(mode="python"))
+        await MediaAssetRepository(self.session).require_owned_ready_references(user, [payload.character, payload.gallery], _PUBLIC_MEDIA_PURPOSES, source_account_id)
         values = self._values(user.id, source_account_id, payload)
         statement = self._upsert_statement(values)
         try:
@@ -78,3 +80,6 @@ class CharacterRepository:
 
     def _response(self, row: Character) -> CharacterWriteResponse:
         return CharacterWriteResponse(source_account_id=row.source_account_id, name=row.name, handle=row.handle, character=row.character, gallery=list(row.gallery or []), following=list(row.following or []))
+
+
+_PUBLIC_MEDIA_PURPOSES = {"profile_avatar", "profile_header", "gallery", "feed_post"}
