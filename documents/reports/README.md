@@ -38,6 +38,7 @@ status: approved
 
 ## 백엔드·운영·출시
 
+- [크레딧 가격 및 AI 사용량 정책 분석](report_credit-pricing-analysis_2026-08-06.md)
 - [자율 게시글 스케줄러 운영](report_auto-post-scheduler-operations_2026-07-23.md)
 - [캐릭터 아이디 검증](report_character-handle-uniqueness-verification_2026-07-30.md)
 - [캐릭터 persistence audit](report_character-persistence-audit_2026-08-05.md)
