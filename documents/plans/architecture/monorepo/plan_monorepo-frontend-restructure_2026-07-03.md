@@ -167,7 +167,7 @@ FastAPI 교체를 바로 진행하기 전에, 프로젝트 전체를 모노레�
 
 결과:
 
-- 완료 문서: `documents/reports/report_monorepo-frontend-phase0-baseline_2026-07-03.md`
+- 완료 문서: `documents/reports/frontend/report_monorepo-frontend-phase0-baseline_2026-07-03.md`
 
 ### Phase 1. npm workspaces와 `apps/frontend` 골격 생성 완료
 
@@ -192,7 +192,7 @@ FastAPI 교체를 바로 진행하기 전에, 프로젝트 전체를 모노레�
 
 결과:
 
-- 완료 문서: `documents/reports/report_monorepo-frontend-phase1-review_2026-07-03.md`
+- 완료 문서: `documents/reports/frontend/report_monorepo-frontend-phase1-review_2026-07-03.md`
 - `npm run build` 성공.
 
 ### Phase 2. Capacitor와 mobile shell 경로 정리 완료
@@ -212,7 +212,7 @@ FastAPI 교체를 바로 진행하기 전에, 프로젝트 전체를 모노레�
 
 결과:
 
-- 완료 문서: `documents/reports/report_monorepo-frontend-phase2-review_2026-07-03.md`
+- 완료 문서: `documents/reports/frontend/report_monorepo-frontend-phase2-review_2026-07-03.md`
 - `npm run build` 성공.
 - `apps/frontend/dist/index.html` 존재 확인.
 
@@ -236,7 +236,7 @@ FastAPI 교체를 바로 진행하기 전에, 프로젝트 전체를 모노레�
 
 결과:
 
-- 완료 문서: `documents/reports/report_monorepo-frontend-phase3-review_2026-07-03.md`
+- 완료 문서: `documents/reports/frontend/report_monorepo-frontend-phase3-review_2026-07-03.md`
 - `npm run build` 성공.
 - `@/App.jsx` alias import build 검증.
 
@@ -268,7 +268,7 @@ FastAPI 교체를 바로 진행하기 전에, 프로젝트 전체를 모노레�
 
 결과:
 
-- 완료 문서: `documents/reports/report_monorepo-frontend-phase4-review_2026-07-03.md`
+- 완료 문서: `documents/reports/frontend/report_monorepo-frontend-phase4-review_2026-07-03.md`
 - `npm run build` 성공.
 - 이동 대상 12개 파일의 기존 blob hash와 새 파일 hash 일치 확인.
 
@@ -306,7 +306,7 @@ AppView
 
 결과:
 
-- 완료 문서: `documents/reports/report_monorepo-frontend-phase5-review_2026-07-03.md`
+- 완료 문서: `documents/reports/frontend/report_monorepo-frontend-phase5-review_2026-07-03.md`
 - `AppView.jsx`를 `apps/frontend/src/app/AppView.jsx`로 이동.
 - `AppView.jsx` 라인 수 1,184줄에서 20줄로 감소.
 - `npm run build` 성공.
@@ -341,14 +341,14 @@ AppView
 
 진행 결과:
 
-- 완료 slice 문서: `documents/reports/report_monorepo-frontend-phase6-navigation-persistence_2026-07-03.md`
+- 완료 slice 문서: `documents/reports/frontend/report_monorepo-frontend-phase6-navigation-persistence_2026-07-03.md`
 - `useAliveNavigation`으로 history/popstate effect 분리.
 - `useAliveLocalPersistence`로 localStorage snapshot helper 분리.
-- 완료 slice 문서: `documents/reports/report_monorepo-frontend-phase6-ai-generation_2026-07-03.md`
+- 완료 slice 문서: `documents/reports/frontend/report_monorepo-frontend-phase6-ai-generation_2026-07-03.md`
 - `useAliveAiGeneration`으로 AI response parsing helper 분리.
 - `useAliveAppController.jsx` 라인 수 4,658줄에서 4,516줄로 감소.
 - `npm run build` 성공.
-- 완료 slice 문서: `documents/reports/report_monorepo-frontend-phase6-domain-hooks_2026-07-03.md`
+- 완료 slice 문서: `documents/reports/frontend/report_monorepo-frontend-phase6-domain-hooks_2026-07-03.md`
 - `useCharacterAccounts`, `useAliveFeed`, `useAliveDm`, `useAliveDiscover`, `useAliveMemory`, `useAliveRelationships` 도메인 훅 생성.
 - memory CRUD/room memory/prompt memory helper, feed 댓글/편집/좋아요/정렬 helper, DM 이미지/방 제목 helper, character image/factory helper, discover follower count/helper와 Supabase 조회 helper를 도메인 훅으로 분리.
 - relationship affinity 조회/room affinity helper, profile panel helper, DM key 순수 helper, app text/prompt/async helper를 domain utility와 도메인 훅으로 분리.
@@ -494,7 +494,7 @@ Phase 0
 ## 구현 작업 목록
 
 - [x] **T0 (P0, human: ~30min / CC: ~10min)** — Baseline — 이동 전 파일 규모와 주요 접점을 기록한다.
-  - 파일: `documents/reports/report_monorepo-frontend-phase0-baseline_2026-07-03.md`.
+  - 파일: `documents/reports/frontend/report_monorepo-frontend-phase0-baseline_2026-07-03.md`.
   - 검증: 코드 변경 없음, 기준선 문서 작성.
 - [x] **T1 (P1, human: ~2h / CC: ~25min)** — Monorepo Skeleton — `apps/frontend`와 npm workspace 구조를 만든다.
   - 파일: `package.json`, `package-lock.json`, `apps/frontend/*`.

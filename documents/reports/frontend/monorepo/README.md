@@ -1,0 +1,16 @@
+# 모노레포·프론트엔드 구조 보고서
+
+- [모노레포 Phase 0 기준선](report_monorepo-frontend-phase0-baseline_2026-07-03.md)
+- [모노레포 Phase 1 리뷰](report_monorepo-frontend-phase1-review_2026-07-03.md)
+- [모노레포 Phase 2 리뷰](report_monorepo-frontend-phase2-review_2026-07-03.md)
+- [모노레포 Phase 3 리뷰](report_monorepo-frontend-phase3-review_2026-07-03.md)
+- [모노레포 Phase 4 리뷰](report_monorepo-frontend-phase4-review_2026-07-03.md)
+- [모노레포 Phase 5 리뷰](report_monorepo-frontend-phase5-review_2026-07-03.md)
+- [모노레포 Phase 6 AI generation](report_monorepo-frontend-phase6-ai-generation_2026-07-03.md)
+- [모노레포 Phase 6 domain hooks](report_monorepo-frontend-phase6-domain-hooks_2026-07-03.md)
+- [모노레포 Phase 6 navigation/persistence](report_monorepo-frontend-phase6-navigation-persistence_2026-07-03.md)
+- [모노레포 Phase 7 test harness](report_monorepo-frontend-phase7-test-harness_2026-07-10.md)
+- [모노레포 Phase 8 TypeScript](report_monorepo-frontend-phase8-domain-typescript_2026-07-10.md)
+- [API client boundary](report_monorepo-frontend-api-client-boundary_2026-07-10.md)
+- [Controller style/types](report_monorepo-frontend-controller-style-types_2026-07-10.md)
+- [Large screen split](report_monorepo-frontend-large-screen-split_2026-07-10.md)

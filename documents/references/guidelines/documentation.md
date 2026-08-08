@@ -114,7 +114,7 @@ Use paths relative to the linking file:
 
 ```markdown
 <!-- From documents/references/README.md linking to a guideline -->
-[React/Vite guidelines](guidelines/react+vite.md)
+[React/Vite guidelines](react+vite.md)
 
 <!-- From a guideline file linking to another guideline -->
 [Backend conventions](../structures/backend.md)

@@ -90,5 +90,5 @@ flowchart LR
 - [SDK 2.x 마이그레이션](https://developers-apps-in-toss.toss.im/bedrock/reference/framework/%EC%8B%9C%EC%9E%91%ED%95%98%EA%B8%B0/SDK2.0.1.html)
 - [앱인토스 API와 mTLS](https://developers-apps-in-toss.toss.im/development/integration-process.html)
 - [앱인토스 FAQ — 출시 검수](https://developers-apps-in-toss.toss.im/faq.html)
-- [기존 분석](../reports/apps-in-toss/report_apps-in-toss-total-change-analysis_2026-07-29.md)
-- [출시 가드레일](../reports/apps-in-toss/report_apps-in-toss-launch-guardrails_2026-07-29.md)
+- [기존 분석](../../../reports/apps-in-toss/report_apps-in-toss-total-change-analysis_2026-07-29.md)
+- [출시 가드레일](../../../reports/apps-in-toss/report_apps-in-toss-launch-guardrails_2026-07-29.md)
