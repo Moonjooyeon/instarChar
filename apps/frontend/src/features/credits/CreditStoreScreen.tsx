@@ -9,6 +9,7 @@ import {
   type CreditUsage,
 } from "@/api/credits";
 import { AliveIcon } from "@/components/ui/AliveIcon";
+import { creditUsageAmount } from "@/domain/credits/creditPresentation";
 import { CreditChargeOrder, CreditFlowCatalog } from "@/features/credits/CreditFlowCatalog";
 
 interface CreditStoreScreenProps {
@@ -169,11 +170,11 @@ function EnergyCard({
     ? `다음 회복 ${formatRecoveryTime(balance.next_energy_recovery_at)}`
     : "현재 최대치예요";
   return (
-    <section className="al-credit-energy" aria-label="무료 데일리 에너지">
+    <section className="al-credit-energy" aria-label="무료 회복 에너지">
       <header>
         <div>
           <AliveIcon name="sun" size={15} />
-          <b>무료 데일리 에너지</b>
+          <b>무료 회복 에너지</b>
         </div>
         <span>{balance ? `${percent}%` : "—"}</span>
       </header>
@@ -187,7 +188,7 @@ function EnergyCard({
         <i style={{ width: `${percent}%` }} />
       </div>
       <p>
-        {balance ? `${recovery} · 6시간마다 25%` : "에너지를 확인하고 있어요."}
+        {balance ? `${recovery} · 자정 초기화 없이 100%에서 사용 후 6시간마다 25%` : "에너지를 확인하고 있어요."}
       </p>
     </section>
   );
@@ -308,9 +309,7 @@ function UsageHistory({ items }: { items: CreditUsage[] }): React.ReactElement {
 function UsageRow({ item }: { item: CreditUsage }): React.ReactElement {
   const refunded = item.status === "refunded";
   const pending = item.status === "reserved";
-  const amount = item.energy_percent
-    ? `에너지 ${item.energy_percent}%`
-    : `${item.credits}C`;
+  const amount = creditUsageAmount(item);
   const status = refunded
     ? `환급 · ${amount}`
     : pending
@@ -334,9 +333,10 @@ function CreditPolicy(): React.ReactElement {
     <aside className="al-credit-policy">
       <span>이용 안내</span>
       <p>
-        일반 기능은 데일리 에너지 → 무료 보너스 → 구매 크레딧 순서로 사용되고,
+        일반 기능은 회복 에너지 → 무료 보너스 → 구매 크레딧 순서로 사용되고,
         Pro 기능은 구매 크레딧만 사용해요. AI 생성이 실패하거나 안전 정책으로
-        중단되면 예약된 사용량은 자동 환급돼요.
+        중단되면 예약된 사용량은 자동 환급돼요. 베타 기간에는 무료 보너스와
+        구매 크레딧 모두 만료 없이 누적돼요.
       </p>
     </aside>
   );

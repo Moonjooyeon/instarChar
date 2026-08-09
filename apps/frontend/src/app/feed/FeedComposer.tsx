@@ -51,9 +51,9 @@ export function FeedComposer({ ctx }) {
         <div className="al-autometa">
           <div className="al-autointerval">
             <select aria-label="자율 생성 주기" value={autoIntervalSeconds} onChange={(event) => setAutoInterval(Number(event.target.value))}>
-              <option value={900}>15분</option>
-              <option value={1800}>30분</option>
               <option value={3600}>1시간</option>
+              <option value={21600}>6시간</option>
+              <option value={43200}>12시간</option>
             </select>
             <span><AliveIcon name="chevron-down" size={13} /></span>
           </div>
@@ -64,7 +64,7 @@ export function FeedComposer({ ctx }) {
         <span className="al-directive-lbl">글에 반영할 지금 상황</span>
         <input className="al-directive-input" value={char.directions || ""} onChange={(event) => update("directions", event.target.value)} placeholder="예: 연이랑 데이트하고 기분 좋음 / 시험 끝나서 들뜬 상태" />
         {(char.directions || "").trim() && <span className="al-directive-on">적용 중</span>}
-      </div><p className="al-auto-credit-note">자동 게시글은 현재 서비스 제공 기능으로, 크레딧을 사용하지 않아요.</p></div>}
+      </div><p className="al-auto-credit-note">자동 게시글은 크레딧을 사용하지 않으며, 계정당 하루 최대 24개까지 생성돼요.</p></div>}
     </>
   );
 }

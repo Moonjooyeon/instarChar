@@ -8,6 +8,7 @@ import {
   updateCharacterAutoPost,
   type CharacterPostsState,
 } from "@/api/characterPosts";
+import { createGenerateRequestKey } from "@/api/generate";
 import { queryPostLikes, updatePostLike, type PostLikeItem, type PostLikeTarget } from "@/api/postLikes";
 import { USER_PERSONA_FEATURE_ENABLED } from "@/domain/app/featureFlags";
 import { applyFollowedLikeState, followedLikeKey, followedLikeState, followedPostTarget, followedPostTargets, formatPostTime, optimisticFollowedLike, postTimeMs, postsFromFollowedCharacter, postsFromRecommendedCharacter, recommendedCharacters, sanitizePosts, type FeedPost, type FollowedCharacter, type FollowedLikeState, type RecommendationProfile } from "@/domain/feed/feedUtils";
@@ -113,7 +114,7 @@ export function useAliveFeed({ activeId, activeSharedId, following, personas, re
   const [fixTarget, setFixTarget] = useState<unknown>(null);
   const [fixText, setFixText] = useState("");
   const [auto, setAutoState] = useState(false);
-  const [autoIntervalSeconds, setAutoIntervalSeconds] = useState(900);
+  const [autoIntervalSeconds, setAutoIntervalSeconds] = useState(3600);
   const [nextIn, setNextIn] = useState(0);
   const revisionRef = useRef(0);
   const postsRef = useRef<FeedPost[]>([]);
@@ -192,7 +193,8 @@ export function useAliveFeed({ activeId, activeSharedId, following, personas, re
   }
   async function generateServerPost(mood: string): Promise<FeedPost | null> {
     if (!activeId) return null;
-    const result = await generateCharacterPost(activeId, mood);
+    const idempotencyKey = createGenerateRequestKey("feed-post");
+    const result = await generateCharacterPost(activeId, mood, idempotencyKey);
     applyServerState(result.state);
     return result.post as FeedPost;
   }

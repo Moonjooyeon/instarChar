@@ -1,4 +1,4 @@
-import { postGenerateContent } from "@/api/generate";
+import { createGenerateRequestKey, postGenerateContent } from "@/api/generate";
 import { analysisFallbackProfile } from "@/domain/app/analysisFallback";
 import { fieldText, normalizeHandle } from "@/domain/app/textUtils";
 import { MODEL_CHAT, type AppStep } from "@/domain/app/aliveCore";
@@ -50,6 +50,7 @@ export function useAliveCharacterAnalysis({
     try {
       const raw = await postGenerateContent({
         flow: "character_analysis",
+        idempotency_key: createGenerateRequestKey("character-analysis"),
         model: MODEL_CHAT,
         max_tokens: 2048,
         system: characterAnalysisSystemPrompt(),

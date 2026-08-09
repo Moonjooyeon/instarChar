@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   CharacterPostsApiError,
   createCharacterPostComment,
+  generateCharacterPost,
   getCharacterPosts,
   saveCharacterPosts,
   updateCharacterAutoPost,
@@ -44,8 +45,18 @@ test("saveCharacterPosts sends posts with their expected revision", async () => 
 test("updateCharacterAutoPost persists one of the supported intervals", async () => {
   const restoreFetch = stubFetch(jsonResponse(state));
   try {
-    await updateCharacterAutoPost("char-1", true, 1800);
-    assert.deepEqual(JSON.parse(globalThis.fetch.calls[0].init.body), { enabled: true, interval_seconds: 1800 });
+    await updateCharacterAutoPost("char-1", true, 21600);
+    assert.deepEqual(JSON.parse(globalThis.fetch.calls[0].init.body), { enabled: true, interval_seconds: 21600 });
+  } finally {
+    restoreFetch();
+  }
+});
+
+test("generateCharacterPost sends the client action key", async () => {
+  const restoreFetch = stubFetch(jsonResponse({ post: { id: "post-1" }, state }));
+  try {
+    await generateCharacterPost("char-1", "일상", "feed-post:test-key");
+    assert.deepEqual(JSON.parse(globalThis.fetch.calls[0].init.body), { idempotency_key: "feed-post:test-key", mood: "일상" });
   } finally {
     restoreFetch();
   }

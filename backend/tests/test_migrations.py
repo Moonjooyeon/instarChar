@@ -8,6 +8,7 @@ from unittest.mock import Mock
 import pytest
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
+from sqlalchemy.sql.schema import SchemaItem
 
 
 def _load_initial_migration() -> ModuleType:
@@ -94,9 +95,33 @@ def test_credit_wallet_migration_follows_session_version(monkeypatch: pytest.Mon
     assert tables == ["credit_accounts", "energy_accounts", "credit_ledger_entries", "reward_grants", "credit_usages"]
 
 
+def test_credit_wallet_grants_are_unique_per_user_event(monkeypatch: pytest.MonkeyPatch) -> None:
+    migration = _load_migration("20260809_0014_credit_wallet.py")
+    tables: dict[str, tuple[object, ...]] = {}
+    monkeypatch.setattr(migration.op, "create_table", lambda name, *args, **kwargs: tables.update({name: args}))
+    monkeypatch.setattr(migration.op, "create_index", lambda *args, **kwargs: None)
+    cast(Callable[[], None], migration.upgrade)()
+    table = sa.Table("reward_grants", sa.MetaData(), *cast(tuple[SchemaItem, ...], tables["reward_grants"]))
+    constraints = [item for item in table.constraints if isinstance(item, sa.UniqueConstraint)]
+    assert [[column.name for column in constraint.columns] for constraint in constraints] == [["user_id", "event_code"]]
+
+
 def test_ai_cost_security_migration_follows_credit_wallet() -> None:
     migration = _load_migration("20260809_0015_ai_cost_security.py")
     columns = cast(Callable[[], list[sa.Column[object]]], migration._credit_usage_columns)()
     names = {column.name for column in columns}
     assert migration.down_revision == "20260809_0014"
     assert {"provider_attempts", "input_tokens", "output_tokens", "thought_tokens", "total_tokens", "usage_metadata_complete", "reserved_cost_usd", "provider_cost_usd", "response_body"} == names
+
+
+def test_credit_integrity_migration_follows_ai_cost_security() -> None:
+    migration = _load_migration("20260809_0016_credit_integrity.py")
+    constraints = cast(tuple[tuple[str, str, str], ...], migration.CONSTRAINTS)
+    names = {name for _, name, _ in constraints}
+    assert migration.down_revision == "20260809_0015"
+    assert {"ck_credit_usages_status", "ck_credit_usages_source_total", "ck_credit_usages_provider_costs"} <= names
+
+
+def test_auto_post_cost_guard_follows_credit_integrity() -> None:
+    migration = _load_migration("20260809_0017_auto_post_cost_guard.py")
+    assert migration.down_revision == "20260809_0016"

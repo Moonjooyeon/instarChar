@@ -33,6 +33,8 @@ export type CreditUsage = {
   flow: string;
   credits: number;
   energy_percent: number;
+  bonus_credits: number;
+  purchased_credits: number;
   status: "reserved" | "committed" | "refunded";
   created_at: string;
 };
@@ -65,5 +67,6 @@ export function getCreditUsage(): Promise<CreditUsageList> {
 }
 
 export function notifyCreditBalanceUpdated(): void {
+  if (typeof window === "undefined") return;
   window.dispatchEvent(new Event(CREDIT_BALANCE_UPDATED_EVENT));
 }

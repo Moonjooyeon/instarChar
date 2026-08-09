@@ -48,6 +48,8 @@ class CreditUsageResponse(BaseModel):
     flow: str
     credits: int
     energy_percent: int
+    bonus_credits: int
+    purchased_credits: int
     status: str
     created_at: datetime
 

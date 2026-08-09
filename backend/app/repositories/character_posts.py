@@ -43,7 +43,7 @@ class CharacterPostsRepository:
         await self.session.commit()
         return self.response(row)
 
-    async def append_generated_post(self, owner_id: UUID, source_account_id: str, post: dict[str, object], is_auto: bool = False) -> CharacterPostsResponse:
+    async def append_generated_post(self, owner_id: UUID, source_account_id: str, post: dict[str, object], is_auto: bool = False, commit: bool = True) -> CharacterPostsResponse:
         require_safe_content(post)
         row = await self.owned_character(owner_id, source_account_id, lock=True)
         row.posts = [post, *list(row.posts or [])][:40]
@@ -53,7 +53,8 @@ class CharacterPostsRepository:
             row.last_auto_post_error = ""
             row.auto_post_failure_count = 0
         await self._sync_shared_posts(row)
-        await self.session.commit()
+        if commit:
+            await self.session.commit()
         return self.response(row)
 
     async def append_public_comment(self, user: User, character_id: UUID, post_id: str, payload: CharacterPostCommentCreate) -> CharacterPostCommentsResponse:

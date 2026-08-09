@@ -1,4 +1,5 @@
 import { apiFetch, apiErrorMessage } from "./client.js";
+import { notifyCreditBalanceUpdated } from "./credits.js";
 
 export type CharacterPostsState = {
   auto_post_enabled: boolean;
@@ -49,9 +50,11 @@ export async function updateCharacterAutoPost(sourceAccountId: string, enabled: 
   return postsRequest<CharacterPostsState>(path, jsonOptions("PATCH", { enabled, interval_seconds: intervalSeconds }));
 }
 
-export async function generateCharacterPost(sourceAccountId: string, mood: string): Promise<GeneratedCharacterPost> {
+export async function generateCharacterPost(sourceAccountId: string, mood: string, idempotencyKey: string): Promise<GeneratedCharacterPost> {
   const path = `${postsPath(sourceAccountId)}/generate`;
-  return postsRequest<GeneratedCharacterPost>(path, jsonOptions("POST", { mood }));
+  const result = await postsRequest<GeneratedCharacterPost>(path, jsonOptions("POST", { idempotency_key: idempotencyKey, mood }));
+  notifyCreditBalanceUpdated();
+  return result;
 }
 
 export async function createCharacterPostComment(characterId: string, postId: string, commenterAccountId: string, comment: Omit<CharacterPostComment, "byUser">): Promise<CharacterPostComment[]> {

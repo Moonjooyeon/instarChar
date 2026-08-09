@@ -6,7 +6,7 @@ from typing import Optional
 from pydantic import BaseModel, Field, field_validator
 
 
-ALLOWED_AUTO_POST_INTERVALS = {900, 1800, 3600}
+ALLOWED_AUTO_POST_INTERVALS = {3600, 21600, 43200}
 
 
 class CharacterPostsResponse(BaseModel):
@@ -27,17 +27,18 @@ class CharacterPostsUpdate(BaseModel):
 
 class AutoPostUpdate(BaseModel):
     enabled: bool
-    interval_seconds: int = 900
+    interval_seconds: int = 3600
 
     @field_validator("interval_seconds")
     @classmethod
     def validate_interval(cls, value: int) -> int:
         if value not in ALLOWED_AUTO_POST_INTERVALS:
-            raise ValueError("interval_seconds must be 900, 1800, or 3600")
+            raise ValueError("interval_seconds must be 3600, 21600, or 43200")
         return value
 
 
 class FeedPostGenerateRequest(BaseModel):
+    idempotency_key: str = Field(min_length=8, max_length=180)
     mood: str = "랜덤 / 알아서"
 
 

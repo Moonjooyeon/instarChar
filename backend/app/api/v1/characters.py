@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
+from app.core.credit_policy import FIRST_CHARACTER_BONUS_CREDITS
 from app.core.character_handles import validate_character_handle
 from app.core.config import Settings, get_settings
 from app.db.session import get_db_session
@@ -34,7 +35,7 @@ async def get_character_handle_availability(handle: str, exclude_source_account_
 @router.put("/{source_account_id}", response_model=CharacterWriteResponse)
 async def save_character(source_account_id: str, payload: CharacterWrite, user: User = Depends(get_current_user), session: AsyncSession = Depends(get_db_session)) -> CharacterWriteResponse:
     response = await CharacterRepository(session).save(user, source_account_id, payload)
-    await CreditRepository(session).grant(user.id, "first_character", 100)
+    await CreditRepository(session).grant(user.id, "first_character", FIRST_CHARACTER_BONUS_CREDITS)
     return response
 
 

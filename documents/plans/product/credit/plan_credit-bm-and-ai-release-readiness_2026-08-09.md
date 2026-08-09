@@ -14,18 +14,27 @@ status: in-progress
 1차 구현과 보안 보강으로 다음 항목이 코드에 반영됐다.
 
 - 서버 소유 flow catalog, 정책 version, 입력·출력·thinking·일일 호출 상한
-- 구매/무료 bonus 분리 잔액, 6시간마다 25% 회복하는 최대 100% 무료 에너지
+- 구매/무료 bonus 분리 잔액, 100%에서 사용 후 6시간마다 25% 회복하는 최대 100% 무료 에너지
+- 가입·첫 캐릭터·첫 DM 각 50C(총 150C), 지급 이벤트별 1회 보장
+- 에너지 최대치 도달 후 초과 회복 시간 미누적, AI 일·월 사용량은 한국시간 자정 기준 재설정
+- 베타 기간 bonus·구매 크레딧은 만료 없이 누적하고 기존 지급분은 소급 차감하지 않음
 - 예약·확정·환급 usage와 원장, reward 중복 방지, 10분 stale reservation lazy 환급
+- 클라이언트 액션 key 필수화, committed 결과 replay, 진행 중 요청 구분, 수동·자동 피드 중복 저장 방지
+- 사용 원천 합계·상태·원가 필드에 대한 PostgreSQL check constraint migration
 - 공개 내부 flow 차단, Pro 구매 크레딧 전용, 실제 Gemini token/원가 정산, provider 최대 2회 호출
+- 무료 요청 일 50회·구매 전용 요청 일 200회 안전 한도와 Pro/Pro 서사형 일 20회·10회 hard cap
+- 자동 게시는 서버 전용 0C flow로 사용자당 일 24회, 최소 1시간 주기 적용
 - 크레딧 센터의 잔액·에너지·기능별 비용·최근 사용 UI와 DM/피드 사용 직전 안내
 - 상품 catalog 노출과 결제 비활성 상태 유지
+
+현재 자동 검증은 backend 248개, frontend domain 135개, TypeScript typecheck, Vite production build, migration head/offline SQL compile을 통과했다. 실행 중인 ALIVE 프로세스가 없어 브라우저 E2E와 실제 PostgreSQL·Gemini 검증은 수행하지 않았다.
 
 다음 출시 차단 항목은 아직 남아 있다.
 
 - 운영 PostgreSQL migration 및 row-lock/crash fault injection 검증
 - 실제 Gemini Flash/Pro 호출과 shadow billing p50/p95/p99 수집
 - 결제 provider 결정, 구매 원장, 영수증 검증, 복원·환불·chargeback 처리
-- 클라이언트 액션 단위 idempotency key 유지와 background reconciliation watchdog
+- 프로세스 중단을 주기적으로 복구하는 background reconciliation watchdog
 - 이미지 pixel 검증, reverse-proxy body limit, 운영 secret·metric·alert 점검
 - Pro 가격을 5C/7C에서 유지할지 8~10C/16~18C로 조정할지 실측 후 확정
 
@@ -52,8 +61,8 @@ status: in-progress
 | 항목 | 현재 초안 |
 | --- | --- |
 | BM | 시간 회복형 데일리 에너지 + 유료 크레딧 |
-| 에너지 | 6시간마다 최대치의 25% 회복, 최대 100% |
-| 가입 보너스 | 가입 300C + 첫 캐릭터 100C + 첫 DM 100C |
+| 에너지 | 100%에서 사용 후 6시간마다 최대치의 25% 회복, 최대 100%, 자정 초기화 없음 |
+| 가입 보너스 | 가입 50C + 첫 캐릭터 50C + 첫 DM 50C |
 | 상품 기준 | 5,000원 500C, 10,000원 1,000C, 30,000원 3,150C, 50,000원 5,500C, 100,000원 11,500C |
 | 첫 결제 | 기존 상품 보너스에 최초 1회 추가 10% 검토 |
 | 기본 대화 | 1C |
@@ -152,7 +161,7 @@ status: in-progress
 
 - [ ] 자동 DM의 무료·유료 여부 결정
 - [ ] 자동 댓글·팔로워 반응의 무료 제공 여부 결정
-- [ ] 자동 게시글을 서비스 비용으로 제공할지 별도 자동화 예산으로 둘지 결정
+- [x] 자동 게시글은 사용자 크레딧 미차감 서비스 비용으로 제공하되 일 24회·최소 1시간으로 제한
 - [ ] 자동 기능이 유료 크레딧을 사용할 경우 사전 동의·예산·중지 기능 추가
 - [ ] 내부 분석·관계 판정·기억 통합을 사용자에게 별도 차감하지 않도록 확정
 
@@ -170,50 +179,50 @@ status: in-progress
 
 ### 6.2 잔액 정합성
 
-- [ ] AI 요청 전에 사용량을 `reserved` 상태로 기록
-- [ ] 성공 응답과 저장 완료 후 `committed` 상태로 전환
-- [ ] provider 실패·timeout·빈 응답·안전 차단 시 `refunded` 상태로 전환
-- [ ] 동시 요청에서 잔액이 음수가 되지 않도록 row lock 또는 version check 적용
-- [ ] 모든 원장 이벤트에 idempotency key 적용
+- [x] AI 요청 전에 사용량을 `reserved` 상태로 기록
+- [x] 성공 응답과 저장 완료 후 `committed` 상태로 전환
+- [x] provider 실패·timeout·빈 응답·안전 차단 시 `refunded` 상태로 전환
+- [x] 동시 요청에서 잔액이 음수가 되지 않도록 계정 row lock 적용
+- [x] 모든 현재 원장 이벤트와 사용자 생성 액션에 idempotency key 적용
 - [ ] 원장 합계와 계정 잔액을 점검할 수 있는 운영 명령 또는 조회 추가
 
 ### 6.3 무료 에너지
 
-- [ ] 6시간마다 25% 회복 계산
-- [ ] 최대치 100% 초과 방지
-- [ ] 사용 순서 결정: 데일리 에너지 → 무료 grant → 구매 크레딧
-- [ ] 무료 grant 만료 여부와 만료 시각 결정
-- [ ] 에너지 소진 시 다음 회복 시각과 크레딧 사용량을 함께 반환
-- [ ] 앱 미접속 기간에도 서버 시각 기준으로 회복량 계산
+- [x] 6시간마다 25% 회복 계산
+- [x] 최대치 100% 초과와 최대치 도달 후 회복 시간 이월 방지
+- [x] 사용 순서 결정: 무료 회복 에너지 → 무료 grant → 구매 크레딧
+- [x] 베타 기간 무료 grant 만료 없음
+- [x] 에너지 소진 시 다음 회복 시각과 크레딧 사용량을 함께 반환
+- [x] 앱 미접속 기간에도 서버 시각 기준으로 회복량 계산
 
 ## 7. Phase 3 — 보너스·탈퇴·재가입 악용 방지
 
-- [ ] 가입·첫 캐릭터·첫 DM 보너스를 `identity + event_code` 기준으로 한 번만 지급
+- [x] 가입·첫 캐릭터·첫 DM 보너스를 `user_id + event_code` 기준으로 한 번만 지급
 - [ ] 동일 provider 탈퇴 후 retention 기간 재가입 차단을 grant 정책과 연결
 - [ ] 다른 provider로 재가입하는 경우의 보너스 정책 결정
 - [ ] 탈퇴 pending 계정의 크레딧·에너지·보너스 접근 차단
 - [ ] 유예기간 내 복구 시 기존 잔액과 원장 유지
 - [ ] 영구 삭제 시 구매 기록·법적 보존 데이터·잔여 크레딧 처리 결정
 - [ ] 환불 시 지급된 구매 크레딧과 첫 구매 보너스 회수 방식 결정
-- [ ] 구매 크레딧과 무료 보너스의 사용 순서 및 만료 정책을 원장에 기록
+- [x] 구매 크레딧과 무료 보너스의 사용 순서 및 현재 무기한 정책을 원장에 기록
 
 ### 완료 기준
 
-- [ ] 가입 완료 API를 반복 호출해도 signup grant가 1회만 생성된다.
-- [ ] 첫 캐릭터·첫 DM 완료 요청을 반복해도 중복 지급되지 않는다.
+- [x] 가입 완료 API를 반복 호출해도 signup grant가 1회만 생성된다.
+- [x] 첫 캐릭터·첫 DM 완료 요청을 반복해도 중복 지급되지 않는다.
 - [ ] 탈퇴·재가입·복구 후 잔액이 중복 생성되지 않는다.
 - [ ] 다른 provider 가입에 대한 정책이 코드와 사용자 고지에 일치한다.
 
 ## 8. Phase 4 — AI 과금 연결
 
-- [ ] `/api/ai/generate`가 서버 flow를 기준으로 가격을 계산
+- [x] `/api/ai/generate`가 서버 flow를 기준으로 가격을 계산
 - [ ] 직접 DM의 현재 Pro 고정 호출을 기본 Flash·선택형 Pro flow로 분리
-- [ ] 피드 생성은 `feed_post` flow로 서버에서 3C 후보를 계산
+- [x] 피드 생성은 `feed_post` flow로 서버에서 3C 후보를 계산
 - [ ] 이미지 이해는 이미지 크기·문맥·모델에 따른 상한을 적용
-- [ ] 재시도 횟수와 사용자 차감 횟수를 분리
+- [x] 재시도 횟수와 사용자 차감 횟수를 분리
 - [ ] 내부 분석 호출이 메인 응답과 중복 차감되지 않도록 correlation ID 연결
-- [ ] AI 호출별 flow·model·입력량·출력량·retry count·provider status·원가 추정치를 기록
-- [ ] 사용자가 생성 전에 예상 소모량을 확인할 수 있도록 API 응답에 비용 정보 포함
+- [x] AI 호출별 flow·model·입력량·출력량·retry count·provider status·원가 추정치를 기록
+- [x] 사용자가 생성 전에 예상 소모량을 확인할 수 있도록 catalog API에 비용 정보 포함
 
 ## 9. Phase 5 — 결제와 프론트 UX
 

@@ -208,7 +208,7 @@ class Character(TimestampMixin, Base):
     posts_revision: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     following: Mapped[list[object]] = mapped_column(JSONB, nullable=False, default=list)
     auto_post_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    auto_post_interval_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=900)
+    auto_post_interval_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=3600)
     next_auto_post_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     last_auto_post_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     last_auto_post_error: Mapped[str] = mapped_column(Text, nullable=False, default="")
@@ -323,7 +323,7 @@ class EnergyAccount(TimestampMixin, Base):
 
 class CreditLedgerEntry(Base):
     __tablename__ = "credit_ledger_entries"
-    __table_args__ = (UniqueConstraint("user_id", "idempotency_key", name="uq_credit_ledger_user_idempotency"), Index("ix_credit_ledger_user_created", "user_id", "created_at"))
+    __table_args__ = (UniqueConstraint("user_id", "idempotency_key", name="uq_credit_ledger_user_idempotency"), Index("ix_credit_ledger_user_created", "user_id", "created_at"), CheckConstraint("entry_type IN ('grant', 'debit', 'refund', 'purchase', 'adjustment', 'chargeback')", name="ck_credit_ledger_entry_type"), CheckConstraint("balance_type IN ('bonus', 'purchased')", name="ck_credit_ledger_balance_type"), CheckConstraint("amount <> 0", name="ck_credit_ledger_amount_nonzero"))
     id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid4)
     user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     entry_type: Mapped[str] = mapped_column(String(32), nullable=False)
@@ -336,7 +336,7 @@ class CreditLedgerEntry(Base):
 
 class RewardGrant(Base):
     __tablename__ = "reward_grants"
-    __table_args__ = (UniqueConstraint("user_id", "event_code", name="uq_reward_grants_user_event"),)
+    __table_args__ = (UniqueConstraint("user_id", "event_code", name="uq_reward_grants_user_event"), CheckConstraint("credits > 0", name="ck_reward_grants_credits_positive"))
     id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid4)
     user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     event_code: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -346,7 +346,7 @@ class RewardGrant(Base):
 
 class CreditUsage(TimestampMixin, Base):
     __tablename__ = "credit_usages"
-    __table_args__ = (UniqueConstraint("user_id", "idempotency_key", name="uq_credit_usages_user_idempotency"), Index("ix_credit_usages_user_created", "user_id", "created_at"), CheckConstraint("credits >= 0", name="ck_credit_usages_credits_nonnegative"), CheckConstraint("energy_percent >= 0", name="ck_credit_usages_energy_nonnegative"))
+    __table_args__ = (UniqueConstraint("user_id", "idempotency_key", name="uq_credit_usages_user_idempotency"), Index("ix_credit_usages_user_created", "user_id", "created_at"), CheckConstraint("status IN ('reserved', 'committed', 'refunded')", name="ck_credit_usages_status"), CheckConstraint("credits >= 0", name="ck_credit_usages_credits_nonnegative"), CheckConstraint("energy_percent >= 0", name="ck_credit_usages_energy_nonnegative"), CheckConstraint("bonus_credits >= 0", name="ck_credit_usages_bonus_nonnegative"), CheckConstraint("purchased_credits >= 0", name="ck_credit_usages_purchased_nonnegative"), CheckConstraint("credits = bonus_credits + purchased_credits", name="ck_credit_usages_source_total"), CheckConstraint("energy_percent = 0 OR credits = 0", name="ck_credit_usages_single_payment_kind"), CheckConstraint("provider_attempts >= 0 AND input_tokens >= 0 AND output_tokens >= 0 AND thought_tokens >= 0 AND total_tokens >= 0", name="ck_credit_usages_provider_counts"), CheckConstraint("reserved_cost_usd >= 0 AND provider_cost_usd >= 0", name="ck_credit_usages_provider_costs"))
     id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid4)
     user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     flow: Mapped[str] = mapped_column(String(64), nullable=False)

@@ -7,6 +7,7 @@ from uuid import UUID
 from uuid import uuid4
 
 from app.core.config import Settings
+from app.core.credit_policy import next_daily_reset_at, next_monthly_reset_at
 from app.repositories.ai_usage import AiUsageRepository
 from app.repositories.credits import CreditRepository
 from app.repositories.character_posts import CharacterPostsRepository
@@ -25,23 +26,40 @@ class FeedGenerationService:
 
     async def generate(self, owner_id: UUID, source_account_id: str, payload: FeedPostGenerateRequest, is_auto: bool = False) -> GenerateApiResult:
         character = await self.posts.owned_character(owner_id, source_account_id)
-        request = self._request(character.name, character.character, character.posts, payload.mood)
+        flow = "auto_feed_post" if is_auto else "character-feed-post-v1"
+        request = self._request(character.name, character.character, character.posts, payload.mood, payload.idempotency_key, flow)
         result = await self._generate_result(request, owner_id, finalize_credit=False)
         if result.status_code != 200:
-            if is_auto:
-                await self._record_auto_failure(owner_id, source_account_id, result, character.auto_post_failure_count)
+            return await self._failed_result(owner_id, source_account_id, result, character.auto_post_failure_count, is_auto)
+        if result.replayed:
+            return self._replayed_result(result)
+        return await self._persist_result(owner_id, source_account_id, payload.mood, result, is_auto)
+
+    def _replayed_result(self, result: GenerateApiResult) -> GenerateApiResult:
+        if isinstance(result.body.get("post"), dict) and isinstance(result.body.get("state"), dict):
             return result
-        post = self._post_from_result(result, payload.mood)
+        body = {"error": "REQUEST_ALREADY_PROCESSED", "message": "이미 처리된 피드 생성 요청이야."}
+        return GenerateApiResult(409, body, result.credit_usage_id, result.provider_usage, replayed=True)
+
+    async def _failed_result(self, owner_id: UUID, source_account_id: str, result: GenerateApiResult, failure_count: int, is_auto: bool) -> GenerateApiResult:
+        if is_auto:
+            await self._record_auto_failure(owner_id, source_account_id, result, failure_count)
+        return result
+
+    async def _persist_result(self, owner_id: UUID, source_account_id: str, mood: str, result: GenerateApiResult, is_auto: bool) -> GenerateApiResult:
+        post = self._post_from_result(result, mood)
         if not post:
             await self.ai.refund_result(result, owner_id, "INVALID_POST")
             return GenerateApiResult(500, {"error": "INVALID_POST", "message": "생성된 게시글을 해석할 수 없습니다."})
         try:
-            state = await self.posts.append_generated_post(owner_id, source_account_id, post, is_auto=is_auto)
+            defer_commit = result.credit_usage_id is not None
+            state = await self.posts.append_generated_post(owner_id, source_account_id, post, is_auto=is_auto, commit=not defer_commit)
         except Exception:
             await self.ai.refund_result(result, owner_id, "PERSISTENCE_FAILED")
             raise
-        await self.ai.commit_result(result, owner_id)
-        return GenerateApiResult(200, {"post": post, "state": state.model_dump(mode="json")}, result.credit_usage_id, result.provider_usage)
+        body = {"post": post, "state": state.model_dump(mode="json")}
+        await self.ai.commit_result(result, owner_id, body)
+        return GenerateApiResult(200, body, result.credit_usage_id, result.provider_usage)
 
     async def _generate_result(self, request: GenerateRequest, owner_id: UUID, finalize_credit: bool = True) -> GenerateApiResult:
         try:
@@ -57,19 +75,18 @@ class FeedGenerationService:
 
     def _retry_at(self, code: str, failure_count: int) -> datetime:
         now = datetime.now(timezone.utc)
-        if code == "DAILY_LIMIT_EXCEEDED":
-            return datetime.combine(now.date() + timedelta(days=1), datetime.min.time(), tzinfo=timezone.utc)
+        if code in {"DAILY_LIMIT_EXCEEDED", "FREE_FLOW_DAILY_LIMIT_EXCEEDED"}:
+            return next_daily_reset_at(now)
         if code == "MONTHLY_COST_LIMIT_EXCEEDED":
-            first_next_month = (now.replace(day=28) + timedelta(days=4)).replace(day=1)
-            return first_next_month.replace(hour=0, minute=0, second=0, microsecond=0)
+            return next_monthly_reset_at(now)
         return now + timedelta(seconds=retry_delay_seconds(failure_count))
 
-    def _request(self, name: str, character: dict[str, object], posts: list[object], mood: str) -> GenerateRequest:
+    def _request(self, name: str, character: dict[str, object], posts: list[object], mood: str, idempotency_key: str, flow: str = "character-feed-post-v1") -> GenerateRequest:
         recent = [self._post_text(item) for item in list(posts or [])[:8]]
         system = "character-feed-post-v1\n캐릭터 설정에 맞는 SNS 글 하나를 JSON 객체로 작성하라. text는 필수이며 photoDesc와 moodDesc는 선택이다. 설명이나 코드펜스 없이 JSON만 출력하라."
         prompt_character = {key: value for key, value in character.items() if key not in {"avatarImg", "headerImg"}}
         prompt = {"name": name, "character": prompt_character, "mood": mood, "recent_posts": [item for item in recent if item]}
-        return GenerateRequest(flow="character-feed-post-v1", model="fast", max_tokens=1200, system=system, messages=[GenerateMessage(role="user", content=json.dumps(prompt, ensure_ascii=False))])
+        return GenerateRequest(flow=flow, idempotency_key=idempotency_key, model="fast", max_tokens=1200, system=system, messages=[GenerateMessage(role="user", content=json.dumps(prompt, ensure_ascii=False))])
 
     def _post_from_result(self, result: GenerateApiResult, mood: str) -> dict[str, object] | None:
         text = self._result_text(result.body)

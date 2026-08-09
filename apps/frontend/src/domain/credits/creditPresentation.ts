@@ -14,6 +14,13 @@ export type CreditFlowMeta = {
   tier: string;
 };
 
+export type CreditUsageAmounts = {
+  credits: number;
+  energy_percent: number;
+  bonus_credits: number;
+  purchased_credits: number;
+};
+
 const FLOW_META: Record<string, CreditFlowMeta> = {
   direct_dm_basic: { available: true, category: "conversation", description: "짧고 빠르게 이어가는 일상 대화", tier: "빠른 응답" },
   direct_dm_context: { available: false, category: "conversation", description: "최근 대화와 저장된 기억을 더 반영", tier: "문맥 강화" },
@@ -36,4 +43,12 @@ export function creditCostSummary(flow: CreditFlowCost, maxUses = 1): string {
   if (flow.energy_eligible === false && flow.bonus_eligible === false) return `구매 크레딧 ${flow.credits}C`;
   if (maxUses > 1) return `회당 에너지 ${flow.energy_percent}% 또는 ${flow.credits}C · 최대 ${flow.credits * maxUses}C`;
   return `에너지 ${flow.energy_percent}% 우선 · 부족하면 ${flow.credits}C`;
+}
+
+export function creditUsageAmount(usage: CreditUsageAmounts): string {
+  const amounts: string[] = [];
+  if (usage.energy_percent) amounts.push(`무료 에너지 ${usage.energy_percent}%`);
+  if (usage.bonus_credits) amounts.push(`무료 보너스 ${usage.bonus_credits}C`);
+  if (usage.purchased_credits) amounts.push(`구매 크레딧 ${usage.purchased_credits}C`);
+  return amounts.join(" + ") || `${usage.credits}C`;
 }

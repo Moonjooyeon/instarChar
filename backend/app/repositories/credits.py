@@ -5,12 +5,12 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from uuid import UUID, uuid4
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.ai_cost import ProviderUsage
-from app.core.credit_policy import CREDIT_POLICY_VERSION, ENERGY_POLICY_VERSION, FlowPolicy, next_energy_recovery_at, recover_energy, resolve_flow
+from app.core.credit_policy import CREDIT_POLICY_VERSION, ENERGY_POLICY_VERSION, FIRST_DM_BONUS_CREDITS, SIGNUP_BONUS_CREDITS, FlowPolicy, daily_period_start, next_energy_recovery_at, recover_energy, resolve_flow, usage_period
 from app.models import AiDailyUsage, AiMonthlyUsage, CreditAccount, CreditLedgerEntry, CreditUsage, EnergyAccount, RewardGrant
 
 
@@ -35,7 +35,7 @@ class CreditRepository:
         current = now or datetime.now(timezone.utc)
         account, energy = await self._locked_accounts(user_id, current)
         await self._reconcile_stale(user_id, account, energy, current)
-        await self._grant_if_missing(user_id, "signup", 300, account)
+        await self._grant_if_missing(user_id, "signup", SIGNUP_BONUS_CREDITS, account)
         await self._commit()
         return self._snapshot(account, energy)
 
@@ -48,12 +48,16 @@ class CreditRepository:
         existing = await self._usage_by_key(user_id, key)
         if existing:
             return await self._duplicate(existing, policy)
-        await self._grant_if_missing(user_id, "signup", 300, account)
-        if await self._flow_limit_reached(user_id, policy, current):
+        await self._grant_if_missing(user_id, "signup", SIGNUP_BONUS_CREDITS, account)
+        if await self._hard_flow_limit_reached(user_id, policy, current):
+            return await self._hard_flow_limited(policy)
+        free_limit_reached = await self._free_flow_limit_reached(user_id, policy, current)
+        purchased_only = free_limit_reached and policy.credits > 0 and account.purchased_credits >= policy.credits
+        if free_limit_reached and not purchased_only:
             return await self._flow_limited(policy)
         if not self._can_use(account, energy, policy):
             return await self._insufficient(policy)
-        usage = self._reserve_balance(user_id, key, account, energy, policy)
+        usage = self._reserve_balance(user_id, key, account, energy, policy, purchased_only)
         self.session.add(usage)
         self._usage_debits(usage)
         await self._commit()
@@ -63,6 +67,8 @@ class CreditRepository:
         await self._commit()
         if usage.flow == policy.code and usage.status == "committed" and usage.response_body:
             return CreditReservation(False, usage.id, policy, replay_body=dict(usage.response_body))
+        if usage.flow == policy.code and usage.status == "reserved":
+            return CreditReservation(False, usage.id, policy, "REQUEST_IN_PROGRESS", "같은 요청을 처리하고 있어.")
         return CreditReservation(False, usage.id, policy, "REQUEST_ALREADY_PROCESSED", "이미 처리된 요청이야.")
 
     async def _insufficient(self, policy: FlowPolicy) -> CreditReservation:
@@ -71,11 +77,16 @@ class CreditRepository:
 
     async def _flow_limited(self, policy: FlowPolicy) -> CreditReservation:
         await self._commit()
-        return CreditReservation(False, policy=policy, error_code="FLOW_DAILY_LIMIT_EXCEEDED", message="이 AI 기능의 오늘 무료 사용량을 모두 사용했어.")
+        return CreditReservation(False, policy=policy, error_code="FREE_FLOW_DAILY_LIMIT_EXCEEDED", message="이 AI 기능의 오늘 무료 사용량을 모두 사용했어.")
 
-    def _reserve_balance(self, user_id: UUID, key: str, account: CreditAccount, energy: EnergyAccount, policy: FlowPolicy) -> CreditUsage:
-        energy_amount = policy.energy_percent if policy.energy_allowed and energy.energy_percent >= policy.energy_percent else 0
-        bonus, purchased = self._deduct_credits(account, policy.credits if not energy_amount else 0, policy.bonus_allowed)
+    async def _hard_flow_limited(self, policy: FlowPolicy) -> CreditReservation:
+        await self._commit()
+        return CreditReservation(False, policy=policy, error_code="FLOW_DAILY_LIMIT_EXCEEDED", message="이 AI 기능의 오늘 사용 한도에 도달했어.")
+
+    def _reserve_balance(self, user_id: UUID, key: str, account: CreditAccount, energy: EnergyAccount, policy: FlowPolicy, purchased_only: bool = False) -> CreditUsage:
+        energy_amount = policy.energy_percent if not purchased_only and policy.energy_allowed and energy.energy_percent >= policy.energy_percent else 0
+        bonus_allowed = policy.bonus_allowed and not purchased_only
+        bonus, purchased = self._deduct_credits(account, policy.credits if not energy_amount else 0, bonus_allowed)
         energy.energy_percent -= energy_amount
         return CreditUsage(id=uuid4(), user_id=user_id, flow=policy.code, policy_version=CREDIT_POLICY_VERSION, model=policy.model, status="reserved", credits=policy.credits if not energy_amount else 0, energy_percent=energy_amount, bonus_credits=bonus, purchased_credits=purchased, idempotency_key=key, provider_status="credit_reserved")
 
@@ -94,7 +105,7 @@ class CreditRepository:
             self._apply_provider_usage(usage, provider or ProviderUsage())
             usage.response_body = response_body or {}
             dm_flow = usage.flow.startswith("direct_dm") or usage.flow == "image_understanding"
-            await self._grant_if_missing(user_id, "first_dm", 100, account, dm_flow)
+            await self._grant_if_missing(user_id, "first_dm", FIRST_DM_BONUS_CREDITS, account, dm_flow)
             await self._commit()
 
     async def mark_provider_started(self, usage_id: UUID, user_id: UUID) -> None:
@@ -119,7 +130,8 @@ class CreditRepository:
         await self._commit()
 
     async def usages(self, user_id: UUID, limit: int = 30) -> list[CreditUsage]:
-        result = await self.session.execute(select(CreditUsage).where(CreditUsage.user_id == user_id).order_by(CreditUsage.created_at.desc()).limit(limit))
+        charged = or_(CreditUsage.credits > 0, CreditUsage.energy_percent > 0)
+        result = await self.session.execute(select(CreditUsage).where(CreditUsage.user_id == user_id, charged).order_by(CreditUsage.created_at.desc()).limit(limit))
         return list(result.scalars().all())
 
     async def grant(self, user_id: UUID, event_code: str, credits: int) -> bool:
@@ -175,12 +187,24 @@ class CreditRepository:
     def _snapshot(self, account: CreditAccount, energy: EnergyAccount) -> dict[str, object]:
         return {"purchased_credits": account.purchased_credits, "bonus_credits": account.bonus_credits, "total_credits": account.purchased_credits + account.bonus_credits, "energy_percent": energy.energy_percent, "energy_max_percent": 100, "next_energy_recovery_at": next_energy_recovery_at(energy.energy_percent, energy.last_recovered_at), "credit_policy_version": CREDIT_POLICY_VERSION, "energy_policy_version": ENERGY_POLICY_VERSION}
 
-    async def _flow_limit_reached(self, user_id: UUID, policy: FlowPolicy, now: datetime) -> bool:
-        if policy.daily_limit <= 0:
+    async def _free_flow_limit_reached(self, user_id: UUID, policy: FlowPolicy, now: datetime) -> bool:
+        if not policy.energy_allowed and not policy.bonus_allowed:
+            return False
+        if policy.free_daily_limit <= 0:
             return True
-        start = now.astimezone(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-        stmt = select(func.count()).select_from(CreditUsage).where(CreditUsage.user_id == user_id, CreditUsage.flow == policy.code, CreditUsage.created_at >= start)
-        return int((await self.session.execute(stmt)).scalar_one()) >= policy.daily_limit
+        start = daily_period_start(now)
+        conditions = [CreditUsage.user_id == user_id, CreditUsage.flow == policy.code, CreditUsage.created_at >= start, CreditUsage.status.in_(("reserved", "committed"))]
+        if policy.credits > 0 or policy.energy_percent > 0:
+            conditions.append(or_(CreditUsage.energy_percent > 0, CreditUsage.bonus_credits > 0))
+        stmt = select(func.count()).select_from(CreditUsage).where(*conditions)
+        return int((await self.session.execute(stmt)).scalar_one()) >= policy.free_daily_limit
+
+    async def _hard_flow_limit_reached(self, user_id: UUID, policy: FlowPolicy, now: datetime) -> bool:
+        if policy.hard_daily_limit <= 0:
+            return False
+        start = daily_period_start(now)
+        stmt = select(func.count()).select_from(CreditUsage).where(CreditUsage.user_id == user_id, CreditUsage.flow == policy.code, CreditUsage.created_at >= start, CreditUsage.status.in_(("reserved", "committed")))
+        return int((await self.session.execute(stmt)).scalar_one()) >= policy.hard_daily_limit
 
     async def _reconcile_stale(self, user_id: UUID, account: CreditAccount, energy: EnergyAccount, now: datetime) -> None:
         cutoff = now - RESERVATION_TTL
@@ -208,8 +232,9 @@ class CreditRepository:
 
     async def _release_reserved_cost(self, usage: CreditUsage, now: datetime) -> None:
         created = usage.created_at or now
-        daily_stmt = select(AiDailyUsage).where(AiDailyUsage.owner_id == usage.user_id, AiDailyUsage.usage_date == created.date()).with_for_update()
-        monthly_stmt = select(AiMonthlyUsage).where(AiMonthlyUsage.usage_month == created.strftime("%Y-%m")).with_for_update()
+        usage_date, usage_month = usage_period(created)
+        daily_stmt = select(AiDailyUsage).where(AiDailyUsage.owner_id == usage.user_id, AiDailyUsage.usage_date == usage_date).with_for_update()
+        monthly_stmt = select(AiMonthlyUsage).where(AiMonthlyUsage.usage_month == usage_month).with_for_update()
         daily = (await self.session.execute(daily_stmt)).scalar_one_or_none()
         monthly = (await self.session.execute(monthly_stmt)).scalar_one_or_none()
         if daily:

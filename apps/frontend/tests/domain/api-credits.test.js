@@ -19,14 +19,16 @@ test("credit APIs read the server-owned balance, catalog, and usage", async () =
       flows: [{ code: "direct_dm_basic", credits: 1 }],
     },
     {
-      items: [{ id: "usage-1", flow: "direct_dm_basic", status: "committed" }],
+      items: [{ id: "usage-1", flow: "direct_dm_basic", status: "committed", bonus_credits: 2, purchased_credits: 1 }],
     },
   ];
   const restoreFetch = stubFetch(responses);
   try {
     assert.equal((await getCreditBalance()).energy_percent, 92);
     assert.equal((await getCreditCatalog()).offers[0].payment_available, false);
-    assert.equal((await getCreditUsage()).items[0].status, "committed");
+    const usage = (await getCreditUsage()).items[0];
+    assert.equal(usage.status, "committed");
+    assert.equal(usage.purchased_credits, 1);
     assert.deepEqual(
       globalThis.fetch.calls.map((call) => call.input),
       ["/api/credits", "/api/credits/catalog", "/api/credits/usage"],

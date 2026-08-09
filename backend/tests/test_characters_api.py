@@ -93,7 +93,7 @@ def test_save_character_returns_authoritative_handle(monkeypatch: MonkeyPatch) -
         response = client.put("/api/characters/draft-1", json={"name": "Hero", "handle": "@Hero", "character": {"handle": "stale"}})
     assert response.status_code == 200
     assert response.json()["handle"] == "hero"
-    assert grants == ["first_character:100"]
+    assert grants == ["first_character:50"]
 
 
 def test_save_character_returns_stable_handle_conflict(monkeypatch: MonkeyPatch) -> None:
@@ -137,7 +137,7 @@ def test_auto_post_accepts_only_supported_intervals(monkeypatch: MonkeyPatch) ->
 
     monkeypatch.setattr(CharacterPostsRepository, "update_auto_post", update_auto_post)
     with make_test_client() as client:
-        accepted = client.patch("/api/characters/char-1/auto-post", json={"enabled": True, "interval_seconds": 1800})
+        accepted = client.patch("/api/characters/char-1/auto-post", json={"enabled": True, "interval_seconds": 21600})
         rejected = client.patch("/api/characters/char-1/auto-post", json={"enabled": True, "interval_seconds": 30})
     assert accepted.status_code == 200
     assert rejected.status_code == 422
@@ -149,9 +149,15 @@ def test_generate_character_post_uses_backend_service(monkeypatch: MonkeyPatch) 
 
     monkeypatch.setattr(FeedGenerationService, "generate", generate)
     with make_test_client() as client:
-        response = client.post("/api/characters/char-1/posts/generate", json={"mood": "일상"})
+        response = client.post("/api/characters/char-1/posts/generate", json={"idempotency_key": "feed-post:test-key", "mood": "일상"})
     assert response.status_code == 200
     assert response.json()["post"]["text"] == "새 글"
+
+
+def test_generate_character_post_requires_idempotency_key() -> None:
+    with make_test_client() as client:
+        response = client.post("/api/characters/char-1/posts/generate", json={"mood": "일상"})
+    assert response.status_code == 422
 
 
 def test_create_public_post_comment_uses_the_authoritative_post(monkeypatch: MonkeyPatch) -> None:

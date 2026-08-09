@@ -10,6 +10,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
+from app.core.credit_policy import usage_period
 from app.models import AiDailyUsage, AiMonthlyUsage, CreditUsage
 
 
@@ -34,17 +35,18 @@ class AiUsageRepository:
         current = now or datetime.now(timezone.utc)
         reserved = reserved_cost_usd or Decimal(str(settings.api_estimated_call_cost_usd))
         credit_usage = await self._credit_usage_for_update(owner_id, credit_usage_id)
-        await self._ensure_rows(owner_id, current)
-        daily = await self._daily_for_update(owner_id, current.date())
-        month = current.strftime("%Y-%m")
+        usage_date, month = usage_period(current)
+        await self._ensure_rows(owner_id, usage_date, month)
+        daily = await self._daily_for_update(owner_id, usage_date)
         monthly = await self._monthly_for_update(month)
-        blocked = usage_limit_error(daily.call_count, monthly.estimated_cost_usd, settings, reserved)
+        daily_limit = _daily_call_limit(settings, credit_usage)
+        blocked = usage_limit_error(daily.call_count, monthly.estimated_cost_usd, settings, reserved, daily_limit)
         if blocked:
             await self.session.commit()
             return blocked
         _apply_reservation(daily, monthly, credit_usage, reserved)
         await self.session.commit()
-        return UsageReservation(True, reserved_cost_usd=reserved, usage_date=current.date(), usage_month=month)
+        return UsageReservation(True, reserved_cost_usd=reserved, usage_date=usage_date, usage_month=month)
 
     async def settle(self, owner_id: UUID, reservation: UsageReservation, actual_cost_usd: Decimal, measured: bool = True) -> None:
         if not reservation.usage_date or not reservation.usage_month:
@@ -54,9 +56,9 @@ class AiUsageRepository:
         _settle_usage_rows(daily, monthly, reservation, actual_cost_usd, measured)
         await self.session.commit()
 
-    async def _ensure_rows(self, owner_id: UUID, now: datetime) -> None:
-        daily = insert(AiDailyUsage).values(owner_id=owner_id, usage_date=now.date()).on_conflict_do_nothing()
-        monthly = insert(AiMonthlyUsage).values(usage_month=now.strftime("%Y-%m")).on_conflict_do_nothing()
+    async def _ensure_rows(self, owner_id: UUID, usage_date: date, usage_month: str) -> None:
+        daily = insert(AiDailyUsage).values(owner_id=owner_id, usage_date=usage_date).on_conflict_do_nothing()
+        monthly = insert(AiMonthlyUsage).values(usage_month=usage_month).on_conflict_do_nothing()
         await self.session.execute(daily)
         await self.session.execute(monthly)
 
@@ -77,14 +79,21 @@ class AiUsageRepository:
         return (await self.session.execute(stmt)).scalar_one_or_none()
 
 
-def usage_limit_error(daily_count: int, monthly_cost: Decimal, settings: Settings, reserved_cost_usd: Decimal | None = None) -> UsageReservation | None:
-    if daily_count >= settings.api_daily_limit:
+def usage_limit_error(daily_count: int, monthly_cost: Decimal, settings: Settings, reserved_cost_usd: Decimal | None = None, daily_limit: int | None = None) -> UsageReservation | None:
+    limit = settings.api_daily_limit if daily_limit is None else daily_limit
+    if daily_count >= limit:
         return UsageReservation(False, "DAILY_LIMIT_EXCEEDED", API_LIMIT_MESSAGE)
     reserved = reserved_cost_usd or Decimal(str(settings.api_estimated_call_cost_usd))
     projected = monthly_cost + reserved
     if projected > Decimal(str(settings.api_monthly_cost_limit_usd)):
         return UsageReservation(False, "MONTHLY_COST_LIMIT_EXCEEDED", API_LIMIT_MESSAGE)
     return None
+
+
+def _daily_call_limit(settings: Settings, usage: CreditUsage | None) -> int:
+    if usage and usage.purchased_credits > 0 and usage.bonus_credits == 0 and usage.energy_percent == 0:
+        return settings.api_paid_daily_limit
+    return settings.api_daily_limit
 
 
 def _settled_estimate(current: Decimal, reserved: Decimal, actual: Decimal) -> Decimal:

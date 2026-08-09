@@ -25,7 +25,7 @@ async def get_credit_catalog(user: User = Depends(get_current_user)) -> CreditCa
 @router.get("/usage", response_model=CreditUsageListResponse)
 async def get_credit_usage(user: User = Depends(get_current_user), session: AsyncSession = Depends(get_db_session)) -> CreditUsageListResponse:
     items = await CreditRepository(session).usages(user.id)
-    return CreditUsageListResponse(items=[CreditUsageResponse(id=str(item.id), flow=item.flow, credits=item.credits, energy_percent=item.energy_percent, status=item.status, created_at=item.created_at) for item in items])
+    return CreditUsageListResponse(items=[CreditUsageResponse(id=str(item.id), flow=item.flow, credits=item.credits, energy_percent=item.energy_percent, bonus_credits=item.bonus_credits, purchased_credits=item.purchased_credits, status=item.status, created_at=item.created_at) for item in items])
 
 
 def _offers() -> list[CreditOfferResponse]:

@@ -49,13 +49,14 @@ class Settings(BaseSettings):
     moderation_actor: str = "operations"
     terms_version: str = "2026-07-24"
     api_daily_limit: int = 50
+    api_paid_daily_limit: int = 200
     api_monthly_cost_limit_usd: float = 60.0
     api_estimated_call_cost_usd: float = 0.003
     gemini_timeout_ms: int = 45000
     auto_post_scheduler_enabled: bool = True
     auto_post_poll_seconds: int = 30
     auto_post_batch_size: int = 10
-    auto_post_default_interval_seconds: int = 900
+    auto_post_default_interval_seconds: int = 3600
     s3_bucket: str = ""
     s3_region: str = ""
     s3_access_key_id: str = ""

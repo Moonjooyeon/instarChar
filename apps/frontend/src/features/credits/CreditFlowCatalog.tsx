@@ -8,7 +8,7 @@ export function CreditChargeOrder(): React.ReactElement {
     <section className="al-credit-order" aria-labelledby="credit-order-title">
       <header><small>사용 순서</small><h2 id="credit-order-title">무료부터 차례대로 사용해요</h2></header>
       <ol>
-        <ChargeStep index="1" label="데일리 에너지" detail="6시간마다 25% 회복" />
+        <ChargeStep index="1" label="무료 회복 에너지" detail="100%에서 사용 후 6시간마다 25%" />
         <ChargeStep index="2" label="무료 보너스" detail="가입·첫 활동 보상" />
         <ChargeStep index="3" label="구매 크레딧" detail="에너지와 보너스 소진 후" />
       </ol>

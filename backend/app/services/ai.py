@@ -35,6 +35,7 @@ class GenerateApiResult:
     body: dict[str, object]
     credit_usage_id: UUID | None = None
     provider_usage: ProviderUsage = field(default_factory=ProviderUsage)
+    replayed: bool = False
 
 
 @dataclass(frozen=True)
@@ -57,7 +58,7 @@ class GeminiGenerateService:
             return error
         credit = await self._reserve_credit(payload, owner_id)
         if credit.replay_body is not None:
-            return GenerateApiResult(200, credit.replay_body, credit.usage_id)
+            return GenerateApiResult(200, credit.replay_body, credit.usage_id, replayed=True)
         if not credit.allowed:
             status_code = self._credit_error_status(credit.error_code)
             return GenerateApiResult(status_code, {"error": credit.error_code, "message": credit.message})
@@ -103,9 +104,9 @@ class GeminiGenerateService:
             await self._commit_credit(credit, owner_id, result.provider_usage, result.body)
         return GenerateApiResult(result.status_code, result.body, credit.usage_id, result.provider_usage)
 
-    async def commit_result(self, result: GenerateApiResult, owner_id: UUID) -> None:
+    async def commit_result(self, result: GenerateApiResult, owner_id: UUID, body: dict[str, object] | None = None) -> None:
         if self.credit_repository and result.credit_usage_id:
-            await self.credit_repository.commit_usage(result.credit_usage_id, owner_id, result.provider_usage, result.body)
+            await self.credit_repository.commit_usage(result.credit_usage_id, owner_id, result.provider_usage, body or result.body)
 
     async def refund_result(self, result: GenerateApiResult, owner_id: UUID, status: str) -> None:
         if self.credit_repository and result.credit_usage_id:
@@ -129,9 +130,9 @@ class GeminiGenerateService:
             await self.credit_repository.mark_provider_started(credit.usage_id, owner_id)
 
     def _credit_error_status(self, error_code: str) -> int:
-        if error_code in {"FLOW_DAILY_LIMIT_EXCEEDED"}:
+        if error_code in {"FLOW_DAILY_LIMIT_EXCEEDED", "FREE_FLOW_DAILY_LIMIT_EXCEEDED"}:
             return 429
-        if error_code == "REQUEST_ALREADY_PROCESSED":
+        if error_code in {"REQUEST_ALREADY_PROCESSED", "REQUEST_IN_PROGRESS"}:
             return 409
         return 402
 

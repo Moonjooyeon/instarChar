@@ -8,6 +8,7 @@ import pytest
 from app.api.deps import get_current_user
 from app.db.session import get_db_session
 from app.main import app
+from app.models import CreditUsage
 from app.repositories.credits import CreditRepository
 
 
@@ -50,6 +51,18 @@ def test_credit_catalog_is_visible_but_payment_is_disabled() -> None:
     pro = next(flow for flow in response.json()["flows"] if flow["code"] == "direct_dm_pro")
     assert pro["energy_eligible"] is False
     assert pro["bonus_eligible"] is False
+
+
+def test_credit_usage_returns_separate_balance_sources(monkeypatch: pytest.MonkeyPatch) -> None:
+    created_at = datetime(2026, 8, 9, tzinfo=timezone.utc)
+    async def usages(self: object, user_id: object, limit: int = 30) -> list[CreditUsage]:
+        return [CreditUsage(id=uuid4(), user_id=uuid4(), flow="feed_post", policy_version="v2", model="flash", status="refunded", credits=3, energy_percent=0, bonus_credits=2, purchased_credits=1, idempotency_key="usage-1", created_at=created_at)]
+    monkeypatch.setattr(CreditRepository, "usages", usages)
+    with make_test_client() as client:
+        response = client.get("/api/credits/usage")
+    assert response.status_code == 200
+    assert response.json()["items"][0]["bonus_credits"] == 2
+    assert response.json()["items"][0]["purchased_credits"] == 1
 
 
 def make_test_client() -> TestClient:

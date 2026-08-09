@@ -186,6 +186,14 @@ def test_generate_requires_messages(monkeypatch) -> None:
     assert response.json()["error"] == "BAD_REQUEST"
 
 
+def test_generate_requires_client_idempotency_key(monkeypatch) -> None:
+    body = generate_body()
+    del body["idempotency_key"]
+    with make_test_client(monkeypatch) as client:
+        response = client.post("/api/ai/generate", json=body)
+    assert response.status_code == 422
+
+
 def test_generate_rejects_invalid_output_token_budget(monkeypatch) -> None:
     with make_test_client(monkeypatch) as client:
         response = client.post("/api/ai/generate", json={**generate_body(), "max_tokens": -1})
@@ -206,7 +214,7 @@ def test_generate_rejects_unknown_flow_before_provider_call(monkeypatch) -> None
     assert response.status_code == 422
 
 
-@pytest.mark.parametrize("flow", ["internal", "internal_pro", "character-analysis-v2"])
+@pytest.mark.parametrize("flow", ["internal", "internal_pro", "character-analysis-v2", "auto_feed_post"])
 def test_generate_rejects_server_only_internal_flow(monkeypatch, flow: str) -> None:
     with make_test_client(monkeypatch) as client:
         response = client.post("/api/ai/generate", json={**generate_body(), "flow": flow})
@@ -301,4 +309,4 @@ def make_settings(**overrides: object) -> Settings:
 
 
 def generate_body() -> dict[str, object]:
-    return {"flow": "assist_social", "model": "fast", "max_tokens": 128, "system": "", "messages": [{"role": "user", "content": "안녕"}]}
+    return {"flow": "assist_social", "idempotency_key": "test-request-key", "model": "fast", "max_tokens": 128, "system": "", "messages": [{"role": "user", "content": "안녕"}]}

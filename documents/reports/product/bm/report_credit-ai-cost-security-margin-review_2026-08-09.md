@@ -15,11 +15,15 @@
 | 재시도 증폭 | 완료 | logical request 전체 provider 호출을 최대 2회로 제한하고 429·400·401·403은 재시도하지 않는다. empty fallback도 같은 예산을 공유한다. |
 | thinking/output 상한 | 완료 | 모델·입력 문자·출력 token·thinking budget·일일 횟수를 서버 flow 정책이 소유하며 클라이언트 model 값은 사용하지 않는다. |
 | 이미지 우회 | 부분 완료 | inline 이미지는 4개, 허용 MIME, base64, decoded bytes, 파일 signature를 재검증하고 임의 외부 URL은 거부한다. pixel dimension 검증과 reverse-proxy body limit 확인은 남았다. |
-| idempotency/reserved 고착 | 부분 완료 | committed 결과 replay와 10분 경과 reservation의 lazy 환급을 구현했다. 클라이언트 액션 단위 key 유지, background watchdog, 실제 crash fault injection은 남았다. |
+| idempotency/reserved 고착 | 부분 완료 | 클라이언트 액션 key를 필수화했고 committed 결과 replay, 진행 중 409 구분, 피드 최종 응답 replay, 10분 경과 reservation의 lazy 환급을 구현했다. background watchdog과 실제 crash fault injection은 남았다. |
 | 무료 Pro 원가 | 완료 | Pro 대화와 Pro 서사형은 에너지와 무료 bonus를 사용할 수 없고 구매 크레딧만 허용한다. |
+| 무료·유료 일일 한도 충돌 | 완료 | 무료 요청은 일 50회, 구매 크레딧 전용 요청은 일 200회 안전 한도로 분리하고 Pro/Pro 서사형은 각각 일 20회·10회 hard cap을 둔다. 전역 월 원가 한도는 공통 적용한다. |
+| 자동 게시 원가 | 완료 | 사용자 크레딧은 차감하지 않되 서버 전용 0C flow로 기록하고 사용자당 일 24회, 최소 1시간 주기로 제한한다. |
 | 오류 상세 노출 | 완료 | provider body와 내부 예외 문자열 대신 안정된 외부 오류 코드와 일반화된 문구를 반환한다. |
+| 초기 무료 보상 | 완료 | 가입·첫 캐릭터·첫 DM을 각 50C, 총 150C로 축소했다. 기존 지급분은 소급 차감하지 않는다. |
+| 재설정·누적 기준 | 완료 | 에너지는 자정 초기화 없이 100%에서 사용 후 6시간마다 회복하고 최대치 이후 초과 시간을 이월하지 않는다. 100% 미만의 추가 사용은 진행 중인 주기를 초기화하지 않는다. AI 일·월 사용량은 한국시간 자정에 재설정하며, bonus·구매 크레딧은 현재 만료 없이 누적한다. |
 
-결제는 계속 비활성 상태다. 가격 확정 전 실제 migration 적용, shadow billing p50/p95/p99, PostgreSQL 동시성, provider billing/rate-limit 세분화가 필요하다.
+결제는 계속 비활성 상태다. 코드 검증은 backend 248개·frontend domain 135개 테스트, TypeScript typecheck, production build, migration offline SQL까지 통과했다. 가격 확정 전 실제 migration 적용, shadow billing p50/p95/p99, PostgreSQL 동시성, provider billing/rate-limit 세분화가 필요하다.
 
 아래 본문 1~9장은 최초 점검 당시의 위험과 계산 근거를 보존한 내용이다. 현재 코드 상태는 위 구현 업데이트 표를 함께 기준으로 판단한다.
 
@@ -143,9 +147,9 @@ Apps in Toss의 30,000원 첫 구매 상품은 공식 정산 예시 비율을 �
 
 Pro 서사형을 정책 상한으로 3회 사용하면 약 435원/활성 사용자·일까지 커진다. 따라서 무료 에너지는 초기에는 Flash 기본 대화 중심으로 제한하고, Pro는 구매 크레딧 전용으로 두는 편이 안전하다.
 
-### 5.2 가입 500C 비용
+### 5.2 가입 500C 비용 — 최초 점검 기준
 
-현재 지급은 가입 300C + 첫 캐릭터 100C + 첫 DM 100C다.
+최초 점검 당시 지급은 가입 300C + 첫 캐릭터 100C + 첫 DM 100C였다. 현재 정책은 상단 구현 업데이트처럼 각 50C, 총 150C이며 무료 보너스로 Pro 기능을 사용할 수 없다.
 
 - 500C를 일반 기본 DM으로 쓰면 약 945원의 AI 비용이다.
 - 500C를 일반 Pro 서사형으로 쓰면 약 4,075원의 AI 비용이다.
@@ -243,13 +247,14 @@ Pro 서사형을 정책 상한으로 3회 사용하면 약 435원/활성 사용�
 - 크레딧 reserve commit 후 usage limit reserve, provider 호출, 최종 commit/refund가 별도 transaction이다.
 - 프로세스 종료가 중간에 발생하면 `reserved`가 남을 수 있다.
 - 오래된 reserved usage를 탐지·환급·재조정하는 job이 없다.
-- 네트워크 타임아웃 후 클라이언트 재시도는 현재 helper가 새 UUID를 만들어 이중 차감될 수 있다.
-- 동일 idempotency key를 재전송하면 기존 결과 replay가 아니라 항상 409다.
+- 클라이언트 transport가 key를 임의 생성하던 구조는 제거하고 각 사용자 액션이 key를 명시하도록 변경했다.
+- 동일 key의 committed 결과는 replay하고, 처리 중인 key는 `REQUEST_IN_PROGRESS` 409로 구분한다.
+- 피드 생성 replay는 provider 원문이 아니라 저장 완료된 최종 post/state를 반환해 게시글을 다시 추가하지 않는다.
 
 조치:
 
-- 클라이언트가 한 사용자 액션의 idempotency key를 성공/확정 상태까지 유지한다.
-- 서버는 동일 key의 committed 결과 또는 진행 상태를 replay한다.
+- 수동 피드와 일반 AI 호출은 한 액션 동안 동일 idempotency key를 유지한다.
+- 자동 피드는 예약 시각 기반의 결정적 key로 replica 재처리에도 같은 요청으로 식별한다.
 - `reserved_at`, `expires_at`, `provider_request_id`, reconciliation 상태를 저장하고 watchdog을 둔다.
 
 #### P1-5. 결제 원장과 환불/chargeback 처리가 없음

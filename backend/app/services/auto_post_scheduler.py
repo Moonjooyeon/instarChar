@@ -10,6 +10,7 @@ from app.core.config import Settings
 from app.repositories.ai_usage import AiUsageRepository
 from app.repositories.auto_posts import AutoPostRepository, ClaimedAutoPost
 from app.repositories.character_posts import CharacterPostsRepository
+from app.repositories.credits import CreditRepository
 from app.schemas.character_posts import FeedPostGenerateRequest
 from app.services.feed_generation import FeedGenerationService
 
@@ -45,5 +46,11 @@ class AutoPostScheduler:
     async def _generate(self, claim: ClaimedAutoPost) -> None:
         async with self.session_factory() as session:
             posts = CharacterPostsRepository(session)
-            service = FeedGenerationService(posts, AiUsageRepository(session), self.settings)
-            await service.generate(claim.owner_id, claim.source_account_id, FeedPostGenerateRequest(), is_auto=True)
+            service = FeedGenerationService(posts, AiUsageRepository(session), self.settings, CreditRepository(session))
+            payload = FeedPostGenerateRequest(idempotency_key=auto_post_request_key(claim))
+            await service.generate(claim.owner_id, claim.source_account_id, payload, is_auto=True)
+
+
+def auto_post_request_key(claim: ClaimedAutoPost) -> str:
+    scheduled = claim.scheduled_for.astimezone(timezone.utc).isoformat()
+    return f"auto-post:{claim.source_account_id}:{scheduled}"
