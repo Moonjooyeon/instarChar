@@ -39,6 +39,7 @@ class StubUser:
     moderation_status: UserModerationStatus = UserModerationStatus.active
     account_status: UserAccountStatus = UserAccountStatus.active
     auth_revoked_at: Optional[datetime] = None
+    session_version: int = 0
 
 
 class StubSession:
@@ -182,10 +183,22 @@ def test_delete_account_schedules_deletion_and_clears_cookie(monkeypatch: Monkey
     assert "alive_session" in response.headers.get("set-cookie", "")
 
 
-def test_pending_deletion_account_is_not_authorized() -> None:
+def test_pending_deletion_account_is_not_authorized(monkeypatch: MonkeyPatch) -> None:
     user = StubUser(uuid4(), "tester@example.com", UserProvider.google, StubProfile(), account_status=UserAccountStatus.pending_deletion)
+    async def get_by_id(self: object, user_id: object) -> StubUser:
+        return user
+    monkeypatch.setattr("app.api.deps.UserRepository.get_by_id", get_by_id)
     with raises(UnauthorizedError, match="Account deletion is pending"):
         asyncio.run(_load_user(user.id, StubSession()))
+
+
+def test_old_session_version_is_not_authorized(monkeypatch: MonkeyPatch) -> None:
+    user = StubUser(uuid4(), "tester@example.com", UserProvider.google, StubProfile(), session_version=2)
+    async def get_by_id(self: object, user_id: object) -> StubUser:
+        return user
+    monkeypatch.setattr("app.api.deps.UserRepository.get_by_id", get_by_id)
+    with raises(UnauthorizedError, match="Session expired"):
+        asyncio.run(_load_user(user.id, StubSession(), 1))
 
 
 def test_google_callback_sets_session_cookie(monkeypatch) -> None:
@@ -414,7 +427,7 @@ def test_native_apple_login_repairs_legacy_fallback_email() -> None:
     replacement_email = f"apple-{'a' * 58}@apple-login.ashwoodfriends.com"
     user = StubUser(uuid4(), legacy_email, UserProvider.apple, StubProfile())
     service = OAuthService(Settings(), StubSession())
-    async def get_user(email: str, provider: UserProvider, subject: str, display_name: str) -> StubUser:
+    async def get_user(email: str, provider: UserProvider, subject: str, display_name: str, deletion_fingerprint: str = "") -> StubUser:
         return user
     service.users = SimpleNamespace(get_or_create_provider_user=get_user)
     identity = ProviderIdentity(UserProvider.apple, "apple-user", replacement_email, "Apple 사용자")

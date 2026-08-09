@@ -1,11 +1,11 @@
 import logging
-import hmac
 from datetime import datetime, timedelta, timezone
-from hashlib import sha256
+from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
+from app.core.identity import account_identity_fingerprint
 from app.models import User, UserAccountStatus, UserProvider
 from app.repositories.account_deletion import AccountDeletionIdentityRepository
 from app.repositories.media_assets import MediaAssetRepository
@@ -28,11 +28,14 @@ class AccountDeletionService:
         self.identities = AccountDeletionIdentityRepository(session)
 
     async def delete(self, user: User, now: datetime | None = None) -> datetime:
+        if getattr(user, "account_status", UserAccountStatus.active) == UserAccountStatus.pending_deletion and user.purge_at:
+            return user.purge_at
         requested_at = now or datetime.now(timezone.utc)
         purge_at = requested_at + timedelta(days=self.settings.account_deletion_grace_days)
         user.account_status = UserAccountStatus.pending_deletion
         user.deletion_requested_at = requested_at
         user.purge_at = purge_at
+        user.session_version = getattr(user, "session_version", 0) + 1
         user.auth_revoked_at = requested_at
         await self._retain_identity(user, purge_at)
         await self.session.commit()
@@ -40,10 +43,21 @@ class AccountDeletionService:
 
     async def purge_due_accounts(self, batch_size: int, now: datetime | None = None) -> int:
         current_time = now or datetime.now(timezone.utc)
-        users = await self.users.list_due_deletions(current_time, batch_size)
-        for user in users:
-            await self._purge(user)
-        return len(users)
+        purged = 0
+        failed_ids: set[UUID] = set()
+        for _ in range(batch_size):
+            user = await self.users.claim_due_deletion(current_time, failed_ids)
+            if not user:
+                break
+            user_id = user.id
+            try:
+                await self._purge(user)
+                purged += 1
+            except Exception:
+                await self.session.rollback()
+                failed_ids.add(user_id)
+                logger.exception("Account purge failed user_id=%s", user_id)
+        return purged
 
     async def purge_expired_identities(self, now: datetime | None = None) -> int:
         current_time = now or datetime.now(timezone.utc)
@@ -75,6 +89,4 @@ class AccountDeletionService:
 
 
 def identity_fingerprint(settings: Settings, user: User) -> str:
-    secret = (settings.account_identity_hash_secret or settings.auth_secret_key).encode()
-    subject = f"alive:account-deletion:{user.provider.value}:{user.provider_subject}".encode()
-    return hmac.new(secret, subject, sha256).hexdigest()
+    return account_identity_fingerprint(settings, user.provider, user.provider_subject)

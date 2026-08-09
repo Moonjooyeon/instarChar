@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
 from app.core.errors import BadRequestError, ServiceUnavailableError
+from app.core.identity import account_identity_fingerprint
 from app.core.security import sign_session
 from app.models import UserProvider
 from app.repositories.users import UserRepository
@@ -29,9 +30,9 @@ class TossLoginService:
         access_token = await self._access_token(authorization_code, referrer)
         user_key = await self._user_key(access_token)
         subject = str(user_key)
-        user = await self.users.get_or_create_provider_user(self._fallback_email(subject), UserProvider.toss, subject, "")
+        user = await self.users.get_or_create_provider_user(self._fallback_email(subject), UserProvider.toss, subject, "", account_identity_fingerprint(self.settings, UserProvider.toss, subject))
         await self.session.commit()
-        token = sign_session(user.id, self.settings.auth_session_ttl_seconds, self.settings.auth_secret_key)
+        token = sign_session(user.id, self.settings.auth_session_ttl_seconds, self.settings.auth_secret_key, user.session_version)
         return OAuthCompletion(session_token=token, user_id=user.id)
 
     async def _access_token(self, authorization_code: str, referrer: str) -> str:

@@ -12,6 +12,14 @@ def test_signed_session_round_trips() -> None:
     payload = verify_session(token, "secret")
     assert payload is not None
     assert payload.user_id == user_id
+    assert payload.session_version == 0
+
+
+def test_signed_session_preserves_session_version() -> None:
+    token = sign_session(uuid4(), 60, "secret", 4)
+    payload = verify_session(token, "secret")
+    assert payload is not None
+    assert payload.session_version == 4
 
 
 def test_signed_session_rejects_wrong_secret() -> None:
@@ -26,6 +34,12 @@ def test_signed_session_rejects_malformed_payload() -> None:
 
 def test_signed_session_rejects_non_uuid_subject() -> None:
     payload = {"sub": "not-a-uuid", "exp": int(time.time()) + 60}
+    encoded = base64.urlsafe_b64encode(json.dumps(payload).encode()).rstrip(b"=").decode()
+    assert verify_session(f"{encoded}.{_signature(encoded, 'secret')}", "secret") is None
+
+
+def test_signed_session_rejects_legacy_payload_without_session_version() -> None:
+    payload = {"sub": str(uuid4()), "exp": int(time.time()) + 60}
     encoded = base64.urlsafe_b64encode(json.dumps(payload).encode()).rstrip(b"=").decode()
     assert verify_session(f"{encoded}.{_signature(encoded, 'secret')}", "secret") is None
 

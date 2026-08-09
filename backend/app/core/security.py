@@ -16,6 +16,7 @@ JsonMap = dict[str, object]
 class SessionPayload:
     user_id: UUID
     expires_at: int
+    session_version: int
 
 
 @dataclass(frozen=True)
@@ -40,9 +41,9 @@ def _signature(payload: str, secret_key: str) -> str:
     return _encode_bytes(digest)
 
 
-def sign_session(user_id: UUID, ttl_seconds: int, secret_key: str) -> str:
+def sign_session(user_id: UUID, ttl_seconds: int, secret_key: str, session_version: int = 0) -> str:
     expires_at = int(time.time()) + ttl_seconds
-    payload = {"sub": str(user_id), "exp": expires_at}
+    payload = {"sub": str(user_id), "exp": expires_at, "sv": session_version}
     encoded = _encode_bytes(json.dumps(payload, separators=(",", ":")).encode())
     return f"{encoded}.{_signature(encoded, secret_key)}"
 
@@ -62,9 +63,12 @@ def _payload_from_token(encoded: str) -> SessionPayload | None:
         if not isinstance(raw, dict):
             return None
         expires_at = int(raw.get("exp", 0))
+        session_version = raw.get("sv")
+        if isinstance(session_version, bool) or not isinstance(session_version, int) or session_version < 0:
+            return None
         if expires_at < int(time.time()):
             return None
-        return SessionPayload(user_id=UUID(str(raw.get("sub"))), expires_at=expires_at)
+        return SessionPayload(user_id=UUID(str(raw.get("sub"))), expires_at=expires_at, session_version=session_version)
     except (binascii.Error, TypeError, ValueError, UnicodeDecodeError):
         return None
 

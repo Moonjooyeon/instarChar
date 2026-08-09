@@ -74,6 +74,7 @@ class User(TimestampMixin, Base):
     provider_subject: Mapped[str] = mapped_column(String(255), nullable=False)
     moderation_status: Mapped[UserModerationStatus] = mapped_column(Enum(UserModerationStatus, name="user_moderation_status"), nullable=False, default=UserModerationStatus.active)
     account_status: Mapped[UserAccountStatus] = mapped_column(Enum(UserAccountStatus, name="user_account_status"), nullable=False, default=UserAccountStatus.active)
+    session_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     deletion_requested_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     purge_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     auth_revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))

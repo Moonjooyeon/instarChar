@@ -12,6 +12,7 @@ from app.core.config import Settings
 from app.core.errors import BadRequestError
 from app.core.security import sign_session
 from app.models import NativeOAuthCode
+from app.repositories.users import UserRepository
 
 
 class NativeOAuthService:
@@ -30,9 +31,12 @@ class NativeOAuthService:
         record = await self._locked_code(code)
         if not record or record.used_at or record.expires_at <= self._now():
             raise BadRequestError("Invalid or expired native OAuth code")
+        user = await UserRepository(self.session).get_by_id(record.user_id)
+        if not user:
+            raise BadRequestError("Invalid native OAuth code")
         record.used_at = self._now()
         await self.session.commit()
-        return sign_session(record.user_id, self.settings.auth_session_ttl_seconds, self.settings.auth_secret_key)
+        return sign_session(user.id, self.settings.auth_session_ttl_seconds, self.settings.auth_secret_key, user.session_version)
 
     async def _locked_code(self, code: str) -> NativeOAuthCode | None:
         statement = select(NativeOAuthCode).where(NativeOAuthCode.code_hash == self._hash(code)).with_for_update()

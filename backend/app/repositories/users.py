@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.errors import ConflictError
+from app.repositories.account_deletion import AccountDeletionIdentityRepository
 from app.models import Profile, SharedDmThread, User, UserAccountStatus, UserProvider
 
 
@@ -29,11 +30,13 @@ class UserRepository:
         await self.session.flush()
         return user
 
-    async def get_or_create_provider_user(self, email: str, provider: UserProvider, subject: str, display_name: str) -> User:
+    async def get_or_create_provider_user(self, email: str, provider: UserProvider, subject: str, display_name: str, deletion_fingerprint: str = "") -> User:
         existing = await self.get_by_provider(provider, subject)
         if existing:
             self._restore_pending_account(existing)
             return existing
+        if deletion_fingerprint and await AccountDeletionIdentityRepository(self.session).is_blocked(provider, deletion_fingerprint, datetime.now(timezone.utc)):
+            raise ConflictError("Account recreation is unavailable during the retention period")
         return await self.create_provider_user(email, provider, subject, display_name)
 
     def _restore_pending_account(self, user: User) -> None:
@@ -42,15 +45,22 @@ class UserRepository:
             return
         if user.purge_at and user.purge_at <= datetime.now(timezone.utc):
             raise ConflictError("Account deletion is being finalized")
+        user.session_version = getattr(user, "session_version", 0) + 1
         user.account_status = UserAccountStatus.active
         user.deletion_requested_at = None
         user.purge_at = None
         user.auth_revoked_at = None
 
-    async def list_due_deletions(self, now: datetime, limit: int) -> list[User]:
-        statement = select(User).where(User.account_status == UserAccountStatus.pending_deletion, User.purge_at <= now).order_by(User.purge_at).limit(limit)
+    async def claim_due_deletion(self, now: datetime, excluded_user_ids: set[UUID] | None = None) -> Optional[User]:
+        statement = self.due_deletion_statement(now, excluded_user_ids)
         result = await self.session.execute(statement)
-        return list(result.scalars().all())
+        return result.scalar_one_or_none()
+
+    def due_deletion_statement(self, now: datetime, excluded_user_ids: set[UUID] | None = None) -> object:
+        statement = select(User).where(User.account_status == UserAccountStatus.pending_deletion, User.purge_at <= now)
+        if excluded_user_ids:
+            statement = statement.where(User.id.not_in(excluded_user_ids))
+        return statement.order_by(User.purge_at).limit(1).with_for_update(skip_locked=True)
 
     async def delete_account(self, user: User) -> None:
         await self._remove_user_from_shared_threads(user.id)
@@ -60,7 +70,11 @@ class UserRepository:
         statement = select(SharedDmThread).where(SharedDmThread.participant_user_ids.contains([user_id]))
         result = await self.session.execute(statement)
         for thread in result.scalars():
-            participants = [item for item in thread.participant_user_ids if item != user_id]
+            participant_ids = list(thread.participant_user_ids or [])
+            participant_labels = list(thread.participant_labels or [])
+            remaining_indexes = [index for index, participant_id in enumerate(participant_ids) if participant_id != user_id]
+            participants = [participant_ids[index] for index in remaining_indexes]
+            thread.participant_labels = [participant_labels[index] for index in remaining_indexes if index < len(participant_labels)]
             if participants:
                 thread.participant_user_ids = participants
                 continue

@@ -11,7 +11,7 @@ from pytest import MonkeyPatch, raises
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
-from app.core.errors import ServiceUnavailableError
+from app.core.errors import ConflictError, ServiceUnavailableError
 from app.core.token_encryption import TokenCipher
 from app.models import User, UserAccountStatus, UserProvider
 from app.repositories.users import UserRepository
@@ -23,6 +23,7 @@ from app.services.apple_token_revocation import AppleTokenRevoker
 class StubUser:
     id: UUID
     provider: UserProvider
+    provider_subject: str = "subject"
 
 
 class StubCredentials:
@@ -66,6 +67,7 @@ def test_account_deletion_schedules_pending_state_without_revoking_provider() ->
     purge_at = asyncio.run(service.delete(user, now))
     assert purge_at == now + timedelta(days=7)
     assert user.account_status == UserAccountStatus.pending_deletion
+    assert user.session_version == 1
     assert user.deletion_requested_at == now
     assert user.purge_at == purge_at
     assert events[0].startswith("identity:")
@@ -78,8 +80,12 @@ def test_due_account_purge_revokes_then_deletes(monkeypatch: MonkeyPatch) -> Non
     service = AccountDeletionService(Settings(), cast(AsyncSession, session))
     user = cast(User, StubUser(uuid4(), UserProvider.apple))
     class StubUsers:
-        async def list_due_deletions(self, now: datetime, limit: int) -> list[User]:
-            return [user]
+        claimed = False
+        async def claim_due_deletion(self, now: datetime, excluded_user_ids: set[UUID]) -> User | None:
+            if self.claimed or user.id in excluded_user_ids:
+                return None
+            self.claimed = True
+            return user
         async def delete_account(self, target: User) -> None:
             events.append("delete")
     class StubRevoker:
@@ -102,8 +108,12 @@ def test_google_account_does_not_revoke_during_purge() -> None:
     service = AccountDeletionService(Settings(), cast(AsyncSession, session))
     user = cast(User, StubUser(uuid4(), UserProvider.google))
     class StubUsers:
-        async def list_due_deletions(self, now: datetime, limit: int) -> list[User]:
-            return [user]
+        claimed = False
+        async def claim_due_deletion(self, now: datetime, excluded_user_ids: set[UUID]) -> User | None:
+            if self.claimed or user.id in excluded_user_ids:
+                return None
+            self.claimed = True
+            return user
         async def delete_account(self, target: User) -> None:
             events.append("delete")
     service.users = StubUsers()
@@ -117,17 +127,18 @@ def test_google_account_does_not_revoke_during_purge() -> None:
 def test_account_deletion_preserves_shared_dm_for_other_participants() -> None:
     deleted_user_id = uuid4()
     remaining_user_id = uuid4()
-    shared_thread = SimpleNamespace(participant_user_ids=[deleted_user_id, remaining_user_id])
-    solo_thread = SimpleNamespace(participant_user_ids=[deleted_user_id])
+    shared_thread = SimpleNamespace(participant_user_ids=[deleted_user_id, remaining_user_id], participant_labels=["탈퇴 사용자", "남은 사용자"])
+    solo_thread = SimpleNamespace(participant_user_ids=[deleted_user_id], participant_labels=["탈퇴 사용자"])
     session = SharedThreadSession([shared_thread, solo_thread])
     asyncio.run(UserRepository(cast(AsyncSession, session))._remove_user_from_shared_threads(deleted_user_id))
     assert shared_thread.participant_user_ids == [remaining_user_id]
+    assert shared_thread.participant_labels == ["남은 사용자"]
     assert session.deleted == [solo_thread]
 
 
 def test_revoker_decrypts_stored_refresh_token(monkeypatch: MonkeyPatch) -> None:
     key = Fernet.generate_key().decode()
-    settings = Settings(apple_native_client_secret="secret", oauth_token_encryption_key=key)
+    settings = Settings(apple_native_client_secret="secret", apple_team_id="", apple_key_id="", apple_private_key="", oauth_token_encryption_key=key)
     encrypted = TokenCipher(settings).encrypt("refresh-token")
     row = SimpleNamespace(client_id=settings.apple_native_client_id, refresh_token_encrypted=encrypted)
     revoker = AppleTokenRevoker(settings, cast(object, StubCredentials([row])))
@@ -142,7 +153,7 @@ def test_revoker_decrypts_stored_refresh_token(monkeypatch: MonkeyPatch) -> None
 
 
 def test_revoker_preserves_account_on_provider_failure(monkeypatch: MonkeyPatch) -> None:
-    settings = Settings(apple_native_client_secret="secret")
+    settings = Settings(apple_native_client_secret="secret", apple_team_id="", apple_key_id="", apple_private_key="")
     revoker = AppleTokenRevoker(settings, cast(object, StubCredentials([])))
     async def post(payload: dict[str, str]) -> httpx.Response:
         return httpx.Response(503)
@@ -152,7 +163,7 @@ def test_revoker_preserves_account_on_provider_failure(monkeypatch: MonkeyPatch)
 
 
 def test_revoker_accepts_already_invalid_token(monkeypatch: MonkeyPatch) -> None:
-    settings = Settings(apple_native_client_secret="secret")
+    settings = Settings(apple_native_client_secret="secret", apple_team_id="", apple_key_id="", apple_private_key="")
     revoker = AppleTokenRevoker(settings, cast(object, StubCredentials([])))
     async def post(payload: dict[str, str]) -> httpx.Response:
         return httpx.Response(400, json={"error": "invalid_token"})
@@ -168,3 +179,35 @@ def test_identity_fingerprint_is_stable_and_provider_scoped() -> None:
     first = identity_fingerprint(settings, cast(User, user))
     assert first == identity_fingerprint(settings, cast(User, user))
     assert first != identity_fingerprint(settings, cast(User, other))
+
+
+def test_account_deletion_is_idempotent() -> None:
+    now = datetime(2026, 8, 9, tzinfo=timezone.utc)
+    user = cast(User, StubUser(uuid4(), UserProvider.google))
+    session = StubSession()
+    service = AccountDeletionService(Settings(), cast(AsyncSession, session))
+    class StubIdentities:
+        async def upsert(self, user: User, fingerprint: str, retention_until: datetime) -> None:
+            return None
+    service.identities = StubIdentities()
+    first = asyncio.run(service.delete(user, now))
+    second = asyncio.run(service.delete(user, now + timedelta(days=1)))
+    assert first == second
+    assert session.events == ["commit"]
+
+
+def test_provider_recreation_is_blocked_by_retained_identity(monkeypatch: MonkeyPatch) -> None:
+    class StubResult:
+        def scalar_one_or_none(self) -> None:
+            return None
+    class StubUserSession:
+        async def execute(self, statement: object) -> StubResult:
+            return StubResult()
+        async def flush(self) -> None:
+            return None
+    async def blocked(self: object, provider: UserProvider, fingerprint: str, now: datetime) -> bool:
+        return True
+    monkeypatch.setattr("app.repositories.account_deletion.AccountDeletionIdentityRepository.is_blocked", blocked)
+    repository = UserRepository(cast(AsyncSession, StubUserSession()))
+    with raises(ConflictError, match="retention period"):
+        asyncio.run(repository.get_or_create_provider_user("test@example.com", UserProvider.google, "subject", "Test", "fingerprint"))

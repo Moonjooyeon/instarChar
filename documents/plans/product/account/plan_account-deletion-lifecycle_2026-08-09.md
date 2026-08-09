@@ -22,6 +22,8 @@ status: in_progress
 - fingerprint 보존기간이 끝난 부정 이용 방지 fingerprint 자동 파기
 - S3 또는 외부 revoke 실패 시 DB를 보존하고 다음 주기에 재시도
 - provider subject의 HMAC fingerprint 보존으로 향후 가입 보너스 중복 방지 기반 마련
+- 신규 provider 계정 생성 시 보존 fingerprint와 비교해 재가입 차단
+- 탈퇴·복구 시 session version 증가로 기존 JWT 무효화
 - 탈퇴 API, 저장소, scheduler, 프론트 문구, 법적 안내, 테스트 업데이트
 
 ## 비범위
@@ -39,7 +41,7 @@ status: in_progress
 | 탈퇴 직후 | 계정 잠금, 세션 무효화, AI·결제·보너스 접근 차단 |
 | 복구 | 유예기간 내 동일 provider 재인증 시 기존 계정 복구 |
 | 유예 만료 | DB 사용자 row 삭제, Apple credential revoke, S3 미디어 삭제 |
-| 식별 fingerprint | HMAC 기반, `account_identity_hash_secret` 사용; 미설정 시 auth secret fallback |
+| 식별 fingerprint | 기존 `auth_secret_key` 기반 HMAC |
 | fingerprint 보존 | purge 예정일 이후 기본 365일; 법무 확정 필요 |
 
 ## 구현 단계
@@ -47,8 +49,10 @@ status: in_progress
 ### 1. 데이터와 상태
 
 - `User.account_status`, `deletion_requested_at`, `purge_at` 추가
+- `User.session_version` 추가
 - `account_deletion_identities` 테이블과 provider·fingerprint unique 제약 추가
 - Alembic migration `20260809_0012_account_deletion_lifecycle.py` 작성
+- Alembic migration `20260809_0013_account_session_version.py` 작성
 
 ### 2. 탈퇴·복구 API
 
@@ -56,11 +60,12 @@ status: in_progress
 - 기존 세션 쿠키 삭제 및 `auth_revoked_at` 기록
 - pending 계정은 인증 의존성에서 차단
 - 유예기간 내 동일 provider 로그인 시 pending 상태 해제
+- retention 중인 삭제 identity의 신규 계정 생성 차단
 - 만료 직전 또는 만료 후 로그인은 복구하지 않고 삭제 작업 대상 유지
 
 ### 3. 만료 정리
 
-- 주기적 scheduler가 `purge_at <= now` 계정을 batch 조회
+- 주기적 scheduler가 `FOR UPDATE SKIP LOCKED`로 `purge_at <= now` 계정을 claim
 - 사용자 소유 미디어를 S3에서 먼저 삭제
 - Apple 계정이면 저장 credential revoke
 - 외부 정리 실패 시 DB 삭제를 진행하지 않고 다음 주기 재시도
@@ -78,7 +83,9 @@ status: in_progress
 - [x] 탈퇴 요청이 pending 상태와 `purge_at`을 저장한다.
 - [x] 탈퇴 직후 쿠키가 삭제되고 pending 계정의 보호 API 접근이 차단된다.
 - [x] 유예기간 내 동일 provider 재로그인으로 기존 계정이 복구된다.
+- [x] 삭제·복구 시 이전 JWT session version이 무효화된다.
 - [x] 만료 계정은 S3 정리 후 Apple revoke와 DB 삭제를 수행한다.
+- [x] 보존기간 중 동일 provider 신규 계정 생성을 차단한다.
 - [x] fingerprint retention 만료 row를 scheduler가 파기한다.
 - [x] 미디어 또는 revoke 실패 시 사용자 row가 남아 재시도할 수 있다.
 - [x] fingerprint가 provider별로 안정적으로 생성된다.

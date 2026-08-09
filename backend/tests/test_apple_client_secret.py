@@ -25,11 +25,13 @@ def test_factory_generates_apple_client_secret_for_requested_client() -> None:
 
 
 def test_factory_uses_static_secret_during_migration() -> None:
-    token = AppleClientSecretFactory(Settings()).create("apple-client", "static-secret")
+    settings = Settings(apple_team_id="", apple_key_id="", apple_private_key="")
+    token = AppleClientSecretFactory(settings).create("apple-client", "static-secret")
     assert token == "static-secret"
 
 
 def test_factory_rejects_missing_signing_credentials() -> None:
-    factory = AppleClientSecretFactory(Settings())
+    settings = Settings(apple_team_id="", apple_key_id="", apple_private_key="")
+    factory = AppleClientSecretFactory(settings)
     with raises(BadRequestError, match="Apple client credentials are not configured"):
         factory.create("apple-client")

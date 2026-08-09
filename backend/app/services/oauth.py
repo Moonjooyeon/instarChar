@@ -14,6 +14,7 @@ from jwt import PyJWKClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
+from app.core.identity import account_identity_fingerprint
 from app.core.errors import AppError, BadRequestError, ServiceUnavailableError
 from app.core.security import OAuthStatePayload, read_oauth_state, sign_oauth_state, sign_session
 from app.core.token_encryption import TokenCipher
@@ -133,12 +134,12 @@ class OAuthService:
         logger.warning("Native Apple login failed stage=%s error=%s", stage, error.message)
 
     async def _complete_identity(self, identity: ProviderIdentity, tokens: AppleTokenSet | None = None, client_id: str = "") -> OAuthCompletion:
-        user = await self.users.get_or_create_provider_user(identity.email, identity.provider, identity.subject, identity.display_name)
+        user = await self.users.get_or_create_provider_user(identity.email, identity.provider, identity.subject, identity.display_name, account_identity_fingerprint(self.settings, identity.provider, identity.subject))
         self._refresh_apple_email(user, identity)
         if tokens:
             await self._store_apple_credentials(user.id, client_id, identity.subject, tokens)
         await self.session.commit()
-        token = sign_session(user.id, self.settings.auth_session_ttl_seconds, self.settings.auth_secret_key)
+        token = sign_session(user.id, self.settings.auth_session_ttl_seconds, self.settings.auth_secret_key, user.session_version)
         return OAuthCompletion(session_token=token, user_id=user.id)
 
     def _refresh_apple_email(self, user: User, identity: ProviderIdentity) -> None:

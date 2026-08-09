@@ -13,7 +13,25 @@ status: draft
 
 7일 유예형 계정 삭제 구현은 `3d1c294 feat: add account deletion grace lifecycle`로 커밋되었다. 정적 코드 검토 결과, 현재 즉시 악용되는 크레딧 지급 기능은 없지만 크레딧·보너스 연결 전에 반드시 해결해야 할 구조적 위험이 확인되었다. 특히 fingerprint가 신규 가입·보너스 지급을 실제로 차단하지 않는 점, 삭제 scheduler와 계정 복구의 동시성, 복구 후 기존 JWT 세션 재활성화, 운영 secret 기본값을 우선 조치해야 한다.
 
-이번 검토에서는 application code를 수정하지 않았다. 아래 항목은 보안·정합성 수정 backlog로 관리한다.
+검토 시점에는 application code를 수정하지 않았으며, 이후 후속 변경에서 일부 항목을 반영했다. 남은 항목은 보안·정합성 backlog로 관리한다.
+
+## 후속 적용 상태
+
+이 문서 작성 후 다음 항목을 코드에 반영했다.
+
+- 보존기간 중 동일 provider 신규 계정 생성 차단
+- 탈퇴 요청 idempotency와 fingerprint upsert race 완화
+- purge 대상 `FOR UPDATE SKIP LOCKED` claim 및 계정별 실패 격리
+- 탈퇴·복구 시 session version 증가와 기존 JWT 거부
+- 공유 DM participant ID와 label 배열 정합성 보정
+- Toss CORS origin 정규식의 전체 문자열 일치
+
+아직 남은 항목:
+
+- `RewardGrant`·wallet·ledger 구현과 실제 보너스 지급 연동
+- 공유 DM 본문·첨부파일의 최종 익명화/보존 정책
+- 배포 플랫폼의 secret 주입과 운영 cookie 설정 확인
+- CSRF, rate limit, scheduler metric/alert, 실제 PostgreSQL·S3·OAuth 통합 검증
 
 ## 검토 범위
 
@@ -35,14 +53,11 @@ status: draft
 
 ## P0 — 크레딧 연결 전 차단 필요
 
-### P0-1. fingerprint가 저장만 되고 신규 가입·보너스 지급에서 검사되지 않음
+### P0-1. fingerprint enforcement는 적용됐지만 RewardGrant가 아직 없음
 
-`AccountDeletionService`는 탈퇴 시 fingerprint를 upsert하지만, `UserRepository.create_provider_user`는 삭제 fingerprint를 조회하지 않고 새 사용자를 생성한다. 현재 `RewardGrant`, wallet, credit ledger가 없으므로 실제 보너스 무한 지급은 아직 활성화되지 않았다. 그러나 보너스를 `user_id`만으로 지급하면 다음 우회가 가능하다.
+`AccountDeletionService`는 탈퇴 시 fingerprint를 upsert하고, 현재는 `UserRepository.get_or_create_provider_user`에서 보존기간 중 fingerprint를 조회해 신규 계정 생성을 차단한다. 다만 `RewardGrant`, wallet, credit ledger가 없으므로 실제 보너스 지급의 중복 방지는 아직 별도 구현이 필요하다.
 
-```text
-가입 → 가입/온보딩 보너스 수령 → 탈퇴 → 7일 후 purge
-→ 동일 provider 로그인으로 새 user_id 생성 → 보너스 재수령
-```
+현재 동일 provider 계정은 retention 기간 중 fingerprint 차단으로 새 `user_id`를 만들 수 없다. 다만 다른 provider로 가입하거나 retention 만료 후 새 계정이 만들어진 뒤, 보너스를 `user_id`만으로 지급하면 중복 지급이 가능하다.
 
 근거:
 
@@ -50,9 +65,8 @@ status: draft
 - `/Users/deemo/Desktop/instarChar/backend/app/repositories/account_deletion.py:13`
 - `/Users/deemo/Desktop/instarChar/backend/app/repositories/users.py:32`
 
-대응:
+남은 대응:
 
-- 신규 provider identity 생성 전에 fingerprint를 조회한다.
 - `RewardGrant`를 `user_id`와 분리하고 `claim_key` unique 제약을 둔다.
 - 가입·캐릭터 생성·첫 DM·첫 결제 보너스를 모두 원장 이벤트로 기록한다.
 - 탈퇴·복구·환불 시 grant 상태를 서버에서 재계산한다.
@@ -67,13 +81,13 @@ status: draft
 - `/Users/deemo/Desktop/instarChar/backend/app/core/config.py:16`
 - `/Users/deemo/Desktop/instarChar/backend/app/core/security.py:43`
 
-현재 배포 플랫폼이 별도 Secret 환경변수를 주입한다면 이 위험은 발생하지 않는다. 배포 환경에서 `AUTH_SECRET_KEY`가 랜덤값인지, `ACCOUNT_IDENTITY_HASH_SECRET`가 별도 랜덤값인지, `AUTH_COOKIE_SECURE=true`인지 확인해야 한다. 로컬 또는 CI에 실제처럼 보이는 S3 자격증명이 있었다면 값 자체를 문서·로그에 남기지 말고 유효 여부를 확인한 뒤 필요 시 즉시 교체한다.
+현재 배포 플랫폼이 별도 Secret 환경변수를 주입한다면 이 위험은 발생하지 않는다. 배포 환경에서 `AUTH_SECRET_KEY`가 랜덤값인지, `AUTH_COOKIE_SECURE=true`인지 확인해야 한다. 로컬 또는 CI에 실제처럼 보이는 S3 자격증명이 있었다면 값 자체를 문서·로그에 남기지 말고 유효 여부를 확인한 뒤 필요 시 즉시 교체한다.
 
 ## P1 — 삭제·인증 정합성 위험
 
 ### P1-1. 만료 purge와 재로그인 복구의 race condition
 
-만료 계정을 조회하는 `list_due_deletions`에 row lock이나 claim 상태가 없다. scheduler가 계정을 조회한 직후 사용자가 재로그인해 `active`로 복구되면, scheduler가 이전 객체를 기준으로 삭제를 계속할 수 있다.
+만료 계정은 현재 `FOR UPDATE SKIP LOCKED`로 한 건씩 claim하도록 수정했다. 실제 PostgreSQL에서 복구 요청과 purge가 경합할 때 한쪽 transaction만 상태를 확정하는 통합 테스트가 아직 필요하다.
 
 근거:
 
@@ -81,27 +95,26 @@ status: draft
 - `/Users/deemo/Desktop/instarChar/backend/app/repositories/users.py:39`
 - `/Users/deemo/Desktop/instarChar/backend/app/services/account_deletion.py:41`
 
-대응:
+추가 검증·보완:
 
 - `SELECT ... FOR UPDATE SKIP LOCKED`로 purge 대상을 claim한다.
 - claim과 상태 재확인을 같은 transaction에서 수행한다.
-- `purging` 상태 또는 deletion request version을 둔다.
-- 복구는 `pending_deletion`과 `purge_at > now` 조건부 update로만 허용한다.
+- 실제 PostgreSQL에서 `purge_at` 경계 시각 복구 경합 테스트를 수행한다.
 
 ### P1-2. 다중 backend worker가 같은 계정을 중복 purge할 수 있음
 
-삭제 scheduler가 FastAPI lifespan마다 시작된다. 서버 replica나 worker가 여러 개면 여러 scheduler가 같은 pending 계정을 동시에 조회할 수 있다.
+삭제 scheduler는 여전히 FastAPI lifespan마다 시작되지만, purge query가 `FOR UPDATE SKIP LOCKED`로 계정별 claim을 수행하도록 수정했다. 별도 worker 분리와 운영 lock/metric은 후속 검토 대상이다.
 
 근거:
 
 - `/Users/deemo/Desktop/instarChar/backend/app/main.py:29`
 - `/Users/deemo/Desktop/instarChar/backend/app/services/account_deletion_scheduler.py:29`
 
-중복 S3 삭제와 Apple revoke가 발생할 수 있고, 한 worker가 DB를 삭제한 뒤 다른 worker가 stale row를 commit하는 상황도 생길 수 있다. 단일 외부 worker로 분리하거나 DB claim/lock을 반드시 적용해야 한다.
+DB claim으로 동일 계정 중복 purge 가능성은 줄였지만, scheduler가 replica마다 실행되는 구조와 운영 metric/alert는 남아 있다. 장기적으로 단일 외부 worker 분리를 검토한다.
 
 ### P1-3. 복구 후 탈퇴 전 JWT가 다시 활성화될 수 있음
 
-현재 session payload에는 `user_id`와 `exp`만 있고 발급 시각이나 세션 버전이 없다. 탈퇴 시 `auth_revoked_at`을 설정하지만 복구 시 이를 지우므로, 탈취된 기존 JWT가 만료 전이면 복구 후 다시 통과할 수 있다.
+현재 session payload에는 `session_version`이 포함된다. 탈퇴·복구 시 세대가 증가하므로 탈취된 기존 JWT는 복구 후에도 통과하지 않는다. 기존 세션 토큰은 새 payload 형식에서 거부된다.
 
 근거:
 
@@ -109,31 +122,27 @@ status: draft
 - `/Users/deemo/Desktop/instarChar/backend/app/api/deps.py:44`
 - `/Users/deemo/Desktop/instarChar/backend/app/repositories/users.py:45`
 
-대응:
+추가 검증:
 
-- `session_version` 또는 `revoked_before`를 User에 추가한다.
-- 탈퇴와 복구 시 세션 세대를 증가시킨다.
-- JWT에 version 또는 `iat`를 포함하고 매 요청 DB 상태와 비교한다.
-- `auth_revoked_at`을 Apple provider 상태와 일반 세션 무효화 용도로 분리한다.
+- 실제 데이터베이스 migration 후 기존 토큰·탈퇴·복구 흐름을 E2E로 검증한다.
+- `auth_revoked_at`의 Apple provider 상태와 일반 세션 무효화 역할 분리는 별도 정리한다.
 
 ### P1-4. 삭제 요청이 idempotent하지 않고 동시 upsert 충돌 가능
 
-탈퇴 요청마다 `purge_at`을 현재 시각 기준으로 다시 계산한다. 동시 요청이나 재시도에 따라 삭제 예정일이 뒤로 밀릴 수 있다. fingerprint repository도 “조회 후 없으면 insert” 구조라 같은 fingerprint의 동시 요청에서 unique violation이 발생할 수 있다.
+이미 pending인 계정의 탈퇴 재요청은 기존 `purge_at`을 반환한다. fingerprint 저장은 PostgreSQL upsert로 변경해 같은 fingerprint 동시 요청의 unique violation 가능성을 줄였다.
 
 근거:
 
 - `/Users/deemo/Desktop/instarChar/backend/app/services/account_deletion.py:30`
 - `/Users/deemo/Desktop/instarChar/backend/app/repositories/account_deletion.py:13`
 
-대응:
+추가 검증:
 
-- 이미 pending이면 기존 `purge_at`을 반환한다.
-- fingerprint 저장은 PostgreSQL `ON CONFLICT DO UPDATE`로 바꾼다.
-- 탈퇴 상태 변경에 optimistic version 또는 row lock을 적용한다.
+- PostgreSQL에서 동시 탈퇴 요청과 fingerprint upsert 통합 테스트를 수행한다.
 
 ### P1-5. 공유 DM·미디어 삭제 정책이 완전히 일치하지 않음
 
-다른 사용자가 참여한 공유 DM thread는 유지되지만, 탈퇴 사용자 메시지·이름·메시지 JSON은 남을 수 있다. 반대로 사용자 소유 MediaAsset의 S3 object는 삭제되므로 공유 DM이 미디어 ID를 계속 참조하면 깨진 attachment가 남을 수 있다.
+다른 사용자가 참여한 공유 DM thread는 유지되며, 탈퇴 사용자 메시지 본문은 보존될 수 있다. participant ID와 label 배열은 탈퇴 사용자 제거 시 함께 정리하도록 수정했지만, 공유 DM 본문·첨부파일의 최종 익명화/보존 정책은 아직 결정되지 않았다.
 
 근거:
 
@@ -147,16 +156,15 @@ status: draft
 - 공유 attachment를 계속 제공할지, 참조를 제거할지 정책화한다.
 - 개인정보처리방침과 실제 DB/S3 동작을 일치시킨다.
 
-### P1-6. fingerprint secret 변경 시 중복 방지 정책이 흔들림
+### P1-6. AUTH_SECRET_KEY 변경 시 fingerprint 중복 방지 정책이 흔들림
 
-전용 `ACCOUNT_IDENTITY_HASH_SECRET`이 없으면 `AUTH_SECRET_KEY`를 fallback으로 사용한다. 인증키를 교체하면 동일 provider subject의 fingerprint가 달라져 과거 보너스 차단이 실패할 수 있다.
+fingerprint는 별도 환경변수 없이 기존 `AUTH_SECRET_KEY`로 생성하도록 단순화했다. 다만 인증키를 교체하면 동일 provider subject의 fingerprint가 달라져 과거 보너스 차단이 실패할 수 있다.
 
 근거: `/Users/deemo/Desktop/instarChar/backend/app/services/account_deletion.py:77`
 
-대응:
+남은 대응:
 
-- fingerprint 전용 secret을 필수화한다.
-- fingerprint version을 저장하고 secret rotation 시 이전 버전도 검증한다.
+- `AUTH_SECRET_KEY` rotation 전 fingerprint 재생성 또는 versioned hash 전략을 적용한다.
 - retention 기간과 목적을 법무 정책으로 확정한다.
 
 ## P2 — 출시 전 보완 권장

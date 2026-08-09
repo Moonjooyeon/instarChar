@@ -22,7 +22,6 @@ class Settings(BaseSettings):
     account_deletion_scheduler_enabled: bool = True
     account_deletion_poll_seconds: int = 3600
     account_deletion_batch_size: int = 20
-    account_identity_hash_secret: str = ""
     native_oauth_redirect_url: str = "com.ashwoodfriends.alive://oauth/callback"
     native_oauth_code_ttl_seconds: int = 120
     google_client_id: str = ""
@@ -80,7 +79,7 @@ class Settings(BaseSettings):
     @computed_field
     @property
     def toss_origin_regex(self) -> str:
-        return rf"https://{re.escape(self.toss_app_name)}\.(?:private-)?apps\.tossmini\.com"
+        return rf"^https://{re.escape(self.toss_app_name)}\.(?:private-)?apps\.tossmini\.com$"
 
 
 @lru_cache
