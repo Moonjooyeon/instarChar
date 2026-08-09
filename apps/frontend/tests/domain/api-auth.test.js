@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { App } from "@capacitor/app";
+import { Browser } from "@capacitor/browser";
 import { Capacitor } from "@capacitor/core";
 import { appleLoginFailureMessage, deleteAuthAccount, shouldInvalidateAppleCredential, shouldShowAppleLogin, shouldUseNativeGoogleBrowser, signInWithOAuthProvider } from "../../src/api/auth.js";
 
@@ -32,15 +34,16 @@ test("web Apple login keeps the backend OAuth flow", async () => {
   }
 });
 
-test("Android Google login keeps the external browser flow", async () => {
+test("Android Google login opens the external browser flow", async () => {
   const assigned = [];
   const restoreWindow = stubWindow("https://localhost", assigned);
   const restorePlatform = stubNativePlatform("android");
+  const restoreNativeOAuth = stubNativeOAuthPlugins();
   try {
     await signInWithOAuthProvider("google");
-    const url = new URL(assigned[0], "https://localhost");
-    assert.equal(url.searchParams.get("return_url"), "com.ashwoodfriends.alive://oauth/callback");
+    assert.equal(assigned.length, 0);
   } finally {
+    restoreNativeOAuth();
     restorePlatform();
     restoreWindow();
   }
@@ -78,9 +81,9 @@ test("Apple login is hidden only on Android", () => {
   assert.equal(shouldShowAppleLogin("web"), true);
 });
 
-test("Google login uses the in-app browser only on native iOS", () => {
+test("Google login uses the in-app browser on native mobile platforms", () => {
   assert.equal(shouldUseNativeGoogleBrowser("ios", true), true);
-  assert.equal(shouldUseNativeGoogleBrowser("android", true), false);
+  assert.equal(shouldUseNativeGoogleBrowser("android", true), true);
   assert.equal(shouldUseNativeGoogleBrowser("web", false), false);
 });
 
@@ -115,6 +118,23 @@ function stubNativePlatform(platform) {
   return () => {
     Capacitor.isNativePlatform = originalIsNativePlatform;
     Capacitor.getPlatform = originalGetPlatform;
+  };
+}
+
+function stubNativeOAuthPlugins() {
+  const originalAppAddListener = App.addListener;
+  const originalAppGetLaunchUrl = App.getLaunchUrl;
+  const originalBrowserAddListener = Browser.addListener;
+  const originalBrowserOpen = Browser.open;
+  App.addListener = async () => ({ remove: async () => undefined });
+  App.getLaunchUrl = async () => ({ url: undefined });
+  Browser.addListener = async () => ({ remove: async () => undefined });
+  Browser.open = async () => undefined;
+  return () => {
+    App.addListener = originalAppAddListener;
+    App.getLaunchUrl = originalAppGetLaunchUrl;
+    Browser.addListener = originalBrowserAddListener;
+    Browser.open = originalBrowserOpen;
   };
 }
 

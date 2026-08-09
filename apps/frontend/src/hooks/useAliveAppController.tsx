@@ -965,7 +965,7 @@ export function useAliveAppController() {
 
   const handleAvailability = useCharacterHandleAvailability(char.handle, activeId);
   const handleError = characterHandleError(char.handle);
-  const confirmReady = Boolean(char.name.trim() && char.persona.trim() && !handleError && handleAvailability.state !== "taken");
+  const confirmReady = Boolean(String(char.name || "").trim() && String(char.persona || "").trim() && !handleError && handleAvailability.state !== "taken");
   useEffect(() => setCharacterSaveError(""), [char.handle]);
 
   const {

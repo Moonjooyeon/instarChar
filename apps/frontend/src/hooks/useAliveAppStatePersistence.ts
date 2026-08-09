@@ -186,7 +186,7 @@ export function useAliveAppStatePersistence({
     return {
       ...saved,
       accounts: Array.isArray(saved.accounts)
-        ? saved.accounts.map((account) => ({ ...account, posts: sanitizePosts(account.posts) }))
+        ? saved.accounts.map(normalizeSavedAccount).filter((account): account is AccountState => account !== null)
         : [],
       posts: sanitizePosts(saved.posts),
     };
@@ -306,6 +306,22 @@ export function useAliveAppStatePersistence({
     feedInitRef.current = Boolean(active?.posts?.length || cleanSaved.posts?.length);
   }
   return { accountSnapshot, applyAppState, blankAppState, compactProfileBackup, exportAppState, profileUpsertPayload, resetRuntimeState, sanitizeSavedState, saveAppStateSnapshot };
+  function normalizeSavedAccount(value: AccountState): AccountState | null {
+    if (!value || typeof value !== "object" || typeof value.id !== "string" || !value.id) return null;
+    const char = normalizeSavedCharacter(value.char);
+    return { ...value, char, posts: sanitizePosts(value.posts) };
+  }
+
+  function normalizeSavedCharacter(value: unknown): CharacterState {
+    const raw = value && typeof value === "object" && !Array.isArray(value) ? value as CharacterState : {};
+    const character = { ...blankChar(), ...raw };
+    ["name", "handle", "age", "tone", "persona", "world", "speech", "catchphrase", "avatarImg", "headerImg", "surface", "inner", "situational", "triggers", "interests", "relations", "directions"].forEach((key) => {
+      if (typeof character[key] !== "string") character[key] = "";
+    });
+    character.corrections = Array.isArray(character.corrections) ? character.corrections : [];
+    character.lorebook = Array.isArray(character.lorebook) ? character.lorebook : [];
+    return character;
+  }
 }
 
 function compactAccountBackup(account: AccountState): AccountState {
