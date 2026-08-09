@@ -44,6 +44,11 @@ class StubUsage:
         return UsageReservation(True)
 
 
+class FailingPosts(StubPosts):
+    async def append_generated_post(self, owner_id: object, source_account_id: str, post: dict[str, object], is_auto: bool = False) -> CharacterPostsResponse:
+        raise RuntimeError("database unavailable")
+
+
 def test_feed_generation_excludes_profile_images_from_prompt() -> None:
     service = FeedGenerationService(StubPosts(), StubUsage(), Settings(gemini_api_key="test"))
     character = {"persona": "차분함", "avatarImg": "data:image/png;base64,avatar", "headerImg": "data:image/png;base64,header"}
@@ -55,10 +60,15 @@ def test_feed_generation_excludes_profile_images_from_prompt() -> None:
 
 
 def test_feed_generation_parses_and_saves_provider_result(monkeypatch: MonkeyPatch) -> None:
-    async def generate(self: object, payload: object, owner_id: object) -> GenerateApiResult:
-        return GenerateApiResult(200, {"content": [{"type": "text", "text": '{"text":"바람이 좋다","moodDesc":"평온"}'}]})
+    events: list[str] = []
+    async def generate(self: object, payload: object, owner_id: object, finalize_credit: bool = True) -> GenerateApiResult:
+        assert finalize_credit is False
+        return GenerateApiResult(200, {"content": [{"type": "text", "text": '{"text":"바람이 좋다","moodDesc":"평온"}'}]}, uuid4())
+    async def commit(self: object, result: GenerateApiResult, owner_id: object) -> None:
+        events.append("committed")
 
     monkeypatch.setattr(GeminiGenerateService, "generate", generate)
+    monkeypatch.setattr(GeminiGenerateService, "commit_result", commit)
     posts = StubPosts()
     service = FeedGenerationService(posts, StubUsage(), Settings(gemini_api_key="test"))
     result = run(service.generate(uuid4(), "char-1", FeedPostGenerateRequest(mood="일상")))
@@ -66,22 +76,28 @@ def test_feed_generation_parses_and_saves_provider_result(monkeypatch: MonkeyPat
     assert posts.saved is not None
     assert posts.saved["text"] == "바람이 좋다"
     assert posts.saved["moodDesc"] == "평온"
+    assert events == ["committed"]
 
 
 def test_feed_generation_does_not_save_failure_placeholder(monkeypatch: MonkeyPatch) -> None:
-    async def generate(self: object, payload: object, owner_id: object) -> GenerateApiResult:
-        return GenerateApiResult(200, {"content": [{"type": "text", "text": "게시글 생성 실패"}]})
+    events: list[str] = []
+    async def generate(self: object, payload: object, owner_id: object, finalize_credit: bool = True) -> GenerateApiResult:
+        return GenerateApiResult(200, {"content": [{"type": "text", "text": "게시글 생성 실패"}]}, uuid4())
+    async def refund(self: object, result: GenerateApiResult, owner_id: object, status: str) -> None:
+        events.append(status)
 
     monkeypatch.setattr(GeminiGenerateService, "generate", generate)
+    monkeypatch.setattr(GeminiGenerateService, "refund_result", refund)
     posts = StubPosts()
     service = FeedGenerationService(posts, StubUsage(), Settings(gemini_api_key="test"))
     result = run(service.generate(uuid4(), "char-1", FeedPostGenerateRequest()))
     assert result.status_code == 500
     assert posts.saved is None
+    assert events == ["INVALID_POST"]
 
 
 def test_feed_generation_does_not_save_when_usage_is_blocked(monkeypatch: MonkeyPatch) -> None:
-    async def generate(self: object, payload: object, owner_id: object) -> GenerateApiResult:
+    async def generate(self: object, payload: object, owner_id: object, finalize_credit: bool = True) -> GenerateApiResult:
         return GenerateApiResult(429, {"error": "DAILY_LIMIT_EXCEEDED"})
 
     monkeypatch.setattr(GeminiGenerateService, "generate", generate)
@@ -91,6 +107,22 @@ def test_feed_generation_does_not_save_when_usage_is_blocked(monkeypatch: Monkey
     assert result.status_code == 429
     assert posts.saved is None
     assert posts.error.startswith("DAILY_LIMIT_EXCEEDED")
+
+
+def test_feed_generation_refunds_when_persistence_fails(monkeypatch: MonkeyPatch) -> None:
+    events: list[str] = []
+    async def generate(self: object, payload: object, owner_id: object, finalize_credit: bool = True) -> GenerateApiResult:
+        return GenerateApiResult(200, {"content": [{"type": "text", "text": '{"text":"저장할 글"}'}]}, uuid4())
+    async def refund(self: object, result: GenerateApiResult, owner_id: object, status: str) -> None:
+        events.append(status)
+    monkeypatch.setattr(GeminiGenerateService, "generate", generate)
+    monkeypatch.setattr(GeminiGenerateService, "refund_result", refund)
+    service = FeedGenerationService(FailingPosts(), StubUsage(), Settings(gemini_api_key="test"))
+    try:
+        run(service.generate(uuid4(), "char-1", FeedPostGenerateRequest()))
+    except RuntimeError:
+        pass
+    assert events == ["PERSISTENCE_FAILED"]
 
 
 def run(coroutine: Coroutine[object, object, GenerateApiResult]) -> GenerateApiResult:

@@ -2,6 +2,7 @@ import React from "react";
 import { AliveIcon } from "@/components/ui/AliveIcon";
 import { mediaUrl } from "@/api/media";
 import { USER_PERSONA_FEATURE_ENABLED } from "@/domain/app/featureFlags";
+import { CreditUsageHint } from "@/features/credits/CreditUsageHint";
 
 export function DmControls({ ctx }) {
   const {
@@ -9,6 +10,7 @@ export function DmControls({ ctx }) {
     autoChatting,
     char,
     chatMode,
+    dm,
     dmImageDraft,
     dmInput,
     dmSending,
@@ -30,6 +32,8 @@ export function DmControls({ ctx }) {
     startAutoChat,
     stopAutoChat,
   } = ctx;
+  const pendingImage = dmSending && Boolean(dm[dm.length - 1]?.img);
+  const usesImage = Boolean(dmImageDraft) || pendingImage;
   if (peer.readOnly) {
     return <div className="al-dmctrl">과거 페르소나 대화는 읽기 전용으로 보관됩니다.</div>;
   }
@@ -48,10 +52,11 @@ export function DmControls({ ctx }) {
             <button className={chatMode === "novel" ? "on" : ""} onClick={() => setChatMode("novel")}>소설(묘사)</button>
           </div>
           {!autoChatting ? (
-            <button className="al-autochat-go border-line-strong bg-surface-raised text-accent-ink hover:border-accent hover:bg-accent-soft" onClick={startAutoChat} disabled={dmSending}><AliveIcon name="refresh" size={15} /> {speakerName} <AliveIcon name="swap" size={14} /> {peer.name} 자동 대화 (천천히)</button>
+            <button className="al-autochat-go border-line-strong bg-surface-raised text-accent-ink hover:border-accent hover:bg-accent-soft" onClick={startAutoChat} disabled={dmSending}><AliveIcon name="refresh" size={15} /> {speakerName} <AliveIcon name="swap" size={14} /> {peer.name} 자동 대화</button>
           ) : (
             <button className="al-autochat-stop border-danger bg-danger-soft text-danger hover:bg-danger hover:text-white" onClick={stopAutoChat}><AliveIcon name="stop" size={13} /> 멈추기 <span className="al-autochat-live"><i /> LIVE — 입력하면 {speakerName}로 끼어들기</span></button>
           )}
+          <CreditUsageHint busy={autoChatting} className="auto" flowCode="direct_dm_basic" label="자동 대화 예상 사용량" maxUses={6} />
         </div>
       )}
       {!peer.asOwner && (
@@ -70,6 +75,7 @@ export function DmControls({ ctx }) {
         </div>
       )}
       {dmImageDraft && <div className="al-dm-preview"><img src={mediaUrl(dmImageDraft)} alt="" /><button type="button" onClick={() => setDmImageDraft(null)} aria-label="첨부 이미지 제거"><AliveIcon name="close" size={16} /></button></div>}
+      <CreditUsageHint busy={dmSending && !autoChatting} className="dm" flowCode={usesImage ? "image_understanding" : "direct_dm_basic"} label={usesImage ? "사진 답장 예상 사용량" : "답장 예상 사용량"} />
       <div className="al-dminput">
         <label className="al-dm-image-btn border-line-strong bg-surface-raised text-accent-ink hover:border-accent hover:bg-accent-soft" title="사진 보내기"><AliveIcon name="image" size={20} /><input type="file" accept="image/*" onChange={handleDmImage} /></label>
         <input value={dmInput} onChange={(event) => setDmInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) sendDM(); }} placeholder={autoChatting ? `끼어들기: ${meName}(으)로 입력…` : `${meName}(으)로 메시지…`} />

@@ -88,6 +88,7 @@ test("the credit mockup uses a dedicated semantic screen and shared shortcuts", 
   const dmListScreen = readFileSync(path.resolve(process.cwd(), "src/features/dm/DmListScreen.tsx"), "utf8");
   const dmThreadScreen = readFileSync(path.resolve(process.cwd(), "src/app/dm/DmThreadRoute.tsx"), "utf8");
   const creditScreen = readFileSync(path.resolve(process.cwd(), "src/features/credits/CreditStoreScreen.tsx"), "utf8");
+  const creditHint = readFileSync(path.resolve(process.cwd(), "src/features/credits/CreditUsageHint.tsx"), "utf8");
   const creditStyles = readFileSync(path.resolve(process.cwd(), "src/styles/screens/credit.css"), "utf8");
   assert.match(indexStyles, /screens\/credit\.css" layer\(components\)/);
   assert.match(homeScreen, /CreditShortcut/);
@@ -96,6 +97,8 @@ test("the credit mockup uses a dedicated semantic screen and shared shortcuts", 
   assert.match(dmListScreen, /CreditShortcut/);
   assert.match(dmThreadScreen, /CreditShortcut/);
   assert.match(creditScreen, /al-phone al-theme-ready al-credit-theme-ready/);
+  assert.match(creditScreen, /FlowCatalog/);
+  assert.match(creditHint, /creditCostSummary/);
   assert.match(creditStyles, /\.al-credit-theme-ready \.al-credit-screen/);
   assert.match(creditStyles, /\.al-theme-ready \.al-credit-shortcut/);
   assert.doesNotMatch(creditStyles, /#[0-9a-fA-F]{3,8}/);

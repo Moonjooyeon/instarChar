@@ -11,6 +11,7 @@ from app.db.session import get_db_session
 from app.models import User
 from app.repositories.ai_usage import AiUsageRepository
 from app.repositories.character_posts import CharacterPostsRepository
+from app.repositories.credits import CreditRepository
 from app.repositories.characters import CharacterRepository
 from app.repositories.profile_state import ProfileStateRepository
 from app.schemas.character_posts import AutoPostUpdate, CharacterPostCommentCreate, CharacterPostCommentsResponse, CharacterPostsResponse, CharacterPostsUpdate, FeedPostGenerateRequest
@@ -32,7 +33,9 @@ async def get_character_handle_availability(handle: str, exclude_source_account_
 
 @router.put("/{source_account_id}", response_model=CharacterWriteResponse)
 async def save_character(source_account_id: str, payload: CharacterWrite, user: User = Depends(get_current_user), session: AsyncSession = Depends(get_db_session)) -> CharacterWriteResponse:
-    return await CharacterRepository(session).save(user, source_account_id, payload)
+    response = await CharacterRepository(session).save(user, source_account_id, payload)
+    await CreditRepository(session).grant(user.id, "first_character", 100)
+    return response
 
 
 @router.get("/{source_account_id}/posts", response_model=CharacterPostsResponse)
@@ -52,7 +55,7 @@ async def update_auto_post(source_account_id: str, payload: AutoPostUpdate, user
 
 @router.post("/{source_account_id}/posts/generate")
 async def generate_character_post(source_account_id: str, payload: FeedPostGenerateRequest, user: User = Depends(get_current_user), session: AsyncSession = Depends(get_db_session), settings: Settings = Depends(get_settings)) -> JSONResponse:
-    service = FeedGenerationService(CharacterPostsRepository(session), AiUsageRepository(session), settings)
+    service = FeedGenerationService(CharacterPostsRepository(session), AiUsageRepository(session), settings, CreditRepository(session))
     result = await service.generate(user.id, source_account_id, payload)
     return JSONResponse(status_code=result.status_code, content=result.body)
 

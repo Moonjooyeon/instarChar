@@ -8,6 +8,7 @@ from uuid import uuid4
 
 from app.core.config import Settings
 from app.repositories.ai_usage import AiUsageRepository
+from app.repositories.credits import CreditRepository
 from app.repositories.character_posts import CharacterPostsRepository
 from app.schemas.ai import GenerateMessage, GenerateRequest
 from app.schemas.character_posts import FeedPostGenerateRequest
@@ -18,29 +19,35 @@ FAILED_POST_PATTERN = re.compile(r"게시글\s*생성\s*실패|API\s*응답이\s
 
 
 class FeedGenerationService:
-    def __init__(self, posts: CharacterPostsRepository, usage: AiUsageRepository, settings: Settings) -> None:
+    def __init__(self, posts: CharacterPostsRepository, usage: AiUsageRepository, settings: Settings, credits: CreditRepository | None = None) -> None:
         self.posts = posts
-        self.ai = GeminiGenerateService(settings, usage)
+        self.ai = GeminiGenerateService(settings, usage, credits)
 
     async def generate(self, owner_id: UUID, source_account_id: str, payload: FeedPostGenerateRequest, is_auto: bool = False) -> GenerateApiResult:
         character = await self.posts.owned_character(owner_id, source_account_id)
         request = self._request(character.name, character.character, character.posts, payload.mood)
-        result = await self._generate_result(request, owner_id)
+        result = await self._generate_result(request, owner_id, finalize_credit=False)
         if result.status_code != 200:
             if is_auto:
                 await self._record_auto_failure(owner_id, source_account_id, result, character.auto_post_failure_count)
             return result
         post = self._post_from_result(result, payload.mood)
         if not post:
+            await self.ai.refund_result(result, owner_id, "INVALID_POST")
             return GenerateApiResult(500, {"error": "INVALID_POST", "message": "생성된 게시글을 해석할 수 없습니다."})
-        state = await self.posts.append_generated_post(owner_id, source_account_id, post, is_auto=is_auto)
-        return GenerateApiResult(200, {"post": post, "state": state.model_dump(mode="json")})
-
-    async def _generate_result(self, request: GenerateRequest, owner_id: UUID) -> GenerateApiResult:
         try:
-            return await self.ai.generate(request, owner_id)
-        except Exception as exc:
-            return GenerateApiResult(500, {"error": "GENERATION_FAILED", "message": str(exc)})
+            state = await self.posts.append_generated_post(owner_id, source_account_id, post, is_auto=is_auto)
+        except Exception:
+            await self.ai.refund_result(result, owner_id, "PERSISTENCE_FAILED")
+            raise
+        await self.ai.commit_result(result, owner_id)
+        return GenerateApiResult(200, {"post": post, "state": state.model_dump(mode="json")}, result.credit_usage_id, result.provider_usage)
+
+    async def _generate_result(self, request: GenerateRequest, owner_id: UUID, finalize_credit: bool = True) -> GenerateApiResult:
+        try:
+            return await self.ai.generate(request, owner_id, finalize_credit)
+        except Exception:
+            return GenerateApiResult(500, {"error": "GENERATION_FAILED", "message": "AI 생성 처리에 실패했습니다."})
 
     async def _record_auto_failure(self, owner_id: UUID, source_account_id: str, result: GenerateApiResult, failure_count: int) -> None:
         code = str(result.body.get("error") or "GENERATION_FAILED")

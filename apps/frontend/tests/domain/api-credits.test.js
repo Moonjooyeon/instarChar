@@ -1,0 +1,53 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import {
+  getCreditBalance,
+  getCreditCatalog,
+  getCreditUsage,
+} from "../../src/api/credits.js";
+
+test("credit APIs read the server-owned balance, catalog, and usage", async () => {
+  const responses = [
+    {
+      total_credits: 400,
+      bonus_credits: 400,
+      purchased_credits: 0,
+      energy_percent: 92,
+    },
+    {
+      offers: [{ id: "credit-30000", payment_available: false }],
+      flows: [{ code: "direct_dm_basic", credits: 1 }],
+    },
+    {
+      items: [{ id: "usage-1", flow: "direct_dm_basic", status: "committed" }],
+    },
+  ];
+  const restoreFetch = stubFetch(responses);
+  try {
+    assert.equal((await getCreditBalance()).energy_percent, 92);
+    assert.equal((await getCreditCatalog()).offers[0].payment_available, false);
+    assert.equal((await getCreditUsage()).items[0].status, "committed");
+    assert.deepEqual(
+      globalThis.fetch.calls.map((call) => call.input),
+      ["/api/credits", "/api/credits/catalog", "/api/credits/usage"],
+    );
+  } finally {
+    restoreFetch();
+  }
+});
+
+function stubFetch(bodies) {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (input, init = {}) => {
+    calls.push({ input, init });
+    return new Response(JSON.stringify(bodies.shift()), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  };
+  globalThis.fetch.calls = calls;
+  return () => {
+    globalThis.fetch = originalFetch;
+  };
+}

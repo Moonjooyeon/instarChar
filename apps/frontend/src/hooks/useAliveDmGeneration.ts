@@ -72,7 +72,8 @@ export function useAliveDmGeneration({
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 55000);
     try {
-      const text = await postGenerateContent({ media_thread_key: requestKey, model: MODEL_DIRECT, max_tokens: 2048, system: context.sys, messages: apiMsgs }, "DM 답장 API", { signal: controller.signal });
+      const flow = image ? "image_understanding" : "direct_dm_basic";
+      const text = await postGenerateContent({ flow, media_thread_key: requestKey, model: MODEL_DIRECT, max_tokens: 2048, system: context.sys, messages: apiMsgs }, "DM 답장 API", { signal: controller.signal });
       if (dmRequestSeqRef.current !== requestId || dmKeyRef.current !== requestKey) return;
       setDmThread((items) => [...items, { from: context.peerName, text }]);
       applyDmAffinity({ bumpAffinity, bumpMutual, bumpRoomAffinity, bumpRoomMutual, context, meName, newHist, ownerLabel, peer, relationHintFor, requestKey, text });
@@ -94,7 +95,7 @@ export function useAliveDmGeneration({
     const sys = autoLineSystemPrompt({ correctionBlockFor, dmAffOf, history, listener, loreBlockFor, mode, relationHint, roomAffOf, roomKey, roomLoreBlockFor, speaker, worldPref });
     const apiMsgs = autoLineMessages(history, speaker, listener);
     try {
-      return await postGenerateContent({ model: MODEL_AUTO, max_tokens: 2048, system: sys, messages: apiMsgs }, "자동대화 API");
+      return await postGenerateContent({ flow: "direct_dm_basic", model: MODEL_AUTO, max_tokens: 2048, system: sys, messages: apiMsgs }, "자동대화 API");
     } catch (e) {
       console.error("자동대화 생성 실패:", e);
       return null;

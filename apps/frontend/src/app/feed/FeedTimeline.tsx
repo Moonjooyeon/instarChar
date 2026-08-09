@@ -4,6 +4,7 @@ import { CharacterAvatarImage } from "@/components/ui/CharacterAvatarImage";
 import { mediaUrl } from "@/api/media";
 import { USER_PERSONA_FEATURE_ENABLED } from "@/domain/app/featureFlags";
 import { canManagePost } from "@/domain/feed/feedUtils";
+import { CreditUsageHint } from "@/features/credits/CreditUsageHint";
 
 interface GenerationFailureProps {
   message: string;
@@ -120,7 +121,7 @@ function RecommendationIntro({ usesInterests }: { usesInterests: boolean }): Rea
 }
 
 function GeneratingPost({ char }) {
-  return <div className="al-generating-post" role="status" aria-live="polite"><span className="al-generating-avatar"><CharacterAvatarImage src={char.avatarImg} /><i /></span><div><small>새 글을 쓰는 중</small><b>{char.name}가 장면을 떠올리고 있어요</b><p>말투와 설정을 살펴보고 있어요.</p><span className="al-generating-line"><i /><i /><i /></span></div></div>;
+  return <div className="al-generating-post" role="status" aria-live="polite"><span className="al-generating-avatar"><CharacterAvatarImage src={char.avatarImg} /><i /></span><div><small>새 글을 쓰는 중</small><b>{char.name}가 장면을 떠올리고 있어요</b><p>말투와 설정을 살펴보고 있어요.</p><CreditUsageHint busy className="generating" flowCode="feed_post" /><span className="al-generating-line"><i /><i /><i /></span></div></div>;
 }
 
 function GenerationFailure({ message, onRetry }: GenerationFailureProps): React.ReactElement {

@@ -49,7 +49,7 @@ export function useAliveCharacterAnalysis({
     setParseError("");
     try {
       const raw = await postGenerateContent({
-        flow: "character-analysis-v2",
+        flow: "character_analysis",
         model: MODEL_CHAT,
         max_tokens: 2048,
         system: characterAnalysisSystemPrompt(),

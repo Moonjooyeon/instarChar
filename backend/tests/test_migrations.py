@@ -82,3 +82,21 @@ def test_character_handle_migration_types_asyncpg_handle_binds() -> None:
     compiled = [statement.compile(dialect=postgresql.asyncpg.dialect()) for statement in statements]
     assert all("::VARCHAR" in str(statement) for statement in compiled)
     assert all(statement.binds["handle"].type.length == 24 for statement in compiled)
+
+
+def test_credit_wallet_migration_follows_session_version(monkeypatch: pytest.MonkeyPatch) -> None:
+    migration = _load_migration("20260809_0014_credit_wallet.py")
+    tables: list[str] = []
+    monkeypatch.setattr(migration.op, "create_table", lambda name, *args, **kwargs: tables.append(name))
+    monkeypatch.setattr(migration.op, "create_index", lambda *args, **kwargs: None)
+    cast(Callable[[], None], migration.upgrade)()
+    assert migration.down_revision == "20260809_0013"
+    assert tables == ["credit_accounts", "energy_accounts", "credit_ledger_entries", "reward_grants", "credit_usages"]
+
+
+def test_ai_cost_security_migration_follows_credit_wallet() -> None:
+    migration = _load_migration("20260809_0015_ai_cost_security.py")
+    columns = cast(Callable[[], list[sa.Column[object]]], migration._credit_usage_columns)()
+    names = {column.name for column in columns}
+    assert migration.down_revision == "20260809_0014"
+    assert {"provider_attempts", "input_tokens", "output_tokens", "thought_tokens", "total_tokens", "usage_metadata_complete", "reserved_cost_usd", "provider_cost_usd", "response_body"} == names

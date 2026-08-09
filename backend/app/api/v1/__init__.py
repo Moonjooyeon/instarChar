@@ -3,6 +3,7 @@ from fastapi import APIRouter
 from app.api.v1.ai import router as ai_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.characters import router as characters_router
+from app.api.v1.credits import router as credits_router
 from app.api.v1.dm_threads import router as dm_threads_router
 from app.api.v1.moderation import router as moderation_router
 from app.api.v1.media import router as media_router
@@ -15,6 +16,7 @@ api_router = APIRouter(prefix="/api")
 api_router.include_router(ai_router)
 api_router.include_router(auth_router)
 api_router.include_router(characters_router)
+api_router.include_router(credits_router)
 api_router.include_router(profile_router)
 api_router.include_router(post_likes_router)
 api_router.include_router(shared_characters_router)

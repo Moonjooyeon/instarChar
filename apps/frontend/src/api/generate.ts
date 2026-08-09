@@ -1,4 +1,5 @@
 import { API_LIMIT_MESSAGE } from "../domain/app/aliveCore.js";
+import { notifyCreditBalanceUpdated } from "./credits.js";
 import { apiUrl } from "./client.js";
 
 type JsonRecord = Record<string, unknown>;
@@ -16,12 +17,13 @@ export type GenerateImageBlock = {
 };
 
 export type GenerateMessage = {
-  role: "user" | "assistant" | "system";
+  role: "user" | "assistant";
   content: string | Array<GenerateTextBlock | GenerateImageBlock>;
 };
 
 export type GenerateRequest = {
-  flow?: string;
+  flow: string;
+  idempotency_key?: string;
   max_tokens: number;
   media_thread_key?: string;
   messages: GenerateMessage[];
@@ -36,18 +38,21 @@ type GenerateOptions = {
 };
 
 export async function postGenerate(body: GenerateRequest, options: GenerateOptions = {}): Promise<Response> {
+  const requestBody = { ...body, idempotency_key: body.idempotency_key || crypto.randomUUID() };
   return fetch(apiUrl("/ai/generate"), {
     method: "POST",
     credentials: "include",
     cache: options.cache,
     headers: { "Content-Type": "application/json", ...(options.headers || {}) },
     signal: options.signal,
-    body: JSON.stringify(body),
+    body: JSON.stringify(requestBody),
   });
 }
 
 export async function postGenerateContent(body: GenerateRequest, label: string, options: GenerateOptions = {}): Promise<string> {
-  return readApiContent(await postGenerate(body, options), label);
+  const content = await readApiContent(await postGenerate(body, options), label);
+  notifyCreditBalanceUpdated();
+  return content;
 }
 
 export async function readApiJson(res: Response, label: string): Promise<unknown> {
@@ -65,6 +70,9 @@ export function apiErrorText(data: unknown): string {
   const error = stringValue(record.error);
   if (error === "DAILY_LIMIT_EXCEEDED" || error === "MONTHLY_COST_LIMIT_EXCEEDED") return API_LIMIT_MESSAGE;
   if (error === "EMPTY_RESPONSE") return "AI 응답이 잠깐 비었어. 같은 말을 다시 보내줘.";
+  if (error === "CREDIT_INSUFFICIENT") return "무료 에너지가 모두 소진됐어. 크레딧을 사용하면 계속 이어갈 수 있어.";
+  if (error === "REQUEST_ALREADY_PROCESSED") return "이미 처리된 요청이야. 새 메시지로 다시 시도해줘.";
+  if (error === "CONTEXT_TOO_LONG") return "대화가 많이 길어졌어. 새 대화에서 이어가줘.";
   return stringValue(record.message)
     || nestedErrorMessage(record.detail)
     || finishReasonText(record)

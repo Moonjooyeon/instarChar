@@ -61,7 +61,7 @@ export function useAliveFeedGeneration({
     const postAuthorChar = findPeerChar(postAuthorName) || (postAuthorName === char.name ? char : { name: postAuthorName });
     const sys = commentSystemPrompt({ commenter, postAuthorChar, postAuthorName, postText, priorComments, relBlock, replyTo, targetImage });
     try {
-      const text = stripQuotes(await postGenerateContent({ model: MODEL_AUTO, max_tokens: 150, system: sys, messages: [{ role: "user", content: commentUserContent(commenter, targetImage) }] }, "댓글 생성 API"));
+      const text = stripQuotes(await postGenerateContent({ flow: "assist_social", model: MODEL_AUTO, max_tokens: 150, system: sys, messages: [{ role: "user", content: commentUserContent(commenter, targetImage) }] }, "댓글 생성 API"));
       if (!text) return null;
       appendGeneratedComment(mutatePosts, postId, commenter, text, replyTo);
       return text;
@@ -112,7 +112,7 @@ export function useAliveFeedGeneration({
     const sys = followerPostSystemPrompt({ char, poster, posterImg, quoteTarget });
     let text = "";
     try {
-      text = stripQuotes(await postGenerateContent({ model: MODEL_AUTO, max_tokens: 200, system: sys, messages: [{ role: "user", content: followerPostUserContent(char, posterImg, quoteTarget) }] }, "팔로잉 글 생성 API"));
+      text = stripQuotes(await postGenerateContent({ flow: "assist_social", model: MODEL_AUTO, max_tokens: 200, system: sys, messages: [{ role: "user", content: followerPostUserContent(char, posterImg, quoteTarget) }] }, "팔로잉 글 생성 API"));
     } catch (e) {
       text = "";
     }

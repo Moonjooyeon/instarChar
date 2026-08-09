@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 async function mockAliveApi(page) {
+  await mockCreditsApi(page);
   await page.route("**/api/characters/handle-availability?**", async (route) => {
     const handle = new URL(route.request().url()).searchParams.get("handle") || "";
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ handle, available: true }) });
@@ -51,6 +52,17 @@ async function mockAliveApi(page) {
       body: JSON.stringify({ content: [{ type: "text", text }] }),
     });
   });
+}
+
+async function mockCreditsApi(page) {
+  const flows = [
+    ["direct_dm_basic", "기본 대화", 1, 8], ["direct_dm_context", "문맥형 대화", 2, 15], ["direct_dm_flash_long", "긴 대화", 3, 20], ["direct_dm_pro", "Pro 대화", 5, 25],
+    ["direct_dm_pro_story", "Pro 서사형", 7, 30], ["feed_post", "피드 글 생성", 3, 20], ["image_understanding", "이미지 이해", 5, 30], ["character_interaction", "캐릭터 상호작용", 5, 25],
+  ].map(([code, label, credits, energy_percent]) => ({ code, label, credits, energy_percent }));
+  const offers = [{ id: "credit-5000", price_krw: 5000, base_credits: 500, product_bonus_credits: 0, first_purchase_bonus_percent: 10, total_credits: 500, first_purchase_total_credits: 550, label: "가볍게 이어가기", payment_available: false }];
+  await page.route("**/api/credits/catalog", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ credit_policy_version: "v1", energy_policy_version: "v1", offers, flows }) }));
+  await page.route("**/api/credits/usage", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ items: [] }) }));
+  await page.route("**/api/credits", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ purchased_credits: 0, bonus_credits: 400, total_credits: 400, energy_percent: 100, energy_max_percent: 100, next_energy_recovery_at: null, credit_policy_version: "v1", energy_policy_version: "v1" }) }));
 }
 
 async function createCharacter(page) {
@@ -225,13 +237,17 @@ test("first profile offers a direct scene instead of another setup task", async 
   await expect(page.getByRole("dialog", { name: "테스트린 피드 도움말" })).toBeVisible();
 });
 
-test("credit mockup opens from the feed and returns to the same screen without starting a payment", async ({ page }) => {
+test("credit center explains every flow and returns without starting a payment", async ({ page }) => {
   await createCharacter(page);
   await page.getByRole("button", { name: /크레딧.*충전 화면 열기/ }).click();
   await expect(page).toHaveURL(/\/app\/credits$/);
   await expect(page.getByRole("heading", { name: "이야기를 이어갈 크레딧" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "무료부터 차례대로 사용해요" })).toBeVisible();
+  await expect(page.getByText("기본 대화", { exact: true })).toBeVisible();
+  await expect(page.getByText("Pro 서사형", { exact: true })).toBeVisible();
+  await expect(page.getByText("캐릭터 상호작용", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: /가볍게 이어가기/ }).click();
-  await expect(page.getByRole("button", { name: "결제 준비 중" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "인앱 결제 신청 후 연결" })).toBeDisabled();
   await page.getByRole("button", { name: "이전 화면으로" }).click();
   await expect(page).toHaveURL(/\/app\/feed$/);
 });
@@ -314,6 +330,8 @@ test("DM send ignores rapid duplicate clicks while request is pending", async ({
   await page.getByRole("button", { name: "대화", exact: true }).click();
   await page.getByRole("button", { name: /테스트린과 바로 대화하기/ }).click();
   await expect(page).toHaveURL(/\/app\/dm\/thread$/);
+  await expect(page.getByText("답장 예상 사용량", { exact: true })).toBeVisible();
+  await expect(page.getByText("에너지 8% 우선 · 부족하면 1C", { exact: true })).toBeVisible();
 
   const input = page.getByRole("textbox", { name: /메시지/ });
   await input.fill("지금 확인해줘");

@@ -13,6 +13,7 @@ from app.main import app
 from app.models import UserProvider
 from app.repositories.character_posts import CharacterPostsRepository
 from app.repositories.characters import CharacterRepository
+from app.repositories.credits import CreditRepository
 from app.repositories.profile_state import ProfileStateRepository
 from app.schemas.character_posts import CharacterPostCommentsResponse, CharacterPostsResponse
 from app.schemas.characters import CharacterHandleAvailabilityResponse, CharacterWriteResponse
@@ -79,14 +80,20 @@ def test_character_handle_availability_rejects_reserved_value() -> None:
 
 
 def test_save_character_returns_authoritative_handle(monkeypatch: MonkeyPatch) -> None:
+    grants: list[str] = []
     async def save(self: object, user: StubUser, source_account_id: str, payload: object) -> CharacterWriteResponse:
         return character_response(source_account_id, "hero")
+    async def grant(self: object, user_id: object, event_code: str, credits: int) -> bool:
+        grants.append(f"{event_code}:{credits}")
+        return True
 
     monkeypatch.setattr(CharacterRepository, "save", save)
+    monkeypatch.setattr(CreditRepository, "grant", grant)
     with make_test_client() as client:
         response = client.put("/api/characters/draft-1", json={"name": "Hero", "handle": "@Hero", "character": {"handle": "stale"}})
     assert response.status_code == 200
     assert response.json()["handle"] == "hero"
+    assert grants == ["first_character:100"]
 
 
 def test_save_character_returns_stable_handle_conflict(monkeypatch: MonkeyPatch) -> None:

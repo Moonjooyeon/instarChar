@@ -4,10 +4,30 @@ author: black (black@ashwoodfriends.com)
 created: 2026-08-09
 updated: 2026-08-09
 version: 1.0.0
-status: draft
+status: in-progress
 ---
 
 # ALIVE 크레딧·AI·운영 출시 준비 계획
+
+## 0. 구현 현황 — 2026-08-09
+
+1차 구현과 보안 보강으로 다음 항목이 코드에 반영됐다.
+
+- 서버 소유 flow catalog, 정책 version, 입력·출력·thinking·일일 호출 상한
+- 구매/무료 bonus 분리 잔액, 6시간마다 25% 회복하는 최대 100% 무료 에너지
+- 예약·확정·환급 usage와 원장, reward 중복 방지, 10분 stale reservation lazy 환급
+- 공개 내부 flow 차단, Pro 구매 크레딧 전용, 실제 Gemini token/원가 정산, provider 최대 2회 호출
+- 크레딧 센터의 잔액·에너지·기능별 비용·최근 사용 UI와 DM/피드 사용 직전 안내
+- 상품 catalog 노출과 결제 비활성 상태 유지
+
+다음 출시 차단 항목은 아직 남아 있다.
+
+- 운영 PostgreSQL migration 및 row-lock/crash fault injection 검증
+- 실제 Gemini Flash/Pro 호출과 shadow billing p50/p95/p99 수집
+- 결제 provider 결정, 구매 원장, 영수증 검증, 복원·환불·chargeback 처리
+- 클라이언트 액션 단위 idempotency key 유지와 background reconciliation watchdog
+- 이미지 pixel 검증, reverse-proxy body limit, 운영 secret·metric·alert 점검
+- Pro 가격을 5C/7C에서 유지할지 8~10C/16~18C로 조정할지 실측 후 확정
 
 ## 1. 목적
 

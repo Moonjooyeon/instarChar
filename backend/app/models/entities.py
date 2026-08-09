@@ -293,6 +293,7 @@ class AiDailyUsage(TimestampMixin, Base):
     usage_date: Mapped[date] = mapped_column(Date, primary_key=True)
     call_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     estimated_cost_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False, default=Decimal("0"))
+    actual_cost_usd: Mapped[Decimal] = mapped_column(Numeric(14, 8), nullable=False, default=Decimal("0"))
 
 
 class AiMonthlyUsage(TimestampMixin, Base):
@@ -300,3 +301,70 @@ class AiMonthlyUsage(TimestampMixin, Base):
     usage_month: Mapped[str] = mapped_column(String(7), primary_key=True)
     call_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     estimated_cost_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False, default=Decimal("0"))
+    actual_cost_usd: Mapped[Decimal] = mapped_column(Numeric(14, 8), nullable=False, default=Decimal("0"))
+
+
+class CreditAccount(TimestampMixin, Base):
+    __tablename__ = "credit_accounts"
+    __table_args__ = (CheckConstraint("purchased_credits >= 0", name="ck_credit_accounts_purchased_nonnegative"), CheckConstraint("bonus_credits >= 0", name="ck_credit_accounts_bonus_nonnegative"), CheckConstraint("version >= 0", name="ck_credit_accounts_version_nonnegative"))
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    purchased_credits: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    bonus_credits: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
+class EnergyAccount(TimestampMixin, Base):
+    __tablename__ = "energy_accounts"
+    __table_args__ = (CheckConstraint("energy_percent BETWEEN 0 AND 100", name="ck_energy_accounts_percent"),)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    energy_percent: Mapped[int] = mapped_column(Integer, nullable=False, default=100)
+    last_recovered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class CreditLedgerEntry(Base):
+    __tablename__ = "credit_ledger_entries"
+    __table_args__ = (UniqueConstraint("user_id", "idempotency_key", name="uq_credit_ledger_user_idempotency"), Index("ix_credit_ledger_user_created", "user_id", "created_at"))
+    id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid4)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    entry_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    balance_type: Mapped[str] = mapped_column(String(16), nullable=False)
+    amount: Mapped[int] = mapped_column(Integer, nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(180), nullable=False)
+    entry_metadata: Mapped[JsonMap] = mapped_column("metadata", JSONB, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class RewardGrant(Base):
+    __tablename__ = "reward_grants"
+    __table_args__ = (UniqueConstraint("user_id", "event_code", name="uq_reward_grants_user_event"),)
+    id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid4)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    event_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    credits: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class CreditUsage(TimestampMixin, Base):
+    __tablename__ = "credit_usages"
+    __table_args__ = (UniqueConstraint("user_id", "idempotency_key", name="uq_credit_usages_user_idempotency"), Index("ix_credit_usages_user_created", "user_id", "created_at"), CheckConstraint("credits >= 0", name="ck_credit_usages_credits_nonnegative"), CheckConstraint("energy_percent >= 0", name="ck_credit_usages_energy_nonnegative"))
+    id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid4)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    flow: Mapped[str] = mapped_column(String(64), nullable=False)
+    policy_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    model: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="reserved")
+    credits: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    energy_percent: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    bonus_credits: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    purchased_credits: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    idempotency_key: Mapped[str] = mapped_column(String(180), nullable=False)
+    provider_status: Mapped[str] = mapped_column(String(32), nullable=False, default="")
+    provider_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    input_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    output_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    thought_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    total_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    usage_metadata_complete: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    reserved_cost_usd: Mapped[Decimal] = mapped_column(Numeric(14, 8), nullable=False, default=Decimal("0"))
+    provider_cost_usd: Mapped[Decimal] = mapped_column(Numeric(14, 8), nullable=False, default=Decimal("0"))
+    response_body: Mapped[JsonMap] = mapped_column(JSONB, nullable=False, default=dict)
