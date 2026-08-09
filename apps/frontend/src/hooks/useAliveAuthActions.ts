@@ -96,14 +96,15 @@ export function useAliveAuthActions({
     setSaveStatus("로그인 대기");
   }
   async function deleteAccount(): Promise<void> {
-    const confirmed = window.confirm("계정과 캐릭터, 게시물, DM 등 모든 데이터를 영구 삭제할까요? 이 작업은 되돌릴 수 없어요.");
+    const confirmed = window.confirm("계정 삭제를 예약할까요? 지금부터 로그아웃되며 7일 후 계정과 캐릭터, 게시물, DM이 영구 삭제돼요. 7일 안에 다시 로그인하면 삭제를 취소할 수 있어요.");
     if (!confirmed) return;
-    const { error } = await deleteAuthAccount();
+    const { data, error } = await deleteAuthAccount();
     if (error) {
       setSaveStatus(`계정 삭제 실패: ${error.message}`);
       return;
     }
     await signOut();
+    setSaveStatus(`계정 삭제가 예약됐어. ${formatDeletionDate(data?.purge_at)} 전까지 다시 로그인하면 복구할 수 있어.`);
   }
   async function completeOnboarding(): Promise<void> {
     if (!session?.user || !isAuthApiAvailable()) {
@@ -155,4 +156,11 @@ function errorMessage(error: unknown): string {
   if (!error || typeof error !== "object") return "";
   const message = (error as { message?: unknown }).message;
   return typeof message === "string" ? message : "";
+}
+
+function formatDeletionDate(value?: string): string {
+  if (!value) return "7일";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "7일";
+  return new Intl.DateTimeFormat("ko-KR", { dateStyle: "medium", timeStyle: "short" }).format(date);
 }

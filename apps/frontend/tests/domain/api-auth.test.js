@@ -46,12 +46,12 @@ test("Android Google login keeps the external browser flow", async () => {
   }
 });
 
-test("deleteAuthAccount requests permanent account deletion", async () => {
+test("deleteAuthAccount requests deletion scheduling", async () => {
   const calls = [];
   const restoreFetch = stubFetch(calls);
   try {
     const result = await deleteAuthAccount();
-    assert.deepEqual(result, { error: null });
+    assert.deepEqual(result, { data: null, error: null });
     assert.equal(calls[0].input, "/api/auth/account");
     assert.equal(calls[0].init.method, "DELETE");
   } finally {

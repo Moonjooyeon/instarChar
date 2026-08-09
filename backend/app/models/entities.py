@@ -28,6 +28,11 @@ class UserModerationStatus(str, enum.Enum):
     banned = "banned"
 
 
+class UserAccountStatus(str, enum.Enum):
+    active = "active"
+    pending_deletion = "pending_deletion"
+
+
 class ReportStatus(str, enum.Enum):
     pending = "pending"
     reviewing = "reviewing"
@@ -68,8 +73,22 @@ class User(TimestampMixin, Base):
     provider: Mapped[UserProvider] = mapped_column(Enum(UserProvider, name="user_provider"), nullable=False)
     provider_subject: Mapped[str] = mapped_column(String(255), nullable=False)
     moderation_status: Mapped[UserModerationStatus] = mapped_column(Enum(UserModerationStatus, name="user_moderation_status"), nullable=False, default=UserModerationStatus.active)
+    account_status: Mapped[UserAccountStatus] = mapped_column(Enum(UserAccountStatus, name="user_account_status"), nullable=False, default=UserAccountStatus.active)
+    deletion_requested_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    purge_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     auth_revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     profile: Mapped[Profile] = relationship(back_populates="user", cascade="all, delete-orphan")
+
+
+class AccountDeletionIdentity(Base):
+    __tablename__ = "account_deletion_identities"
+    __table_args__ = (UniqueConstraint("provider", "identity_fingerprint", name="uq_account_deletion_identities_provider_fingerprint"), Index("ix_account_deletion_identities_retention", "retention_until"))
+    id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid4)
+    provider: Mapped[UserProvider] = mapped_column(Enum(UserProvider, name="user_provider", create_type=False), nullable=False)
+    identity_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    user_id: Mapped[Optional[UUID]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    retention_until: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class AppleOAuthCredential(TimestampMixin, Base):

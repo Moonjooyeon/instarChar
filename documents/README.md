@@ -41,6 +41,7 @@ status: approved
 ## 계획·보고서 하위 분류
 
 - `plans/product/app-flow/` — 앱 전반 개선·Entry Flow
+- `plans/product/account/` — 계정 탈퇴·복구 라이프사이클
 - `plans/backend/data-integrity/` — 핸들·좋아요 등 데이터 무결성
 - `plans/backend/data-migration/` — Supabase to FastAPI 전환
 - `plans/frontend/theme-ui/` — 테마·Tailwind·UI

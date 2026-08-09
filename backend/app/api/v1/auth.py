@@ -10,7 +10,7 @@ from app.core.config import Settings, get_settings
 from app.core.errors import AppError, BadRequestError
 from app.db.session import get_db_session
 from app.models import User, UserProvider
-from app.schemas.auth import AppleNotificationRequest, MeResponse, NativeAppleLoginRequest, NativeOAuthExchangeRequest, TossLoginRequest, TossLoginResponse, UserResponse
+from app.schemas.auth import AccountDeletionResponse, AppleNotificationRequest, MeResponse, NativeAppleLoginRequest, NativeOAuthExchangeRequest, TossLoginRequest, TossLoginResponse, UserResponse
 from app.services.account_deletion import AccountDeletionService
 from app.services.apple_notifications import AppleNotificationService
 from app.services.native_oauth import NativeOAuthService
@@ -85,10 +85,11 @@ async def logout(response: Response, settings: Settings = Depends(get_settings))
     response.delete_cookie(settings.auth_cookie_name, path="/")
 
 
-@router.delete("/account", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_account(response: Response, user: User = Depends(get_current_user), settings: Settings = Depends(get_settings), session: AsyncSession = Depends(get_db_session)) -> None:
-    await AccountDeletionService(settings, session).delete(user)
+@router.delete("/account", response_model=AccountDeletionResponse)
+async def delete_account(response: Response, user: User = Depends(get_current_user), settings: Settings = Depends(get_settings), session: AsyncSession = Depends(get_db_session)) -> AccountDeletionResponse:
+    purge_at = await AccountDeletionService(settings, session).delete(user)
     response.delete_cookie(settings.auth_cookie_name, path="/")
+    return AccountDeletionResponse(status="pending_deletion", purge_at=purge_at)
 
 
 @router.get("/me", response_model=MeResponse, summary="Get current user")

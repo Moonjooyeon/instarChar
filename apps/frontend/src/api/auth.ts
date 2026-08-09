@@ -2,7 +2,7 @@ import { App } from "@capacitor/app";
 import { Browser } from "@capacitor/browser";
 import { Capacitor, CapacitorHttp, registerPlugin, type PluginListenerHandle } from "@capacitor/core";
 
-import { apiNoContent, apiResult, apiUrl, clearTossSessionToken, setTossSessionToken, type ApiError } from "./client.js";
+import { apiNoContent, apiResult, apiUrl, clearTossSessionToken, setTossSessionToken, type ApiError, type ApiResult } from "./client.js";
 
 export type AuthProvider = "apple" | "google";
 
@@ -100,8 +100,13 @@ export function signOutAuthSession(): Promise<{ error: ApiError | null }> {
   return endTossSession();
 }
 
-export function deleteAuthAccount(): Promise<{ error: ApiError | null }> {
-  return apiNoContent("/auth/account", { method: "DELETE" });
+export type AccountDeletionResponse = {
+  purge_at: string;
+  status: "pending_deletion";
+};
+
+export function deleteAuthAccount(): Promise<ApiResult<AccountDeletionResponse>> {
+  return apiResult<AccountDeletionResponse>("/auth/account", { method: "DELETE" });
 }
 
 export async function getAuthSession(): Promise<AuthResult> {

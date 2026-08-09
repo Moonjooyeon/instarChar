@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
@@ -37,6 +38,11 @@ class TossLoginRequest(BaseModel):
 
 class TossLoginResponse(BaseModel):
     session_token: str = Field(min_length=1)
+
+
+class AccountDeletionResponse(BaseModel):
+    status: Literal["pending_deletion"]
+    purge_at: datetime
 
 
 class AppleNotificationRequest(BaseModel):

@@ -19,7 +19,7 @@ from app.core.errors import BadRequestError, ServiceUnavailableError, Unauthoriz
 from app.core.security import _signature, read_oauth_state, sign_oauth_state
 from app.db.session import get_db_session
 from app.main import app
-from app.models import UserModerationStatus, UserProvider
+from app.models import UserAccountStatus, UserModerationStatus, UserProvider
 from app.schemas.auth import UserResponse
 from app.services.oauth import OAuthCompletion, OAuthService, ProviderIdentity
 
@@ -37,6 +37,7 @@ class StubUser:
     provider: UserProvider
     profile: Optional[StubProfile]
     moderation_status: UserModerationStatus = UserModerationStatus.active
+    account_status: UserAccountStatus = UserAccountStatus.active
     auth_revoked_at: Optional[datetime] = None
 
 
@@ -169,16 +170,22 @@ def test_logout_clears_session_cookie() -> None:
     assert "alive_session" in response.headers.get("set-cookie", "")
 
 
-def test_delete_account_removes_user_data_and_clears_cookie(monkeypatch: MonkeyPatch) -> None:
-    deleted_user_ids: list[object] = []
-    async def delete_account(self: object, user: StubUser) -> None:
-        deleted_user_ids.append(user.id)
+def test_delete_account_schedules_deletion_and_clears_cookie(monkeypatch: MonkeyPatch) -> None:
+    purge_at = datetime(2026, 8, 16, tzinfo=timezone.utc)
+    async def delete_account(self: object, user: StubUser) -> datetime:
+        return purge_at
     monkeypatch.setattr("app.api.v1.auth.AccountDeletionService.delete", delete_account)
     with make_test_client() as client:
         response = client.delete("/api/auth/account")
-    assert response.status_code == 204
-    assert len(deleted_user_ids) == 1
+    assert response.status_code == 200
+    assert response.json() == {"status": "pending_deletion", "purge_at": "2026-08-16T00:00:00Z"}
     assert "alive_session" in response.headers.get("set-cookie", "")
+
+
+def test_pending_deletion_account_is_not_authorized() -> None:
+    user = StubUser(uuid4(), "tester@example.com", UserProvider.google, StubProfile(), account_status=UserAccountStatus.pending_deletion)
+    with raises(UnauthorizedError, match="Account deletion is pending"):
+        asyncio.run(_load_user(user.id, StubSession()))
 
 
 def test_google_callback_sets_session_cookie(monkeypatch) -> None:

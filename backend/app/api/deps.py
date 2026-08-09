@@ -7,7 +7,7 @@ from app.core.config import Settings, get_settings
 from app.core.errors import ForbiddenError, UnauthorizedError
 from app.core.security import verify_session
 from app.db.session import get_db_session
-from app.models import User, UserModerationStatus
+from app.models import User, UserAccountStatus, UserModerationStatus
 from app.repositories.users import UserRepository
 
 
@@ -41,6 +41,8 @@ async def _load_user(user_id: UUID, session: AsyncSession) -> User:
         raise ForbiddenError("Account access has been disabled")
     if user.moderation_status == UserModerationStatus.suspended:
         raise ForbiddenError("Account access is temporarily suspended")
+    if getattr(user, "account_status", UserAccountStatus.active) == UserAccountStatus.pending_deletion:
+        raise UnauthorizedError("Account deletion is pending")
     if user.auth_revoked_at:
         raise UnauthorizedError("Apple account authorization has been revoked")
     return user

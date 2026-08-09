@@ -13,7 +13,7 @@ status: approved
 
 ## 분류 인덱스
 
-- [제품·사용자 흐름](product/README.md) — 앱 전반 개선, Entry Flow
+- [제품·사용자 흐름](product/README.md) — 앱 전반 개선, Entry Flow, 계정 탈퇴·복구
 - [백엔드·데이터](backend/README.md) — 핸들, 좋아요 영속성, Supabase 전환
 - [프론트엔드](frontend/README.md) — 테마·Tailwind, 프론트엔드 연동
 - [아키텍처](architecture/README.md) — 모노레포·프론트엔드 구조 재구성

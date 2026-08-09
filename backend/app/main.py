@@ -13,6 +13,7 @@ from app.core.config import get_settings
 from app.core.errors import AppError
 from app.db.session import AsyncSessionLocal
 from app.services.auto_post_scheduler import AutoPostScheduler
+from app.services.account_deletion_scheduler import AccountDeletionScheduler
 
 
 settings = get_settings()
@@ -24,13 +25,20 @@ public_directory = Path(__file__).resolve().parent / "public"
 @asynccontextmanager
 async def lifespan(application: FastAPI) -> AsyncIterator[None]:
     task = None
+    deletion_task = None
     if settings.auto_post_scheduler_enabled:
         task = asyncio.create_task(AutoPostScheduler(settings, AsyncSessionLocal).run())
+    if settings.account_deletion_scheduler_enabled:
+        deletion_task = asyncio.create_task(AccountDeletionScheduler(settings, AsyncSessionLocal).run())
     yield
     if task:
         task.cancel()
         with suppress(asyncio.CancelledError):
             await task
+    if deletion_task:
+        deletion_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await deletion_task
 
 
 app = FastAPI(title=settings.app_name, lifespan=lifespan)

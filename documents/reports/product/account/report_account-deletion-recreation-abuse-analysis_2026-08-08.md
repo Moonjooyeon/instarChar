@@ -2,7 +2,7 @@
 title: ALIVE 회원탈퇴·재가입 및 크레딧 악용 방지 분석
 author: black (black@ashwoodfriends.com)
 created: 2026-08-08
-updated: 2026-08-08
+updated: 2026-08-09
 version: 1.0.0
 status: draft
 ---
@@ -11,7 +11,7 @@ status: draft
 
 ## 결과
 
-현재 ALIVE는 회원탈퇴를 요청하면 **1주 유예 없이 즉시 계정을 하드 삭제**한다. 같은 Google·Apple·Toss 식별자로 다시 로그인하면 삭제된 기존 계정이 복구되는 것이 아니라 새로운 `user_id`로 새 계정이 생성된다. 따라서 현재 크레딧 시스템이 구현되지는 않았지만, 가입 보너스가 추가된 뒤에는 탈퇴와 재가입을 반복해 보너스를 다시 받는 악용 가능성이 있다.
+현재 구현은 회원탈퇴를 요청하면 **7일간 `pending_deletion` 상태로 잠근 뒤 만료 시 영구 삭제**하도록 전환되었다. 같은 Google·Apple·Toss 식별자로 유예기간 안에 다시 인증하면 기존 계정이 복구되며, 만료된 계정은 복구하지 않는다. 크레딧 원장과 가입 보너스는 아직 구현되지 않았지만, provider subject fingerprint를 별도로 보존할 기반을 마련해 향후 탈퇴·재가입 보너스 중복 방지를 연결할 수 있다.
 
 추천 정책은 `7일 유예 상태 → 계정 잠금 및 보너스 지급 중지 → 7일 후 DB·S3 영구 삭제`다. 유예기간 동안에는 같은 로그인 식별자로 새 계정을 만들 수 없게 하고, 본인 재인증 시 기존 계정을 복구할 수 있게 한다. 완전 삭제 이후에도 재가입 보너스 중복을 막기 위한 최소한의 일방향 식별 해시를 보존할지는 개인정보처리방침과 함께 확정해야 한다.
 
@@ -25,6 +25,21 @@ status: draft
 - 계정 삭제 안내·개인정보처리방침의 현재 문구
 - 크레딧 도입 이후 발생 가능한 보너스 중복 수령 경로
 
+## 1.1 구현 진행 상태
+
+분석에서 권장한 7일 유예 정책을 1차 코드에 반영했다.
+
+- `User.account_status`, `deletion_requested_at`, `purge_at`과 삭제 fingerprint 테이블 추가
+- 탈퇴 요청 시 계정 잠금·세션 무효화·삭제 예정일 반환
+- pending 계정의 보호 API 접근 차단
+- 유예기간 내 동일 provider 재로그인 시 기존 계정 복구
+- scheduler가 만료 계정의 S3 미디어·Apple credential·DB row를 순서대로 정리
+- 외부 정리 실패 시 DB 삭제를 진행하지 않아 다음 주기 재시도 가능
+- fingerprint retention 만료 시 보존 row를 자동 파기
+- 계정 삭제·개인정보·약관 문구를 7일 삭제 예약 정책에 맞게 수정
+
+아직 실제 PostgreSQL migration 적용, backend pytest, 운영 S3/OAuth E2E는 실행하지 않았다. 크레딧 wallet/ledger와 `RewardGrant`는 별도 개발 범위다.
+
 ## 2. 현재 동작
 
 ### 2.1 탈퇴 처리
@@ -34,12 +49,13 @@ status: draft
 ```text
 사용자 확인
   -> DELETE /api/auth/account
-  -> Apple 계정이면 저장된 토큰 revoke
-  -> UserRepository.delete_account(user)
-  -> User row 삭제 및 FK CASCADE
+  -> User.account_status = pending_deletion, purge_at = +7일
+  -> 삭제 fingerprint 보존 및 auth_revoked_at 기록
   -> DB commit
   -> 세션 쿠키 삭제
   -> 프론트 로컬 앱 상태 삭제 및 로그아웃
+  -> scheduler가 만료 후 S3·Apple credential 정리
+  -> User row 삭제 및 FK CASCADE
 ```
 
 근거:
@@ -49,21 +65,22 @@ status: draft
 - `/Users/deemo/Desktop/instarChar/backend/app/repositories/users.py`의 `delete_account`
 - `/Users/deemo/Desktop/instarChar/apps/frontend/src/hooks/useAliveAuthActions.ts`의 `deleteAccount`
 
-현재 코드에는 `deletion_requested_at`, `purge_at`, `pending_deletion`, `grace_period` 같은 유예 상태 필드나 상태 전이가 없다. 계정 삭제 안내 페이지도 앱 내 삭제가 즉시 처리된다고 안내한다.
+현재 `deletion_requested_at`, `purge_at`, `pending_deletion` 상태 전이가 추가되었다. 탈퇴 API는 삭제 예정일을 반환하고, 계정 삭제 안내 페이지·개인정보처리방침·약관도 7일 삭제 예약 정책을 안내한다.
 
 ### 2.2 재가입 처리
 
-`UserRepository.get_or_create_provider_user`는 `(provider, provider_subject)`로 기존 사용자를 찾는다. 탈퇴 시 해당 `users` row가 삭제되므로, 같은 소셜 계정으로 다시 로그인하면 기존 사용자가 아닌 새 사용자 row가 생성된다.
+`UserRepository.get_or_create_provider_user`는 `(provider, provider_subject)`로 기존 사용자를 찾는다. pending 상태에서 유예기간 안에 같은 소셜 계정으로 다시 로그인하면 기존 사용자의 삭제 예약을 취소한다. purge 시각이 지났으면 복구하지 않고 삭제 작업을 계속한다.
 
 현재 결과는 다음과 같다.
 
 | 상황 | 현재 결과 |
 | --- | --- |
-| 탈퇴 후 같은 Google 계정 재로그인 | 새 `user_id` 생성 |
-| 탈퇴 후 같은 Apple 계정 재로그인 | 새 `user_id` 생성; 기존 로컬 Apple credential은 revoke 대상 |
-| 탈퇴 후 같은 Toss 사용자 재로그인 | 새 `user_id` 생성 |
-| 기존 캐릭터·피드·DM 복구 | 복구되지 않음 |
-| 탈퇴 후 보너스 재지급 방지 | 현재 방어 로직 없음 |
+| 탈퇴 후 유예기간 내 같은 Google 계정 재로그인 | 기존 `user_id` 복구 |
+| 탈퇴 후 유예기간 내 같은 Apple 계정 재로그인 | 기존 `user_id` 복구; 만료 정리 시 credential revoke |
+| 탈퇴 후 유예기간 내 같은 Toss 사용자 재로그인 | 기존 `user_id` 복구 |
+| 유예기간 종료 후 같은 provider 재로그인 | 삭제 완료 후 신규 가입 가능; fingerprint로 향후 보너스 방어 |
+| 기존 캐릭터·피드·DM 복구 | 유예기간 내 복구 시 기존 row 유지 |
+| 탈퇴 후 보너스 재지급 방지 | fingerprint 기반 기반만 구현; RewardGrant는 별도 필요 |
 
 현재는 크레딧 계정과 보너스 원장이 없으므로 실제 보너스 무한 수령은 아직 발생하지 않는다. 그러나 가입 보너스 구현 시 지급 조건을 `user_id`만으로 검사하면 바로 악용될 수 있다.
 
@@ -100,13 +117,14 @@ status: draft
 
 ### 3.3 S3 미디어 삭제 공백
 
-현재 탈퇴 서비스는 DB의 `User`를 삭제하지만, 계정에 속한 각 `MediaAsset.storage_key`를 수집해 `MediaStorage.delete()`를 호출하지 않는다.
+만료 정리 서비스는 계정에 속한 각 `MediaAsset.storage_key`를 수집해 `MediaStorage.delete()`를 호출한 뒤 DB 사용자 삭제를 진행한다.
 
-따라서 현재 코드만 기준으로 보면:
+정리 작업 기준으로는:
 
-- DB의 미디어 asset row는 cascade 삭제됨
-- S3 실제 object는 고아 데이터로 남을 가능성이 있음
-- 법적 안내의 “업로드한 미디어 삭제”를 완전히 보장하지 못함
+- S3 삭제 또는 Apple credential revoke가 실패하면 DB 사용자 row를 남겨 다음 scheduler 주기에 재시도함
+- S3 object 삭제가 성공한 뒤 사용자 row와 media asset row가 cascade 삭제됨
+- 운영 S3 연결과 orphan scanner는 별도 검증·보강 과제로 남아 있음
+- fingerprint retention 만료 row는 scheduler가 자동 삭제함
 
 이 부분은 계정 삭제 전에 삭제 작업을 기록하는 outbox/job을 만들고, DB 삭제와 별도의 재시도 가능한 S3 정리 작업으로 보완해야 한다.
 
@@ -188,35 +206,35 @@ ALIVE의 크레딧 BM에는 **7일 유예 방식**을 권장한다.
 
 ### P0 — 정책·법적 안내
 
-- [ ] 즉시 하드 삭제와 7일 유예 중 최종 정책 결정
-- [ ] “탈퇴”와 “삭제 예약”의 사용자 문구 확정
-- [ ] 유예기간 중 복구 가능 여부와 본인 재인증 방법 정의
+- [x] 즉시 하드 삭제와 7일 유예 중 1차 구현 정책 결정
+- [x] “탈퇴”와 “삭제 예약”의 1차 사용자 문구 반영
+- [x] 유예기간 중 복구 가능 여부와 동일 provider 재인증 경로 반영
 - [ ] 공유 DM·신고·분쟁 자료의 삭제·보존 범위 확정
 - [ ] 구매 크레딧·가입 보너스·첫 구매 보너스의 탈퇴·환불 처리 확정
-- [ ] 개인정보처리방침과 계정 삭제 안내의 처리 기간 문구 수정
+- [x] 개인정보처리방침과 계정 삭제 안내의 처리 기간 문구 수정
 
 ### P1 — 계정 상태와 보너스 방어
 
-- [ ] `User.account_status`: `active`, `pending_deletion`, `deleted` 설계
-- [ ] `deletion_requested_at`, `purge_at` 저장
-- [ ] 유예 중 AI·결제·보너스 지급 endpoint 차단
-- [ ] 동일 provider subject의 신규 계정 생성을 pending 기간 동안 차단
+- [x] `User.account_status`: `active`, `pending_deletion` 1차 설계
+- [x] `deletion_requested_at`, `purge_at` 저장
+- [x] 유예 중 보호 API 접근 차단; 결제·보너스 endpoint는 후속 구현 필요
+- [x] 동일 provider subject의 pending 계정 복구 경로 구현
 - [ ] `RewardGrant`를 사용자 row와 분리하고 지급 event 중복 방지
-- [ ] provider subject HMAC fingerprint 보존 여부와 보존 기간 구현
+- [x] provider subject HMAC fingerprint 보존과 기본 365일 retention 구현
 - [ ] 다중 계정·반복 가입에 대한 rate limit과 운영 알림 추가
 
 ### P1 — 미디어와 데이터 삭제
 
-- [ ] 탈퇴 대상 MediaAsset의 storage key를 삭제 outbox에 기록
-- [ ] S3 삭제 worker와 실패 재시도 구현
+- [x] 탈퇴 대상 MediaAsset의 storage key 조회와 S3 삭제 구현
+- [x] scheduler 기반 S3 삭제 재시도 구현
 - [ ] DB row 삭제와 object 삭제의 최종 일치 여부를 점검하는 orphan scanner 추가
 - [ ] 공유 DM에서 participant labels와 메시지 내 탈퇴 사용자 표시 정책 점검
 - [ ] 삭제 완료 후 DB·S3·검색·캐시에서 남은 사용자 데이터를 확인하는 운영 명령 추가
 
 ### P2 — 프론트엔드
 
-- [ ] 탈퇴 확인 모달을 “7일 후 영구 삭제” 정책에 맞게 수정
-- [ ] 삭제 예약 완료 화면과 삭제 예정일 표시
+- [x] 탈퇴 확인 모달을 “7일 후 영구 삭제” 정책에 맞게 수정
+- [x] 삭제 예약 완료 상태와 삭제 예정일 표시
 - [ ] 유예기간 중 로그인 시 “계정 복구”와 “영구 삭제 계속” 선택 제공
 - [ ] 삭제 실패 시 로컬 데이터를 지우지 않고 재시도 안내
 - [ ] 복구·영구 삭제 후 로컬 상태와 토큰을 일관되게 초기화
@@ -237,8 +255,11 @@ ALIVE의 크레딧 BM에는 **7일 유예 방식**을 권장한다.
 - OAuth/Toss 재가입 시 새 사용자 생성 경로 확인: passed
 - 사용자 소유 DB row의 cascade 설정 확인: passed
 - 공유 DM 잔존 예외 테스트와 구현 확인: passed
-- 계정 삭제 안내·개인정보처리방침의 즉시 삭제 문구 확인: passed
-- 실제 DB cascade 통합 테스트: not run — 현재 `pytest` 명령을 실행할 수 없음
+- 계정 삭제 안내·개인정보처리방침의 7일 삭제 예약 문구 반영: passed
+- Python compileall: passed
+- 프론트엔드 typecheck: passed
+- 프론트엔드 domain tests: passed — 128/128
+- 실제 DB cascade 통합 테스트: not run — backend 의존성이 현재 환경에 없음
 - 실제 S3 object 삭제 검증: not run — 연결된 S3 운영 환경이 필요함
 - 실제 동일 계정 탈퇴 후 재가입 E2E: not run — 실행 중인 인증·백엔드 환경이 필요함
 
@@ -252,10 +273,10 @@ ALIVE의 크레딧 BM에는 **7일 유예 방식**을 권장한다.
 
 ## 11. 다음 추천 작업
 
-1. 즉시 삭제와 7일 유예 중 제품·법무 정책을 확정한다.
-2. 크레딧 개발 전에 `RewardGrant`와 삭제 상태를 먼저 설계한다.
-3. 계정 삭제와 S3 삭제를 함께 검증하는 백엔드 통합 테스트를 추가한다.
-4. 계정 삭제 안내·개인정보처리방침·탈퇴 모달을 동일한 정책 문구로 맞춘다.
+1. 7일 유예와 fingerprint 보존 기간을 제품·법무 정책으로 최종 승인한다.
+2. 크레딧 개발에서 `RewardGrant`와 구매·환불·탈퇴 상태 전이를 설계한다.
+3. backend 의존성 환경에서 migration, pytest, PostgreSQL/S3 통합 테스트를 실행한다.
+4. pending 계정 복구 UX와 scheduler 실패 알림·수동 재처리 운영 절차를 추가한다.
 
 ## 성공 조건
 

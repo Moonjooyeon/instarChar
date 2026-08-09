@@ -1,6 +1,7 @@
 from app.models.entities import (
     AiDailyUsage,
     AiMonthlyUsage,
+    AccountDeletionIdentity,
     AppleAccountEvent,
     AppleOAuthCredential,
     Character,
@@ -18,6 +19,7 @@ from app.models.entities import (
     SharedCharacter,
     SharedDmThread,
     User,
+    UserAccountStatus,
     UserBlock,
     UserModerationStatus,
     UserPolicyConsent,
@@ -28,6 +30,7 @@ from app.models.entities import (
 __all__ = [
     "AiDailyUsage",
     "AiMonthlyUsage",
+    "AccountDeletionIdentity",
     "AppleAccountEvent",
     "AppleOAuthCredential",
     "Character",
@@ -45,6 +48,7 @@ __all__ = [
     "SharedCharacter",
     "SharedDmThread",
     "User",
+    "UserAccountStatus",
     "UserBlock",
     "UserModerationStatus",
     "UserPolicyConsent",

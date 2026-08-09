@@ -20,6 +20,10 @@ class MediaAssetRepository:
         await self.session.commit()
         return asset
 
+    async def list_for_owner(self, owner_id: UUID) -> list[MediaAsset]:
+        result = await self.session.execute(select(MediaAsset).where(MediaAsset.owner_id == owner_id))
+        return list(result.scalars().all())
+
     async def owned(self, user: User, asset_id: UUID) -> MediaAsset:
         asset = await self._asset(asset_id)
         if asset.owner_id != user.id:
