@@ -97,7 +97,7 @@ export function cleanApiFailureMessage(error: unknown, fallback = "응답이 잠
   const name = stringValue(record.name);
   const message = name === "AbortError" ? "응답 시간이 길어져서 중단됐어. 다시 시도해줘." : stringValue(record.message);
   if (!message) return fallback;
-  if (/Gemini|finishReason|EMPTY_RESPONSE|API_ERROR|SERVER_CRASH|응답에 텍스트|빈 응답/i.test(message)) return fallback;
+  if (/Gemini|OpenRouter|finishReason|EMPTY_RESPONSE|API_ERROR|SERVER_CRASH|응답에 텍스트|빈 응답/i.test(message)) return fallback;
   return message;
 }
 

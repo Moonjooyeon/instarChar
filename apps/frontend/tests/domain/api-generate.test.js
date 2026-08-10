@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { apiErrorText, createGenerateRequestKey, postGenerate, readApiContent } from "../../src/api/generate.js";
+import { apiErrorText, cleanApiFailureMessage, createGenerateRequestKey, postGenerate, readApiContent } from "../../src/api/generate.js";
 
 test("postGenerate sends requests to FastAPI AI endpoint", async () => {
   const restoreFetch = stubFetch(jsonResponse({ content: [{ type: "text", text: "ok" }] }));
@@ -30,6 +30,10 @@ test("readApiContent preserves FastAPI generate response shape", async () => {
 test("daily limit errors distinguish free fallback from a hard stop", () => {
   assert.match(apiErrorText({ error: "FREE_FLOW_DAILY_LIMIT_EXCEEDED" }), /구매 크레딧/);
   assert.match(apiErrorText({ error: "FLOW_DAILY_LIMIT_EXCEEDED" }), /내일/);
+});
+
+test("provider names are not exposed in user-facing failures", () => {
+  assert.equal(cleanApiFailureMessage(new Error("OpenRouter API key missing"), "다시 시도해줘."), "다시 시도해줘.");
 });
 
 function jsonResponse(body, status = 200) {

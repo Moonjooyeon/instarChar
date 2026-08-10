@@ -1,10 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from decimal import Decimal
-
-
-MILLION = Decimal(1_000_000)
+from decimal import Decimal, InvalidOperation
 
 
 @dataclass(frozen=True)
@@ -21,26 +18,13 @@ class ProviderUsage:
         return ProviderUsage(attempts=self.attempts + other.attempts, input_tokens=self.input_tokens + other.input_tokens, output_tokens=self.output_tokens + other.output_tokens, thought_tokens=self.thought_tokens + other.thought_tokens, total_tokens=self.total_tokens + other.total_tokens, cost_usd=self.cost_usd + other.cost_usd, measured=self.measured and other.measured)
 
 
-def provider_usage(data: dict[str, object], model: str) -> ProviderUsage:
-    metadata = _record(data.get("usageMetadata"))
-    input_tokens = _integer(metadata.get("promptTokenCount"))
-    output_tokens = _integer(metadata.get("candidatesTokenCount"))
-    thought_tokens = _integer(metadata.get("thoughtsTokenCount"))
-    total_tokens = _integer(metadata.get("totalTokenCount"))
-    cost = token_cost_usd(model, input_tokens, output_tokens + thought_tokens)
-    return ProviderUsage(1, input_tokens, output_tokens, thought_tokens, total_tokens, cost, isinstance(data.get("usageMetadata"), dict))
-
-
-def token_cost_usd(model: str, input_tokens: int, output_tokens: int) -> Decimal:
-    input_rate, output_rate = _rates(model)
-    cost = (Decimal(input_tokens) * input_rate + Decimal(output_tokens) * output_rate) / MILLION
-    return cost.quantize(Decimal("0.00000001"))
-
-
-def _rates(model: str) -> tuple[Decimal, Decimal]:
-    if model == "pro":
-        return Decimal("1.25"), Decimal("10.00")
-    return Decimal("0.30"), Decimal("2.50")
+def openrouter_usage(data: dict[str, object]) -> ProviderUsage:
+    usage = _record(data.get("usage"))
+    details = _record(usage.get("completion_tokens_details"))
+    cost = _decimal(usage.get("cost"))
+    thought_tokens = _integer(details.get("reasoning_tokens"))
+    output_tokens = max(0, _integer(usage.get("completion_tokens")) - thought_tokens)
+    return ProviderUsage(attempts=1, input_tokens=_integer(usage.get("prompt_tokens")), output_tokens=output_tokens, thought_tokens=thought_tokens, total_tokens=_integer(usage.get("total_tokens")), cost_usd=cost or Decimal("0"), measured=cost is not None)
 
 
 def _record(value: object) -> dict[str, object]:
@@ -52,3 +36,11 @@ def _integer(value: object) -> int:
         return max(0, int(value or 0))
     except (TypeError, ValueError):
         return 0
+
+
+def _decimal(value: object) -> Decimal | None:
+    try:
+        parsed = Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError):
+        return None
+    return parsed if parsed >= 0 else None

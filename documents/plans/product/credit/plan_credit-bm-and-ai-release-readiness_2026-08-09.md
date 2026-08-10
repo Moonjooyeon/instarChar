@@ -21,18 +21,18 @@ status: in-progress
 - 예약·확정·환급 usage와 원장, reward 중복 방지, 10분 stale reservation lazy 환급
 - 클라이언트 액션 key 필수화, committed 결과 replay, 진행 중 요청 구분, 수동·자동 피드 중복 저장 방지
 - 사용 원천 합계·상태·원가 필드에 대한 PostgreSQL check constraint migration
-- 공개 내부 flow 차단, Pro 구매 크레딧 전용, 실제 Gemini token/원가 정산, provider 최대 2회 호출
+- 공개 내부 flow 차단, Pro 구매 크레딧 전용, OpenRouter 실제 token/원가 정산, provider 최대 2회 호출
 - 무료 요청 일 50회·구매 전용 요청 일 200회 안전 한도와 Pro/Pro 서사형 일 20회·10회 hard cap
 - 자동 게시는 서버 전용 0C flow로 사용자당 일 24회, 최소 1시간 주기 적용
 - 크레딧 센터의 잔액·에너지·기능별 비용·최근 사용 UI와 DM/피드 사용 직전 안내
 - 상품 catalog 노출과 결제 비활성 상태 유지
 
-현재 자동 검증은 backend 248개, frontend domain 135개, TypeScript typecheck, Vite production build, migration head/offline SQL compile을 통과했다. 실행 중인 ALIVE 프로세스가 없어 브라우저 E2E와 실제 PostgreSQL·Gemini 검증은 수행하지 않았다.
+현재 자동 검증은 backend 255개, frontend domain 137개, TypeScript typecheck, Vite production build, migration head/offline SQL compile을 통과했다. 실행 중인 ALIVE 프로세스가 없어 브라우저 E2E와 실제 PostgreSQL·OpenRouter 검증은 수행하지 않았다.
 
 다음 출시 차단 항목은 아직 남아 있다.
 
 - 운영 PostgreSQL migration 및 row-lock/crash fault injection 검증
-- 실제 Gemini Flash/Pro 호출과 shadow billing p50/p95/p99 수집
+- OpenRouter 경유 Gemini Flash/Pro 호출과 실제 `usage.cost` p50/p95/p99 수집
 - 결제 provider 결정, 구매 원장, 영수증 검증, 복원·환불·chargeback 처리
 - 프로세스 중단을 주기적으로 복구하는 background reconciliation watchdog
 - 이미지 pixel 검증, reverse-proxy body limit, 운영 secret·metric·alert 점검
@@ -78,19 +78,19 @@ status: in-progress
 
 - 크레딧 화면은 `balance: null`, 가격 미정, disabled 결제 버튼을 사용하는 목업이다.
 - 실제 `CreditAccount`, `EnergyAccount`, 원장, 결제 검증, AI 차감 API는 없다.
-- AI는 FastAPI가 Gemini Flash/Pro를 호출하며, 현재 운영 장애는 Google AI Studio 선불 잔액 소진으로 확인됐다.
+- AI는 FastAPI가 OpenRouter를 통해 Gemini Flash/Pro를 호출하며, 공급자 실제 `usage.cost`를 원가로 기록한다.
 - 내부 AI 사용량 제한은 사용자별 일일 호출 수와 전역 월간 예상 비용을 관리하며, 사용자 크레딧과 별개다.
 - AI 내부 사용량은 provider 호출 전에 증가하므로 provider 실패 시 사용량 정산 정책이 필요하다.
-- 프론트의 모델 상수는 과거 Claude 이름을 사용하지만 백엔드는 문자열을 기준으로 Gemini Flash/Pro에 매핑한다.
+- 프론트의 모델 상수는 과거 Claude 이름을 사용하지만 백엔드는 서버 소유 flow를 OpenRouter의 Gemini Flash/Pro 모델 ID에 매핑한다.
 - 자동 게시글·자동 댓글·자동 DM 등 사용자 입력 이후 연쇄적으로 실행되는 AI 호출이 있다.
 - 회원탈퇴는 7일 유예형이며 동일 provider identity 재가입 차단 기반이 구현되어 있다. `RewardGrant`와 지갑 원장은 아직 없다.
-- Playwright E2E는 AI 호출을 route mock으로 대체하므로 실제 Gemini·결제·S3·PostgreSQL 동시성은 별도 검증이 필요하다.
+- Playwright E2E는 AI 호출을 route mock으로 대체하므로 실제 OpenRouter·결제·S3·PostgreSQL 동시성은 별도 검증이 필요하다.
 
 ## 3. 범위
 
 ### 포함
 
-- Gemini provider 장애와 AI 오류 코드 정리
+- OpenRouter provider 장애와 AI 오류 코드 정리
 - AI flow catalog와 서버 소유 과금 정책
 - 데일리 에너지·크레딧 잔액·원장·환급
 - 가입·캐릭터·첫 DM 보너스 중복 방지
@@ -126,7 +126,7 @@ status: in-progress
 
 ### 완료 기준
 
-- [ ] Gemini 정상 호출이 Flash·Pro 모두 성공한다.
+- [ ] OpenRouter 경유 정상 호출이 Flash·Pro 모두 성공한다.
 - [ ] 잔액 소진 429가 일반적인 “다시 시도” 문구로 숨겨지지 않는다.
 - [ ] provider 잔액 부족으로 불필요한 3회 재시도가 발생하지 않는다.
 - [ ] 운영 secret 누락·기본값 상태가 배포 후에야 발견되지 않는다.
@@ -280,7 +280,7 @@ status: in-progress
 - [ ] 회원탈퇴 직후 기존 세션 차단
 - [ ] 7일 유예 중 동일 provider 복구
 - [ ] 유예 만료 후 DB·S3 삭제
-- [ ] Gemini 정상 응답·잔액 부족·timeout·provider 장애
+- [ ] OpenRouter 정상 응답·잔액 부족·timeout·provider 장애
 - [ ] 결제 sandbox 구매·복원·중복 transaction·환불
 
 ### AI 품질 검증
@@ -297,7 +297,7 @@ status: in-progress
 
 ## 12. 성공 기준
 
-- [ ] Gemini Flash·Pro 정상 호출과 운영 장애 응답이 구분된다.
+- [ ] OpenRouter 경유 Gemini Flash·Pro 정상 호출과 운영 장애 응답이 구분된다.
 - [ ] 무료 에너지와 유료 크레딧이 서버에서 별도로 계산된다.
 - [ ] 클라이언트의 모델·비용 조작으로 과금 우회가 불가능하다.
 - [ ] 모든 잔액 변화가 append-only 원장으로 추적된다.

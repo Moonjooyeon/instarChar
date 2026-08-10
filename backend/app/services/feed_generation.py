@@ -13,7 +13,7 @@ from app.repositories.credits import CreditRepository
 from app.repositories.character_posts import CharacterPostsRepository
 from app.schemas.ai import GenerateMessage, GenerateRequest
 from app.schemas.character_posts import FeedPostGenerateRequest
-from app.services.ai import GenerateApiResult, GeminiGenerateService
+from app.services.ai import GenerateApiResult, OpenRouterGenerateService
 
 
 FAILED_POST_PATTERN = re.compile(r"게시글\s*생성\s*실패|API\s*응답이\s*끊|AI\s*응답이\s*잠깐\s*비")
@@ -22,7 +22,7 @@ FAILED_POST_PATTERN = re.compile(r"게시글\s*생성\s*실패|API\s*응답이\s
 class FeedGenerationService:
     def __init__(self, posts: CharacterPostsRepository, usage: AiUsageRepository, settings: Settings, credits: CreditRepository | None = None) -> None:
         self.posts = posts
-        self.ai = GeminiGenerateService(settings, usage, credits)
+        self.ai = OpenRouterGenerateService(settings, usage, credits)
 
     async def generate(self, owner_id: UUID, source_account_id: str, payload: FeedPostGenerateRequest, is_auto: bool = False) -> GenerateApiResult:
         character = await self.posts.owned_character(owner_id, source_account_id)
