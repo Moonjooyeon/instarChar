@@ -12,11 +12,17 @@ export type CharacterWrite = {
   following: unknown[];
   gallery: unknown[];
   handle: string;
+  is_public: boolean;
   name: string;
 };
 
 export type CharacterWriteResponse = CharacterWrite & {
   source_account_id: string;
+};
+
+export type CharacterVisibility = {
+  is_public: boolean;
+  shared_id: string;
 };
 
 export class CharacterApiError extends Error {
@@ -42,6 +48,11 @@ export async function saveCharacter(sourceAccountId: string, payload: CharacterW
   const result = await characterRequest<CharacterWriteResponse>(path, jsonOptions("PUT", payload));
   notifyCreditBalanceUpdated();
   return result;
+}
+
+export async function updateCharacterVisibility(sourceAccountId: string, isPublic: boolean): Promise<CharacterVisibility> {
+  const path = `/characters/${encodeURIComponent(sourceAccountId)}/visibility`;
+  return characterRequest<CharacterVisibility>(path, jsonOptions("PATCH", { is_public: isPublic }));
 }
 
 async function characterRequest<T>(path: string, options: RequestInit = {}): Promise<T> {

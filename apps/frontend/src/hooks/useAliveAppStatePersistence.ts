@@ -111,7 +111,6 @@ type AppStatePersistenceOptions = {
   setProfileName: (value: string) => void;
   setSaveStatus: (value: string) => void;
   setSharedFocusId: (value: string) => void;
-  setShareStatus: (value: string) => void;
   setStep: (value: AppStep) => void;
 };
 
@@ -166,7 +165,6 @@ export function useAliveAppStatePersistence({
   setProfileName,
   setSaveStatus,
   setSharedFocusId,
-  setShareStatus,
   setStep,
 }: AppStatePersistenceOptions) {
   function blankAppState(name = ""): AppState {
@@ -285,7 +283,6 @@ export function useAliveAppStatePersistence({
     setNewChatMode(null);
     setEditingDmTitle(null);
     setDmThreadTitles({});
-    setShareStatus("");
     setSharedFocusId("");
     setActiveSharedId("");
     setFollowerCounts({});

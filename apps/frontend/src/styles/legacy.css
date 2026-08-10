@@ -930,7 +930,7 @@ body{ overflow-x:hidden; }
 .al-dmbtn span{ color:#b99bec; line-height:1; }
 .al-dmbtn b{ font:inherit; }
 .al-dmbtn:hover{ background:#30263a; border-color:#866cac; }
-.al-feed-actions{ display:flex; justify-content:flex-end; gap:7px; min-width:0; max-width:100%; }
+.al-feed-actions{ display:flex; flex-wrap:wrap; justify-content:flex-end; gap:7px; min-width:0; max-width:100%; }
 .al-dmbtn.ghost{ background:#1c1730; color:#c8b3ff; border:1px solid #3a3550; }
 .al-dmbtn.ghost:hover{ border-color:var(--accent); filter:none; }
 /* 탐색 */

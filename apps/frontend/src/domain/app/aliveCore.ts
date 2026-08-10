@@ -116,10 +116,6 @@ export function pathForStep(stepName: unknown): string {
   return STEP_TO_PATH[isAppStep(stepName) ? stepName : "home"] || "/app";
 }
 
-export function sharedCharacterUrl(origin: string, sharedId: string): string {
-  return `${origin}${SHARED_LINK_PATH}?shared=${encodeURIComponent(sharedId)}`;
-}
-
 export function sharedIdFromSearch(search: string): string {
   return new URLSearchParams(search).get("shared") || "";
 }

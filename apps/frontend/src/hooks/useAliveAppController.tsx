@@ -229,7 +229,6 @@ export function useAliveAppController() {
     baseFollowerCount,
     discoverQuery,
     discoverShowFollowed,
-    flashShareStatus,
     followerCounts,
     followPanel,
     following,
@@ -244,6 +243,7 @@ export function useAliveAppController() {
     recordFollowChange: recordFollowChangeFromDiscover,
     recordRelationshipFollowBack: recordRelationshipFollowBackFromDiscover,
     setActiveSharedId,
+    setCharacterVisibility,
     setDiscoverQuery,
     setDiscoverShowFollowed,
     setFollowerCounts,
@@ -254,21 +254,22 @@ export function useAliveAppController() {
     setSharedFocusId,
     setSharedFollowers,
     setSharedLoadState,
-    setShareStatus,
     setWorldModal,
-    shareCurrentCharacter: shareCurrentCharacterFromDiscover,
     sharedCharacters,
     sharedFocusId,
     sharedFollowers,
     sharedLoadState,
-    shareStatus,
-    shareStatusTimerRef,
     syncActiveSharedCharacter: syncActiveSharedCharacterFromDiscover,
     syncOwnFollowRows: syncOwnFollowRowsFromDiscover,
     worldModal,
   } = useAliveDiscover({
     activeId,
     char,
+    onVisibilityChange: (isPublic) => {
+      setChar((previous) => ({ ...previous, isPublic }));
+      if (!activeId) return;
+      setAccounts((previous) => previous.map((account) => account.id === activeId ? { ...account, char: { ...account.char, isPublic } } : account));
+    },
     profileName,
     session,
   });
@@ -352,14 +353,12 @@ export function useAliveAppController() {
   const {
     recordFollowChange,
     recordRelationshipFollowBack,
-    shareCurrentCharacter,
     syncActiveSharedCharacter,
     syncOwnFollowRows,
   } = useAliveDiscoverActions({
     publicPostSnapshot,
     recordFollowChangeFromDiscover,
     recordRelationshipFollowBackFromDiscover,
-    shareCurrentCharacterFromDiscover,
     syncActiveSharedCharacterFromDiscover,
     syncOwnFollowRowsFromDiscover,
   });
@@ -667,7 +666,6 @@ export function useAliveAppController() {
     setProfileName,
     setSaveStatus,
     setSharedFocusId,
-    setShareStatus,
     setStep,
   });
 
@@ -1229,7 +1227,6 @@ export function useAliveAppController() {
     finiteNumber,
     fixTarget,
     fixText,
-    flashShareStatus,
     followBackSyncRef,
     followedTimelinePosts,
     followerCounts,
@@ -1394,6 +1391,7 @@ export function useAliveAppController() {
     setAccounts,
     setActiveId,
     setActiveSharedId,
+    setCharacterVisibility,
     setAffinity,
     setAffinityManual,
     setAffinityOpen,
@@ -1468,7 +1466,6 @@ export function useAliveAppController() {
     setSharedFocusId,
     setSharedFollowers,
     setSharedLoadState,
-    setShareStatus,
     setShowMemory,
     setShowMemoryAdd,
     setShowPeerMem,
@@ -1480,13 +1477,10 @@ export function useAliveAppController() {
     setWorldModal,
     setWriteOpen,
     setWriteText,
-    shareCurrentCharacter,
     sharedCharacters,
     sharedFocusId,
     sharedFollowers,
     sharedLoadState,
-    shareStatus,
-    shareStatusTimerRef,
     showMemory,
     showMemoryAdd,
     showPeerMem,

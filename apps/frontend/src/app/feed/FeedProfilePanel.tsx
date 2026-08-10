@@ -1,4 +1,5 @@
 import React from "react";
+import { CharacterVisibilityModal } from "@/app/feed/CharacterVisibilityModal";
 import { FeedHelpTour } from "@/app/feed/FeedHelpTour";
 import { FeedMemoryPanel } from "@/app/feed/FeedMemoryPanel";
 import { AliveIcon } from "@/components/ui/AliveIcon";
@@ -46,14 +47,13 @@ export function FeedProfilePanel({ ctx }) {
     relLabelFor,
     setAffinityManual,
     setDiscoverQuery,
+    setCharacterVisibility,
     setFeedView,
     setGallery,
     setSharedFocusId,
     setStep,
     setWorldModal,
     session,
-    shareCurrentCharacter,
-    shareStatus,
     sharedCharacters,
     showMemory,
     showRelations,
@@ -65,7 +65,9 @@ export function FeedProfilePanel({ ctx }) {
   const candidates = [...accounts.map((item) => item.char), ...following, ...sharedCharacters];
   const relations = knownCharacterRelations(parseRelations(char.relations), candidates, char.name);
   const [isProfileToolsOpen, setIsProfileToolsOpen] = React.useState(false);
+  const [isVisibilityModalOpen, setIsVisibilityModalOpen] = React.useState(false);
   const isFirstPost = myPosts.length === 0;
+  const isPublic = char.isPublic !== false;
   const { closeHelp, isHelpOpen, openHelp } = useFeedHelpTour({ hasPosts: !isFirstPost, userId: session?.user?.id });
   const rewardMissions = useRewardMissions(Boolean(session?.user?.id));
   React.useEffect(() => {
@@ -92,9 +94,8 @@ export function FeedProfilePanel({ ctx }) {
             </div>
             <span className="al-handle">@{char.handle || char.name.replace(/\s/g, "").toLowerCase()}</span>
           </div>
-          {!isFirstPost && <div className="al-feed-actions"><button aria-label="공유 링크 복사" className="al-dmbtn ghost inline-flex min-h-[34px] items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-line-strong bg-surface-raised px-3 py-2 text-xs font-extrabold leading-none text-ink transition-colors hover:border-accent hover:bg-accent-soft" onClick={shareCurrentCharacter} title="공유 링크 복사"><span className="text-accent-ink"><AliveIcon name="arrow-up-right" size={14} /></span><b>공유</b></button><button className="al-dmbtn ghost inline-flex min-h-[34px] items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-line-strong bg-surface-raised px-3 py-2 text-xs font-extrabold leading-none text-ink transition-colors hover:border-accent hover:bg-accent-soft" onClick={editActiveProfile} title="프로필 수정"><span className="text-accent-ink"><AliveIcon name="pen" size={14} /></span><b>수정</b></button><button className="al-dmbtn inline-flex min-h-[34px] items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-line-strong bg-surface-raised px-3 py-2 text-xs font-extrabold leading-none text-ink transition-colors hover:border-accent hover:bg-accent-soft" onClick={() => setStep("dmlist")} title="대화"><span className="text-accent-ink"><AliveIcon name="mail" size={15} /></span><b>대화</b></button></div>}
+          <div className="al-feed-actions"><button aria-label="추천 탭 공개 설정" className="al-dmbtn ghost inline-flex min-h-[34px] items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-line-strong bg-surface-raised px-3 py-2 text-xs font-extrabold leading-none text-ink transition-colors hover:border-accent hover:bg-accent-soft" onClick={() => setIsVisibilityModalOpen(true)} title="추천 탭 공개 설정"><span className="text-accent-ink"><AliveIcon name={isPublic ? "users" : "moon"} size={14} /></span><b>{isPublic ? "공개 중" : "비공개"}</b></button>{!isFirstPost && <><button className="al-dmbtn ghost inline-flex min-h-[34px] items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-line-strong bg-surface-raised px-3 py-2 text-xs font-extrabold leading-none text-ink transition-colors hover:border-accent hover:bg-accent-soft" onClick={editActiveProfile} title="프로필 수정"><span className="text-accent-ink"><AliveIcon name="pen" size={14} /></span><b>수정</b></button><button className="al-dmbtn inline-flex min-h-[34px] items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-line-strong bg-surface-raised px-3 py-2 text-xs font-extrabold leading-none text-ink transition-colors hover:border-accent hover:bg-accent-soft" onClick={() => setStep("dmlist")} title="대화"><span className="text-accent-ink"><AliveIcon name="mail" size={15} /></span><b>대화</b></button></>}</div>
         </div>
-        {shareStatus && <p className="al-share-status" role="status">{shareStatus}</p>}
         <StarterMissionPrompt missionCode="first_dm" missions={rewardMissions} onContinue={() => setStep("dmlist")} />
         {(char.age || char.world || !isFirstPost) && <div className="al-profile-meta-row">{char.age && <span className="al-profile-meta">{char.age}</span>}{(char.world || !isFirstPost) && <WorldChip character={char} fallback="current-character" onOpen={setWorldModal} />}</div>}
         {char.surface && isFirstPost && <FirstImpression text={char.surface} />}
@@ -145,6 +146,7 @@ export function FeedProfilePanel({ ctx }) {
         </div></div>}
       </div>
       <FeedHelpTour characterName={char.name} hasPosts={!isFirstPost} isOpen={isHelpOpen} onClose={closeHelp} />
+      <CharacterVisibilityModal characterName={char.name} isOpen={isVisibilityModalOpen} isPublic={isPublic} onClose={() => setIsVisibilityModalOpen(false)} onSave={setCharacterVisibility} />
     </div>
   );
 }

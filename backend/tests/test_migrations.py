@@ -125,3 +125,13 @@ def test_credit_integrity_migration_follows_ai_cost_security() -> None:
 def test_auto_post_cost_guard_follows_credit_integrity() -> None:
     migration = _load_migration("20260809_0017_auto_post_cost_guard.py")
     assert migration.down_revision == "20260809_0016"
+
+
+def test_character_visibility_migration_follows_auto_post_cost_guard(monkeypatch: pytest.MonkeyPatch) -> None:
+    migration = _load_migration("20260810_0017_character_visibility.py")
+    columns: list[tuple[str, sa.Column[object]]] = []
+    monkeypatch.setattr(migration.op, "add_column", lambda table, column: columns.append((table, column)))
+    cast(Callable[[], None], migration.upgrade)()
+    assert migration.revision == "20260810_0018"
+    assert migration.down_revision == "20260809_0017"
+    assert [(table, column.name, str(column.server_default.arg)) for table, column in columns] == [("characters", "is_public", "true")]

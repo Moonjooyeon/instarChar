@@ -207,6 +207,7 @@ class Character(TimestampMixin, Base):
     posts: Mapped[list[object]] = mapped_column(JSONB, nullable=False, default=list)
     posts_revision: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     following: Mapped[list[object]] = mapped_column(JSONB, nullable=False, default=list)
+    is_public: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     auto_post_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     auto_post_interval_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=3600)
     next_auto_post_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))

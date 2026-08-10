@@ -11,6 +11,7 @@ type MutableRef<T> = {
 
 type CharacterState = Record<string, unknown> & {
   handle?: string;
+  isPublic?: boolean;
   name?: string;
   persona?: unknown;
 };
@@ -304,11 +305,11 @@ function isDeletedAccountDmKey(key: string, targetId: string): boolean {
 }
 
 function characterWritePayload(char: CharacterState, gallery: unknown[], following: unknown[]): CharacterWrite {
-  return { name: textValue(char.name).trim(), handle: textValue(char.handle), character: { ...char }, gallery: [...gallery], following: [...following] };
+  return { name: textValue(char.name).trim(), handle: textValue(char.handle), character: { ...char }, gallery: [...gallery], following: [...following], is_public: char.isPublic !== false };
 }
 
 function responseCharacter(char: CharacterState, saved: Awaited<ReturnType<typeof saveCharacter>>): CharacterState {
-  return { ...char, ...saved.character, name: saved.name, handle: saved.handle };
+  return { ...char, ...saved.character, isPublic: saved.is_public, name: saved.name, handle: saved.handle };
 }
 
 function characterSaveError(error: unknown): string {

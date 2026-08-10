@@ -31,11 +31,15 @@ class SharedCharacterRepository:
         if not row or row.owner_id in await self._excluded_owner_ids(viewer_id):
             return None
         character = await self._character_by_source(row.owner_id, row.source_account_id)
+        if not character or not character.is_public:
+            return None
         return self._shared_dto(row, character.id if character else None)
 
     async def get_share_id(self, user: User, source_account_id: str) -> ShareId:
         row = await self._shared_by_source(user.id, source_account_id)
-        return ShareId(row.id if row else None)
+        if not row or not await self._is_public(row):
+            return ShareId(None)
+        return ShareId(row.id)
 
     async def upsert_shared(self, user: User, source_account_id: str, payload: SharedCharacterUpdate) -> ShareId:
         require_safe_content(payload.model_dump(mode="python"))
@@ -60,13 +64,16 @@ class SharedCharacterRepository:
     async def follower_counts(self, ids: list[UUID]) -> dict[UUID, int]:
         if not ids:
             return {}
-        stmt = select(CharacterFollow.target_shared_character_id, func.count()).where(CharacterFollow.target_shared_character_id.in_(ids)).group_by(CharacterFollow.target_shared_character_id)
+        stmt = select(CharacterFollow.target_shared_character_id, func.count()).join(SharedCharacter, SharedCharacter.id == CharacterFollow.target_shared_character_id).join(Character, (Character.owner_id == SharedCharacter.owner_id) & (Character.source_account_id == SharedCharacter.source_account_id)).where(CharacterFollow.target_shared_character_id.in_(ids), Character.is_public.is_(True)).group_by(CharacterFollow.target_shared_character_id)
         result = await self.session.execute(stmt)
         counts = {shared_id: 0 for shared_id in ids}
         counts.update({row[0]: row[1] for row in result.all()})
         return counts
 
     async def followers(self, shared_id: UUID, viewer_id: UUID) -> list[FollowerRow]:
+        shared = await self._shared_by_id(shared_id)
+        if not shared or not await self._is_public(shared):
+            return []
         rows = await self._follow_rows(shared_id)
         excluded = await self._excluded_owner_ids(viewer_id)
         rows = [row for row in rows if row.follower_id not in excluded]
@@ -75,7 +82,7 @@ class SharedCharacterRepository:
 
     async def follow(self, user: User, shared_id: UUID, payload: FollowRequest) -> bool:
         target = await self._shared_by_id(shared_id)
-        if not target or target.owner_id in await self._excluded_owner_ids(user.id):
+        if not target or not await self._is_public(target) or target.owner_id in await self._excluded_owner_ids(user.id):
             return False
         await self._upsert_follow(user.id, shared_id, payload)
         await self.session.commit()
@@ -103,7 +110,7 @@ class SharedCharacterRepository:
         return True
 
     async def _shared_characters(self, excluded: set[UUID]) -> list[SharedCharacter]:
-        stmt = select(SharedCharacter).join(User, User.id == SharedCharacter.owner_id).where(User.moderation_status == UserModerationStatus.active)
+        stmt = select(SharedCharacter).join(User, User.id == SharedCharacter.owner_id).join(Character, (Character.owner_id == SharedCharacter.owner_id) & (Character.source_account_id == SharedCharacter.source_account_id)).where(User.moderation_status == UserModerationStatus.active, Character.is_public.is_(True))
         result = await self.session.execute(stmt.where(SharedCharacter.owner_id.not_in(excluded)).order_by(SharedCharacter.created_at.desc()).limit(80))
         return list(result.scalars().all())
 
@@ -130,6 +137,10 @@ class SharedCharacterRepository:
     async def _character_by_source(self, owner_id: UUID, source_account_id: str) -> Optional[Character]:
         result = await self.session.execute(select(Character).where(Character.owner_id == owner_id, Character.source_account_id == source_account_id))
         return result.scalar_one_or_none()
+
+    async def _is_public(self, shared: SharedCharacter) -> bool:
+        character = await self._character_by_source(shared.owner_id, shared.source_account_id)
+        return bool(character and character.is_public)
 
     async def _follow_rows(self, shared_id: UUID) -> list[CharacterFollow]:
         stmt = select(CharacterFollow).where(CharacterFollow.target_shared_character_id == shared_id).order_by(CharacterFollow.created_at.desc())

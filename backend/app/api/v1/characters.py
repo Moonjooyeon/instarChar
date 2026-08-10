@@ -16,7 +16,7 @@ from app.repositories.credits import CreditRepository
 from app.repositories.characters import CharacterRepository
 from app.repositories.profile_state import ProfileStateRepository
 from app.schemas.character_posts import AutoPostUpdate, CharacterPostCommentCreate, CharacterPostCommentsResponse, CharacterPostsResponse, CharacterPostsUpdate, FeedPostGenerateRequest
-from app.schemas.characters import CharacterHandleAvailabilityResponse, CharacterWrite, CharacterWriteResponse
+from app.schemas.characters import CharacterHandleAvailabilityResponse, CharacterVisibilityResponse, CharacterVisibilityUpdate, CharacterWrite, CharacterWriteResponse
 from app.services.feed_generation import FeedGenerationService
 
 
@@ -37,6 +37,11 @@ async def save_character(source_account_id: str, payload: CharacterWrite, user: 
     response = await CharacterRepository(session).save(user, source_account_id, payload)
     await CreditRepository(session).grant(user.id, "first_character", FIRST_CHARACTER_BONUS_CREDITS)
     return response
+
+
+@router.patch("/{source_account_id}/visibility", response_model=CharacterVisibilityResponse)
+async def update_character_visibility(source_account_id: str, payload: CharacterVisibilityUpdate, user: User = Depends(get_current_user), session: AsyncSession = Depends(get_db_session)) -> CharacterVisibilityResponse:
+    return await CharacterRepository(session).update_visibility(user, source_account_id, payload.is_public)
 
 
 @router.get("/{source_account_id}/posts", response_model=CharacterPostsResponse)

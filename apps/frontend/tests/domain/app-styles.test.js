@@ -384,3 +384,16 @@ test("shared modals use semantic Tailwind input and action states", () => {
   assert.match(persona, /al-fixchip border-accent bg-accent-soft text-accent-ink/);
   assert.match(safety, /al-modal-danger bg-danger-soft text-danger hover:bg-danger/);
 });
+
+test("character visibility is managed in an accessible modal without a link-copy action", () => {
+  const panel = readFileSync(path.resolve(process.cwd(), "src/app/feed/FeedProfilePanel.tsx"), "utf8");
+  const modal = readFileSync(path.resolve(process.cwd(), "src/app/feed/CharacterVisibilityModal.tsx"), "utf8");
+  const styles = readFileSync(path.resolve(process.cwd(), "src/styles/screens/character-visibility-modal.css"), "utf8");
+  assert.match(panel, /<CharacterVisibilityModal/);
+  assert.doesNotMatch(panel, /링크 복사|shareCurrentCharacter/);
+  assert.match(modal, /aria-modal="true"/);
+  assert.match(modal, /registerModalFocus/);
+  assert.match(modal, /추천 탭에 공개/);
+  assert.match(modal, /나만 보기/);
+  assert.match(styles, /\.al-visibility-option\.selected/);
+});

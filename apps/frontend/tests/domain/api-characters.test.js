@@ -4,6 +4,7 @@ import {
   CharacterApiError,
   getCharacterHandleAvailability,
   saveCharacter,
+  updateCharacterVisibility,
 } from "../../src/api/characters.js";
 
 test("availability normalizes the handle and sends edit exclusion", async () => {
@@ -46,6 +47,20 @@ test("saveCharacter preserves stable conflict details", async () => {
       assert.equal(error.code, "CHARACTER_HANDLE_TAKEN");
       return true;
     });
+  } finally {
+    restoreFetch();
+  }
+});
+
+test("updateCharacterVisibility uses the server-owned visibility route", async () => {
+  const restoreFetch = stubFetch(jsonResponse({ is_public: false, shared_id: "" }));
+  try {
+    const result = await updateCharacterVisibility("draft 1", false);
+    const request = globalThis.fetch.calls[0];
+    assert.equal(request.input, "/api/characters/draft%201/visibility");
+    assert.equal(request.init.method, "PATCH");
+    assert.deepEqual(JSON.parse(request.init.body), { is_public: false });
+    assert.deepEqual(result, { is_public: false, shared_id: "" });
   } finally {
     restoreFetch();
   }

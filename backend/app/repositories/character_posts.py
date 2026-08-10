@@ -102,17 +102,31 @@ class CharacterPostsRepository:
         )
 
     async def _sync_shared_posts(self, row: Character) -> None:
+        if row.is_public is False:
+            return
         stmt = select(SharedCharacter).where(SharedCharacter.owner_id == row.owner_id, SharedCharacter.source_account_id == row.source_account_id)
         result = await self.session.execute(stmt)
         shared = result.scalar_one_or_none()
         if not shared:
-            return
-        shared.character = {**dict(shared.character or {}), "posts": list(row.posts or [])}
+            shared = SharedCharacter(owner_id=row.owner_id, source_account_id=row.source_account_id, name=row.name, handle=row.handle)
+            self.session.add(shared)
+        shared.owner_name = str(row.character.get("ownerName") or "user")
+        shared.persona = str(row.character.get("persona") or "")
+        shared.tags = self._tags(row)
+        shared.character = self._public_character(row)
 
     async def _is_shared(self, row: Character) -> bool:
+        if row.is_public is False:
+            return False
         stmt = select(SharedCharacter.id).where(SharedCharacter.owner_id == row.owner_id, SharedCharacter.source_account_id == row.source_account_id)
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none() is not None
+
+    def _public_character(self, row: Character) -> dict[str, object]:
+        return {**dict(row.character or {}), "following": list(row.following or []), "gallery": list(row.gallery or []), "handle": row.handle, "posts": list(row.posts or [])}
+
+    def _tags(self, row: Character) -> list[str]:
+        return [str(value) for value in (row.character.get("age"), row.character.get("surface"), row.character.get("interests")) if value]
 
     def _append_comment(self, row: Character, post_id: str, payload: CharacterPostCommentCreate) -> list[object]:
         posts = [dict(post) for post in row.posts if isinstance(post, dict)]

@@ -16,7 +16,7 @@ from app.repositories.characters import CharacterRepository
 from app.repositories.credits import CreditRepository
 from app.repositories.profile_state import ProfileStateRepository
 from app.schemas.character_posts import CharacterPostCommentsResponse, CharacterPostsResponse
-from app.schemas.characters import CharacterHandleAvailabilityResponse, CharacterWriteResponse
+from app.schemas.characters import CharacterHandleAvailabilityResponse, CharacterVisibilityResponse, CharacterWriteResponse
 from app.services.ai import GenerateApiResult
 from app.services.feed_generation import FeedGenerationService
 
@@ -107,6 +107,19 @@ def test_save_character_returns_stable_handle_conflict(monkeypatch: MonkeyPatch)
     assert response.json()["error"] == "CHARACTER_HANDLE_TAKEN"
 
 
+def test_character_visibility_updates_the_server_owned_setting(monkeypatch: MonkeyPatch) -> None:
+    async def update_visibility(self: object, user: StubUser, source_account_id: str, is_public: bool) -> CharacterVisibilityResponse:
+        assert source_account_id == "char-1"
+        assert is_public is False
+        return CharacterVisibilityResponse(is_public=False)
+
+    monkeypatch.setattr(CharacterRepository, "update_visibility", update_visibility)
+    with make_test_client() as client:
+        response = client.patch("/api/characters/char-1/visibility", json={"is_public": False})
+    assert response.status_code == 200
+    assert response.json() == {"is_public": False, "shared_id": ""}
+
+
 def test_get_character_posts_returns_authoritative_state(monkeypatch: MonkeyPatch) -> None:
     async def get(self: object, user: StubUser, source_account_id: str) -> CharacterPostsResponse:
         assert source_account_id == "char-1"
@@ -194,4 +207,4 @@ def posts_response() -> CharacterPostsResponse:
 
 
 def character_response(source_account_id: str, handle: str) -> CharacterWriteResponse:
-    return CharacterWriteResponse(source_account_id=source_account_id, name="Hero", handle=handle, character={"handle": handle})
+    return CharacterWriteResponse(source_account_id=source_account_id, name="Hero", handle=handle, character={"handle": handle}, is_public=True)

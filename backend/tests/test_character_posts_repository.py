@@ -28,8 +28,12 @@ class StubResult:
 class StubSession:
     def __init__(self, rows: list[object]) -> None:
         self.rows = rows
+        self.added: list[object] = []
         self.statements: list[object] = []
         self.commits = 0
+
+    def add(self, row: object) -> None:
+        self.added.append(row)
 
     async def execute(self, statement: object) -> StubResult:
         self.statements.append(statement)
@@ -48,6 +52,25 @@ def test_save_posts_checks_revision_and_syncs_shared_snapshot() -> None:
     assert response.revision == 3
     assert shared.character["posts"] == [{"text": "새 글"}]
     assert session.commits == 1
+
+
+def test_save_posts_creates_a_public_snapshot_without_manual_sharing() -> None:
+    owner_id = uuid4()
+    character = character_row(owner_id)
+    session = StubSession([character, None])
+    asyncio.run(CharacterPostsRepository(session).save(StubUser(owner_id), "char-1", CharacterPostsUpdate(posts=[{"text": "새 글"}], revision=2)))
+    shared = session.added[0]
+    assert isinstance(shared, SharedCharacter)
+    assert shared.character["posts"] == [{"text": "새 글"}]
+
+
+def test_save_posts_keeps_private_character_out_of_discover() -> None:
+    owner_id = uuid4()
+    character = character_row(owner_id)
+    character.is_public = False
+    session = StubSession([character])
+    asyncio.run(CharacterPostsRepository(session).save(StubUser(owner_id), "char-1", CharacterPostsUpdate(posts=[{"text": "비공개 글"}], revision=2)))
+    assert session.added == []
 
 
 def test_save_posts_rejects_stale_revision() -> None:
