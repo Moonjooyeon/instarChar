@@ -5,6 +5,7 @@ import {
   getCreditUsage,
   type CreditBalance,
   type CreditCatalog,
+  type CreditFlow,
   type CreditOffer,
   type CreditUsage,
 } from "@/api/credits";
@@ -38,18 +39,17 @@ export function CreditStoreScreen({
       <main className="al-credit-screen">
         <CreditHeader onBack={onBack} />
         <LoadNotice error={error} loading={loading} retry={retry} />
-        <CreditBalanceCard balance={data.balance} />
-        <EnergyCard balance={data.balance} />
-        <CreditChargeOrder />
-        <CreditFlowCatalog flows={data.catalog?.flows || []} />
-        <UsageHistory items={data.usages} />
+        <CreditOverview balance={data.balance} />
         <OfferList
           offers={offers}
           selectedId={selected?.id || ""}
           onSelect={setSelectedId}
         />
         <CheckoutPreview offer={selected} />
-        <CreditPolicy />
+        <CreditDetails
+          flows={data.catalog?.flows || []}
+          usages={data.usages}
+        />
       </main>
     </div>
   );
@@ -90,14 +90,13 @@ function useCreditStoreData(): {
 function CreditHeader({ onBack }: { onBack: () => void }): React.ReactElement {
   return (
     <header className="al-credit-head">
+      <button type="button" onClick={onBack} aria-label="이전 화면으로">
+        <AliveIcon name="chevron-left" size={20} />
+      </button>
       <div>
-        <button type="button" onClick={onBack} aria-label="이전 화면으로">
-          <AliveIcon name="chevron-left" size={21} />
-        </button>
-        <span>CREDIT</span>
+        <h1>크레딧</h1>
+        <p>잔액을 확인하고 필요한 만큼 충전하세요.</p>
       </div>
-      <h1>이야기를 이어갈 크레딧</h1>
-      <p>무료 에너지를 먼저 사용하고, 더 이어가고 싶을 때 크레딧을 사용해요.</p>
     </header>
   );
 }
@@ -128,69 +127,57 @@ function LoadNotice({
   );
 }
 
-function CreditBalanceCard({
-  balance,
-}: {
-  balance: CreditBalance | null;
-}): React.ReactElement {
+function CreditOverview({ balance }: { balance: CreditBalance | null }): React.ReactElement {
   return (
-    <section className="al-credit-balance" aria-label="크레딧 잔액">
+    <section
+      className="al-credit-overview"
+      aria-labelledby="credit-balance-title"
+    >
       <header>
-        <span>
-          <AliveIcon name="wallet" size={16} /> 현재 크레딧
-        </span>
-        <small>{balance ? "사용 가능" : "—"}</small>
+        <h2 id="credit-balance-title">보유 크레딧</h2>
+        <small>{balance ? "사용 가능" : "확인 중"}</small>
       </header>
-      <strong>
-        {numberText(balance?.total_credits)} <small>C</small>
-      </strong>
-      <div className="al-credit-balance-breakdown">
-        <span>
-          <small>무료 보너스</small>
-          <b>{numberText(balance?.bonus_credits)}C</b>
-          <em>활동 보상 · 먼저 사용</em>
-        </span>
-        <span>
-          <small>구매 크레딧</small>
-          <b>{numberText(balance?.purchased_credits)}C</b>
-          <em>충전 잔액 · Pro에도 사용</em>
-        </span>
+      <div className="al-credit-ledger">
+        <strong>{numberText(balance?.total_credits)} <small>C</small></strong>
+        <BalanceBreakdown balance={balance} />
       </div>
+      <EnergyStatus balance={balance} />
     </section>
   );
 }
 
-function EnergyCard({
-  balance,
-}: {
-  balance: CreditBalance | null;
-}): React.ReactElement {
-  const percent = balance?.energy_percent || 0;
-  const recovery = balance?.next_energy_recovery_at
-    ? `다음 회복 ${formatRecoveryTime(balance.next_energy_recovery_at)}`
-    : "현재 최대치예요";
+function BalanceBreakdown({ balance }: { balance: CreditBalance | null }): React.ReactElement {
   return (
-    <section className="al-credit-energy" aria-label="무료 회복 에너지">
+    <dl className="al-credit-balance-breakdown">
+      <BalanceSource detail="먼저 사용" label="무료" value={balance?.bonus_credits} />
+      <BalanceSource detail="Pro 사용 가능" label="구매" value={balance?.purchased_credits} />
+    </dl>
+  );
+}
+
+function BalanceSource({ detail, label, value }: { detail: string; label: string; value?: number }): React.ReactElement {
+  return <div><dt>{label}</dt><dd><b>{numberText(value)} C</b><small>{detail}</small></dd></div>;
+}
+
+function EnergyStatus({ balance }: { balance: CreditBalance | null }): React.ReactElement {
+  const percent = balance?.energy_percent || 0;
+  return (
+    <div className="al-credit-energy" aria-label="무료 회복 에너지">
       <header>
-        <div>
-          <AliveIcon name="sun" size={15} />
-          <b>무료 회복 에너지</b>
-        </div>
-        <span>{balance ? `${percent}%` : "—"}</span>
+        <div><AliveIcon name="sun" size={15} /><b>무료 에너지</b></div>
+        <span>{energyStatusText(balance)}</span>
       </header>
-      <div
-        className="al-credit-energy-track"
-        role="progressbar"
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={percent}
-      >
-        <i style={{ width: `${percent}%` }} />
-      </div>
-      <p>
-        {balance ? `${recovery} · 자정 초기화 없이 100%에서 사용 후 6시간마다 25%` : "에너지를 확인하고 있어요."}
-      </p>
-    </section>
+      <EnergyMeter percent={percent} />
+      <p>사용 후 6시간마다 25% 회복 · 자정 초기화 없음</p>
+    </div>
+  );
+}
+
+function EnergyMeter({ percent }: { percent: number }): React.ReactElement {
+  return (
+    <div className="al-credit-energy-track" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}>
+      <i style={{ width: `${percent}%` }} />
+    </div>
   );
 }
 
@@ -207,10 +194,10 @@ function OfferList({
     <section className="al-credit-offers" aria-labelledby="credit-offers-title">
       <header>
         <div>
-          <span>충전 상품</span>
-          <h2 id="credit-offers-title">필요한 만큼 선택하세요</h2>
+          <span>충전</span>
+          <h2 id="credit-offers-title">크레딧 선택</h2>
         </div>
-        <small>결제 연결 전</small>
+        <small>첫 구매 시 10% 추가</small>
       </header>
       <div>
         {offers.map((offer) => (
@@ -244,13 +231,13 @@ function OfferRow({
     >
       <span>
         <b>{offer.total_credits.toLocaleString("ko-KR")} C</b>
-        <small>{offer.label}</small>
+        <small>{offerDescription(offer)}</small>
       </span>
       <em>
         {offer.id === "credit-30000" && <mark>추천</mark>}
         <b>{offer.price_krw.toLocaleString("ko-KR")}원</b>
         <small>
-          첫 구매 {offer.first_purchase_total_credits.toLocaleString("ko-KR")}C
+          첫 구매 {offer.first_purchase_total_credits.toLocaleString("ko-KR")} C
         </small>
       </em>
       <u aria-hidden="true" />
@@ -264,7 +251,7 @@ function CheckoutPreview({
   offer?: CreditOffer;
 }): React.ReactElement {
   return (
-    <section className="al-credit-checkout">
+    <section className="al-credit-checkout" aria-label="결제 요약">
       <div>
         <span>선택한 상품</span>
         <b>
@@ -274,12 +261,44 @@ function CheckoutPreview({
         </b>
       </div>
       <button type="button" disabled>
-        인앱 결제 신청 후 연결
+        결제 준비 중
       </button>
       <p>
-        <AliveIcon name="check" size={13} /> 지금은 결제가 발생하지 않아요.
+        <AliveIcon name="check" size={13} /> 지금은 결제되지 않아요.
       </p>
     </section>
+  );
+}
+
+function CreditDetails({ flows, usages }: { flows: CreditFlow[]; usages: CreditUsage[] }): React.ReactElement {
+  return (
+    <section className="al-credit-details" aria-label="크레딧 상세 정보">
+      <CreditDisclosure title="최근 사용 내역" summary="차감과 환급 기록">
+        <UsageHistory items={usages} />
+      </CreditDisclosure>
+      <CreditDisclosure title="기능별 사용량" summary="AI 기능별 비용">
+        <CreditFlowCatalog flows={flows} />
+      </CreditDisclosure>
+      <CreditDisclosure title="이용 안내" summary="사용 순서와 환급 정책">
+        <CreditChargeOrder />
+        <CreditPolicy />
+      </CreditDisclosure>
+    </section>
+  );
+}
+
+function CreditDisclosure({ children, summary, title }: { children: React.ReactNode; summary: string; title: string }): React.ReactElement {
+  return (
+    <details>
+      <summary>
+        <span>
+          <b>{title}</b>
+          <small>{summary}</small>
+        </span>
+        <AliveIcon name="chevron-down" size={17} />
+      </summary>
+      <div className="al-credit-disclosure-body">{children}</div>
+    </details>
   );
 }
 
@@ -340,6 +359,19 @@ function CreditPolicy(): React.ReactElement {
       </p>
     </aside>
   );
+}
+
+function offerDescription(offer: CreditOffer): string {
+  if (!offer.product_bonus_credits) return offer.label;
+  return `기본 ${offer.base_credits.toLocaleString("ko-KR")} + 추가 ${offer.product_bonus_credits.toLocaleString("ko-KR")}`;
+}
+
+function energyStatusText(balance: CreditBalance | null): string {
+  if (!balance) return "확인 중";
+  const recovery = balance.next_energy_recovery_at
+    ? `다음 회복 ${formatRecoveryTime(balance.next_energy_recovery_at)}`
+    : "현재 최대치";
+  return `${balance.energy_percent}% · ${recovery}`;
 }
 
 function numberText(value: number | undefined): string {
