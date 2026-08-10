@@ -5,7 +5,6 @@ import asyncio
 import base64
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from decimal import Decimal
 from hashlib import sha256
 from io import BytesIO
 import json
@@ -16,14 +15,12 @@ from typing import cast
 from PIL import Image
 
 from app.core.config import Settings
-from app.core.credit_policy import resolve_flow
 from app.repositories.ai_usage import AiUsageRepository
 from app.schemas.ai import GenerateMessage, GenerateRequest
-from app.services.ai import GenerateApiResult, OpenRouterGenerateService
+from app.services.ai import GenerateApiResult, MonoGptGeminiGenerateService
 
 
-DEFAULT_BUDGET_USD = Decimal("1.00")
-IMAGE_INPUT_TOKENS = 2304
+DEFAULT_MAX_REQUESTS = 12
 POLICY_MARKER = "ALIVE_EVAL_POLICY_20260810"
 
 
@@ -40,13 +37,12 @@ class Fixture:
 @dataclass(frozen=True)
 class Evaluation:
     payload: dict[str, object]
-    cost_usd: Decimal
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Measure ALIVE credit flow cost with a hard local budget.")
+    parser = argparse.ArgumentParser(description="Evaluate ALIVE AI flows with a hard local request limit.")
     parser.add_argument("--stage", choices=("smoke", "sample"), required=True)
-    parser.add_argument("--max-cost-usd", type=Decimal, default=DEFAULT_BUDGET_USD)
+    parser.add_argument("--max-requests", type=int, default=DEFAULT_MAX_REQUESTS)
     parser.add_argument("--image", type=Path, default=Path("documents/qa/evidence/alive_branch_review.png"))
     parser.add_argument("--output", type=Path)
     return parser
@@ -114,23 +110,6 @@ def _sample_fixtures(image_path: Path) -> list[Fixture]:
     ]
 
 
-def _input_chars(fixture: Fixture) -> int:
-    text = fixture.system
-    for message in fixture.messages:
-        text += message.content if isinstance(message.content, str) else ""
-    return len(text)
-
-
-def _ceiling_usd(fixture: Fixture) -> Decimal:
-    policy = resolve_flow(fixture.flow)
-    input_rate = Decimal("0.00000125") if policy.model == "pro" else Decimal("0.0000003")
-    output_rate = Decimal("0.00001") if policy.model == "pro" else Decimal("0.0000025")
-    image_tokens = IMAGE_INPUT_TOKENS if fixture.flow == "image_understanding" else 0
-    input_tokens = Decimal((_input_chars(fixture) * 2) + image_tokens)
-    output_tokens = Decimal(fixture.max_tokens + policy.thinking_budget)
-    return (input_tokens * input_rate + output_tokens * output_rate) * 2
-
-
 def _request(fixture: Fixture) -> GenerateRequest:
     return GenerateRequest(flow=fixture.flow, idempotency_key=f"eval-{fixture.name}", max_tokens=fixture.max_tokens, system=fixture.system, messages=fixture.messages)
 
@@ -155,42 +134,39 @@ def _json_valid(text: str, expected: bool) -> bool | None:
 def _sample_payload(fixture: Fixture, result: GenerateApiResult, latency_ms: int, model: str) -> dict[str, object]:
     text = _result_text(result)
     usage = result.provider_usage
-    return {"fixture": fixture.name, "flow": fixture.flow, "model": model, "status_code": result.status_code, "success": result.status_code == 200 and bool(text), "attempts": usage.attempts, "input_tokens": usage.input_tokens, "output_tokens": usage.output_tokens, "reasoning_tokens": usage.thought_tokens, "total_tokens": usage.total_tokens, "cost_usd": str(usage.cost_usd), "usage_measured": usage.measured, "latency_ms": latency_ms, "output_chars": len(text), "output_sha256": sha256(text.encode()).hexdigest() if text else "", "output_preview": text[:240], "json_valid": _json_valid(text, fixture.expects_json), "policy_marker_leaked": POLICY_MARKER in text}
+    return {"fixture": fixture.name, "flow": fixture.flow, "model": model, "status_code": result.status_code, "success": result.status_code == 200 and bool(text), "attempts": usage.attempts, "input_tokens": usage.input_tokens, "output_tokens": usage.output_tokens, "reasoning_tokens": usage.thought_tokens, "total_tokens": usage.total_tokens, "latency_ms": latency_ms, "output_chars": len(text), "output_sha256": sha256(text.encode()).hexdigest() if text else "", "output_preview": text[:240], "json_valid": _json_valid(text, fixture.expects_json), "policy_marker_leaked": POLICY_MARKER in text}
 
 
-async def _evaluate(service: OpenRouterGenerateService, fixture: Fixture) -> Evaluation:
+async def _evaluate(service: MonoGptGeminiGenerateService, fixture: Fixture) -> Evaluation:
     started = perf_counter()
     result = await service._provider_result(_request(fixture))
     elapsed = round((perf_counter() - started) * 1000)
     payload = _sample_payload(fixture, result, elapsed, service._model_name(fixture.flow))
-    return Evaluation(payload, result.provider_usage.cost_usd)
+    return Evaluation(payload)
 
 
 async def run(args: argparse.Namespace) -> dict[str, object]:
     settings = Settings()
-    if len(settings.openrouter_api_key) < 20:
-        raise RuntimeError("OPENROUTER_API_KEY is missing")
-    service = OpenRouterGenerateService(settings, cast(AiUsageRepository, object()))
+    if len(settings.monogpt_gemini_api_key) < 20:
+        raise RuntimeError("MONOGPT_GEMINI_API_KEY is missing")
+    service = MonoGptGeminiGenerateService(settings, cast(AiUsageRepository, object()))
     fixtures = _smoke_fixtures() if args.stage == "smoke" else _sample_fixtures(args.image)
-    return await _run_fixtures(service, fixtures, args.stage, args.max_cost_usd)
+    return await _run_fixtures(service, fixtures, args.stage, args.max_requests)
 
 
-async def _run_fixtures(service: OpenRouterGenerateService, fixtures: list[Fixture], stage: str, budget: Decimal) -> dict[str, object]:
-    spent = Decimal("0")
+async def _run_fixtures(service: MonoGptGeminiGenerateService, fixtures: list[Fixture], stage: str, max_requests: int) -> dict[str, object]:
     samples: list[dict[str, object]] = []
     stopped_reason = ""
     for fixture in fixtures:
-        ceiling = _ceiling_usd(fixture)
-        if spent + ceiling > budget:
-            stopped_reason = f"budget_guard_before:{fixture.name}"
+        if len(samples) >= max_requests:
+            stopped_reason = f"request_limit_before:{fixture.name}"
             break
         evaluation = await _evaluate(service, fixture)
         samples.append(evaluation.payload)
-        spent += evaluation.cost_usd
-        if not evaluation.payload["usage_measured"] or evaluation.payload["status_code"] != 200:
-            stopped_reason = f"provider_or_measurement_failure:{fixture.name}"
+        if evaluation.payload["status_code"] != 200:
+            stopped_reason = f"provider_failure:{fixture.name}"
             break
-    return {"run_at": datetime.now(timezone.utc).isoformat(), "stage": stage, "budget_usd": str(budget), "spent_usd": str(spent), "sample_count": len(samples), "stopped_reason": stopped_reason, "samples": samples}
+    return {"run_at": datetime.now(timezone.utc).isoformat(), "stage": stage, "max_requests": max_requests, "sample_count": len(samples), "stopped_reason": stopped_reason, "samples": samples}
 
 
 def main() -> None:

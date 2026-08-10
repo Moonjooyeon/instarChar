@@ -42,10 +42,10 @@ class Settings(BaseSettings):
     toss_app_name: str = "ashwoodfriends-alive"
     toss_mtls_cert_path: str = "/run/secrets/toss/toss-mtls-cert.pem"
     toss_mtls_key_path: str = "/run/secrets/toss/toss-mtls-key.pem"
-    openrouter_api_key: str = ""
-    openrouter_base_url: str = "https://openrouter.ai/api/v1"
-    openrouter_model_fast: str = "google/gemini-2.5-flash"
-    openrouter_model_good: str = "google/gemini-2.5-pro"
+    monogpt_gemini_api_key: str = ""
+    monogpt_gemini_base_url: str = "https://monogpt.kr/api/monorouter/v1/gemini"
+    monogpt_gemini_model_fast: str = "gemini-3.6-flash"
+    monogpt_gemini_model_good: str = "gemini-3.1-pro-preview"
     moderation_api_key: str = ""
     moderation_actor: str = "operations"
     terms_version: str = "2026-07-24"
@@ -53,7 +53,7 @@ class Settings(BaseSettings):
     api_paid_daily_limit: int = 200
     api_monthly_cost_limit_usd: float = 50.0
     api_estimated_call_cost_usd: float = 0.003
-    openrouter_timeout_ms: int = 45000
+    monogpt_gemini_timeout_ms: int = 60000
     auto_post_scheduler_enabled: bool = True
     auto_post_poll_seconds: int = 30
     auto_post_batch_size: int = 10

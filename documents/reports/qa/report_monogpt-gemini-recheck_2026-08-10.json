@@ -1,0 +1,27 @@
+{
+  "run_at": "2026-08-10",
+  "scope": "MonoGPT Gemini regression recheck after model, thinking, and usage fixes",
+  "configuration": {
+    "fast_model": "gemini-3.6-flash",
+    "good_model": "gemini-3.1-pro-preview",
+    "thinking": {
+      "minimal": ["direct_dm_basic", "assist_social", "assist_relationship", "assist_session"],
+      "low": ["direct_dm_context", "feed_post", "character_analysis"]
+    }
+  },
+  "live_samples": [
+    {"flow": "direct_dm_basic", "status": 200, "input_tokens": 30, "output_tokens": 39, "thought_tokens": 0, "contract": "two-sentence Korean response"},
+    {"flow": "assist_social", "status": 200, "input_tokens": 78, "output_tokens": 22, "thought_tokens": 0, "contract": "complete one-line comment"},
+    {"flow": "assist_relationship", "status": 200, "input_tokens": 68, "output_tokens": 1, "thought_tokens": 0, "contract": "ACCEPT exactly"},
+    {"flow": "assist_session", "status": 200, "input_tokens": 85, "output_tokens": 1, "thought_tokens": 0, "contract": "integer in range"},
+    {"flow": "feed_post", "status": 200, "input_tokens": 53, "output_tokens": 90, "thought_tokens": 0, "contract": "valid JSON with text"},
+    {"flow": "character_analysis", "status": 200, "input_tokens": 184, "output_tokens": 175, "thought_tokens": 0, "contract": "valid character JSON with required fields"}
+  ],
+  "automated_checks": {
+    "backend_pytest": "244 passed",
+    "backend_compileall": "passed",
+    "frontend_typecheck": "passed",
+    "frontend_domain_tests": "140 passed"
+  },
+  "remaining_gap": "No authenticated browser end-to-end test was run because no frontend process is available."
+}

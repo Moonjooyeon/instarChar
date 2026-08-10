@@ -11,7 +11,7 @@ from pytest import MonkeyPatch
 from app.core.config import Settings
 from app.repositories.ai_usage import UsageReservation
 from app.schemas.character_posts import CharacterPostsResponse, FeedPostGenerateRequest
-from app.services.ai import GenerateApiResult, OpenRouterGenerateService
+from app.services.ai import GenerateApiResult, MonoGptGeminiGenerateService
 from app.services.feed_generation import FeedGenerationService
 
 
@@ -52,7 +52,7 @@ class FailingPosts(StubPosts):
 
 
 def test_feed_generation_excludes_profile_images_from_prompt() -> None:
-    service = FeedGenerationService(StubPosts(), StubUsage(), Settings(openrouter_api_key="test"))
+    service = FeedGenerationService(StubPosts(), StubUsage(), Settings(monogpt_gemini_api_key="test"))
     character = {"persona": "차분함", "avatarImg": "data:image/png;base64,avatar", "headerImg": "data:image/png;base64,header"}
     request = service._request("세인", character, [], "일상", "feed-post:test-key")
     content = request.messages[0].content
@@ -70,10 +70,10 @@ def test_feed_generation_parses_and_saves_provider_result(monkeypatch: MonkeyPat
         assert body and body["post"]
         events.append("committed")
 
-    monkeypatch.setattr(OpenRouterGenerateService, "generate", generate)
-    monkeypatch.setattr(OpenRouterGenerateService, "commit_result", commit)
+    monkeypatch.setattr(MonoGptGeminiGenerateService, "generate", generate)
+    monkeypatch.setattr(MonoGptGeminiGenerateService, "commit_result", commit)
     posts = StubPosts()
-    service = FeedGenerationService(posts, StubUsage(), Settings(openrouter_api_key="test"))
+    service = FeedGenerationService(posts, StubUsage(), Settings(monogpt_gemini_api_key="test"))
     result = run(service.generate(uuid4(), "char-1", feed_request("일상")))
     assert result.status_code == 200
     assert posts.saved is not None
@@ -90,10 +90,10 @@ def test_feed_generation_does_not_save_failure_placeholder(monkeypatch: MonkeyPa
     async def refund(self: object, result: GenerateApiResult, owner_id: object, status: str) -> None:
         events.append(status)
 
-    monkeypatch.setattr(OpenRouterGenerateService, "generate", generate)
-    monkeypatch.setattr(OpenRouterGenerateService, "refund_result", refund)
+    monkeypatch.setattr(MonoGptGeminiGenerateService, "generate", generate)
+    monkeypatch.setattr(MonoGptGeminiGenerateService, "refund_result", refund)
     posts = StubPosts()
-    service = FeedGenerationService(posts, StubUsage(), Settings(openrouter_api_key="test"))
+    service = FeedGenerationService(posts, StubUsage(), Settings(monogpt_gemini_api_key="test"))
     result = run(service.generate(uuid4(), "char-1", feed_request()))
     assert result.status_code == 500
     assert posts.saved is None
@@ -104,9 +104,9 @@ def test_feed_generation_replays_final_response_without_duplicate_save(monkeypat
     body = {"post": {"id": "post-1", "text": "이미 저장됨"}, "state": {"posts": [], "revision": 1}}
     async def generate(self: object, payload: object, owner_id: object, finalize_credit: bool = True) -> GenerateApiResult:
         return GenerateApiResult(200, body, uuid4(), replayed=True)
-    monkeypatch.setattr(OpenRouterGenerateService, "generate", generate)
+    monkeypatch.setattr(MonoGptGeminiGenerateService, "generate", generate)
     posts = StubPosts()
-    result = run(FeedGenerationService(posts, StubUsage(), Settings(openrouter_api_key="test")).generate(uuid4(), "char-1", feed_request()))
+    result = run(FeedGenerationService(posts, StubUsage(), Settings(monogpt_gemini_api_key="test")).generate(uuid4(), "char-1", feed_request()))
     assert result.body == body
     assert posts.saved is None
 
@@ -114,9 +114,9 @@ def test_feed_generation_replays_final_response_without_duplicate_save(monkeypat
 def test_feed_generation_rejects_legacy_provider_replay_without_duplicate_save(monkeypatch: MonkeyPatch) -> None:
     async def generate(self: object, payload: object, owner_id: object, finalize_credit: bool = True) -> GenerateApiResult:
         return GenerateApiResult(200, {"content": [{"type": "text", "text": "과거 응답"}]}, uuid4(), replayed=True)
-    monkeypatch.setattr(OpenRouterGenerateService, "generate", generate)
+    monkeypatch.setattr(MonoGptGeminiGenerateService, "generate", generate)
     posts = StubPosts()
-    result = run(FeedGenerationService(posts, StubUsage(), Settings(openrouter_api_key="test")).generate(uuid4(), "char-1", feed_request()))
+    result = run(FeedGenerationService(posts, StubUsage(), Settings(monogpt_gemini_api_key="test")).generate(uuid4(), "char-1", feed_request()))
     assert (result.status_code, result.body["error"]) == (409, "REQUEST_ALREADY_PROCESSED")
     assert posts.saved is None
 
@@ -125,9 +125,9 @@ def test_feed_generation_does_not_save_when_usage_is_blocked(monkeypatch: Monkey
     async def generate(self: object, payload: object, owner_id: object, finalize_credit: bool = True) -> GenerateApiResult:
         return GenerateApiResult(429, {"error": "DAILY_LIMIT_EXCEEDED"})
 
-    monkeypatch.setattr(OpenRouterGenerateService, "generate", generate)
+    monkeypatch.setattr(MonoGptGeminiGenerateService, "generate", generate)
     posts = StubPosts()
-    service = FeedGenerationService(posts, StubUsage(), Settings(openrouter_api_key="test"))
+    service = FeedGenerationService(posts, StubUsage(), Settings(monogpt_gemini_api_key="test"))
     result = run(service.generate(uuid4(), "char-1", feed_request(), is_auto=True))
     assert result.status_code == 429
     assert posts.saved is None
@@ -138,9 +138,9 @@ def test_free_auto_feed_commits_post_without_credit_usage(monkeypatch: MonkeyPat
     async def generate(self: object, payload: object, owner_id: object, finalize_credit: bool = True) -> GenerateApiResult:
         assert getattr(payload, "flow") == "auto_feed_post"
         return GenerateApiResult(200, {"content": [{"type": "text", "text": '{"text":"자동 글"}'}]})
-    monkeypatch.setattr(OpenRouterGenerateService, "generate", generate)
+    monkeypatch.setattr(MonoGptGeminiGenerateService, "generate", generate)
     posts = StubPosts()
-    result = run(FeedGenerationService(posts, StubUsage(), Settings(openrouter_api_key="test")).generate(uuid4(), "char-1", feed_request(), is_auto=True))
+    result = run(FeedGenerationService(posts, StubUsage(), Settings(monogpt_gemini_api_key="test")).generate(uuid4(), "char-1", feed_request(), is_auto=True))
     assert result.status_code == 200
     assert posts.committed is True
 
@@ -151,9 +151,9 @@ def test_feed_generation_refunds_when_persistence_fails(monkeypatch: MonkeyPatch
         return GenerateApiResult(200, {"content": [{"type": "text", "text": '{"text":"저장할 글"}'}]}, uuid4())
     async def refund(self: object, result: GenerateApiResult, owner_id: object, status: str) -> None:
         events.append(status)
-    monkeypatch.setattr(OpenRouterGenerateService, "generate", generate)
-    monkeypatch.setattr(OpenRouterGenerateService, "refund_result", refund)
-    service = FeedGenerationService(FailingPosts(), StubUsage(), Settings(openrouter_api_key="test"))
+    monkeypatch.setattr(MonoGptGeminiGenerateService, "generate", generate)
+    monkeypatch.setattr(MonoGptGeminiGenerateService, "refund_result", refund)
+    service = FeedGenerationService(FailingPosts(), StubUsage(), Settings(monogpt_gemini_api_key="test"))
     try:
         run(service.generate(uuid4(), "char-1", feed_request()))
     except RuntimeError:

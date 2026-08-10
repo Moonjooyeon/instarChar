@@ -1,21 +1,21 @@
 from decimal import Decimal
 
-from app.core.ai_cost import openrouter_usage
+from app.core.ai_cost import gemini_usage
 
 
-def test_provider_usage_includes_thinking_tokens_and_actual_cost() -> None:
-    data = {"usage": {"prompt_tokens": 1000, "completion_tokens": 500, "completion_tokens_details": {"reasoning_tokens": 300}, "total_tokens": 1500, "cost": 0.00625}}
-    usage = openrouter_usage(data)
+def test_gemini_usage_keeps_candidate_and_thinking_tokens_separate() -> None:
+    data = {"usageMetadata": {"promptTokenCount": 1000, "candidatesTokenCount": 500, "thoughtsTokenCount": 300, "totalTokenCount": 1500}}
+    usage = gemini_usage(data)
     assert usage.attempts == 1
     assert usage.input_tokens == 1000
-    assert usage.output_tokens == 200
+    assert usage.output_tokens == 500
     assert usage.thought_tokens == 300
     assert usage.total_tokens == 1500
-    assert usage.cost_usd == Decimal("0.00625")
-    assert usage.measured is True
+    assert usage.cost_usd == Decimal("0")
+    assert usage.measured is False
 
 
-def test_provider_usage_keeps_reservation_when_cost_is_missing() -> None:
-    usage = openrouter_usage({"usage": {"prompt_tokens": 100, "completion_tokens": 20, "total_tokens": 120}})
+def test_gemini_usage_keeps_reservation_without_cost() -> None:
+    usage = gemini_usage({"usageMetadata": {"promptTokenCount": 100, "candidatesTokenCount": 20, "totalTokenCount": 120}})
     assert usage.cost_usd == Decimal("0")
     assert usage.measured is False

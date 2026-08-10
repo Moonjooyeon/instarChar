@@ -33,7 +33,7 @@ test("daily limit errors distinguish free fallback from a hard stop", () => {
 });
 
 test("provider names are not exposed in user-facing failures", () => {
-  assert.equal(cleanApiFailureMessage(new Error("OpenRouter API key missing"), "다시 시도해줘."), "다시 시도해줘.");
+  assert.equal(cleanApiFailureMessage(new Error("MonoGPT Gemini API key missing"), "다시 시도해줘."), "다시 시도해줘.");
 });
 
 function jsonResponse(body, status = 200) {

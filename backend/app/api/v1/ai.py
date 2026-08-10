@@ -11,7 +11,7 @@ from app.repositories.media_assets import MediaAssetRepository
 from app.repositories.ai_usage import AiUsageRepository
 from app.repositories.credits import CreditRepository
 from app.schemas.ai import GenerateRequest
-from app.services.ai import OpenRouterGenerateService
+from app.services.ai import MonoGptGeminiGenerateService
 from app.services.media_ai import resolve_media_references
 
 
@@ -22,7 +22,7 @@ router = APIRouter(prefix="/ai", tags=["ai"])
 async def generate_content(payload: GenerateRequest, user: User = Depends(get_current_user), session: AsyncSession = Depends(get_db_session), settings: Settings = Depends(get_settings)) -> JSONResponse:
     require_public_flow(payload.flow)
     prepared = await resolve_media_references(payload, user, MediaAssetRepository(session), settings)
-    result = await OpenRouterGenerateService(settings, AiUsageRepository(session), CreditRepository(session)).generate(prepared, user.id)
+    result = await MonoGptGeminiGenerateService(settings, AiUsageRepository(session), CreditRepository(session)).generate(prepared, user.id)
     return JSONResponse(status_code=result.status_code, content=result.body)
 
 
