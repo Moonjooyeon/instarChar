@@ -110,6 +110,19 @@ test("the credit mockup uses a dedicated semantic screen and shared shortcuts", 
   assert.doesNotMatch(creditStyles, /#[0-9a-fA-F]{3,8}/);
 });
 
+test("starter reward missions use a separate semantic journey instead of help copy", () => {
+  const indexStyles = readFileSync(path.resolve(process.cwd(), "src/styles/index.css"), "utf8");
+  const missions = readFileSync(path.resolve(process.cwd(), "src/features/credits/StarterMissions.tsx"), "utf8");
+  const missionStyles = readFileSync(path.resolve(process.cwd(), "src/styles/screens/starter-missions.css"), "utf8");
+  assert.match(indexStyles, /screens\/starter-missions\.css" layer\(components\)/);
+  assert.match(missions, /시작의 세 장면/);
+  assert.match(missions, /첫 이야기 보상/);
+  assert.doesNotMatch(missions, />[^<]*AI[^<]*</);
+  assert.match(missionStyles, /\.al-starter-journey/);
+  assert.match(missionStyles, /\.al-starter-prompt/);
+  assert.doesNotMatch(missionStyles, /#[0-9a-fA-F]{3,8}/);
+});
+
 test("the staged feed profile uses semantic Tailwind colors", () => {
   const indexStyles = readFileSync(path.resolve(process.cwd(), "src/styles/index.css"), "utf8");
   const profileScreen = readFileSync(path.resolve(process.cwd(), "src/app/feed/FeedProfilePanel.tsx"), "utf8");

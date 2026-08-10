@@ -13,6 +13,7 @@ test("credit APIs read the server-owned balance, catalog, and usage", async () =
       bonus_credits: 400,
       purchased_credits: 0,
       energy_percent: 92,
+      reward_missions: [{ code: "signup", credits: 50, completed: true }],
     },
     {
       offers: [{ id: "credit-30000", payment_available: false }],
@@ -24,7 +25,9 @@ test("credit APIs read the server-owned balance, catalog, and usage", async () =
   ];
   const restoreFetch = stubFetch(responses);
   try {
-    assert.equal((await getCreditBalance()).energy_percent, 92);
+    const balance = await getCreditBalance();
+    assert.equal(balance.energy_percent, 92);
+    assert.equal(balance.reward_missions[0].code, "signup");
     assert.equal((await getCreditCatalog()).offers[0].payment_available, false);
     const usage = (await getCreditUsage()).items[0];
     assert.equal(usage.status, "committed");

@@ -43,6 +43,12 @@ export type CreditUsageList = { items: CreditUsage[] };
 
 export const CREDIT_BALANCE_UPDATED_EVENT = "alive:credit-balance-updated";
 
+export type CreditRewardMission = {
+  code: "signup" | "first_character" | "first_dm";
+  credits: number;
+  completed: boolean;
+};
+
 export type CreditBalance = {
   purchased_credits: number;
   bonus_credits: number;
@@ -52,6 +58,7 @@ export type CreditBalance = {
   next_energy_recovery_at: string | null;
   credit_policy_version: string;
   energy_policy_version: string;
+  reward_missions: CreditRewardMission[];
 };
 
 export function getCreditBalance(): Promise<CreditBalance> {

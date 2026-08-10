@@ -12,9 +12,12 @@ import {
 import { AliveIcon } from "@/components/ui/AliveIcon";
 import { creditUsageAmount } from "@/domain/credits/creditPresentation";
 import { CreditChargeOrder, CreditFlowCatalog } from "@/features/credits/CreditFlowCatalog";
+import { StarterMissionJourney } from "@/features/credits/StarterMissions";
+import type { RewardMissionCode } from "@/domain/credits/rewardMissions";
 
 interface CreditStoreScreenProps {
   onBack: () => void;
+  onContinueMission: (code: RewardMissionCode) => void;
 }
 type CreditStoreData = {
   balance: CreditBalance | null;
@@ -24,6 +27,7 @@ type CreditStoreData = {
 
 export function CreditStoreScreen({
   onBack,
+  onContinueMission,
 }: CreditStoreScreenProps): React.ReactElement {
   const { data, error, loading, retry } = useCreditStoreData();
   const offers = data.catalog?.offers || [];
@@ -40,6 +44,7 @@ export function CreditStoreScreen({
         <CreditHeader onBack={onBack} />
         <LoadNotice error={error} loading={loading} retry={retry} />
         <CreditOverview balance={data.balance} />
+        <StarterMissionJourney missions={data.balance?.reward_missions || []} onContinue={onContinueMission} />
         <OfferList
           offers={offers}
           selectedId={selected?.id || ""}

@@ -1,4 +1,5 @@
 import { apiErrorMessage, apiFetch } from "./client.js";
+import { notifyCreditBalanceUpdated } from "./credits.js";
 import { normalizeHandle } from "../domain/app/textUtils.js";
 
 export type CharacterHandleAvailability = {
@@ -38,7 +39,9 @@ export async function getCharacterHandleAvailability(handle: string, excludeSour
 
 export async function saveCharacter(sourceAccountId: string, payload: CharacterWrite): Promise<CharacterWriteResponse> {
   const path = `/characters/${encodeURIComponent(sourceAccountId)}`;
-  return characterRequest<CharacterWriteResponse>(path, jsonOptions("PUT", payload));
+  const result = await characterRequest<CharacterWriteResponse>(path, jsonOptions("PUT", payload));
+  notifyCreditBalanceUpdated();
+  return result;
 }
 
 async function characterRequest<T>(path: string, options: RequestInit = {}): Promise<T> {

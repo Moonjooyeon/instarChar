@@ -31,13 +31,15 @@ async def stub_current_user() -> StubUser:
 
 def test_credit_balance_returns_energy_and_separate_balances(monkeypatch: pytest.MonkeyPatch) -> None:
     async def snapshot(self: object, user_id: object) -> dict[str, object]:
-        return {"purchased_credits": 50, "bonus_credits": 300, "total_credits": 350, "energy_percent": 75, "energy_max_percent": 100, "next_energy_recovery_at": datetime(2026, 8, 10, tzinfo=timezone.utc), "credit_policy_version": "credit-v1", "energy_policy_version": "energy-v1"}
+        missions = [{"code": "signup", "credits": 50, "completed": True}, {"code": "first_character", "credits": 50, "completed": False}, {"code": "first_dm", "credits": 50, "completed": False}]
+        return {"purchased_credits": 50, "bonus_credits": 300, "total_credits": 350, "energy_percent": 75, "energy_max_percent": 100, "next_energy_recovery_at": datetime(2026, 8, 10, tzinfo=timezone.utc), "credit_policy_version": "credit-v1", "energy_policy_version": "energy-v1", "reward_missions": missions}
     monkeypatch.setattr(CreditRepository, "snapshot", snapshot)
     with make_test_client() as client:
         response = client.get("/api/credits")
     assert response.status_code == 200
     assert response.json()["total_credits"] == 350
     assert response.json()["energy_percent"] == 75
+    assert [item["completed"] for item in response.json()["reward_missions"]] == [True, False, False]
 
 
 def test_credit_catalog_is_visible_but_payment_is_disabled() -> None:

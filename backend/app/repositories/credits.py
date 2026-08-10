@@ -10,7 +10,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.ai_cost import ProviderUsage
-from app.core.credit_policy import CREDIT_POLICY_VERSION, ENERGY_POLICY_VERSION, FIRST_DM_BONUS_CREDITS, SIGNUP_BONUS_CREDITS, FlowPolicy, daily_period_start, next_energy_recovery_at, recover_energy, resolve_flow, usage_period
+from app.core.credit_policy import CREDIT_POLICY_VERSION, ENERGY_POLICY_VERSION, FIRST_DM_BONUS_CREDITS, REWARD_MISSIONS, SIGNUP_BONUS_CREDITS, FlowPolicy, daily_period_start, next_energy_recovery_at, recover_energy, resolve_flow, usage_period
 from app.models import AiDailyUsage, AiMonthlyUsage, CreditAccount, CreditLedgerEntry, CreditUsage, EnergyAccount, RewardGrant
 
 
@@ -36,8 +36,9 @@ class CreditRepository:
         account, energy = await self._locked_accounts(user_id, current)
         await self._reconcile_stale(user_id, account, energy, current)
         await self._grant_if_missing(user_id, "signup", SIGNUP_BONUS_CREDITS, account)
+        missions = await self._reward_missions(user_id)
         await self._commit()
-        return self._snapshot(account, energy)
+        return self._snapshot(account, energy, missions)
 
     async def reserve(self, user_id: UUID, flow: str, idempotency_key: str = "", now: datetime | None = None) -> CreditReservation:
         current = now or datetime.now(timezone.utc)
@@ -184,8 +185,13 @@ class CreditRepository:
     def _add_ledger(self, user_id: UUID, entry_type: str, balance_type: str, amount: int, key: str, metadata: str) -> None:
         self.session.add(CreditLedgerEntry(user_id=user_id, entry_type=entry_type, balance_type=balance_type, amount=amount, idempotency_key=key, entry_metadata={"flow": metadata}))
 
-    def _snapshot(self, account: CreditAccount, energy: EnergyAccount) -> dict[str, object]:
-        return {"purchased_credits": account.purchased_credits, "bonus_credits": account.bonus_credits, "total_credits": account.purchased_credits + account.bonus_credits, "energy_percent": energy.energy_percent, "energy_max_percent": 100, "next_energy_recovery_at": next_energy_recovery_at(energy.energy_percent, energy.last_recovered_at), "credit_policy_version": CREDIT_POLICY_VERSION, "energy_policy_version": ENERGY_POLICY_VERSION}
+    async def _reward_missions(self, user_id: UUID) -> list[dict[str, object]]:
+        result = await self.session.execute(select(RewardGrant.event_code).where(RewardGrant.user_id == user_id))
+        completed = set(result.scalars().all())
+        return [{"code": code, "credits": credits, "completed": code in completed} for code, credits in REWARD_MISSIONS]
+
+    def _snapshot(self, account: CreditAccount, energy: EnergyAccount, missions: list[dict[str, object]]) -> dict[str, object]:
+        return {"purchased_credits": account.purchased_credits, "bonus_credits": account.bonus_credits, "total_credits": account.purchased_credits + account.bonus_credits, "energy_percent": energy.energy_percent, "energy_max_percent": 100, "next_energy_recovery_at": next_energy_recovery_at(energy.energy_percent, energy.last_recovered_at), "credit_policy_version": CREDIT_POLICY_VERSION, "energy_policy_version": ENERGY_POLICY_VERSION, "reward_missions": missions}
 
     async def _free_flow_limit_reached(self, user_id: UUID, policy: FlowPolicy, now: datetime) -> bool:
         if not policy.energy_allowed and not policy.bonus_allowed:

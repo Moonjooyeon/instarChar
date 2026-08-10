@@ -5,8 +5,10 @@ import { AliveIcon } from "@/components/ui/AliveIcon";
 import { mediaUrl } from "@/api/media";
 import { CharacterAvatarImage } from "@/components/ui/CharacterAvatarImage";
 import { CreditShortcut } from "@/features/credits/CreditShortcut";
+import { StarterMissionPrompt } from "@/features/credits/StarterMissions";
 import { knownCharacterRelations } from "@/domain/app/aliveCore";
 import { useFeedHelpTour } from "@/hooks/useFeedHelpTour";
+import { useRewardMissions } from "@/hooks/useRewardMissions";
 
 interface FirstSceneCharacter {
   age?: unknown;
@@ -65,6 +67,7 @@ export function FeedProfilePanel({ ctx }) {
   const [isProfileToolsOpen, setIsProfileToolsOpen] = React.useState(false);
   const isFirstPost = myPosts.length === 0;
   const { closeHelp, isHelpOpen, openHelp } = useFeedHelpTour({ hasPosts: !isFirstPost, userId: session?.user?.id });
+  const rewardMissions = useRewardMissions(Boolean(session?.user?.id));
   React.useEffect(() => {
     if (!isHelpOpen || isFirstPost || feedView === "mine") return;
     setFeedView("mine");
@@ -92,6 +95,7 @@ export function FeedProfilePanel({ ctx }) {
           {!isFirstPost && <div className="al-feed-actions"><button aria-label="공유 링크 복사" className="al-dmbtn ghost inline-flex min-h-[34px] items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-line-strong bg-surface-raised px-3 py-2 text-xs font-extrabold leading-none text-ink transition-colors hover:border-accent hover:bg-accent-soft" onClick={shareCurrentCharacter} title="공유 링크 복사"><span className="text-accent-ink"><AliveIcon name="arrow-up-right" size={14} /></span><b>공유</b></button><button className="al-dmbtn ghost inline-flex min-h-[34px] items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-line-strong bg-surface-raised px-3 py-2 text-xs font-extrabold leading-none text-ink transition-colors hover:border-accent hover:bg-accent-soft" onClick={editActiveProfile} title="프로필 수정"><span className="text-accent-ink"><AliveIcon name="pen" size={14} /></span><b>수정</b></button><button className="al-dmbtn inline-flex min-h-[34px] items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-line-strong bg-surface-raised px-3 py-2 text-xs font-extrabold leading-none text-ink transition-colors hover:border-accent hover:bg-accent-soft" onClick={() => setStep("dmlist")} title="대화"><span className="text-accent-ink"><AliveIcon name="mail" size={15} /></span><b>대화</b></button></div>}
         </div>
         {shareStatus && <p className="al-share-status" role="status">{shareStatus}</p>}
+        <StarterMissionPrompt missionCode="first_dm" missions={rewardMissions} onContinue={() => setStep("dmlist")} />
         {(char.age || char.world || !isFirstPost) && <div className="al-profile-meta-row">{char.age && <span className="al-profile-meta">{char.age}</span>}{(char.world || !isFirstPost) && <WorldChip character={char} fallback="current-character" onOpen={setWorldModal} />}</div>}
         {char.surface && isFirstPost && <FirstImpression text={char.surface} />}
         {char.persona && !isFirstPost && <p className="al-bio-text"><span>소개</span><b>{char.persona}</b></p>}

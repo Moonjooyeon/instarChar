@@ -1,7 +1,8 @@
 import { expect, test } from "@playwright/test";
 
 async function mockAliveApi(page) {
-  await mockCreditsApi(page);
+  const rewards = { firstCharacter: false, firstDm: false };
+  await mockCreditsApi(page, rewards);
   await page.route("**/api/characters/handle-availability?**", async (route) => {
     const handle = new URL(route.request().url()).searchParams.get("handle") || "";
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ handle, available: true }) });
@@ -21,10 +22,12 @@ async function mockAliveApi(page) {
     const sourceAccountId = decodeURIComponent(path.split("/").pop() || "");
     const handle = String(body.handle || "").toLowerCase().replace(/^@+/, "");
     const character = { ...(body.character || {}), name: body.name, handle };
+    rewards.firstCharacter = true;
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ...body, source_account_id: sourceAccountId, handle, character }) });
   });
   await page.route("**/api/ai/generate", async (route) => {
     const body = route.request().postDataJSON();
+    if (body?.flow === "direct_dm_basic" || body?.flow === "image_understanding") rewards.firstDm = true;
     const system = body?.system || "";
     const isAnalysis = system.includes("character-analysis-v2") || body?.flow === "character-analysis-v2";
     const text = isAnalysis
@@ -54,7 +57,7 @@ async function mockAliveApi(page) {
   });
 }
 
-async function mockCreditsApi(page) {
+async function mockCreditsApi(page, rewards) {
   const flows = [
     ["direct_dm_basic", "기본 대화", 1, 8], ["direct_dm_context", "문맥형 대화", 2, 15], ["direct_dm_flash_long", "긴 대화", 2, 20], ["direct_dm_pro", "Pro 대화", 5, 25],
     ["direct_dm_pro_story", "Pro 서사형", 7, 30], ["feed_post", "피드 글 생성", 3, 20], ["image_understanding", "이미지 이해", 5, 30], ["character_interaction", "캐릭터 상호작용", 5, 25],
@@ -62,7 +65,11 @@ async function mockCreditsApi(page) {
   const offers = [{ id: "credit-5000", price_krw: 5000, base_credits: 500, product_bonus_credits: 0, first_purchase_bonus_percent: 10, total_credits: 500, first_purchase_total_credits: 550, label: "가볍게 이어가기", payment_available: false }];
   await page.route("**/api/credits/catalog", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ credit_policy_version: "v1", energy_policy_version: "v1", offers, flows }) }));
   await page.route("**/api/credits/usage", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ items: [] }) }));
-  await page.route("**/api/credits", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ purchased_credits: 0, bonus_credits: 400, total_credits: 400, energy_percent: 100, energy_max_percent: 100, next_energy_recovery_at: null, credit_policy_version: "v1", energy_policy_version: "v1" }) }));
+  await page.route("**/api/credits", (route) => {
+    const reward_missions = [{ code: "signup", credits: 50, completed: true }, { code: "first_character", credits: 50, completed: rewards.firstCharacter }, { code: "first_dm", credits: 50, completed: rewards.firstDm }];
+    const total_credits = 50 + (rewards.firstCharacter ? 50 : 0) + (rewards.firstDm ? 50 : 0);
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ purchased_credits: 0, bonus_credits: total_credits, total_credits, energy_percent: 100, energy_max_percent: 100, next_energy_recovery_at: null, credit_policy_version: "v1", energy_policy_version: "v1", reward_missions }) });
+  });
 }
 
 async function createCharacter(page) {
@@ -241,15 +248,35 @@ test("credit center explains every flow and returns without starting a payment",
   await createCharacter(page);
   await page.getByRole("button", { name: /크레딧.*충전 화면 열기/ }).click();
   await expect(page).toHaveURL(/\/app\/credits$/);
-  await expect(page.getByRole("heading", { name: "이야기를 이어갈 크레딧" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "크레딧", exact: true })).toBeVisible();
+  await expect(page.locator(".al-starter-journey")).toContainText("2 / 3");
+  await page.locator("details").filter({ hasText: "기능별 사용량" }).locator("summary").click();
+  await page.locator("details").filter({ hasText: "이용 안내" }).locator("summary").click();
   await expect(page.getByRole("heading", { name: "무료부터 차례대로 사용해요" })).toBeVisible();
   await expect(page.getByText("기본 대화", { exact: true })).toBeVisible();
   await expect(page.getByText("Pro 서사형", { exact: true })).toBeVisible();
   await expect(page.getByText("캐릭터 상호작용", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: /가볍게 이어가기/ }).click();
-  await expect(page.getByRole("button", { name: "인앱 결제 신청 후 연결" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "결제 준비 중" })).toBeDisabled();
   await page.getByRole("button", { name: "이전 화면으로" }).click();
   await expect(page).toHaveURL(/\/app\/feed$/);
+});
+
+test("starter missions guide the first character and conversation without a help overlay", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByText("시작의 세 장면 · 1 / 3")).toBeVisible();
+  await expect(page.getByRole("button", { name: /주인공 만들기/ })).toBeVisible();
+  await createCharacter(page);
+  await expect(page.getByText("시작의 세 장면 · 2 / 3")).toBeVisible();
+  await page.getByRole("button", { name: /첫 대화 열기/ }).click();
+  await expect(page).toHaveURL(/\/app\/dm$/);
+  await page.getByRole("button", { name: /테스트린과 바로 대화하기/ }).click();
+  await page.getByRole("textbox", { name: /메시지/ }).fill("우리의 첫 장면을 시작하자");
+  await page.getByRole("button", { name: "메시지 보내기" }).click();
+  await expect(page.getByText("확인했습니다. 지금 상황은 제가 정리하죠.").last()).toBeVisible();
+  await page.getByRole("button", { name: /크레딧.*충전 화면 열기/ }).click();
+  await expect(page.locator(".al-starter-journey")).toContainText("3 / 3");
+  await expect(page.locator(".al-starter-journey")).toContainText("세 장면을 모두 열었어요.");
 });
 
 test("comment composer keeps the active speaker clear and prevents blank sends", async ({ page }) => {

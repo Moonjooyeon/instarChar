@@ -54,6 +54,21 @@ class UsageSession(StubSession):
         return UsageResult()
 
 
+class MissionScalars:
+    def all(self) -> list[str]:
+        return ["signup", "first_character"]
+
+
+class MissionResult:
+    def scalars(self) -> MissionScalars:
+        return MissionScalars()
+
+
+class MissionSession(StubSession):
+    async def execute(self, statement: object) -> MissionResult:
+        return MissionResult()
+
+
 class ConflictResult:
     def scalar_one_or_none(self) -> object | None:
         return None
@@ -236,8 +251,15 @@ def test_snapshot_uses_new_signup_bonus_amount(monkeypatch: pytest.MonkeyPatch) 
         grants.append((event_code, credits))
         return True
     monkeypatch.setattr(repository, "_grant_if_missing", grant)
-    asyncio.run(repository.snapshot(account.user_id))
+    result = asyncio.run(repository.snapshot(account.user_id))
     assert grants == [("signup", 50)]
+    assert result["reward_missions"] == []
+
+
+def test_reward_missions_preserve_story_order_and_server_completion() -> None:
+    repository = CreditRepository(MissionSession())  # type: ignore[arg-type]
+    missions = asyncio.run(repository._reward_missions(uuid4()))
+    assert [(item["code"], item["credits"], item["completed"]) for item in missions] == [("signup", 50, True), ("first_character", 50, True), ("first_dm", 50, False)]
 
 
 def test_existing_signup_grant_preserves_previous_balance() -> None:
@@ -282,12 +304,15 @@ def stub_repository(monkeypatch: pytest.MonkeyPatch, repository: CreditRepositor
         return free_limit_reached
     async def hard_limit(user_id: object, policy: object, now: object) -> bool:
         return hard_limit_reached
+    async def reward_missions(user_id: object) -> list[dict[str, object]]:
+        return []
     monkeypatch.setattr(repository, "_locked_accounts", locked)
     monkeypatch.setattr(repository, "_reconcile_stale", reconcile)
     monkeypatch.setattr(repository, "_usage_by_key", usage)
     monkeypatch.setattr(repository, "_grant_if_missing", grant)
     monkeypatch.setattr(repository, "_free_flow_limit_reached", flow_limit)
     monkeypatch.setattr(repository, "_hard_flow_limit_reached", hard_limit)
+    monkeypatch.setattr(repository, "_reward_missions", reward_missions)
     monkeypatch.setattr(repository, "_commit", commit)
 
 

@@ -32,6 +32,12 @@ class CreditCatalogResponse(BaseModel):
     flows: list[CreditFlowResponse]
 
 
+class CreditRewardMissionResponse(BaseModel):
+    code: str
+    credits: int
+    completed: bool
+
+
 class CreditBalanceResponse(BaseModel):
     purchased_credits: int
     bonus_credits: int
@@ -41,6 +47,7 @@ class CreditBalanceResponse(BaseModel):
     next_energy_recovery_at: datetime | None
     credit_policy_version: str
     energy_policy_version: str
+    reward_missions: list[CreditRewardMissionResponse] = Field(default_factory=list)
 
 
 class CreditUsageResponse(BaseModel):
