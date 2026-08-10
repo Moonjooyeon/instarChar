@@ -92,6 +92,8 @@ test("the credit mockup uses a dedicated semantic screen and shared shortcuts", 
   const creditStyles = readFileSync(path.resolve(process.cwd(), "src/styles/screens/credit.css"), "utf8");
   const overviewIndex = creditScreen.indexOf("<CreditOverview");
   const offerIndex = creditScreen.indexOf("<OfferList");
+  const checkoutIndex = creditScreen.indexOf("<CheckoutPreview");
+  const missionsIndex = creditScreen.indexOf("<StarterMissionJourney");
   const detailsIndex = creditScreen.indexOf("<CreditDetails");
   assert.match(indexStyles, /screens\/credit\.css" layer\(components\)/);
   assert.match(homeScreen, /CreditShortcut/);
@@ -101,8 +103,8 @@ test("the credit mockup uses a dedicated semantic screen and shared shortcuts", 
   assert.match(dmThreadScreen, /CreditShortcut/);
   assert.match(creditScreen, /al-phone al-theme-ready al-credit-theme-ready/);
   assert.match(creditScreen, /FlowCatalog/);
-  assert.ok([overviewIndex, offerIndex, detailsIndex].every((index) => index >= 0));
-  assert.ok(overviewIndex < offerIndex && offerIndex < detailsIndex);
+  assert.ok([overviewIndex, offerIndex, checkoutIndex, missionsIndex, detailsIndex].every((index) => index >= 0));
+  assert.ok(overviewIndex < offerIndex && offerIndex < checkoutIndex && checkoutIndex < missionsIndex && missionsIndex < detailsIndex);
   assert.match(creditScreen, /<details>/);
   assert.match(creditHint, /creditCostSummary/);
   assert.match(creditStyles, /\.al-credit-theme-ready \.al-credit-screen/);

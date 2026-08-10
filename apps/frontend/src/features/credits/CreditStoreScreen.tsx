@@ -44,13 +44,13 @@ export function CreditStoreScreen({
         <CreditHeader onBack={onBack} />
         <LoadNotice error={error} loading={loading} retry={retry} />
         <CreditOverview balance={data.balance} />
-        <StarterMissionJourney missions={data.balance?.reward_missions || []} onContinue={onContinueMission} />
         <OfferList
           offers={offers}
           selectedId={selected?.id || ""}
           onSelect={setSelectedId}
         />
         <CheckoutPreview offer={selected} />
+        <StarterMissionJourney missions={data.balance?.reward_missions || []} onContinue={onContinueMission} />
         <CreditDetails
           flows={data.catalog?.flows || []}
           usages={data.usages}
