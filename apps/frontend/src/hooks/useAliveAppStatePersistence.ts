@@ -2,6 +2,7 @@ import { sanitizePosts, type FeedPost } from "@/domain/feed/feedUtils";
 import { hasRemoteApiClient, hasBackendApiConfig } from "@/api/client";
 import { upsertProfile } from "@/api/profiles";
 import type { AppStep } from "@/domain/app/aliveCore";
+import { DM_RESPONSE_MODES, type DmResponseFlow } from "@/domain/dm/dmResponseMode";
 import type { RoomAffinityPref } from "@/hooks/useAliveRelationships";
 
 type SetState<T> = (value: T | ((prev: T) => T)) => void;
@@ -31,6 +32,7 @@ type AppState = {
   deletedDmKeys?: string[];
   discoverQuery?: string;
   dmThreadTitles?: Record<string, string>;
+  dmResponseFlows?: Record<string, DmResponseFlow>;
   dmThreads?: Record<string, unknown>;
   dmWorldPrefs?: Record<string, RoomAffinityPref>;
   following?: unknown[];
@@ -67,6 +69,7 @@ type AppStatePersistenceOptions = {
   deletedDmKeys: string[];
   deletedDmKeysRef: MutableRef<Set<string>>;
   dmThreadTitles: Record<string, string>;
+  dmResponseFlows: Record<string, DmResponseFlow>;
   dmThreads: Record<string, unknown>;
   dmWorldPrefs: Record<string, RoomAffinityPref>;
   feedInitRef: MutableRef<boolean>;
@@ -90,9 +93,11 @@ type AppStatePersistenceOptions = {
   setCommentText: (value: string) => void;
   setDeletedDmKeys: SetState<string[]>;
   setDiscoverQuery: (value: string) => void;
-  setDmInput: (value: string) => void;
+  setDmDrafts: SetState<Record<string, string>>;
+  setDmImageDrafts: SetState<Record<string, unknown>>;
   setDmThreads: SetState<Record<string, unknown>>;
   setDmThreadTitles: SetState<Record<string, string>>;
+  setDmResponseFlows: SetState<Record<string, DmResponseFlow>>;
   setDmWorldPrefs: SetState<Record<string, RoomAffinityPref>>;
   setEditingDmTitle: (value: unknown) => void;
   setFollowerCounts: SetState<Record<string, number>>;
@@ -119,6 +124,7 @@ export function useAliveAppStatePersistence({
   deletedDmKeys,
   deletedDmKeysRef,
   dmThreadTitles,
+  dmResponseFlows,
   dmThreads,
   dmWorldPrefs,
   feedInitRef,
@@ -142,9 +148,11 @@ export function useAliveAppStatePersistence({
   setCommentText,
   setDeletedDmKeys,
   setDiscoverQuery,
-  setDmInput,
+  setDmDrafts,
+  setDmImageDrafts,
   setDmThreads,
   setDmThreadTitles,
+  setDmResponseFlows,
   setDmWorldPrefs,
   setEditingDmTitle,
   setFollowerCounts,
@@ -173,6 +181,7 @@ export function useAliveAppStatePersistence({
       personas: [],
       dmThreads: {},
       dmThreadTitles: {},
+      dmResponseFlows: {},
       dmWorldPrefs: {},
       deletedDmKeys: [],
       ownerPersona: "",
@@ -206,6 +215,7 @@ export function useAliveAppStatePersistence({
       personas,
       dmThreads,
       dmThreadTitles,
+      dmResponseFlows,
       dmWorldPrefs,
       deletedDmKeys,
       ownerPersona,
@@ -268,7 +278,8 @@ export function useAliveAppStatePersistence({
     applyAppState(blankAppState(name));
     setProfileName(name);
     setPeer(null);
-    setDmInput("");
+    setDmDrafts({});
+    setDmImageDrafts({});
     setCommentOn(null);
     setCommentText("");
     setNewChatMode(null);
@@ -291,6 +302,7 @@ export function useAliveAppStatePersistence({
   function applyDmState(cleanSaved: AppState): void {
     setDmThreads(cleanSaved.dmThreads || {});
     setDmThreadTitles(cleanSaved.dmThreadTitles || {});
+    setDmResponseFlows(sanitizeDmResponseFlows(cleanSaved.dmResponseFlows));
     setDmWorldPrefs(cleanSaved.dmWorldPrefs || {});
     const nextDeletedKeys = Array.isArray(cleanSaved.deletedDmKeys) ? cleanSaved.deletedDmKeys : [];
     setDeletedDmKeys(nextDeletedKeys);
@@ -322,6 +334,11 @@ export function useAliveAppStatePersistence({
     character.lorebook = Array.isArray(character.lorebook) ? character.lorebook : [];
     return character;
   }
+}
+
+function sanitizeDmResponseFlows(value: unknown): Record<string, DmResponseFlow> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return Object.fromEntries(Object.entries(value).filter((entry): entry is [string, DmResponseFlow] => DM_RESPONSE_MODES.some((mode) => mode.code === entry[1])));
 }
 
 function compactAccountBackup(account: AccountState): AccountState {

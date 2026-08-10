@@ -91,3 +91,11 @@ def test_conversation_tiers_use_beta_prices() -> None:
     assert resolve_public_flow("direct_dm_context").credits == 2
     assert resolve_public_flow("direct_dm_flash_long").credits == 2
     assert resolve_public_flow("direct_dm_pro_story").credits == 7
+
+
+def test_conversation_tiers_limit_output_by_their_purchased_depth() -> None:
+    assert resolve_public_flow("direct_dm_basic").max_output_tokens == 512
+    assert resolve_public_flow("direct_dm_context").max_output_tokens == 768
+    assert resolve_public_flow("direct_dm_flash_long").max_output_tokens == 1536
+    assert resolve_public_flow("direct_dm_pro").max_output_tokens == 1536
+    assert resolve_public_flow("direct_dm_pro_story").max_output_tokens == 3072

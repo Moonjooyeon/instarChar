@@ -2,6 +2,7 @@ import React from "react";
 import type { CreditFlow } from "@/api/credits";
 import { AliveIcon } from "@/components/ui/AliveIcon";
 import { creditFlowMeta } from "@/domain/credits/creditPresentation";
+import { dmResponseFlowLabel } from "@/domain/dm/dmResponseMode";
 
 export function CreditChargeOrder(): React.ReactElement {
   return (
@@ -43,7 +44,7 @@ function FlowCard({ flow }: { flow: CreditFlow }): React.ReactElement {
   return (
     <article className={!meta.available ? "planned" : ""}>
       <span className="al-credit-flow-icon"><FlowIcon code={flow.code} /></span>
-      <div><header><b>{flow.label}</b><small>{meta.tier}</small></header><p>{meta.description}</p><footer>{cost}{!meta.available && <em>선택 기능 준비 중</em>}</footer></div>
+      <div><header><b>{dmResponseFlowLabel(flow.code) || flow.label}</b><small>{meta.tier}</small></header><p>{meta.description}</p><footer>{cost}{!meta.available && <em>선택 기능 준비 중</em>}</footer></div>
     </article>
   );
 }

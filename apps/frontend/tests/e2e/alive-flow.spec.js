@@ -27,7 +27,7 @@ async function mockAliveApi(page) {
   });
   await page.route("**/api/ai/generate", async (route) => {
     const body = route.request().postDataJSON();
-    if (body?.flow === "direct_dm_basic" || body?.flow === "image_understanding") rewards.firstDm = true;
+    if (String(body?.flow || "").startsWith("direct_dm") || body?.flow === "image_understanding") rewards.firstDm = true;
     const system = body?.system || "";
     const isAnalysis = system.includes("character-analysis-v2") || body?.flow === "character-analysis-v2";
     const text = isAnalysis
@@ -59,9 +59,9 @@ async function mockAliveApi(page) {
 
 async function mockCreditsApi(page, rewards) {
   const flows = [
-    ["direct_dm_basic", "기본 대화", 1, 8], ["direct_dm_context", "문맥형 대화", 2, 15], ["direct_dm_flash_long", "긴 대화", 2, 20], ["direct_dm_pro", "Pro 대화", 5, 25],
-    ["direct_dm_pro_story", "Pro 서사형", 7, 30], ["feed_post", "피드 글 생성", 3, 20], ["image_understanding", "이미지 이해", 5, 30], ["character_interaction", "캐릭터 상호작용", 5, 25],
-  ].map(([code, label, credits, energy_percent]) => ({ code, label, credits, energy_percent }));
+    ["direct_dm_basic", "기본 대화", 1, 8], ["direct_dm_context", "기억 반영", 2, 15], ["direct_dm_flash_long", "긴 맥락", 2, 20], ["direct_dm_pro", "중요한 답장", 5, 25],
+    ["direct_dm_pro_story", "서사 집중", 7, 30], ["feed_post", "피드 글 생성", 3, 20], ["image_understanding", "이미지 이해", 5, 30], ["character_interaction", "캐릭터 상호작용", 5, 25],
+  ].map(([code, label, credits, energy_percent]) => ({ code, label, credits, energy_percent, energy_eligible: !String(code).startsWith("direct_dm_pro"), bonus_eligible: !String(code).startsWith("direct_dm_pro") }));
   const offers = [{ id: "credit-5000", price_krw: 5000, base_credits: 500, product_bonus_credits: 0, first_purchase_bonus_percent: 10, total_credits: 500, first_purchase_total_credits: 550, label: "가볍게 이어가기", payment_available: false }];
   await page.route("**/api/credits/catalog", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ credit_policy_version: "v1", energy_policy_version: "v1", offers, flows }) }));
   await page.route("**/api/credits/usage", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ items: [] }) }));
@@ -254,7 +254,7 @@ test("credit center explains every flow and returns without starting a payment",
   await page.locator("details").filter({ hasText: "이용 안내" }).locator("summary").click();
   await expect(page.getByRole("heading", { name: "무료부터 차례대로 사용해요" })).toBeVisible();
   await expect(page.getByText("기본 대화", { exact: true })).toBeVisible();
-  await expect(page.getByText("Pro 서사형", { exact: true })).toBeVisible();
+  await expect(page.getByText("서사 집중", { exact: true })).toBeVisible();
   await expect(page.getByText("캐릭터 상호작용", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: /가볍게 이어가기/ }).click();
   await expect(page.getByRole("button", { name: "결제 준비 중" })).toBeDisabled();
@@ -337,6 +337,14 @@ test("character, follow, DM world modal, back and forward stay consistent", asyn
   await page.locator(".al-world-note").fill("테스트린과 세인은 중립 DM 공간에서 만난다.");
   await page.getByRole("button", { name: "저장" }).click();
   await expect(page.getByRole("heading", { name: "이 대화의 장면 설정" })).toBeHidden();
+  const dmInput = page.getByRole("textbox", { name: /메시지/ });
+  await dmInput.fill("세인에게만 남긴 초안");
+  await page.getByRole("button", { name: "대화 목록으로" }).click();
+  await page.getByRole("button", { name: /테스트린과 바로 대화하기/ }).click();
+  await expect(dmInput).toHaveValue("");
+  await page.getByRole("button", { name: "대화 목록으로" }).click();
+  await page.locator(".al-convmain").filter({ hasText: "세인" }).click();
+  await expect(dmInput).toHaveValue("세인에게만 남긴 초안");
   await page.waitForFunction(() => {
     const raw = localStorage.getItem("alive_app_state_v1");
     if (!raw) return false;
@@ -357,8 +365,8 @@ test("DM send ignores rapid duplicate clicks while request is pending", async ({
   await page.getByRole("button", { name: "대화", exact: true }).click();
   await page.getByRole("button", { name: /테스트린과 바로 대화하기/ }).click();
   await expect(page).toHaveURL(/\/app\/dm\/thread$/);
-  await expect(page.getByText("답장 예상 사용량", { exact: true })).toBeVisible();
-  await expect(page.getByText("에너지 8% 우선 · 부족하면 1C", { exact: true })).toBeVisible();
+  await expect(page.getByText("무료 에너지 100%", { exact: true })).toBeVisible();
+  await expect(page.getByText("이번 답장에 에너지 8% 사용 예상", { exact: true })).toBeVisible();
 
   const input = page.getByRole("textbox", { name: /메시지/ });
   await input.fill("지금 확인해줘");
@@ -368,6 +376,90 @@ test("DM send ignores rapid duplicate clicks while request is pending", async ({
 
   await expect(page.getByText("지금 확인해줘")).toHaveCount(1);
   await expect(page.getByText("확인했습니다. 지금 상황은 제가 정리하죠.")).toBeVisible();
+});
+
+test("DM response mode sends the selected quality flow", async ({ page }) => {
+  await createCharacter(page);
+  await createFirstPost(page);
+  await page.getByRole("button", { name: "대화", exact: true }).click();
+  await page.getByRole("button", { name: /테스트린과 바로 대화하기/ }).click();
+  await page.locator(".al-dm-response-mode summary").click();
+  await page.getByRole("radio", { name: /서사 집중/ }).click();
+  await expect(page.locator(".al-dm-response-mode summary")).toContainText("7C");
+  await page.getByRole("textbox", { name: /메시지/ }).fill("우리가 처음 만난 날을 천천히 떠올려줘");
+  const request = page.waitForRequest((candidate) => candidate.url().includes("/api/ai/generate") && candidate.postDataJSON()?.flow === "direct_dm_pro_story");
+  await page.getByRole("button", { name: "메시지 보내기" }).click();
+  const selectedRequest = await request;
+  expect(selectedRequest.postDataJSON()).toMatchObject({ flow: "direct_dm_pro_story", max_tokens: 3072 });
+  expect(selectedRequest.postDataJSON()?.system).toContain("3~7문장");
+  await page.getByRole("button", { name: "대화 목록으로" }).click();
+  await page.getByRole("button", { name: /테스트린과 바로 대화하기/ }).click();
+  await expect(page.locator(".al-dm-response-mode summary")).toContainText("7C");
+  await page.reload();
+  await expect(page).toHaveURL(/\/app\/dm$/);
+  await page.getByRole("button", { name: /테스트린과 바로 대화하기/ }).click();
+  await expect(page.locator(".al-dm-response-mode summary")).toContainText("7C");
+});
+
+test("an empty DM offers editable first-scene prompts", async ({ page }) => {
+  await createCharacter(page);
+  await createFirstPost(page);
+  await page.getByRole("button", { name: "대화", exact: true }).click();
+  await page.getByRole("button", { name: /테스트린과 바로 대화하기/ }).click();
+  const starter = page.getByRole("button", { name: "지금 잠깐 이야기할 수 있어?" });
+  await expect(page.getByText("첫 장면의 단서")).toBeVisible();
+  await starter.click();
+  await expect(page.getByRole("textbox", { name: /메시지/ })).toHaveValue("지금 잠깐 이야기할 수 있어?");
+});
+
+test("a failed DM reply restores the unsent draft without leaving an error as dialogue", async ({ page }) => {
+  await createCharacter(page);
+  await createFirstPost(page);
+  await page.getByRole("button", { name: "대화", exact: true }).click();
+  await page.getByRole("button", { name: /테스트린과 바로 대화하기/ }).click();
+  await page.route("**/api/ai/generate", (route) => route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ message: "잠시 응답할 수 없습니다." }) }));
+  const input = page.getByRole("textbox", { name: /메시지/ });
+  await input.fill("이어서 이야기해줘");
+  await page.getByRole("button", { name: "메시지 보내기" }).click();
+  await expect(page.getByRole("alert")).toContainText("답장을 받지 못했어요");
+  await page.getByRole("button", { name: "입력창에 다시 담기" }).click();
+  await expect(input).toHaveValue("이어서 이야기해줘");
+  await expect(page.getByRole("alert")).toHaveCount(0);
+});
+
+test("a new DM send discards the previous failed turn before generating again", async ({ page }) => {
+  await createCharacter(page);
+  await createFirstPost(page);
+  await page.getByRole("button", { name: "대화", exact: true }).click();
+  await page.getByRole("button", { name: /테스트린과 바로 대화하기/ }).click();
+  let attempts = 0;
+  await page.route("**/api/ai/generate", (route) => {
+    attempts += 1;
+    if (attempts === 1) return route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ message: "잠시 응답할 수 없습니다." }) });
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ content: [{ type: "text", text: "새 메시지에만 답장했어요." }] }) });
+  });
+  const input = page.getByRole("textbox", { name: /메시지/ });
+  await input.fill("이전 요청은 실패할 거야");
+  await page.getByRole("button", { name: "메시지 보내기" }).click();
+  await expect(page.getByRole("alert")).toBeVisible();
+  await input.fill("이 메시지로 다시 이어가자");
+  await page.getByRole("button", { name: "메시지 보내기" }).click();
+  await expect(page.getByText("새 메시지에만 답장했어요.")).toBeVisible();
+  await expect(page.getByText("이전 요청은 실패할 거야")).toHaveCount(0);
+  await expect(page.getByRole("alert")).toHaveCount(0);
+});
+
+test("a DM credit shortage offers the credit screen from the failed reply", async ({ page }) => {
+  await createCharacter(page);
+  await createFirstPost(page);
+  await page.getByRole("button", { name: "대화", exact: true }).click();
+  await page.getByRole("button", { name: /테스트린과 바로 대화하기/ }).click();
+  await page.route("**/api/ai/generate", (route) => route.fulfill({ status: 402, contentType: "application/json", body: JSON.stringify({ error: "CREDIT_INSUFFICIENT" }) }));
+  await page.getByRole("textbox", { name: /메시지/ }).fill("계속 이야기하고 싶어");
+  await page.getByRole("button", { name: "메시지 보내기" }).click();
+  await expect(page.getByRole("button", { name: "크레딧 확인" })).toBeVisible();
+  await page.getByRole("button", { name: "크레딧 확인" }).click();
+  await expect(page).toHaveURL(/\/app\/credits$/);
 });
 
 test("followed post like survives a page reload", async ({ page }) => {

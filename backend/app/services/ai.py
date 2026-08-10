@@ -172,13 +172,10 @@ class MonoGptGeminiGenerateService:
         return body
 
     def _generation_config(self, payload: GenerateRequest, wants_json: bool) -> dict[str, object]:
-        config: dict[str, object] = {"maxOutputTokens": self._max_tokens(payload.max_tokens, wants_json, payload.flow), "temperature": 0.3 if wants_json else 0.9, "thinkingConfig": {"thinkingLevel": self._thinking_level(payload.flow)}}
+        config: dict[str, object] = {"maxOutputTokens": self._max_tokens(payload.max_tokens, wants_json, payload.flow), "temperature": 0.3 if wants_json else 0.9, "thinkingConfig": {"thinkingBudget": resolve_flow(payload.flow).thinking_budget}}
         if wants_json:
             config["responseMimeType"] = "application/json"
         return config
-
-    def _thinking_level(self, flow: str) -> str:
-        return "MINIMAL" if resolve_flow(flow).thinking_budget == 0 else "LOW"
 
     def _system_instruction(self, payload: GenerateRequest) -> str:
         if payload.flow == "character_analysis":
@@ -236,7 +233,7 @@ class MonoGptGeminiGenerateService:
 
     def _retry_max_tokens(self, value: object, flow: str) -> int:
         limit = resolve_flow(flow).max_output_tokens
-        return min(max(int(value or 2048), 4096), limit)
+        return min(max(int(value or 1), 1), limit)
 
     def _final_result(self, text_result: dict[str, object], usage: ProviderUsage) -> GenerateApiResult:
         text = str(text_result.get("text") or "")

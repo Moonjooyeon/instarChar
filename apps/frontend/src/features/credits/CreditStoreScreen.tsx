@@ -11,6 +11,7 @@ import {
 } from "@/api/credits";
 import { AliveIcon } from "@/components/ui/AliveIcon";
 import { creditUsageAmount } from "@/domain/credits/creditPresentation";
+import { dmResponseFlowLabel } from "@/domain/dm/dmResponseMode";
 import { CreditChargeOrder, CreditFlowCatalog } from "@/features/credits/CreditFlowCatalog";
 import { StarterMissionJourney } from "@/features/credits/StarterMissions";
 import type { RewardMissionCode } from "@/domain/credits/rewardMissions";
@@ -397,14 +398,12 @@ function formatUsageTime(value: string): string {
   }).format(new Date(value));
 }
 function flowLabel(flow: string): string {
+  const dmLabel = dmResponseFlowLabel(flow);
+  if (dmLabel) return dmLabel;
   return (
     (
       {
         direct_dm_basic: "기본 대화",
-        direct_dm_context: "문맥형 대화",
-        direct_dm_flash_long: "긴 대화",
-        direct_dm_pro: "Pro 대화",
-        direct_dm_pro_story: "Pro 서사형",
         feed_post: "피드 글 생성",
         image_understanding: "이미지 이해",
         character_interaction: "캐릭터 상호작용",

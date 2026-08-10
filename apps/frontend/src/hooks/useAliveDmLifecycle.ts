@@ -16,6 +16,8 @@ export function useAliveDmLifecycle({
   currentWorldPref,
   deletedDmKeys,
   deletedDmKeysRef,
+  dmDrafts,
+  dmImageDrafts,
   dmKey,
   dmKeyFor,
   dmKeyRef,
@@ -23,6 +25,7 @@ export function useAliveDmLifecycle({
   dmRequestSeqRef,
   dmSending,
   dmSendingRef,
+  dmResponseFlows,
   dmThreads,
   dmThreadTitles,
   dmWorldDraft,
@@ -47,9 +50,12 @@ export function useAliveDmLifecycle({
   session,
   setAffinity,
   setDeletedDmKeys,
+  setDmDrafts,
+  setDmImageDrafts,
   setDmPrefDraft,
   setDmSending,
   setDmSettingsOpen,
+  setDmResponseFlows,
   setDmThreads,
   setDmThreadTitles,
   setDmWorldDraft,
@@ -150,7 +156,7 @@ export function useAliveDmLifecycle({
   }
   async function deleteDmThread(key, event) {
     event?.stopPropagation();
-    const nextState = deleteDmState({ deletedDmKeys, dmKeyRef, dmThreadTitles, dmThreads, dmWorldPrefs, key, resetAffinityForDmThread, setDeletedDmKeys, setDmThreadTitles, setDmThreads, setDmWorldPrefs, setPeer, setStep });
+    const nextState = deleteDmState({ deletedDmKeys, dmDrafts, dmImageDrafts, dmKeyRef, dmResponseFlows, dmThreadTitles, dmThreads, dmWorldPrefs, key, resetAffinityForDmThread, setDeletedDmKeys, setDmDrafts, setDmImageDrafts, setDmResponseFlows, setDmThreadTitles, setDmThreads, setDmWorldPrefs, setPeer, setStep });
     deletedDmKeysRef.current = new Set(nextState.nextDeletedKeys);
     const nextSnapshot = { ...exportAppState(), ...nextState.snapshotPatch };
     if (hasRemoteApiClient() && session?.user) await deleteRemoteDmThread(key, session, nextSnapshot, syncStructuredState);
@@ -255,24 +261,33 @@ function resetRelationLabel({ char, findPeerChar, from, isOwnerName, isPersonaNa
   if (/서운함|미움|혐오|증오|관심|호감|아는 사이/.test(current || "")) setRelationLabelFor(from, to, "아는 사이");
 }
 
-function deleteDmState({ deletedDmKeys, dmKeyRef, dmThreadTitles, dmThreads, dmWorldPrefs, key, resetAffinityForDmThread, setDeletedDmKeys, setDmThreadTitles, setDmThreads, setDmWorldPrefs, setPeer, setStep }) {
+function deleteDmState({ deletedDmKeys, dmDrafts, dmImageDrafts, dmKeyRef, dmResponseFlows, dmThreadTitles, dmThreads, dmWorldPrefs, key, resetAffinityForDmThread, setDeletedDmKeys, setDmDrafts, setDmImageDrafts, setDmResponseFlows, setDmThreadTitles, setDmThreads, setDmWorldPrefs, setPeer, setStep }) {
   const nextDeletedKeys = [...new Set([...deletedDmKeys, key])];
   setDeletedDmKeys(nextDeletedKeys);
   resetAffinityForDmThread(key);
   const nextThreads = { ...dmThreads };
+  const nextDrafts = { ...dmDrafts };
+  const nextImageDrafts = { ...dmImageDrafts };
+  const nextResponseFlows = { ...dmResponseFlows };
   const nextPrefs = { ...dmWorldPrefs };
   const nextTitles = { ...dmThreadTitles };
   delete nextThreads[key];
+  delete nextDrafts[key];
+  delete nextImageDrafts[key];
+  delete nextResponseFlows[key];
   delete nextPrefs[key];
   delete nextTitles[key];
   setDmThreads(nextThreads);
+  setDmDrafts(nextDrafts);
+  setDmImageDrafts(nextImageDrafts);
+  setDmResponseFlows(nextResponseFlows);
   setDmWorldPrefs(nextPrefs);
   setDmThreadTitles(nextTitles);
   if (dmKeyRef.current === key) {
     setPeer(null);
     setStep("dmlist");
   }
-  return { nextDeletedKeys, snapshotPatch: { dmThreads: nextThreads, dmWorldPrefs: nextPrefs, dmThreadTitles: nextTitles, deletedDmKeys: nextDeletedKeys } };
+  return { nextDeletedKeys, snapshotPatch: { dmThreads: nextThreads, dmResponseFlows: nextResponseFlows, dmWorldPrefs: nextPrefs, dmThreadTitles: nextTitles, deletedDmKeys: nextDeletedKeys } };
 }
 
 async function deleteRemoteDmThread(key, session, nextSnapshot, syncStructuredState) {

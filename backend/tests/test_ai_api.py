@@ -13,6 +13,7 @@ from app import main as main_module
 from app.api.deps import get_current_user
 from app.core.ai_cost import ProviderUsage
 from app.core.config import Settings, get_settings
+from app.core.credit_policy import resolve_flow
 from app.db.session import get_db_session
 from app.main import app
 from app.repositories.ai_usage import AiUsageRepository, UsageReservation
@@ -97,7 +98,7 @@ def gemini_response(text: str, finish_reason: str = "STOP", usage: dict[str, obj
 def test_generate_uses_gemini_native_contract(monkeypatch: pytest.MonkeyPatch) -> None:
     async def call_gemini_once(self: object, model_name: str, body: dict[str, object]) -> MonoGptGeminiResponse:
         assert model_name == "gemini-fast-test"
-        assert body == {"contents": [{"role": "user", "parts": [{"text": "안녕"}]}], "generationConfig": {"maxOutputTokens": 128, "temperature": 0.9, "thinkingConfig": {"thinkingLevel": "MINIMAL"}}}
+        assert body == {"contents": [{"role": "user", "parts": [{"text": "안녕"}]}], "generationConfig": {"maxOutputTokens": 128, "temperature": 0.9, "thinkingConfig": {"thinkingBudget": 0}}}
         return MonoGptGeminiResponse(200, gemini_response("안녕"))
     monkeypatch.setattr(MonoGptGeminiGenerateService, "_call_gemini_once", call_gemini_once)
     with make_test_client(monkeypatch) as client:
@@ -134,11 +135,45 @@ def test_gemini_request_parses_native_usage(monkeypatch: pytest.MonkeyPatch) -> 
     assert response.usage == ProviderUsage(attempts=1, input_tokens=10, output_tokens=5, thought_tokens=2, total_tokens=15)
 
 
-def test_generation_config_uses_low_thinking_for_long_or_pro_flows() -> None:
+def test_generation_config_uses_policy_thinking_budget() -> None:
     service = MonoGptGeminiGenerateService(make_settings(), StubCancellationUsage())  # type: ignore[arg-type]
     for flow in ("feed_post", "direct_dm_context", "character_analysis"):
         payload = GenerateRequest(**{**generate_body(), "flow": flow})
-        assert service._generation_config(payload, flow == "character_analysis")["thinkingConfig"] == {"thinkingLevel": "LOW"}
+        assert service._generation_config(payload, flow == "character_analysis")["thinkingConfig"] == {"thinkingBudget": resolve_flow(flow).thinking_budget}
+
+
+@pytest.mark.parametrize(("flow", "credits", "model", "max_input_chars", "max_output_tokens", "thinking_budget"), [
+    ("direct_dm_basic", 1, "flash-tier", 12000, 512, 0),
+    ("direct_dm_context", 2, "flash-tier", 24000, 768, 256),
+    ("direct_dm_flash_long", 2, "flash-tier", 40000, 1536, 512),
+    ("direct_dm_pro", 5, "pro-tier", 24000, 1536, 256),
+    ("direct_dm_pro_story", 7, "pro-tier", 50000, 3072, 1024),
+])
+def test_each_dm_response_tier_keeps_its_server_owned_cost_and_generation_limits(
+    flow: str,
+    credits: int,
+    model: str,
+    max_input_chars: int,
+    max_output_tokens: int,
+    thinking_budget: int,
+) -> None:
+    service = MonoGptGeminiGenerateService(make_settings(monogpt_gemini_model_fast="flash-tier", monogpt_gemini_model_good="pro-tier"), StubCancellationUsage())  # type: ignore[arg-type]
+    payload = GenerateRequest(**{**generate_body(), "flow": flow, "max_tokens": 4096})
+    policy = resolve_flow(flow)
+    config = service._generation_config(payload, False)
+    assert (policy.credits, policy.max_input_chars) == (credits, max_input_chars)
+    assert service._model_name(flow) == model
+    assert config == {"maxOutputTokens": max_output_tokens, "temperature": 0.9, "thinkingConfig": {"thinkingBudget": thinking_budget}}
+    too_long = GenerateRequest(**{**generate_body(), "flow": flow, "messages": [{"role": "user", "content": "x" * (max_input_chars + 1)}]})
+    error = service._request_error(too_long)
+    assert error is not None
+    assert error.body["error"] == "CONTEXT_TOO_LONG"
+
+
+def test_empty_dm_retry_keeps_the_selected_tier_output_limit() -> None:
+    service = MonoGptGeminiGenerateService(make_settings(), StubCancellationUsage())  # type: ignore[arg-type]
+    assert service._retry_max_tokens(512, "direct_dm_basic") == 512
+    assert service._retry_max_tokens(3072, "direct_dm_pro_story") == 3072
 
 
 def test_generate_returns_empty_response_error_without_safety_retry(monkeypatch: pytest.MonkeyPatch) -> None:

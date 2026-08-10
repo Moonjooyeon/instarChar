@@ -40,7 +40,7 @@ export function DmThreadRoute({ ctx }) {
   } = ctx;
   const state = dmThreadState({ activePersona, affOf, attachStage, char, currentWorldPref, dm, dmAffOf, dmKey, dmThreadTitles, findPeerChar, josa, meName, OWNER, ownerLabel, peer, relationHintFor, relationStageLabel, roomAffOf, roomMemoryEntries, symmetricRelationBaseFromLabel });
   return (
-    <div className="al-phone al-theme-ready al-dm-thread-theme-ready">
+    <div className="al-phone al-theme-ready al-dm-thread al-dm-thread-theme-ready">
       <div className="al-dmhead">
         <button className="al-back-inline" aria-label="대화 목록으로" onClick={() => {
           const recentLines = dm.slice(-8).map((message) => ({ who: message.from, text: message.text }));
