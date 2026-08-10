@@ -6,7 +6,7 @@ from decimal import Decimal
 from zoneinfo import ZoneInfo
 
 
-CREDIT_POLICY_VERSION = "credit-2026-08-v2"
+CREDIT_POLICY_VERSION = "credit-2026-08-v3"
 ENERGY_POLICY_VERSION = "energy-2026-08-v2"
 ENERGY_MAX_PERCENT = 100
 ENERGY_RECOVERY_PERCENT = 25
@@ -37,7 +37,7 @@ class FlowPolicy:
 FLOW_POLICIES: dict[str, FlowPolicy] = {
     "direct_dm_basic": FlowPolicy("direct_dm_basic", 1, 8, "flash", "기본 대화", 12000, 2048, 0, 50),
     "direct_dm_context": FlowPolicy("direct_dm_context", 2, 15, "flash", "문맥형 대화", 24000, 2048, 256, 50),
-    "direct_dm_flash_long": FlowPolicy("direct_dm_flash_long", 3, 20, "flash", "긴 대화", 40000, 3072, 512, 50),
+    "direct_dm_flash_long": FlowPolicy("direct_dm_flash_long", 2, 20, "flash", "긴 대화", 40000, 3072, 512, 50),
     "direct_dm_pro": FlowPolicy("direct_dm_pro", 5, 25, "pro", "Pro 대화", 24000, 2048, 256, 20, energy_allowed=False, bonus_allowed=False, hard_daily_limit=20),
     "direct_dm_pro_story": FlowPolicy("direct_dm_pro_story", 7, 30, "pro", "Pro 서사형", 50000, 4096, 1024, 10, energy_allowed=False, bonus_allowed=False, hard_daily_limit=10),
     "feed_post": FlowPolicy("feed_post", 3, 20, "flash", "피드 글 생성", 20000, 1200, 256, 30),

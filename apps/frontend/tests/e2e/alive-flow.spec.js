@@ -56,7 +56,7 @@ async function mockAliveApi(page) {
 
 async function mockCreditsApi(page) {
   const flows = [
-    ["direct_dm_basic", "기본 대화", 1, 8], ["direct_dm_context", "문맥형 대화", 2, 15], ["direct_dm_flash_long", "긴 대화", 3, 20], ["direct_dm_pro", "Pro 대화", 5, 25],
+    ["direct_dm_basic", "기본 대화", 1, 8], ["direct_dm_context", "문맥형 대화", 2, 15], ["direct_dm_flash_long", "긴 대화", 2, 20], ["direct_dm_pro", "Pro 대화", 5, 25],
     ["direct_dm_pro_story", "Pro 서사형", 7, 30], ["feed_post", "피드 글 생성", 3, 20], ["image_understanding", "이미지 이해", 5, 30], ["character_interaction", "캐릭터 상호작용", 5, 25],
   ].map(([code, label, credits, energy_percent]) => ({ code, label, credits, energy_percent }));
   const offers = [{ id: "credit-5000", price_krw: 5000, base_credits: 500, product_bonus_credits: 0, first_purchase_bonus_percent: 10, total_credits: 500, first_purchase_total_credits: 550, label: "가볍게 이어가기", payment_available: false }];

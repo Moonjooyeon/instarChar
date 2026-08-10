@@ -2,8 +2,8 @@
 title: ALIVE 크레딧·AI·운영 출시 준비 계획
 author: black (black@ashwoodfriends.com)
 created: 2026-08-09
-updated: 2026-08-09
-version: 1.0.0
+updated: 2026-08-10
+version: 1.1.0
 status: in-progress
 ---
 
@@ -26,8 +26,9 @@ status: in-progress
 - 자동 게시는 서버 전용 0C flow로 사용자당 일 24회, 최소 1시간 주기 적용
 - 크레딧 센터의 잔액·에너지·기능별 비용·최근 사용 UI와 DM/피드 사용 직전 안내
 - 상품 catalog 노출과 결제 비활성 상태 유지
+- OpenRouter 최소비용 실측 후 초기 베타 대화 가격 1C·2C·2C·5C·7C 확정
 
-현재 자동 검증은 backend 255개, frontend domain 137개, TypeScript typecheck, Vite production build, migration head/offline SQL compile을 통과했다. 실행 중인 ALIVE 프로세스가 없어 브라우저 E2E와 실제 PostgreSQL·OpenRouter 검증은 수행하지 않았다.
+현재 자동 검증은 backend 256개, frontend domain 137개, TypeScript typecheck, Vite production build를 통과했다. OpenRouter 최소비용 대표 fixture도 통과했다. 실행 중인 ALIVE 프로세스가 없어 브라우저 E2E와 실제 PostgreSQL 검증은 수행하지 않았다.
 
 다음 출시 차단 항목은 아직 남아 있다.
 
@@ -36,7 +37,7 @@ status: in-progress
 - 결제 provider 결정, 구매 원장, 영수증 검증, 복원·환불·chargeback 처리
 - 프로세스 중단을 주기적으로 복구하는 background reconciliation watchdog
 - 이미지 pixel 검증, reverse-proxy body limit, 운영 secret·metric·alert 점검
-- Pro 가격을 5C/7C에서 유지할지 8~10C/16~18C로 조정할지 실측 후 확정
+- 실제 사용자 shadow billing으로 flow별 p95·p99 원가를 수집하고 베타 가격 재검토
 
 ## 1. 목적
 
@@ -66,7 +67,8 @@ status: in-progress
 | 상품 기준 | 5,000원 500C, 10,000원 1,000C, 30,000원 3,150C, 50,000원 5,500C, 100,000원 11,500C |
 | 첫 결제 | 기존 상품 보너스에 최초 1회 추가 10% 검토 |
 | 기본 대화 | 1C |
-| 문맥형 대화 | 2~3C |
+| 문맥형 대화 | 2C |
+| 긴 기억·관계형 | 2C |
 | Pro 고품질 | 5C |
 | Pro 서사형 | 7C |
 | 피드 생성 | 3C 후보 |
@@ -263,7 +265,7 @@ status: in-progress
 
 ### 단위·계약 테스트
 
-- [ ] flow별 가격·모델·최대 문맥 테스트
+- [x] flow별 가격·모델·최대 문맥 테스트
 - [ ] 3,000·6,000·10,000자 입력 fixture 원가 계산 테스트
 - [ ] 정상·빈 응답·malformed JSON·safety block fixture 테스트
 - [ ] 429 billing exhausted와 일시 rate limit fixture 테스트
@@ -344,6 +346,7 @@ docker compose --env-file .env.prod -f docker-compose.prod.yml ps
 ## 15. 관련 문서
 
 - [크레딧 BM 및 AI 사용량 통합안](../../../reports/product/bm/report_credit-pricing-analysis_2026-08-06.md)
+- [크레딧 최소비용 실측·가격 확정 결과](../../../reports/product/credit/report_credit-minimum-cost-validation_2026-08-10.md)
 - [계정 삭제 라이프사이클 구현 계획](../account/plan_account-deletion-lifecycle_2026-08-09.md)
 - [계정 삭제 라이프사이클 보안·우회 검토](../../../reports/product/account/report_account-deletion-security-review_2026-08-09.md)
 - [프로젝트 README](../../../README.md)

@@ -49,7 +49,7 @@ def test_monthly_usage_resets_at_first_day_korean_midnight() -> None:
 
 def test_onboarding_bonus_policy_totals_150_credits() -> None:
     assert SIGNUP_BONUS_CREDITS + FIRST_CHARACTER_BONUS_CREDITS + FIRST_DM_BONUS_CREDITS == 150
-    assert CREDIT_POLICY_VERSION == "credit-2026-08-v2"
+    assert CREDIT_POLICY_VERSION == "credit-2026-08-v3"
     assert ENERGY_POLICY_VERSION == "energy-2026-08-v2"
 
 
@@ -81,6 +81,13 @@ def test_auto_feed_flow_is_server_only_and_free() -> None:
 
 def test_pro_flows_disable_energy_and_bonus() -> None:
     policy = resolve_public_flow("direct_dm_pro")
+    assert policy.credits == 5
     assert policy.energy_allowed is False
     assert policy.bonus_allowed is False
     assert policy.hard_daily_limit == 20
+
+
+def test_conversation_tiers_use_beta_prices() -> None:
+    assert resolve_public_flow("direct_dm_context").credits == 2
+    assert resolve_public_flow("direct_dm_flash_long").credits == 2
+    assert resolve_public_flow("direct_dm_pro_story").credits == 7

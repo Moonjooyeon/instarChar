@@ -49,8 +49,13 @@ def test_credit_catalog_is_visible_but_payment_is_disabled() -> None:
     assert response.json()["offers"][2]["first_purchase_total_credits"] == 3465
     assert response.json()["flows"][0]["code"] == "direct_dm_basic"
     pro = next(flow for flow in response.json()["flows"] if flow["code"] == "direct_dm_pro")
+    story = next(flow for flow in response.json()["flows"] if flow["code"] == "direct_dm_pro_story")
+    long = next(flow for flow in response.json()["flows"] if flow["code"] == "direct_dm_flash_long")
+    assert long["credits"] == 2
+    assert pro["credits"] == 5
     assert pro["energy_eligible"] is False
     assert pro["bonus_eligible"] is False
+    assert story["credits"] == 7
 
 
 def test_credit_usage_returns_separate_balance_sources(monkeypatch: pytest.MonkeyPatch) -> None:
