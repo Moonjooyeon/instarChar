@@ -3,7 +3,7 @@ title: 앱인토스 인앱결제 승인 후 적용 및 출시 검토 계획
 author: black (black@ashwoodfriends.com)
 created: 2026-08-11
 updated: 2026-08-11
-version: 1.6.0
+version: 1.7.0
 status: implemented-local
 ---
 
@@ -151,7 +151,9 @@ status: implemented-local
 | 결제 UI·미지급 복원 | 구현 | 토스 runtime IAP, SDK 가격, 로그인 직후·상점 진입 pending restore, cleanup |
 | 환불 이력·운영 조회 | 구현 | SDK history pagination, 서버 reconciliation, 보호된 주문 조회 API |
 | 재무 정합성 감사 | 구현 | 장기 미지급, 상태 검토, 구매·환불 원장과 계정 잔액 불일치 감사 API |
-| 자동 검증 | 통과 | backend 305건(실제 PostgreSQL 동시 지급·재가입·원장 변조 탐지 포함), frontend domain 151건, typecheck, web build, Toss AIT build |
+| 구매 제한 활성화 | 구현 | 토스 provider만 허용하고 HMAC 기반 사용자 코호트를 0~100%로 결정하는 카탈로그 게이트 |
+| 운영 무결성 신호 | 구현 | 재조정 주기마다 감사하고 이상 시 식별자 없는 `iap_integrity_alert` 오류 로그 발행 |
+| 자동 검증 | 통과 | backend 313건(실제 PostgreSQL 동시 지급·재가입·원장 변조 탐지 포함), frontend domain 151건, typecheck, web build, Toss AIT build |
 | 콘솔·mTLS·샌드박스·정산 | 미검증 | 저장소 밖의 운영 정보와 실제 Apps in Toss 앱 필요 |
 
 ## 결정이 필요한 상품 정책
@@ -215,11 +217,15 @@ status: implemented-local
 | --- | --- | --- |
 | `TOSS_IAP_ENABLED` | `false` | 주문 검증·지급·복구 통합 전체 허용 |
 | `TOSS_IAP_PURCHASE_ENABLED` | `false` | 신규 결제 버튼과 상품 구매 가능 상태만 허용 |
+| `TOSS_IAP_PURCHASE_ROLLOUT_PERCENT` | `0` | 토스 사용자별 결정적 신규 구매 노출 비율, 0~100 |
 | `TOSS_IAP_CREDIT_*_SKU` | 빈 값 | 콘솔 SKU와 서버 지급 정책 연결 |
 | `TOSS_IAP_SUBJECT_HMAC_KEY` | 빈 값 | 토스 사용자의 구매 이력을 비식별 연결하는 32-byte 이상 전용 비밀키 |
 | `TOSS_IAP_RECONCILIATION_ENABLED` | `false` | 알려진 주문의 서버 주기 재조회 실행 |
+| `TOSS_IAP_AUDIT_ALERTS_ENABLED` | `false` | 재조정 감사 이상 시 `iap_integrity_alert` 오류 로그 발행 |
 
-스테이징에서는 SKU, 운영 수명 동안 유지할 전용 HMAC 키와 mTLS를 먼저 주입한 뒤 `TOSS_IAP_ENABLED=true`로 복구·검증 경로를 활성화한다. 활성화 설정이 불완전하면 서버 시작 단계에서 실패하도록 구현했다. 샌드박스 게이트를 통과하기 전까지 `TOSS_IAP_PURCHASE_ENABLED=false`를 유지한다. 출시·롤백은 신규 결제 플래그만 변경하여 이미 결제된 주문의 지급과 환불 처리가 중단되지 않게 한다.
+스테이징에서는 SKU, 운영 수명 동안 유지할 전용 HMAC 키와 mTLS를 먼저 주입한 뒤 `TOSS_IAP_ENABLED=true`로 복구·검증 경로를 활성화한다. 활성화 설정이 불완전하거나 롤아웃 비율이 0~100 범위를 벗어나거나 감사 경보만 재조정 없이 켜면 서버 시작 단계에서 실패한다. 샌드박스 게이트 전에는 신규 구매 OFF·롤아웃 0을 유지하고, 테스트 시간에만 신규 구매 ON·롤아웃 100을 사용한다. 운영은 10%부터 단계적으로 확대한다.
+
+롤아웃은 앱 카탈로그의 구매 가능 상태를 제어하는 소프트 게이트다. 이미 SKU를 아는 구버전·변조 클라이언트의 제공자 주문 생성을 완전히 차단한다고 가정하지 않는다. 실제 신규 판매를 확실히 중단하려면 콘솔 상품 노출도 OFF로 전환하되, 이미 결제된 주문의 지급·복원을 위해 통합과 재조정은 ON으로 유지한다. 상세 절차는 [인앱결제 배포 및 운영 가이드](../../../guides/guide_apps-in-toss-iap-operations.md)를 따른다.
 
 ## 구현 단계
 
@@ -298,11 +304,13 @@ status: implemented-local
 ### 7. 운영, 정산과 출시 활성화
 
 - [ ] 콘솔의 결제 완료·지급 완료 건과 내부 구매 원장을 일 단위로 대조한다.
-- [ ] `PAYMENT_COMPLETED` 장기 체류, 주문 불일치, 중복 지급 시도, 환불 회수 실패에 알림을 설정한다.
+- [x] 재조정 감사에서 장기 `PAYMENT_COMPLETED`, 검토·실패 상태와 구매·환불·계정 원장 불일치를 발견하면 주문·사용자 식별자 없이 `iap_integrity_alert`와 사유별 건수를 오류 로그로 발행한다.
+- [ ] 로그 수집 시스템에서 `iap_integrity_alert`, 주문 재조정 실패와 poll 실패를 critical 알림으로 연결하고 담당자·10분 응답 기준을 지정한다.
 - [x] 보호된 감사 API로 6시간 이상 `processing`, `review`·`failed`, 잘못된 지급량, 구매·환불 원장 불일치와 계정 잔액·부채·원장 불일치를 탐지한다.
 - [x] 이 계획서에 Android·iOS 환불 경로와 지급 지연 대응 초안을 추가한다. 고객 노출 문구와 담당자 승인은 별도 게이트다.
 - [x] 운영자가 `GET /api/moderation/credit-purchases?status=...`로 처리 큐를 찾고, `GET /api/moderation/credit-purchases/audit`로 이상 후보를 탐지하며, `GET /api/moderation/credit-purchases/{order_id}`와 `X-Moderation-Key`로 내부 상태, 원장과 잔액을 조회할 수 있게 한다. 제공자 상태는 저장된 최근 재조회 결과다.
-- [ ] 샌드박스와 출시 검수 완료 후 제한된 사용자에게만 `payment_available=true`를 적용한다.
+- [x] 토스 로그인 사용자에게만 HMAC 기반 0~100% 결정적 롤아웃으로 `payment_available`을 적용하는 코드 게이트를 추가한다. 복원에 필요한 SKU는 비대상 사용자에게도 유지한다.
+- [ ] 샌드박스와 출시 검수 완료 후 운영 환경에서 신규 구매 ON·롤아웃 10%를 적용한다.
 - [ ] 안정화 뒤 콘솔 상품 노출과 전체 결제 플래그를 순서대로 활성화한다.
 
 완료 조건: 결제를 중단하지 않고도 주문 상태와 정산 차이를 탐지하고 조치할 수 있다.
@@ -330,6 +338,7 @@ status: implemented-local
 - [ ] 샌드박스 필수 시나리오와 자동 테스트가 모두 통과한다.
 - [ ] 정산 정보, 환불 담당자, 인증서 만료일과 결제 사고 대응 책임자가 기록된다.
 - [x] 신규 결제와 IAP 복구 플래그를 분리해 롤백 시 미지급 주문 복원을 유지한다.
+- [x] 신규 구매는 토스 provider와 0~100% 결정적 사용자 롤아웃을 모두 통과해야 노출되며, 비대상 사용자의 기존 주문 복원 SKU는 유지된다.
 
 ## 검토 체크리스트
 
@@ -350,6 +359,7 @@ status: implemented-local
 - [x] 계정 삭제 시 구매자는 nullable FK와 해시 식별자로 비식별화되고 구매 원장은 보존된다.
 - [x] IAP 활성화 전에 5개 SKU 누락·중복, 32-byte 미만 전용 HMAC 키와 존재하지 않는 mTLS 파일을 시작 단계에서 거절한다.
 - [x] 전용 HMAC 키는 인증 세션 키와 분리되어 있으며 운영 수명 동안 변경하지 않는다고 환경 설정에 명시돼 있다.
+- [x] 롤아웃 비율 범위와 감사 경보·재조정 플래그 조합을 시작 단계에서 검증한다.
 
 ### 프런트엔드
 
@@ -362,6 +372,7 @@ status: implemented-local
 
 - [x] Android 콘솔 처리와 iOS Apple 결정 경로를 분리한 고객지원 초안이 준비돼 있다.
 - [x] 운영 상태 큐·재무 감사·주문 상세 API로 장기 `processing`, `review`, `failed`, 구매·환불 원장과 계정 잔액 불일치를 조회할 수 있다.
+- [x] 감사 이상을 `iap_integrity_alert` 오류 로그로 내보내며 주문 ID·사용자 ID는 포함하지 않는다.
 - [ ] 콘솔 결제 상태와 내부 원장 차이에 대한 담당자와 조치 시간이 정해져 있다.
 - [ ] 인증서 만료 전 이중 인증서 교체 절차를 검증한다.
 
@@ -369,7 +380,7 @@ status: implemented-local
 
 | 게이트 | 검증 | 현재 상태 |
 | --- | --- | --- |
-| 도메인 | SKU 매핑, 상태 전이, 첫 구매, 재가입, 환불 회수, 재무 감사 | backend 전체 305건 통과 |
+| 도메인 | SKU 매핑, 상태 전이, 첫 구매, 재가입, 환불 회수, 재무 감사, 사용자 롤아웃·경보 | backend 전체 313건 통과 |
 | 백엔드 | `compileall`, repository/service/API pytest | 통과 |
 | 데이터베이스 | migration head/current, upgrade·downgrade SQL, 동시 지급 | PostgreSQL current/head `0022`; `0022` 양방향 SQL, 독립 세션 2개 동시 지급과 재가입 보너스 방지 통과 |
 | 프런트엔드 | typecheck, domain test, production build | 151건·typecheck·Vite build 통과 |
@@ -421,7 +432,10 @@ status: implemented-local
 | IAP-07 사용자 이력·설정 안전성 | 재가입 보너스 방지, 전용 HMAC 키, 시작 설정 검증, `0022` 인덱스 | backend 303건·PostgreSQL integration·alembic | `5cc2d47` |
 | IAP-08 앱 재실행 복원 | 로그인 직후 복원, 상점 재시도, 동시 호출 공유 | frontend 151건·typecheck·web·AIT build | `2b60179` |
 | IAP-09 재무 정합성 감사 | 장기 미지급·상태·구매/환불 원장·계정 잔액 감사 API | backend 305건·PostgreSQL 변조 탐지 | `4f83a4d` |
-| IAP-10 외부 출시 승인 | 콘솔 매핑, 샌드박스 증빙, 알림 연결, 운영 승인 | 수동 게이트 서명 | 운영 정보 준비 후 별도 커밋 |
+| IAP-10 배포 산출물 위생 | `.ait`와 `.granite` Git 제외 | clean worktree 확인 | `05b7d64` |
+| IAP-11 제한 활성화 | 토스 provider 전용 결정적 퍼센트 롤아웃 | backend 대상 테스트·전체 313건 | `035f144` |
+| IAP-12 운영 무결성 신호 | 재조정 감사 오류 로그와 설정 검증 | scheduler·설정 테스트·전체 313건 | `437bce6` |
+| IAP-13 외부 출시 승인 | 콘솔 매핑, 샌드박스 증빙, 외부 알림 연결, 운영 승인 | 수동 게이트 서명 | 운영 정보 준비 후 별도 커밋 |
 
 로컬 구현 커밋과 외부 출시 승인 커밋을 분리하여 코드 완료와 실제 판매 가능 상태를 혼동하지 않는다.
 
@@ -434,10 +448,12 @@ status: implemented-local
 5. 다섯 크레딧 상품의 소모품 SKU를 만들고 실제 판매가는 콘솔 계산 결과로 기록한다.
 6. 상품은 노출 OFF로 유지한 채 SKU·지급량·첫 구매·환불 정책을 승인한다.
 7. mTLS 인증서의 운영 배포 상태와 만료일을 확인하고, 인증 세션 키와 별도인 32-byte 이상 `TOSS_IAP_SUBJECT_HMAC_KEY`를 비밀 저장소에 생성·백업한다.
-8. 스테이징에 migrations `0021`·`0022`와 코드 배포 후 설정 사전 검증을 통과시키고 `TOSS_IAP_ENABLED=true`, 신규 구매 플래그는 `false`로 둔다.
+8. 스테이징에 migrations `0021`·`0022`와 코드를 배포하고 통합 ON, 신규 구매 OFF, 롤아웃 0, 재조정·감사 경보 ON으로 시작 검증을 통과시킨다.
 9. 실제 발급 SKU를 환경 변수에 연결하고 SDK `displayAmount`와 콘솔 VAT 포함 판매가를 대조한다.
-10. 공식 샌드박스 필수 시나리오를 `documents/qa/evidence/`에 증빙한다.
-11. 운영·정산·환불 체크리스트 승인 후 `TOSS_IAP_PURCHASE_ENABLED=true`로 제한 활성화한다.
+10. 샌드박스 시간에 신규 구매 ON·롤아웃 100과 테스트 상품 노출 ON으로 필수 시나리오를 `documents/qa/evidence/`에 증빙한다.
+11. 로그 수집 시스템에 `iap_integrity_alert`와 재조정 실패 critical 알림, 담당자와 응답 시간을 등록한다.
+12. 운영·정산·환불 체크리스트 승인 후 신규 구매 ON·롤아웃 10%로 제한 활성화하고 24시간 이상 관찰한다.
+13. 감사·정산 대조가 깨끗할 때 25% → 50% → 100%로 확대한다.
 
 ## 검증하지 못한 것
 
@@ -467,6 +483,7 @@ status: implemented-local
 - `debt_credits`가 있는 사용자의 유료 기능 제한 범위와 고객지원 해제 절차는 운영 정책 승인이 필요하다.
 - 결제 알림 URL의 이벤트 계약과 운영 인증 방식은 콘솔·공식 세부 문서에서 최종 확인해야 한다.
 - SDK 2.10.8의 `getCompletedOrRefundedOrders` 공개 타입은 페이지 키 인자를 누락하지만 실제 native bridge와 공식 문서는 이를 지원하므로, SDK 업그레이드 때 임시 타입 보정을 제거할 수 있는지 확인해야 한다.
+- 퍼센트 롤아웃은 클라이언트 카탈로그 게이트이므로 제공자 측 신규 판매의 최종 차단 수단은 콘솔 상품 노출 OFF다.
 
 ## 공식 참고 자료
 
@@ -480,6 +497,7 @@ status: implemented-local
 
 ## 관련 프로젝트 문서
 
+- [앱인토스 인앱결제 배포 및 운영 가이드](../../../guides/guide_apps-in-toss-iap-operations.md)
 - [앱인토스 출시 백로그](plan_apps-in-toss-launch-backlog_2026-07-31.md)
 - [크레딧 BM 및 AI 출시 준비 계획](../../product/credit/plan_credit-bm-and-ai-release-readiness_2026-08-09.md)
 - [크레딧 AI 비용·보안 마진 검토](../../../reports/product/bm/report_credit-ai-cost-security-margin-review_2026-08-09.md)

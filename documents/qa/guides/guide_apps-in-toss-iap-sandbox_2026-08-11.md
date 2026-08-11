@@ -3,7 +3,7 @@ title: 앱인토스 인앱결제 샌드박스 검증 가이드
 author: black (black@ashwoodfriends.com)
 created: 2026-08-11
 updated: 2026-08-11
-version: 1.1.0
+version: 1.2.0
 status: ready
 ---
 
@@ -53,6 +53,8 @@ Apps in Toss 일회성 인앱결제를 실제 판매 전에 샌드박스 앱에�
 | 콘솔 승인·정산 상태 |  |
 | mTLS 인증서 만료일 |  |
 | 신규 결제 플래그 | 테스트 시작 전 `false`, 실행 승인 후에만 `true` |
+| 구매 롤아웃 | 테스트 시작 전 `0`, 실행 시간 `100` |
+| 재조정·감사 경보 | 실행 시간 모두 `true` |
 
 ## 상품 매핑 사전 점검
 
@@ -76,8 +78,8 @@ Apps in Toss 일회성 인앱결제를 실제 판매 전에 샌드박스 앱에�
 6. 스테이징 비밀 저장소에 32-byte 이상 `TOSS_IAP_SUBJECT_HMAC_KEY`, mTLS 인증서와 키가 있는지 확인한다.
 7. 다섯 SKU가 모두 존재하고 중복되지 않는지 배포 로그의 설정 사전 검증 결과로 확인한다.
 8. migration current/head가 모두 `20260811_0022`인지 확인한다.
-9. 먼저 `TOSS_IAP_ENABLED=true`, `TOSS_IAP_PURCHASE_ENABLED=false`로 복원·조회 경로만 확인한다.
-10. 담당자 승인 후 테스트 시간 동안에만 신규 결제 플래그와 대상 상품 노출을 활성화한다.
+9. 먼저 통합 ON, 신규 구매 OFF, 롤아웃 0, 재조정·감사 경보 ON으로 복원·조회 경로와 깨끗한 감사 결과를 확인한다.
+10. 담당자 승인 후 테스트 시간 동안에만 신규 결제 ON, 롤아웃 100과 대상 상품 노출 ON을 적용한다.
 
 ## 필수 시나리오
 
@@ -175,3 +177,5 @@ GET /api/moderation/credit-purchases/{order_id}
 | 운영 조회 대조 | not run |  |  |
 
 모든 필수 게이트가 `passed`이고 정산·환불·인증서 담당자가 승인한 뒤에만 제한적으로 `TOSS_IAP_PURCHASE_ENABLED=true`를 유지한다. 실패 시 콘솔 상품 노출 OFF와 신규 결제 플래그 비활성화를 먼저 수행하되, 이미 결제된 주문의 복원과 환불을 위해 `TOSS_IAP_ENABLED=true`는 유지한다.
+
+운영 공개는 [앱인토스 인앱결제 배포 및 운영 가이드](../../guides/guide_apps-in-toss-iap-operations.md)에 따라 롤아웃 10%부터 시작한다. 샌드박스 종료 시 신규 구매 OFF·롤아웃 0·테스트 상품 노출 OFF로 복구하고 변경 시각을 기록한다.
