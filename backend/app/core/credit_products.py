@@ -59,6 +59,10 @@ def validate_toss_iap_configuration(settings: Settings) -> None:
         return
     if not settings.toss_iap_enabled:
         raise ValueError("TOSS_IAP_ENABLED must be true before enabling purchase or reconciliation")
+    if settings.toss_iap_purchase_enabled and not settings.toss_iap_reconciliation_enabled:
+        raise ValueError("TOSS_IAP_RECONCILIATION_ENABLED must be true before enabling purchases")
+    if settings.toss_iap_purchase_enabled and not settings.toss_iap_audit_alerts_enabled:
+        raise ValueError("TOSS_IAP_AUDIT_ALERTS_ENABLED must be true before enabling purchases")
     if settings.toss_iap_audit_alerts_enabled and not settings.toss_iap_reconciliation_enabled:
         raise ValueError("TOSS_IAP_RECONCILIATION_ENABLED must be true before enabling audit alerts")
     _validate_iap_credentials(settings)
