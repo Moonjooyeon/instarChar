@@ -122,3 +122,7 @@ class CreditPurchaseOperationsResponse(BaseModel):
     purchase: CreditPurchaseOperationsDetail
     account: CreditPurchaseOperationsAccount | None
     ledger: list[CreditPurchaseOperationsLedger]
+
+
+class CreditPurchaseOperationsQueueResponse(BaseModel):
+    purchases: list[CreditPurchaseOperationsDetail]

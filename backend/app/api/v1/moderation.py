@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import secrets
-from typing import Annotated, Optional
+from typing import Annotated, Literal, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Query, Response, status
@@ -14,7 +14,7 @@ from app.db.session import get_db_session
 from app.models import ContentReport, ReportStatus, User
 from app.repositories.credit_purchases import CreditPurchaseRepository
 from app.repositories.moderation import ModerationRepository
-from app.schemas.credits import CreditPurchaseOperationsAccount, CreditPurchaseOperationsDetail, CreditPurchaseOperationsLedger, CreditPurchaseOperationsResponse
+from app.schemas.credits import CreditPurchaseOperationsAccount, CreditPurchaseOperationsDetail, CreditPurchaseOperationsLedger, CreditPurchaseOperationsQueueResponse, CreditPurchaseOperationsResponse
 from app.schemas.moderation import BlockedUserResponse, ConsentResponse, ContentReportCreate, ContentReportResponse, ModerationDecision, ModerationQueueResponse, ModerationReportResponse
 
 
@@ -79,6 +79,13 @@ async def credit_purchase_operations(order_id: str, key: ModerationKey, settings
         raise NotFoundError("Credit purchase not found")
     purchase, account, ledger = result
     return CreditPurchaseOperationsResponse(purchase=CreditPurchaseOperationsDetail.model_validate(purchase), account=CreditPurchaseOperationsAccount.model_validate(account) if account else None, ledger=[CreditPurchaseOperationsLedger.model_validate(item) for item in ledger])
+
+
+@router.get("/moderation/credit-purchases", response_model=CreditPurchaseOperationsQueueResponse)
+async def credit_purchase_operations_queue(key: ModerationKey, purchase_status: Optional[Literal["processing", "granted", "refunded", "failed", "review"]] = Query(None, alias="status"), limit: int = Query(100, ge=1, le=200), settings: Settings = Depends(get_settings), session: AsyncSession = Depends(get_db_session)) -> CreditPurchaseOperationsQueueResponse:
+    _require_moderator(key, settings)
+    purchases = await CreditPurchaseRepository(session).operations_queue(purchase_status, limit)
+    return CreditPurchaseOperationsQueueResponse(purchases=[CreditPurchaseOperationsDetail.model_validate(item) for item in purchases])
 
 
 def _require_moderator(key: str, settings: Settings) -> None:

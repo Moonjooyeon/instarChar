@@ -106,6 +106,19 @@ def test_credit_purchase_operations_returns_purchase_ledger_and_debt(monkeypatch
     assert response.json()["ledger"][0]["amount"] == -550
 
 
+def test_credit_purchase_operations_queue_filters_internal_status(monkeypatch) -> None:
+    calls = []
+    async def operations_queue(self: object, status: str | None, limit: int) -> list[object]:
+        calls.append((status, limit))
+        return [SimpleNamespace(provider_order_id="order-review", user_id=None, sku="sku-500", status="review", provider_status="PURCHASED", price_krw=5000, base_credits=500, product_bonus_credits=0, first_purchase_bonus_credits=0, granted_credits=0, chargeback_credits=0, failure_reason="review", provider_checked_at=None, granted_at=None, refunded_at=None)]
+    monkeypatch.setattr(CreditPurchaseRepository, "operations_queue", operations_queue)
+    with make_test_client() as client:
+        response = client.get("/api/moderation/credit-purchases?status=review&limit=20", headers={"X-Moderation-Key": "moderation-secret"})
+    assert response.status_code == 200
+    assert response.json()["purchases"][0]["status"] == "review"
+    assert calls == [("review", 20)]
+
+
 def make_test_client() -> TestClient:
     app.dependency_overrides[get_db_session] = stub_db_session
     app.dependency_overrides[get_current_user] = stub_current_user

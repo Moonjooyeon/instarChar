@@ -72,6 +72,13 @@ class CreditPurchaseRepository:
         ledger = list((await self.session.execute(statement)).scalars().all())
         return purchase, account, ledger
 
+    async def operations_queue(self, status: str | None, limit: int) -> list[CreditPurchase]:
+        statement = select(CreditPurchase)
+        if status:
+            statement = statement.where(CreditPurchase.status == status)
+        statement = statement.order_by(CreditPurchase.provider_checked_at.asc().nullsfirst(), CreditPurchase.created_at).limit(limit)
+        return list((await self.session.execute(statement)).scalars().all())
+
     def due_statement(self, limit: int, now: datetime) -> Select[tuple[CreditPurchase]]:
         cutoff = now - timedelta(hours=6)
         due = or_(CreditPurchase.provider_checked_at.is_(None), CreditPurchase.provider_checked_at < cutoff)
