@@ -3,7 +3,7 @@ title: 앱인토스 인앱결제 승인 후 적용 및 출시 검토 계획
 author: black (black@ashwoodfriends.com)
 created: 2026-08-11
 updated: 2026-08-11
-version: 2.2.0
+version: 2.2.1
 status: implemented-local
 ---
 
@@ -566,6 +566,7 @@ status: implemented-local
 
 ## 관련 프로젝트 문서
 
+- [앱인토스 인앱결제 로컬 출시 준비 감사](../../../reports/release/store/report_apps-in-toss-iap-local-readiness_2026-08-11.md)
 - [앱인토스 인앱결제 구매기록 보존 및 탈퇴 처리 결정](decision_apps-in-toss-iap-purchase-retention_2026-08-11.md)
 - [앱인토스 인앱결제 고객 노출 법률 문구 초안](proposal_apps-in-toss-iap-legal-copy_2026-08-11.md)
 - [앱인토스 인앱결제 배포 및 운영 가이드](../../../guides/guide_apps-in-toss-iap-operations.md)
