@@ -81,6 +81,13 @@ def test_save_posts_rejects_stale_revision() -> None:
     assert session.commits == 0
 
 
+def test_post_update_rejects_excessive_or_oversized_ids() -> None:
+    with pytest.raises(ValueError):
+        CharacterPostsUpdate(posts=[{"text": "글"}] * 41, revision=1)
+    with pytest.raises(ValueError):
+        CharacterPostsUpdate(posts=[{"id": "x" * 121, "text": "글"}], revision=1)
+
+
 def test_owned_character_query_is_owner_scoped() -> None:
     owner_id = uuid4()
     session = StubSession([character_row(owner_id)])

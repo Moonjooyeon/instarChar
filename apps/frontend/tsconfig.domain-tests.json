@@ -15,6 +15,7 @@
     "src/api/auth.ts",
     "src/api/discover.ts",
     "src/api/dm.ts",
+    "src/api/feed.ts",
     "src/api/generate.ts",
     "src/api/profiles.ts",
     "src/api/safety.ts",

@@ -228,7 +228,10 @@ class UserPersona(TimestampMixin, Base):
 
 class SharedCharacter(TimestampMixin, Base):
     __tablename__ = "shared_characters"
-    __table_args__ = (UniqueConstraint("owner_id", "source_account_id", name="uq_shared_characters_owner_source"),)
+    __table_args__ = (
+        UniqueConstraint("owner_id", "source_account_id", name="uq_shared_characters_owner_source"),
+        Index("ix_shared_characters_tags_gin", "tags", postgresql_using="gin"),
+    )
     id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid4)
     owner_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     owner_name: Mapped[str] = mapped_column(String(120), nullable=False, default="")
@@ -250,6 +253,25 @@ class CharacterFollow(Base):
     follower_character: Mapped[JsonMap] = mapped_column(JSONB, nullable=False, default=dict)
     target_shared_character_id: Mapped[UUID] = mapped_column(ForeignKey("shared_characters.id", ondelete="CASCADE"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class PublicFeedPost(Base):
+    __tablename__ = "public_feed_posts"
+    __table_args__ = (
+        Index("ix_public_feed_posts_cursor", "created_at", "post_id", "author_character_id"),
+        Index("ix_public_feed_posts_author_created", "author_character_id", "created_at", "post_id"),
+    )
+    author_character_id: Mapped[UUID] = mapped_column(ForeignKey("characters.id", ondelete="CASCADE"), primary_key=True)
+    post_id: Mapped[str] = mapped_column(String(120), primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    payload: Mapped[JsonMap] = mapped_column(JSONB, nullable=False, default=dict)
+
+
+class FeedRequestLimit(Base):
+    __tablename__ = "feed_request_limits"
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    request_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    window_started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class CharacterPostLike(Base):

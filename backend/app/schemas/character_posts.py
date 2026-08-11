@@ -7,6 +7,8 @@ from pydantic import BaseModel, Field, field_validator
 
 
 ALLOWED_AUTO_POST_INTERVALS = {3600, 21600, 43200}
+MAX_CHARACTER_POSTS = 40
+MAX_POST_ID_LENGTH = 120
 
 
 class CharacterPostsResponse(BaseModel):
@@ -23,6 +25,19 @@ class CharacterPostsResponse(BaseModel):
 class CharacterPostsUpdate(BaseModel):
     posts: list[object] = Field(default_factory=list)
     revision: int
+
+    @field_validator("posts")
+    @classmethod
+    def validate_posts(cls, value: list[object]) -> list[object]:
+        if len(value) > MAX_CHARACTER_POSTS:
+            raise ValueError(f"posts must contain at most {MAX_CHARACTER_POSTS} items")
+        for post in value:
+            if not isinstance(post, dict):
+                raise ValueError("each post must be an object")
+            post_id = post.get("id")
+            if post_id is not None and (isinstance(post_id, bool) or not isinstance(post_id, (int, str)) or len(str(post_id)) > MAX_POST_ID_LENGTH):
+                raise ValueError(f"post id must be at most {MAX_POST_ID_LENGTH} characters")
+        return value
 
 
 class AutoPostUpdate(BaseModel):

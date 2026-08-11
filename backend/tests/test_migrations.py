@@ -135,3 +135,24 @@ def test_character_visibility_migration_follows_auto_post_cost_guard(monkeypatch
     assert migration.revision == "20260810_0018"
     assert migration.down_revision == "20260809_0017"
     assert [(table, column.name, str(column.server_default.arg)) for table, column in columns] == [("characters", "is_public", "true")]
+
+
+def test_feed_pagination_migration_installs_incremental_projection(monkeypatch: pytest.MonkeyPatch) -> None:
+    migration = _load_migration("20260810_0019_feed_pagination.py")
+    indexes: list[str] = []
+    statements: list[str] = []
+    monkeypatch.setattr(migration.op, "create_table", lambda *args, **kwargs: None)
+    monkeypatch.setattr(migration.op, "create_index", lambda name, *args, **kwargs: indexes.append(name))
+    monkeypatch.setattr(migration.op, "execute", lambda statement: statements.append(str(statement)))
+    cast(Callable[[], None], migration.upgrade)()
+    assert migration.down_revision == "20260810_0018"
+    assert {"ix_public_feed_posts_cursor", "ix_shared_characters_tags_gin"} <= set(indexes)
+    rendered = "\n".join(statements)
+    assert "IS DISTINCT FROM" in rendered
+    assert "public_feed_post_time" in rendered
+    assert "INSERT INTO public_feed_posts" in rendered
+
+
+def test_feed_limit_migration_follows_feed_pagination() -> None:
+    migration = _load_migration("20260810_0020_feed_limits_and_concurrent_tags_index.py")
+    assert migration.down_revision == "20260810_0019"

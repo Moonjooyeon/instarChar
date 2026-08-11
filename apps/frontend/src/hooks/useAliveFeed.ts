@@ -12,6 +12,7 @@ import { createGenerateRequestKey } from "@/api/generate";
 import { queryPostLikes, updatePostLike, type PostLikeItem, type PostLikeTarget } from "@/api/postLikes";
 import { USER_PERSONA_FEATURE_ENABLED } from "@/domain/app/featureFlags";
 import { applyFollowedLikeState, followedLikeKey, followedLikeState, followedPostTarget, followedPostTargets, formatPostTime, optimisticFollowedLike, postTimeMs, postsFromFollowedCharacter, postsFromRecommendedCharacter, recommendedCharacters, sanitizePosts, type FeedPost, type FollowedCharacter, type FollowedLikeState, type RecommendationProfile } from "@/domain/feed/feedUtils";
+import { useFeedPagination } from "@/hooks/useFeedPagination";
 
 type PersonaOption = {
   id?: string | number;
@@ -60,10 +61,14 @@ type AliveFeedReturn = {
   editingComment: EditingComment | null;
   editingPost: FeedPost | null;
   feedView: string;
+  feedError: string;
   fixTarget: unknown;
   fixText: string;
+  hasMoreFeedPosts: boolean;
   followedTimelinePosts: FeedPost[];
   loading: boolean;
+  loadingFeedPosts: boolean;
+  loadMoreFeedPosts: () => void;
   manualPost: (text: string) => void;
   mutatePosts: (mutation: PostMutation) => void;
   moodOpen: boolean;
@@ -72,6 +77,7 @@ type AliveFeedReturn = {
   openCommentBox: (postId: FeedPost["id"]) => void;
   posts: FeedPost[];
   recommendationPosts: FeedPost[];
+  retryFeedPosts: () => void;
   recommendationUsesInterests: boolean;
   publicPostSnapshot: (sourcePosts?: FeedPost[]) => FeedPost[];
   saveCommentEdit: () => void;
@@ -125,14 +131,17 @@ export function useAliveFeed({ activeId, activeSharedId, following, personas, re
   const [editingPost, setEditingPost] = useState<FeedPost | null>(null);
   const [editingComment, setEditingComment] = useState<EditingComment | null>(null);
   const [externalComments, setExternalComments] = useState<Record<string, unknown[]>>({});
+  const feedRevision = useMemo(() => JSON.stringify({ following: following.map((item) => item.sharedId || item.characterId || item.id || "").sort(), profile: [recommendationProfile.interests, recommendationProfile.persona, recommendationProfile.surface, recommendationProfile.world] }), [following, recommendationProfile.interests, recommendationProfile.persona, recommendationProfile.surface, recommendationProfile.world]);
+  const pagedFeed = useFeedPagination({ activeId, feedView, revision: feedRevision });
   const sortedPosts = useMemo(() => sanitizePosts(posts).sort((a, b) => postTimeMs(b) - postTimeMs(a)), [posts]);
   const myPosts = useMemo(() => sortedPosts.filter((post) => !post.author), [sortedPosts]);
-  const rawFollowedPosts = useMemo(() => (following || []).flatMap((item) => postsFromFollowedCharacter(item)), [following]);
+  const rawFollowedPosts = useMemo(() => activeId ? pagedFeed.timelinePosts : (following || []).flatMap((item) => postsFromFollowedCharacter(item)), [activeId, following, pagedFeed.timelinePosts]);
   const followedLikes = useFollowedLikes({ activeId, posts: rawFollowedPosts, setSaveStatus, step });
   const followedTimelinePosts = useMemo(() => rawFollowedPosts.map((post) => applyExternalComments(applyFollowedLikeState(post, followedLikes.state), externalComments)), [externalComments, followedLikes.state, rawFollowedPosts]);
   const timelinePosts = useMemo(() => [...followedTimelinePosts].sort((a, b) => postTimeMs(b) - postTimeMs(a)), [followedTimelinePosts]);
   const rankedRecommendations = useMemo(() => recommendedCharacters(recommendationCandidates, following, recommendationProfile, activeId, activeSharedId), [activeId, activeSharedId, following, recommendationCandidates, recommendationProfile]);
-  const recommendationPosts = useMemo(() => rankedRecommendations.flatMap(postsFromRecommendedCharacter).map((post) => applyExternalComments(post, externalComments)).sort((a, b) => postTimeMs(b) - postTimeMs(a)), [externalComments, rankedRecommendations]);
+  const recommendationSource = useMemo(() => activeId ? pagedFeed.recommendationPosts : rankedRecommendations.flatMap(postsFromRecommendedCharacter), [activeId, pagedFeed.recommendationPosts, rankedRecommendations]);
+  const recommendationPosts = useMemo(() => recommendationSource.map((post) => applyExternalComments(post, externalComments)).sort((a, b) => postTimeMs(b) - postTimeMs(a)), [externalComments, recommendationSource]);
   const recommendationUsesInterests = useMemo(() => recommendationPosts.some((post) => post.recommendationReason === "interest"), [recommendationPosts]);
   const visiblePosts = feedView === "mine" ? myPosts : feedView === "recommendations" ? recommendationPosts : timelinePosts;
   useEffect(() => { postsRef.current = posts; }, [posts]);
@@ -262,7 +271,7 @@ export function useAliveFeed({ activeId, activeSharedId, following, personas, re
     setCommentOn(null);
     setCommentText("");
   }
-  return { auto, autoIntervalSeconds, canLikePost, commentAs, commentOn, commentText, defaultCommentAs, deleteComment, deletePost, editingComment, editingPost, feedView, fixTarget, fixText, followedTimelinePosts, generateServerPost, isLikePending, loading, manualPost, moodOpen, mutatePosts, myPosts, nextIn, openCommentBox, posts, publicPostSnapshot, recommendationPosts, recommendationUsesInterests, saveCommentEdit, savePostEdit, setAuto, setAutoInterval, setCommentAs, setCommentOn, setCommentText, setEditingComment, setEditingPost, setFeedView, setFixTarget, setFixText, setLoading, setMoodOpen, setPosts, setWriteOpen, setWriteText, sortedPosts, submitExternalComment, timeAgo: formatPostTime, timelinePosts, toggleLike, visiblePosts, writeOpen, writeText };
+  return { auto, autoIntervalSeconds, canLikePost, commentAs, commentOn, commentText, defaultCommentAs, deleteComment, deletePost, editingComment, editingPost, feedError: pagedFeed.error, feedView, fixTarget, fixText, followedTimelinePosts, generateServerPost, hasMoreFeedPosts: pagedFeed.hasMore, isLikePending, loading, loadingFeedPosts: pagedFeed.isLoading, loadMoreFeedPosts: pagedFeed.loadMore, manualPost, moodOpen, mutatePosts, myPosts, nextIn, openCommentBox, posts, publicPostSnapshot, recommendationPosts, recommendationUsesInterests, retryFeedPosts: pagedFeed.retry, saveCommentEdit, savePostEdit, setAuto, setAutoInterval, setCommentAs, setCommentOn, setCommentText, setEditingComment, setEditingPost, setFeedView, setFixTarget, setFixText, setLoading, setMoodOpen, setPosts, setWriteOpen, setWriteText, sortedPosts, submitExternalComment, timeAgo: formatPostTime, timelinePosts, toggleLike, visiblePosts, writeOpen, writeText };
 }
 
 type FollowedLikesOptions = {

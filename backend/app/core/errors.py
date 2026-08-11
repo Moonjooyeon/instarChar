@@ -31,6 +31,11 @@ class ConflictError(AppError):
         super().__init__("CONFLICT", message, 409)
 
 
+class TooManyRequestsError(AppError):
+    def __init__(self, message: str = "Too many requests") -> None:
+        super().__init__("RATE_LIMITED", message, 429)
+
+
 class CharacterHandleTakenError(AppError):
     def __init__(self, message: str = "이미 사용 중인 아이디야.") -> None:
         super().__init__("CHARACTER_HANDLE_TAKEN", message, 409)

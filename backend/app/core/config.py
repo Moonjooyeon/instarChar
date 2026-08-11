@@ -51,6 +51,7 @@ class Settings(BaseSettings):
     terms_version: str = "2026-07-24"
     api_daily_limit: int = 50
     api_paid_daily_limit: int = 200
+    feed_requests_per_minute: int = 60
     api_monthly_cost_limit_usd: float = 50.0
     api_estimated_call_cost_usd: float = 0.003
     monogpt_gemini_timeout_ms: int = 60000

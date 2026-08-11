@@ -1,7 +1,7 @@
 import { useState, type Dispatch, type SetStateAction } from "react";
 import {
   deleteFollowRow as deleteRemoteFollowRow,
-  listFollowerTargetRows,
+  listFollowerCounts,
   listSharedFollowers,
   loadSharedCharacterRow,
   saveRelationshipFollowBack,
@@ -182,12 +182,12 @@ export function useAliveDiscover({ activeId = null, char = null, onVisibilityCha
     if (!hasRemoteApiClient() || !rows?.length) return;
     const ids = rows.map((row) => row.id).filter(Boolean);
     if (!ids.length) return;
-    const { data, error } = await listFollowerTargetRows(ids);
+    const { data, error } = await listFollowerCounts(ids);
     if (error) {
       console.warn("팔로워 수 불러오기 실패:", error);
       return;
     }
-    setFollowerCounts((prev) => ({ ...prev, ...followerCountsForRows(ids, data || []) }));
+    setFollowerCounts((prev) => ({ ...prev, ...(data || {}) }));
   }
   async function loadSharedFollowers(sharedId = activeSharedId): Promise<void> {
     if (!hasRemoteApiClient() || !sharedId) {
@@ -287,15 +287,6 @@ function deterministicFollowerCount(name: string): number {
   let hash = 0;
   for (let index = 0; index < name.length; index += 1) hash = (hash * 31 + name.charCodeAt(index)) % 9000;
   return 800 + hash;
-}
-
-function followerCountsForRows(ids: string[], rows: FollowRow[]): Record<string, number> {
-  const counts = Object.fromEntries(ids.map((id) => [id, 0]));
-  rows.forEach((row) => {
-    if (!row.target_shared_character_id) return;
-    counts[row.target_shared_character_id] = (counts[row.target_shared_character_id] || 0) + 1;
-  });
-  return counts;
 }
 
 function followerRowToChar(row: FollowRow, sharedCharacters: DiscoverCharacter[]): FollowerCharacter {
