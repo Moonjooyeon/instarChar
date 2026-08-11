@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal
 
 from app.core.errors import BadRequestError
 from app.services.toss_api import TossApiClient
@@ -17,6 +18,7 @@ class TossIapOrder:
     status: str
     status_determined_at: str
     reason: str
+    provider: Literal["apps_in_toss", "apps_in_toss_sandbox"] = "apps_in_toss"
 
 
 class TossIapService:

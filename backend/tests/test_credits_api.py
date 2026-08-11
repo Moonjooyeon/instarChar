@@ -97,13 +97,22 @@ def test_credit_catalog_hides_provider_skus_when_integration_is_disabled() -> No
 
 
 def test_credit_purchase_grant_returns_server_balance(monkeypatch: pytest.MonkeyPatch) -> None:
-    async def grant(self: object, user: object, order_id: str) -> CreditPurchaseResult:
+    requested: list[tuple[str, str, str]] = []
+    async def grant(self: object, user: object, order_id: str, sku: str, environment: str) -> CreditPurchaseResult:
+        requested.append((order_id, sku, environment))
         return CreditPurchaseResult(order_id, "granted", 550, 500, 50, 0)
     monkeypatch.setattr(CreditPurchaseService, "grant", grant)
     with make_test_client() as client:
-        response = client.post("/api/credits/purchases/grant", json={"order_id": "order-1"})
+        response = client.post("/api/credits/purchases/grant", json={"order_id": "order-1", "sku": "sku-500", "environment": "sandbox"})
     assert response.status_code == 200
+    assert requested == [("order-1", "sku-500", "sandbox")]
     assert response.json() == {"order_id": "order-1", "status": "granted", "granted_credits": 550, "purchased_credits": 500, "bonus_credits": 50, "debt_credits": 0, "total_credits": 550}
+
+
+def test_credit_purchase_grant_rejects_unknown_operational_environment() -> None:
+    with make_test_client() as client:
+        response = client.post("/api/credits/purchases/grant", json={"order_id": "order-1", "sku": "sku-500", "environment": "web"})
+    assert response.status_code == 422
 
 
 def test_credit_purchase_history_is_scoped_to_current_user(monkeypatch: pytest.MonkeyPatch) -> None:

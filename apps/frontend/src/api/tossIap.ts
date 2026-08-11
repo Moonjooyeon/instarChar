@@ -1,4 +1,4 @@
-import type { CreditPurchaseGrant } from "./credits.js";
+import type { CreditPurchaseGrant, TossIapEnvironment } from "./credits.js";
 
 
 export type TossIapProduct = {
@@ -33,9 +33,10 @@ type TossIapHistoryFetcher = (params?: { key?: string | null }) => Promise<TossI
 type TossIapVersionChecker = (versions: { android: `${number}.${number}.${number}`; ios: `${number}.${number}.${number}` }) => boolean;
 
 export const TOSS_IAP_FULL_FLOW_MIN_VERSIONS = { android: "5.234.0", ios: "5.233.0" } as const;
+export const TOSS_IAP_SANDBOX_FIXTURE_SKU = "sku_106";
 
 type PurchaseCallbacks = {
-  grant: (orderId: string) => Promise<CreditPurchaseGrant>;
+  grant: (orderId: string, sku: string, environment: TossIapEnvironment) => Promise<CreditPurchaseGrant>;
   success: (orderId: string) => void;
   error: (error: unknown) => void;
 };
@@ -58,8 +59,14 @@ export function hasTossIapFullFlowSupport(checker: TossIapVersionChecker): boole
 }
 
 export async function startTossIapPurchase(sku: string, callbacks: PurchaseCallbacks): Promise<() => void> {
-  const { IAP } = await import("@apps-in-toss/web-framework");
-  return IAP.createOneTimePurchaseOrder({ options: { sku, processProductGrant: ({ orderId }) => grantProduct(orderId, callbacks) }, onEvent: ({ data }) => callbacks.success(data.orderId), onError: callbacks.error });
+  const { IAP, getOperationalEnvironment } = await import("@apps-in-toss/web-framework");
+  const environment = getOperationalEnvironment();
+  return IAP.createOneTimePurchaseOrder({ options: { sku, processProductGrant: ({ orderId }) => grantProduct(orderId, sku, environment, callbacks) }, onEvent: ({ data }) => callbacks.success(data.orderId), onError: callbacks.error });
+}
+
+export async function getTossIapEnvironment(): Promise<TossIapEnvironment> {
+  const { getOperationalEnvironment } = await import("@apps-in-toss/web-framework");
+  return getOperationalEnvironment();
 }
 
 export async function getPendingTossIapOrders(): Promise<TossPendingOrder[] | null> {
@@ -107,9 +114,9 @@ export function tossIapErrorMessage(error: unknown): string {
   return "결제를 완료하지 못했어요. 잠시 후 다시 시도해 주세요.";
 }
 
-async function grantProduct(orderId: string, callbacks: PurchaseCallbacks): Promise<boolean> {
+async function grantProduct(orderId: string, sku: string, environment: TossIapEnvironment, callbacks: PurchaseCallbacks): Promise<boolean> {
   try {
-    const result = await callbacks.grant(orderId);
+    const result = await callbacks.grant(orderId, sku, environment);
     return result.status === "granted";
   } catch {
     return false;

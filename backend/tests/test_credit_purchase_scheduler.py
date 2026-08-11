@@ -31,6 +31,9 @@ def test_iap_reconciliation_is_disabled_by_default() -> None:
     assert settings.toss_iap_enabled is False
     assert settings.toss_iap_purchase_enabled is False
     assert settings.toss_iap_purchase_rollout_percent == 0
+    assert settings.toss_iap_sandbox_enabled is False
+    assert settings.toss_iap_sandbox_subject_hashes == ""
+    assert settings.toss_iap_sandbox_product_sku == ""
     assert settings.toss_iap_reconciliation_enabled is False
     assert settings.toss_iap_audit_alerts_enabled is False
     assert settings.toss_iap_reconciliation_poll_seconds == 3600

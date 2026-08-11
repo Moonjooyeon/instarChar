@@ -17,7 +17,9 @@ from app.services.toss_iap import TossIapOrder
 
 
 FIRST_PURCHASE_EVENT = "first_purchase"
+SANDBOX_FIRST_PURCHASE_EVENT = "first_purchase_sandbox"
 PURCHASE_AUDIT_STALE_AFTER = timedelta(hours=6)
+TOSS_PURCHASE_PROVIDER = "apps_in_toss"
 
 
 @dataclass(frozen=True)
@@ -134,7 +136,8 @@ class CreditPurchaseRepository:
     def due_statement(self, limit: int, now: datetime) -> Select[tuple[CreditPurchase]]:
         cutoff = now - timedelta(hours=6)
         due = or_(CreditPurchase.provider_checked_at.is_(None), CreditPurchase.provider_checked_at < cutoff)
-        return select(CreditPurchase).where(CreditPurchase.status.in_(("processing", "granted")), due).order_by(CreditPurchase.provider_checked_at.asc().nullsfirst()).limit(limit).with_for_update(skip_locked=True)
+        payable = and_(CreditPurchase.provider == TOSS_PURCHASE_PROVIDER, CreditPurchase.status.in_(("processing", "granted")))
+        return select(CreditPurchase).where(payable, due).order_by(CreditPurchase.provider_checked_at.asc().nullsfirst()).limit(limit).with_for_update(skip_locked=True)
 
     def _purchase_audit_statement(self, limit: int, now: datetime) -> Select[tuple[CreditPurchase, int, int]]:
         purchase_total = self._purchase_ledger_total("purchase:")
@@ -223,7 +226,7 @@ class CreditPurchaseRepository:
 
     async def _reserve(self, user_id: UUID, subject_hash: str, order: TossIapOrder, product: CreditProduct) -> CreditPurchase:
         purchase_id = uuid4()
-        statement = insert(CreditPurchase).values(id=purchase_id, user_id=user_id, provider_order_id=order.order_id, provider_subject_hash=subject_hash, sku=order.sku, provider_status=order.status, price_krw=product.price_krw, base_credits=product.base_credits, product_bonus_credits=product.product_bonus_credits).on_conflict_do_nothing(index_elements=[CreditPurchase.provider_order_id]).returning(CreditPurchase.id)
+        statement = insert(CreditPurchase).values(id=purchase_id, user_id=user_id, provider=order.provider, provider_order_id=order.order_id, provider_subject_hash=subject_hash, sku=order.sku, provider_status=order.status, price_krw=product.price_krw, base_credits=product.base_credits, product_bonus_credits=product.product_bonus_credits).on_conflict_do_nothing(index_elements=[CreditPurchase.provider_order_id]).returning(CreditPurchase.id)
         await self.session.execute(statement)
         result = await self.session.execute(select(CreditPurchase).where(CreditPurchase.provider_order_id == order.order_id).with_for_update())
         return result.scalar_one()
@@ -302,7 +305,8 @@ class CreditPurchaseRepository:
         if await self._has_prior_grant(purchase):
             return 0
         credits = eligible_credits * FIRST_PURCHASE_BONUS_PERCENT // 100
-        statement = insert(RewardGrant).values(user_id=user_id, event_code=FIRST_PURCHASE_EVENT, credits=credits).on_conflict_do_nothing().returning(RewardGrant.id)
+        event = SANDBOX_FIRST_PURCHASE_EVENT if purchase.provider == "apps_in_toss_sandbox" else FIRST_PURCHASE_EVENT
+        statement = insert(RewardGrant).values(user_id=user_id, event_code=event, credits=credits).on_conflict_do_nothing().returning(RewardGrant.id)
         return credits if (await self.session.execute(statement)).scalar_one_or_none() else 0
 
     async def _has_prior_grant(self, purchase: CreditPurchase) -> bool:

@@ -72,6 +72,8 @@ class CreditUsageListResponse(BaseModel):
 
 class CreditPurchaseGrantRequest(BaseModel):
     order_id: str = Field(min_length=1, max_length=80)
+    sku: str = Field(default="", max_length=255)
+    environment: Literal["toss", "sandbox"] = "toss"
 
 
 class CreditPurchaseGrantResponse(BaseModel):
@@ -105,6 +107,7 @@ class CreditPurchaseHistoryResponse(BaseModel):
 
 class CreditPurchaseOperationsDetail(BaseModel):
     model_config = ConfigDict(from_attributes=True)
+    provider: str
     provider_order_id: str
     user_id: UUID | None
     sku: str

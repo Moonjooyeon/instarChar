@@ -35,7 +35,7 @@ async def get_credit_usage(user: User = Depends(get_current_user), session: Asyn
 
 @router.post("/purchases/grant", response_model=CreditPurchaseGrantResponse)
 async def grant_credit_purchase(payload: CreditPurchaseGrantRequest, user: User = Depends(get_current_user), session: AsyncSession = Depends(get_db_session), settings: Settings = Depends(get_settings)) -> CreditPurchaseGrantResponse:
-    result = await CreditPurchaseService(settings, CreditPurchaseRepository(session)).grant(user, payload.order_id)
+    result = await CreditPurchaseService(settings, CreditPurchaseRepository(session)).grant(user, payload.order_id, payload.sku, payload.environment)
     return CreditPurchaseGrantResponse(order_id=result.order_id, status=result.status, granted_credits=result.granted_credits, purchased_credits=result.purchased_credits, bonus_credits=result.bonus_credits, debt_credits=result.debt_credits, total_credits=result.purchased_credits + result.bonus_credits)
 
 

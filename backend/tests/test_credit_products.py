@@ -106,6 +106,28 @@ def test_purchase_rollout_is_stable_and_zero_is_closed(tmp_path: Path) -> None:
     assert toss_iap_purchase_available(settings, UserProvider.toss, "stable-user") is False
 
 
+def test_sandbox_configuration_requires_hash_allowlist_and_configured_product(tmp_path: Path) -> None:
+    settings = _configured_settings(tmp_path)
+    settings.toss_iap_sandbox_enabled = True
+    settings.toss_iap_sandbox_product_sku = "sku-500"
+    with pytest.raises(ValueError, match="SANDBOX_SUBJECT_HASHES"):
+        validate_toss_iap_configuration(settings)
+    settings.toss_iap_sandbox_subject_hashes = "a" * 64
+    validate_toss_iap_configuration(settings)
+    settings.toss_iap_sandbox_product_sku = "unknown"
+    with pytest.raises(ValueError, match="SANDBOX_PRODUCT_SKU"):
+        validate_toss_iap_configuration(settings)
+
+
+def test_sandbox_configuration_rejects_malformed_subject_hash(tmp_path: Path) -> None:
+    settings = _configured_settings(tmp_path)
+    settings.toss_iap_sandbox_enabled = True
+    settings.toss_iap_sandbox_product_sku = "sku-500"
+    settings.toss_iap_sandbox_subject_hashes = "A" * 64
+    with pytest.raises(ValueError, match="lowercase SHA-256"):
+        validate_toss_iap_configuration(settings)
+
+
 def _configured_settings(tmp_path: Path) -> Settings:
     certificate = tmp_path / "certificate.pem"
     private_key = tmp_path / "private-key.pem"

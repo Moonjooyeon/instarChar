@@ -3,7 +3,7 @@ title: 앱인토스 인앱결제 샌드박스 검증 가이드
 author: black (black@ashwoodfriends.com)
 created: 2026-08-11
 updated: 2026-08-11
-version: 1.8.0
+version: 1.9.0
 status: ready
 ---
 
@@ -37,6 +37,45 @@ Apps in Toss 일회성 인앱결제를 실제 판매 전에 샌드박스 앱에�
 - 화면 캡처, 비식별 서버 로그와 운영 조회 결과는 `documents/qa/evidence/`에 저장한다.
 - 인증서, 개인키, HMAC 키, 세션 쿠키와 `X-Moderation-Key`는 캡처하거나 저장소에 기록하지 않는다.
 - 오류를 발견하면 같은 주문을 임의 조정하지 말고 주문 상세 조회 결과와 함께 별도 결함으로 기록한다.
+
+## ALIVE 샌드박스 어댑터 설정
+
+앱인토스 샌드박스의 성공·서버 인증 실패 시나리오는 운영 Toss 주문 상태 API에서 조회할 수 없는 고정 fixture 주문을 반환한다. ALIVE는 운영 검증을 끄지 않고, 아래 조건을 모두 만족하는 경우에만 이 fixture를 별도 테스트 구매로 기록한다.
+
+- 공식 `getOperationalEnvironment()` 결과가 `sandbox`
+- 주문 ID가 `550e8400-e29b-41d4-a716-446655440000`
+- pending 복구 SKU가 `sku_106`이거나 요청 SKU가 지정한 테스트 상품 SKU와 동일
+- 로그인한 Toss 사용자의 샌드박스 전용 HMAC 해시가 서버 허용목록에 존재
+- `TOSS_IAP_SANDBOX_ENABLED=true`
+
+먼저 샌드박스 앱에서 테스트 계정으로 한 번 로그인한다. Lightsail에서 원문 userKey를 출력하지 않는 다음 명령으로 해당 계정의 샌드박스 전용 해시를 계산한다.
+
+```bash
+docker compose --env-file .env.prod -f docker-compose.prod.yml run --rm --no-deps \
+  -v "$PWD/backend/scripts:/app/scripts:ro" \
+  backend python scripts/print_toss_iap_sandbox_subject_hash.py \
+  --email '테스트계정이메일'
+```
+
+출력된 64자리 소문자 해시와 가장 낮은 가격의 실제 콘솔 SKU를 `.env.prod`에 넣는다. 원문 userKey와 `TOSS_IAP_SUBJECT_HMAC_KEY`는 넣거나 공유하지 않는다.
+
+```dotenv
+TOSS_IAP_SANDBOX_ENABLED=true
+TOSS_IAP_SANDBOX_SUBJECT_HASHES=<위 명령의 64자리 출력값>
+TOSS_IAP_SANDBOX_PRODUCT_SKU=ait.0000058377.f2966bb1.6eb92fa59d.6425847961
+```
+
+샌드박스 구매를 실행하는 동안에는 기존 신규 구매 게이트도 `TOSS_IAP_PURCHASE_ENABLED=true`, `TOSS_IAP_PURCHASE_ROLLOUT_PERCENT=100`이어야 한다. 설정 변경 후 백엔드를 다시 빌드·기동하고 설정값을 확인한다. 테스트 구매는 `apps_in_toss_sandbox`로 저장되며 운영 Toss 주문 대사에서 제외되고, 같은 계정·상품 fixture의 반복 호출은 같은 내부 주문으로 처리되어 중복 지급되지 않는다.
+
+테스트를 마치면 즉시 아래 값으로 복구하고 백엔드를 다시 기동한다. 운영 결제를 시작할 때도 샌드박스 설정은 비활성 상태여야 한다.
+
+```dotenv
+TOSS_IAP_SANDBOX_ENABLED=false
+TOSS_IAP_SANDBOX_SUBJECT_HASHES=
+TOSS_IAP_SANDBOX_PRODUCT_SKU=
+TOSS_IAP_PURCHASE_ENABLED=false
+TOSS_IAP_PURCHASE_ROLLOUT_PERCENT=0
+```
 
 ## 실행 정보
 
@@ -111,8 +150,8 @@ make iap-release-check IAP_RELEASE_MANIFEST=documents/qa/evidence/apps-in-toss-i
 ### SB-02 정상 결제와 멱등 지급
 
 1. 가장 낮은 가격의 소모품을 한 번 구매한다.
-2. 성공 이벤트의 `orderId`가 생성되고 서버 주문 상태 조회가 `PAYMENT_COMPLETED` 또는 이미 완료된 `PURCHASED`를 반환하는지 확인한다.
-3. 앱 잔액, `credit_purchases`, 구매 원장과 운영 주문 상세의 지급량이 일치하는지 확인한다.
+2. 샌드박스 성공 화면 뒤 서버가 허용된 고정 fixture를 `apps_in_toss_sandbox` 구매로 기록하는지 확인한다.
+3. 앱 잔액, `credit_purchases`, 구매 원장과 운영 주문 상세의 지급량이 일치하고 내부 주문 ID가 `sandbox:`로 시작하는지 확인한다.
 4. 같은 `orderId`로 지급 API를 다시 호출해 잔액과 구매 원장이 증가하지 않는지 확인한다.
 
 통과 조건: 최초 호출만 지급되고 성공 UI와 잔액이 갱신되며 재호출은 저장된 결과만 반환한다.
@@ -150,6 +189,8 @@ make iap-release-check IAP_RELEASE_MANIFEST=documents/qa/evidence/apps-in-toss-i
 | 파트너 지급 실패 | 재진입 복원 안내 | 복원 성공 전 지급 없음 | not run |
 
 ### SB-05 환불 재조정
+
+고정 fixture 어댑터는 결제 성공과 pending 복원 검증만 지원하며 샌드박스 환불을 운영 환불로 합성하지 않는다. 아래 시나리오는 토스 주문 상태 API에서 실제 `REFUNDED` 상태를 조회할 수 있는 공식 테스트 수단이 제공된 경우에만 실행하고, 그렇지 않으면 `not run`과 제한 사유를 기록한다.
 
 1. 콘솔 또는 테스트 앱에서 지원하는 공식 환불 절차로 SB-02 주문을 환불한다.
 2. 클라이언트 이력 조회 또는 서버 재조정 뒤 구매 상태가 `refunded`인지 확인한다.

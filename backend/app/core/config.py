@@ -51,6 +51,9 @@ class Settings(BaseSettings):
     toss_iap_credit_50000_sku: str = ""
     toss_iap_credit_100000_sku: str = ""
     toss_iap_subject_hmac_key: str = ""
+    toss_iap_sandbox_enabled: bool = False
+    toss_iap_sandbox_subject_hashes: str = ""
+    toss_iap_sandbox_product_sku: str = ""
     toss_iap_reconciliation_enabled: bool = False
     toss_iap_audit_alerts_enabled: bool = False
     toss_iap_reconciliation_poll_seconds: int = 3600

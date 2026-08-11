@@ -8,8 +8,8 @@ export function shouldRecoverTossPurchases(userId: string, offers: readonly Conf
   return Boolean(userId && runtime === "apps-in-toss" && offers.some((offer) => Boolean(offer.sku)));
 }
 
-export function filterConfiguredPurchaseOrders<Order extends PurchaseOrder>(orders: readonly Order[], configuredSkus: readonly string[]): Order[] {
-  const allowedSkus = new Set(configuredSkus.filter(Boolean));
+export function filterConfiguredPurchaseOrders<Order extends PurchaseOrder>(orders: readonly Order[], configuredSkus: readonly string[], additionalSkus: readonly string[] = []): Order[] {
+  const allowedSkus = new Set([...configuredSkus, ...additionalSkus].filter(Boolean));
   return orders.filter((order) => allowedSkus.has(order.sku));
 }
 

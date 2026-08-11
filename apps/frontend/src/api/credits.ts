@@ -100,9 +100,10 @@ export type CreditPurchase = {
 };
 
 export type CreditPurchaseList = { items: CreditPurchase[] };
+export type TossIapEnvironment = "toss" | "sandbox";
 
-export function grantCreditPurchase(orderId: string): Promise<CreditPurchaseGrant> {
-  return apiJson<CreditPurchaseGrant>("/credits/purchases/grant", { method: "POST", body: JSON.stringify({ order_id: orderId }) });
+export function grantCreditPurchase(orderId: string, sku: string = "", environment: TossIapEnvironment = "toss"): Promise<CreditPurchaseGrant> {
+  return apiJson<CreditPurchaseGrant>("/credits/purchases/grant", { method: "POST", body: JSON.stringify({ order_id: orderId, sku, environment }) });
 }
 
 export function getCreditPurchases(): Promise<CreditPurchaseList> {

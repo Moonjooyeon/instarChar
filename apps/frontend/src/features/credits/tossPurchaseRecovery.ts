@@ -1,5 +1,6 @@
 import { grantCreditPurchase } from "@/api/credits";
-import { completeTossIapGrant, getPendingTossIapOrders, getRefundedTossIapOrders } from "@/api/tossIap";
+import { completeTossIapGrant, getPendingTossIapOrders, getRefundedTossIapOrders, getTossIapEnvironment, TOSS_IAP_SANDBOX_FIXTURE_SKU } from "@/api/tossIap";
+import type { TossIapEnvironment } from "@/api/credits";
 import { filterConfiguredPurchaseOrders, pendingPurchaseRecoveryAttempt, summarizePurchaseRecovery, type PurchaseRecoveryAttempt, type PurchaseRecoverySummary } from "@/domain/credits/tossPurchaseRecovery";
 
 
@@ -14,20 +15,22 @@ export function recoverTossCreditPurchases(configuredSkus: readonly string[]): P
 }
 
 async function runRecovery(configuredSkus: readonly string[]): Promise<PurchaseRecoveryResult> {
-  const restored = await restorePendingPurchases(configuredSkus);
-  const refunded = await reconcileRefundedPurchases(configuredSkus);
+  const environment = await getTossIapEnvironment();
+  const restored = await restorePendingPurchases(configuredSkus, environment);
+  const refunded = environment === "toss" ? await reconcileRefundedPurchases(configuredSkus) : summarizePurchaseRecovery([]);
   return { restored: restored.updated, refunded: refunded.updated, pending: restored.pending, failed: restored.failed + refunded.failed };
 }
 
-async function restorePendingPurchases(configuredSkus: readonly string[]): Promise<PurchaseRecoverySummary> {
+async function restorePendingPurchases(configuredSkus: readonly string[], environment: TossIapEnvironment): Promise<PurchaseRecoverySummary> {
   const orders = await getPendingTossIapOrders();
   if (!orders) return summarizePurchaseRecovery([]);
-  return settleRecovery(filterConfiguredPurchaseOrders(orders, configuredSkus).map((order) => restorePendingOrder(order.orderId)));
+  const extraSkus = environment === "sandbox" ? [TOSS_IAP_SANDBOX_FIXTURE_SKU] : [];
+  return settleRecovery(filterConfiguredPurchaseOrders(orders, configuredSkus, extraSkus).map((order) => restorePendingOrder(order.orderId, order.sku, environment)));
 }
 
-async function restorePendingOrder(orderId: string): Promise<PurchaseRecoveryAttempt> {
+async function restorePendingOrder(orderId: string, sku: string, environment: TossIapEnvironment): Promise<PurchaseRecoveryAttempt> {
   try {
-    const result = await grantCreditPurchase(orderId);
+    const result = await grantCreditPurchase(orderId, sku, environment);
     const acknowledged = result.status === "granted" && await completeTossIapGrant(orderId);
     return pendingPurchaseRecoveryAttempt(result.status, acknowledged);
   } catch {
@@ -38,12 +41,12 @@ async function restorePendingOrder(orderId: string): Promise<PurchaseRecoveryAtt
 async function reconcileRefundedPurchases(configuredSkus: readonly string[]): Promise<PurchaseRecoverySummary> {
   const orders = await getRefundedTossIapOrders();
   if (!orders) return summarizePurchaseRecovery([]);
-  return settleRecovery(filterConfiguredPurchaseOrders(orders, configuredSkus).map((order) => reconcileRefundedOrder(order.orderId)));
+  return settleRecovery(filterConfiguredPurchaseOrders(orders, configuredSkus).map((order) => reconcileRefundedOrder(order.orderId, order.sku)));
 }
 
-async function reconcileRefundedOrder(orderId: string): Promise<PurchaseRecoveryAttempt> {
+async function reconcileRefundedOrder(orderId: string, sku: string): Promise<PurchaseRecoveryAttempt> {
   try {
-    const result = await grantCreditPurchase(orderId);
+    const result = await grantCreditPurchase(orderId, sku, "toss");
     return result.status === "refunded" ? "updated" : "failed";
   } catch {
     return "failed";

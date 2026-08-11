@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from hashlib import sha256
 from hmac import new as new_hmac
@@ -55,7 +56,7 @@ def credit_product_by_sku(settings: Settings, sku: str) -> CreditProduct | None:
 
 
 def validate_toss_iap_configuration(settings: Settings) -> None:
-    requested = settings.toss_iap_enabled or settings.toss_iap_purchase_enabled or settings.toss_iap_reconciliation_enabled or settings.toss_iap_audit_alerts_enabled
+    requested = settings.toss_iap_enabled or settings.toss_iap_purchase_enabled or settings.toss_iap_reconciliation_enabled or settings.toss_iap_audit_alerts_enabled or settings.toss_iap_sandbox_enabled
     if not requested:
         return
     if not settings.toss_iap_enabled:
@@ -69,6 +70,7 @@ def validate_toss_iap_configuration(settings: Settings) -> None:
     _validate_iap_credentials(settings)
     _validate_iap_skus(settings)
     _validate_iap_rollout(settings)
+    _validate_iap_sandbox(settings)
 
 
 def toss_iap_purchase_available(settings: Settings, provider: UserProvider, subject: str) -> bool:
@@ -110,3 +112,14 @@ def _validate_iap_rollout(settings: Settings) -> None:
     percent = settings.toss_iap_purchase_rollout_percent
     if percent < 0 or percent > 100:
         raise ValueError("TOSS_IAP_PURCHASE_ROLLOUT_PERCENT must be between 0 and 100")
+
+
+def _validate_iap_sandbox(settings: Settings) -> None:
+    if not settings.toss_iap_sandbox_enabled:
+        return
+    hashes = [value.strip() for value in settings.toss_iap_sandbox_subject_hashes.split(",") if value.strip()]
+    if not hashes or any(not re.fullmatch(r"[0-9a-f]{64}", value) for value in hashes):
+        raise ValueError("TOSS_IAP_SANDBOX_SUBJECT_HASHES must contain comma-separated lowercase SHA-256 HMAC hashes")
+    configured = set(credit_product_skus(settings).values())
+    if settings.toss_iap_sandbox_product_sku not in configured:
+        raise ValueError("TOSS_IAP_SANDBOX_PRODUCT_SKU must match a configured Toss IAP credit SKU")

@@ -11,7 +11,7 @@ from sqlalchemy.dialects import postgresql
 
 from app.core.config import Settings
 from app.core.credit_products import CREDIT_PRODUCTS, credit_product_by_sku
-from app.core.errors import ConflictError, ForbiddenError, ServiceUnavailableError
+from app.core.errors import BadRequestError, ConflictError, ForbiddenError, ServiceUnavailableError
 from app.models import CreditAccount, CreditLedgerEntry, CreditPurchase, User, UserProvider
 from app.repositories.credit_purchases import CreditPurchaseRepository, CreditPurchaseResult
 from app.services.credit_purchases import CreditPurchaseService
@@ -130,6 +130,7 @@ def test_reconciliation_query_uses_skip_locked() -> None:
     sql = str(statement.compile(dialect=postgresql.dialect()))
     assert "FOR UPDATE SKIP LOCKED" in sql
     assert "provider_checked_at" in sql
+    assert "credit_purchases.provider =" in sql
 
 
 def test_account_deletion_schedules_five_year_subject_retention() -> None:
@@ -194,6 +195,54 @@ def test_service_uses_toss_user_and_server_product_mapping() -> None:
     assert purchases.calls[0][3] == CREDIT_PRODUCTS[0]
     assert len(purchases.calls[0][1]) == 64
     assert "123" not in purchases.calls[0][1]
+
+
+def test_sandbox_grant_uses_allowlisted_subject_and_synthetic_order() -> None:
+    settings = Settings(_env_file=None, toss_iap_enabled=True, toss_iap_credit_5000_sku="sku-500", toss_iap_subject_hmac_key="purchase-secret-at-least-32-bytes", toss_iap_sandbox_enabled=True, toss_iap_sandbox_product_sku="sku-500")
+    expected = CreditPurchaseResult("sandbox-result", "granted", 550, 550, 0, 0)
+    purchases = StubPurchases(expected)
+    iap = StubIap(toss_order("unused", "unused", "FAILED"))
+    service = CreditPurchaseService(settings, purchases, iap)  # type: ignore[arg-type]
+    settings.toss_iap_sandbox_subject_hashes = service._subject_hash("123", "sandbox")
+    user = User(id=uuid4(), provider=UserProvider.toss, provider_subject="123")
+    result = asyncio.run(service.grant(user, "550e8400-e29b-41d4-a716-446655440000", "sku_106", "sandbox"))
+    order = purchases.calls[0][2]
+    assert result == expected
+    assert (order.sku, order.status, order.provider) == ("sku-500", "PAYMENT_COMPLETED", "apps_in_toss_sandbox")
+    assert order.order_id.startswith("sandbox:") and len(order.order_id) == 72
+    assert service._sandbox_order("550e8400-e29b-41d4-a716-446655440000", "sku-500", settings.toss_iap_sandbox_subject_hashes).order_id == order.order_id
+    assert iap.calls == []
+
+
+@pytest.mark.parametrize("order_id,sku", [("other-order", "sku_106"), ("550e8400-e29b-41d4-a716-446655440000", "other-sku")])
+def test_sandbox_grant_rejects_unknown_fixture(order_id: str, sku: str) -> None:
+    settings = Settings(_env_file=None, toss_iap_enabled=True, toss_iap_credit_5000_sku="sku-500", toss_iap_subject_hmac_key="purchase-secret-at-least-32-bytes", toss_iap_sandbox_enabled=True, toss_iap_sandbox_product_sku="sku-500")
+    service = CreditPurchaseService(settings, StubPurchases(CreditPurchaseResult("", "", 0, 0, 0, 0)), StubIap(toss_order("", "", "FAILED")))  # type: ignore[arg-type]
+    settings.toss_iap_sandbox_subject_hashes = service._subject_hash("123", "sandbox")
+    with pytest.raises(BadRequestError):
+        asyncio.run(service.grant(User(id=uuid4(), provider=UserProvider.toss, provider_subject="123"), order_id, sku, "sandbox"))
+
+
+def test_sandbox_grant_rejects_non_allowlisted_subject() -> None:
+    settings = Settings(_env_file=None, toss_iap_enabled=True, toss_iap_credit_5000_sku="sku-500", toss_iap_subject_hmac_key="purchase-secret-at-least-32-bytes", toss_iap_sandbox_enabled=True, toss_iap_sandbox_product_sku="sku-500", toss_iap_sandbox_subject_hashes="a" * 64)
+    service = CreditPurchaseService(settings, StubPurchases(CreditPurchaseResult("", "", 0, 0, 0, 0)), StubIap(toss_order("", "", "FAILED")))  # type: ignore[arg-type]
+    with pytest.raises(ForbiddenError, match="tester"):
+        asyncio.run(service.grant(User(id=uuid4(), provider=UserProvider.toss, provider_subject="123"), "550e8400-e29b-41d4-a716-446655440000", "sku_106", "sandbox"))
+
+
+def test_sandbox_grant_requires_server_feature_flag() -> None:
+    settings = Settings(_env_file=None, toss_iap_enabled=True, toss_iap_credit_5000_sku="sku-500", toss_iap_subject_hmac_key="purchase-secret-at-least-32-bytes", toss_iap_sandbox_product_sku="sku-500")
+    service = CreditPurchaseService(settings, StubPurchases(CreditPurchaseResult("", "", 0, 0, 0, 0)), StubIap(toss_order("", "", "FAILED")))  # type: ignore[arg-type]
+    settings.toss_iap_sandbox_subject_hashes = service._subject_hash("123", "sandbox")
+    with pytest.raises(ServiceUnavailableError, match="Sandbox purchases"):
+        asyncio.run(service.grant(User(id=uuid4(), provider=UserProvider.toss, provider_subject="123"), "550e8400-e29b-41d4-a716-446655440000", "sku_106", "sandbox"))
+
+
+def test_verified_toss_order_rejects_client_sku_mismatch() -> None:
+    settings = Settings(_env_file=None, toss_iap_enabled=True, toss_iap_credit_5000_sku="sku-500", toss_iap_subject_hmac_key="purchase-secret-at-least-32-bytes")
+    service = CreditPurchaseService(settings, StubPurchases(CreditPurchaseResult("", "", 0, 0, 0, 0)), StubIap(toss_order("order", "sku-500", "PAYMENT_COMPLETED")))  # type: ignore[arg-type]
+    with pytest.raises(BadRequestError, match="does not match"):
+        asyncio.run(service.grant(User(id=uuid4(), provider=UserProvider.toss, provider_subject="123"), "order", "other-sku", "toss"))
 
 
 def test_prior_subject_purchase_prevents_repeat_first_purchase_bonus(monkeypatch: pytest.MonkeyPatch) -> None:

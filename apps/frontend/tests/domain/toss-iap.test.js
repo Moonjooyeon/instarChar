@@ -43,6 +43,16 @@ test("purchase recovery ignores orders outside the configured catalog", () => {
 });
 
 
+test("sandbox recovery accepts only the explicit fixture sku in addition to the catalog", () => {
+  const orders = [
+    { orderId: "sandbox-order", sku: "sku_106" },
+    { orderId: "unknown-order", sku: "sku_999" },
+  ];
+  const result = filterConfiguredPurchaseOrders(orders, ["ait.alive.credit-500"], ["sku_106"]);
+  assert.deepEqual(result, [{ orderId: "sandbox-order", sku: "sku_106" }]);
+});
+
+
 test("a granted purchase refreshes balance even when provider acknowledgement stays pending", () => {
   assert.equal(pendingPurchaseRecoveryAttempt("granted", false), "pending");
   assert.equal(pendingPurchaseRecoveryAttempt("granted", true), "updated");
