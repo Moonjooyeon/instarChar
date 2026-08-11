@@ -3,7 +3,7 @@ title: 앱인토스 인앱결제 샌드박스 검증 가이드
 author: black (black@ashwoodfriends.com)
 created: 2026-08-11
 updated: 2026-08-11
-version: 1.2.0
+version: 1.3.0
 status: ready
 ---
 
@@ -60,13 +60,15 @@ Apps in Toss 일회성 인앱결제를 실제 판매 전에 샌드박스 앱에�
 
 콘솔의 VAT 포함 가격과 SDK `displayAmount`가 같은지 직접 대조한다. 서버의 `price_krw`는 지급 검증 근거로 사용하지 않는다.
 
-| 상품 | 콘솔 SKU | 공급가 | VAT 포함 가격 | SDK 표시 가격 | 지급 C | 결과 |
-| --- | --- | ---: | ---: | ---: | ---: | --- |
-| `credit-5000` |  |  |  |  | 500 | not run |
-| `credit-10000` |  |  |  |  | 1,000 | not run |
-| `credit-30000` |  |  |  |  | 3,150 | not run |
-| `credit-50000` |  |  |  |  | 5,500 | not run |
-| `credit-100000` |  |  |  |  | 11,500 | not run |
+| 상품 | 업로드 이미지 | 콘솔 SKU | 공급가 | VAT 포함 가격 | SDK 표시 가격 | 지급 C | 결과 |
+| --- | --- | --- | ---: | ---: | ---: | ---: | --- |
+| `credit-5000` | [credit-500.png](../evidence/apps-in-toss-iap-products/credit-500.png) |  |  |  |  | 500 | not run |
+| `credit-10000` | [credit-1000.png](../evidence/apps-in-toss-iap-products/credit-1000.png) |  |  |  |  | 1,000 | not run |
+| `credit-30000` | [credit-3150.png](../evidence/apps-in-toss-iap-products/credit-3150.png) |  |  |  |  | 3,150 | not run |
+| `credit-50000` | [credit-5500.png](../evidence/apps-in-toss-iap-products/credit-5500.png) |  |  |  |  | 5,500 | not run |
+| `credit-100000` | [credit-11500.png](../evidence/apps-in-toss-iap-products/credit-11500.png) |  |  |  |  | 11,500 | not run |
+
+이미지 크기·해시는 [상품 이미지 증거](../evidence/apps-in-toss-iap-products/README.md)를 기준으로 확인한다. 상품 등록 화면 캡처에는 이미지, 상품명, SKU, 공급가, 판매가, 최소 지원 버전과 노출 상태가 함께 보이도록 남긴다.
 
 사전 조건을 아래 순서로 확인한다.
 
