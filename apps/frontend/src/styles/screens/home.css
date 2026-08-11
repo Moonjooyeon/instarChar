@@ -37,8 +37,8 @@
 .al-first-scene small{ color:var(--alive-accent-strong); }
 .al-first-scene p{ color:var(--alive-ink); }
 .al-first-scene p b{ color:var(--alive-accent-ink); }
-.al-accadd.first{ border-color:var(--alive-accent); background:var(--alive-accent); color:#fff; }
-.al-accadd.first i{ color:#fff; }
+.al-accadd.first{ border-color:var(--alive-accent); background:var(--alive-accent); color:var(--alive-on-accent); }
+.al-accadd.first i{ color:var(--alive-on-accent); }
 .al-accadd.first:hover{ border-color:var(--alive-accent-strong); background:var(--alive-accent-strong); }
 .al-first-demo-link{ border-color:var(--alive-line); background:var(--alive-surface); color:var(--alive-ink); }
 .al-first-demo-icon{ border-color:var(--alive-line-strong); background:var(--alive-accent-soft); color:var(--alive-accent-ink); }

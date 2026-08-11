@@ -14,7 +14,7 @@ import {
 
 const HOME_SIGN_OUT_CLASS = "border-line bg-surface-raised text-accent-ink hover:border-line-strong hover:text-accent-strong";
 const HOME_ADD_CLASS = "al-cast-add border-line text-ink hover:border-line-strong";
-const FIRST_CHARACTER_CLASS = "al-accadd first border-accent bg-accent text-white hover:border-accent-strong hover:bg-accent-strong";
+const FIRST_CHARACTER_CLASS = "al-accadd first border-accent bg-accent text-on-accent hover:border-accent-strong hover:bg-accent-strong";
 const HOME_TOUR_CLASS = "al-first-demo-link border-line bg-surface text-ink hover:border-accent hover:bg-accent-soft";
 
 export function HomeScreen({

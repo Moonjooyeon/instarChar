@@ -1,7 +1,7 @@
 .al-dm-list-theme-ready .al-dmhead{ border-bottom-color:var(--alive-line); background:var(--alive-phone); }
 .al-dm-list-theme-ready .al-back-inline,.al-dm-list-theme-ready .al-dmhead-name{ color:var(--alive-ink); }
 .al-dm-list-theme-ready .al-dmhead-sub{ color:var(--alive-soft); }
-.al-dm-list-theme-ready .al-dmhead-av,.al-dm-list-theme-ready .al-convitem-av,.al-dm-list-theme-ready .al-nt-av{ background:linear-gradient(135deg,var(--alive-accent-strong),var(--alive-accent)); color:white; }
+.al-dm-list-theme-ready .al-dmhead-av,.al-dm-list-theme-ready .al-convitem-av,.al-dm-list-theme-ready .al-nt-av{ background:linear-gradient(135deg,var(--alive-accent-strong),var(--alive-accent)); color:var(--alive-on-accent); }
 .al-dm-list-theme-ready .al-conv-empty{ color:var(--alive-ink); }
 .al-dm-list-theme-ready .al-conv-empty span{ color:var(--alive-soft); }
 .al-dm-list-theme-ready .al-convitem{ border-bottom-color:var(--alive-line); color:var(--alive-ink); }

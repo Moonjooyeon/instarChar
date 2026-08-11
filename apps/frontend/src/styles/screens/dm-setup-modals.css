@@ -11,5 +11,5 @@
 .al-dm-setup-modal-theme-ready .al-world-note:focus{ border-color:var(--alive-accent); box-shadow:0 0 0 3px var(--alive-accent-soft); }
 .al-dm-setup-modal-theme-ready .al-world-actions button{ border-color:var(--alive-line-strong); background:var(--alive-surface-raised); color:var(--alive-soft); }
 .al-dm-setup-modal-theme-ready .al-world-actions button:hover{ background:var(--alive-surface-muted); color:var(--alive-ink); }
-.al-dm-setup-modal-theme-ready .al-world-actions button.primary{ border-color:var(--alive-accent); background:var(--alive-accent); color:white; }
+.al-dm-setup-modal-theme-ready .al-world-actions button.primary{ border-color:var(--alive-accent); background:var(--alive-accent); color:var(--alive-on-accent); }
 .al-dm-setup-modal-theme-ready .al-world-actions button.primary:hover{ background:var(--alive-accent-strong); }

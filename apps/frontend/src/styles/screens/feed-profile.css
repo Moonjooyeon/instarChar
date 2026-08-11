@@ -11,7 +11,7 @@
 .al-feed-theme-ready .al-profile-network-head small{ color:var(--alive-faint); }
 .al-feed-theme-ready .al-profile-network-head b{ color:var(--alive-soft); }
 .al-feed-theme-ready .al-profile-discover{ border-color:var(--alive-line-strong); background:var(--alive-accent-soft); color:var(--alive-accent-ink); }
-.al-feed-theme-ready .al-profile-discover:hover{ border-color:var(--alive-accent); background:var(--alive-accent); color:#fff; }
+.al-feed-theme-ready .al-profile-discover:hover{ border-color:var(--alive-accent); background:var(--alive-accent); color:var(--alive-on-accent); }
 .al-feed-theme-ready .al-share-status{ color:var(--alive-accent-ink); }
 .al-feed-theme-ready .al-first-profile-note{ border-left-color:var(--alive-accent); background:var(--alive-accent-soft); color:var(--alive-soft); }
 .al-feed-theme-ready .al-profile-first .al-banner{ height:136px; background:radial-gradient(circle at 16% 112%,var(--alive-accent-soft) 0 34%,transparent 35%),linear-gradient(128deg,var(--alive-surface-muted),var(--alive-surface-sunken)); }
@@ -34,7 +34,7 @@
 .al-feed-theme-ready .al-profile-photo-actions label{ border-color:var(--alive-line-strong); background:var(--alive-surface-raised); color:var(--alive-accent-ink); }
 .al-feed-theme-ready .al-profile-photo-actions label:hover{ border-color:var(--alive-accent); background:var(--alive-accent-soft); color:var(--alive-ink); }
 .al-feed-theme-ready .al-world-chip{ border-color:var(--alive-line); background:var(--alive-accent-soft); color:var(--alive-accent-ink); }
-.al-feed-theme-ready .al-world-chip:hover,.al-feed-theme-ready .al-world-chip.on{ border-color:var(--alive-accent); background:var(--alive-accent); color:#fff; }
+.al-feed-theme-ready .al-world-chip:hover,.al-feed-theme-ready .al-world-chip.on{ border-color:var(--alive-accent); background:var(--alive-accent); color:var(--alive-on-accent); }
 .al-feed-theme-ready .al-fstat{ color:var(--alive-soft); }
 .al-feed-theme-ready .al-fstat.on{ color:var(--alive-accent-ink); }
 .al-feed-theme-ready .al-fstat b{ color:var(--alive-ink); }
@@ -46,12 +46,12 @@
 .al-feed-theme-ready .al-thumb{ border-color:var(--alive-line); }
 .al-feed-theme-ready .al-rellist,.al-feed-theme-ready .al-memlist{ border-color:var(--alive-line); background:var(--alive-surface-sunken); }
 .al-feed-theme-ready .al-rel{ border-color:var(--alive-line); background:var(--alive-surface); }
-.al-feed-theme-ready .al-rel-av,.al-feed-theme-ready .al-mem-peer-av{ background:linear-gradient(135deg,var(--alive-accent-strong),var(--alive-accent)); color:#fff; }
+.al-feed-theme-ready .al-rel-av,.al-feed-theme-ready .al-mem-peer-av{ background:linear-gradient(135deg,var(--alive-accent-strong),var(--alive-accent)); color:var(--alive-on-accent); }
 .al-feed-theme-ready .al-rel-who,.al-feed-theme-ready .al-mem-peer-info b{ color:var(--alive-ink); }
 .al-feed-theme-ready .al-rel-desc{ color:var(--alive-soft); }
 .al-feed-theme-ready .al-rel-stage,.al-feed-theme-ready .al-mem-peer-info small,.al-feed-theme-ready .al-mem-note{ color:var(--alive-soft); }
 .al-feed-theme-ready .al-rel-delete{ border-color:var(--alive-danger); background:var(--alive-danger-soft); color:var(--alive-danger); }
-.al-feed-theme-ready .al-rel-delete:hover{ border-color:var(--alive-danger); background:var(--alive-danger); color:#fff; }
+.al-feed-theme-ready .al-rel-delete:hover{ border-color:var(--alive-danger); background:var(--alive-danger); color:var(--alive-on-danger); }
 .al-feed-theme-ready .al-rel-onesided{ background:var(--alive-danger-soft); color:var(--alive-danger); }
 .al-feed-theme-ready .al-rel-onesided-note{ color:var(--alive-danger); }
 .al-feed-theme-ready .al-rel-bar{ background:var(--alive-surface-muted); }
@@ -80,5 +80,5 @@
 .al-feed-theme-ready .al-mem-add{ border-color:var(--alive-line); background:var(--alive-surface); }
 .al-feed-theme-ready .al-mem-add label{ color:var(--alive-faint); }
 .al-feed-theme-ready .al-mem-add-title{ color:var(--alive-accent-ink); }
-.al-feed-theme-ready .al-mem-add button.al-mem-add-btn{ border-color:var(--alive-accent); background:var(--alive-accent); color:#fff; }
+.al-feed-theme-ready .al-mem-add button.al-mem-add-btn{ border-color:var(--alive-accent); background:var(--alive-accent); color:var(--alive-on-accent); }
 .al-feed-theme-ready .al-mem-add button.al-mem-add-btn:hover:not(:disabled){ background:var(--alive-accent-strong); }

@@ -15,6 +15,19 @@ test("the app bundles and uses a Korean-capable font", () => {
   );
 });
 
+test("solid action colors keep readable foreground and disabled states", () => {
+  const theme = readFileSync(path.resolve(process.cwd(), "src/styles/theme.css"), "utf8");
+  const entry = readFileSync(path.resolve(process.cwd(), "src/styles/screens/entry.css"), "utf8");
+  const visibility = readFileSync(path.resolve(process.cwd(), "src/styles/screens/character-visibility-modal.css"), "utf8");
+  const colorPairs = [["#9f7cff", "#21182f"], ["#6e4fa6", "#fff"], ["#ff8fa4", "#2a0f18"], ["#a4475d", "#fff"], ["#292634", "#aaa4b6"], ["#ebe6df", "#6b646f"], ["#f4f2f8", "#191820"], ["#221e26", "#fbfaf7"]];
+  for (const [background, foreground] of colorPairs) assert.ok(contrastRatio(background, foreground) >= 4.5);
+  assert.match(theme, /--alive-on-accent: #21182f/);
+  assert.match(theme, /--alive-on-danger: #2a0f18/);
+  assert.match(entry, /\.al-theme-ready \.al-setup-wizard \.al-start:disabled\{ background:var\(--alive-surface-muted\); color:var\(--alive-soft\); \}/);
+  assert.match(visibility, /\.al-visibility-save\.private\{[^}]*color:var\(--alive-on-ink\)/);
+  assert.match(visibility, /\.al-visibility-actions button:disabled\{[^}]*color:var\(--alive-soft\);[^}]*opacity:1/);
+});
+
 test("the native app shell consumes system safe-area insets", () => {
   const stylesPath = path.resolve(process.cwd(), "src/styles/legacy.css");
   const styles = readFileSync(stylesPath, "utf8");
@@ -158,7 +171,7 @@ test("the staged feed composer uses semantic controls and its own style bridge",
   const composerStyles = readFileSync(path.resolve(process.cwd(), "src/styles/screens/feed-composer.css"), "utf8");
   assert.match(indexStyles, /screens\/feed-composer\.css" layer\(components\)/);
   assert.match(composer, /al-wake border-line-strong bg-accent-soft text-accent-ink/);
-  assert.match(composer, /al-write-post bg-accent text-white/);
+  assert.match(composer, /al-write-post bg-accent text-on-accent/);
   assert.match(composer, /캐릭터 글 설정/);
   assert.match(composer, /자동 게시와 지금 상황을 정해요/);
   assert.match(composer, /function MoodButton/);
@@ -189,7 +202,7 @@ test("the staged feed comments use semantic author and input states", () => {
   const commentStyles = readFileSync(path.resolve(process.cwd(), "src/styles/screens/feed-comments.css"), "utf8");
   assert.match(indexStyles, /screens\/feed-comments\.css" layer\(components\)/);
   assert.match(timeline, /al-cmt-open border-line bg-surface text-soft/);
-  assert.match(timeline, /al-cmtbox-send bg-accent text-white/);
+  assert.match(timeline, /al-cmtbox-send bg-accent text-on-accent/);
   assert.match(commentStyles, /\.al-feed-theme-ready \.al-comments/);
   assert.match(commentStyles, /\.al-feed-theme-ready \.al-cmtbox-input:focus/);
   assert.match(commentStyles, /\.al-feed-theme-ready \.al-cmtbox \.al-spk-chip\.persona\.on/);
@@ -202,7 +215,7 @@ test("the feed activates theme scope after its portal-based help surface migrate
   const helpStyles = readFileSync(path.resolve(process.cwd(), "src/styles/screens/feed-help.css"), "utf8");
   assert.match(feedRoute, /al-phone al-theme-ready al-feed-theme-ready/);
   assert.match(helpTour, /al-theme-ready al-feed-help-theme-ready/);
-  assert.match(helpTour, /al-help-next border-accent bg-accent text-white/);
+  assert.match(helpTour, /al-help-next border-accent bg-accent text-on-accent/);
   assert.match(helpTour, /key=\{step\.selector\}/);
   assert.match(helpStyles, /\.al-feed-help-theme-ready \.al-help-highlight/);
   assert.match(helpStyles, /var\(--alive-scrim\)/);
@@ -215,7 +228,7 @@ test("the discover list activates a semantic theme without pulling in its modal"
   const discover = readFileSync(path.resolve(process.cwd(), "src/features/discover/DiscoverScreen.tsx"), "utf8");
   const discoverStyles = readFileSync(path.resolve(process.cwd(), "src/styles/screens/discover.css"), "utf8");
   assert.match(discover, /al-phone al-theme-ready al-discover-theme-ready/);
-  assert.match(discover, /al-disc-dm bg-accent text-white/);
+  assert.match(discover, /al-disc-dm bg-accent text-on-accent/);
   assert.match(discover, /on border-accent bg-accent-soft text-accent-ink/);
   assert.match(discoverStyles, /\.al-discover-theme-ready \.al-disc-search input/);
   assert.match(discoverStyles, /\.al-discover-theme-ready \.al-world-chip/);
@@ -268,7 +281,7 @@ test("the DM thread activates after controls and message input receive semantic 
   assert.doesNotMatch(responseModes, /Gemini|model:/);
   assert.doesNotMatch(controls, /Gemini|responseMode\.model|mode\.model/);
   assert.match(controls, /대화 설정/);
-  assert.match(controls, /className="bg-accent text-white hover:bg-accent-strong/);
+  assert.match(controls, /className="bg-accent text-on-accent hover:bg-accent-strong/);
   assert.match(messages, /첫 장면의 단서/);
   assert.match(messages, /다음 이야기/);
   assert.match(messages, /입력창에 다시 담기/);
@@ -318,7 +331,7 @@ test("DM setup modals theme scene choices and actions independently", () => {
   const modalStyles = readFileSync(path.resolve(process.cwd(), "src/styles/screens/dm-setup-modals.css"), "utf8");
   assert.match(modals, /al-modal-bg al-theme-ready al-dm-setup-modal-theme-ready/);
   assert.match(modals, /function worldOptionClass\(active: boolean\): string/);
-  assert.match(modals, /primary border-accent bg-accent text-white hover:bg-accent-strong/);
+  assert.match(modals, /primary border-accent bg-accent text-on-accent hover:bg-accent-strong/);
   assert.match(modalStyles, /\.al-dm-setup-modal-theme-ready \.al-world-modal/);
   assert.match(modalStyles, /\.al-dm-setup-modal-theme-ready \.al-world-options button\.on/);
   assert.match(modalStyles, /\.al-dm-setup-modal-theme-ready \.al-world-note::placeholder/);
@@ -330,7 +343,7 @@ test("relationship proposal and result modals use semantic outcome states", () =
   const modalStyles = readFileSync(path.resolve(process.cwd(), "src/styles/screens/relationship-modals.css"), "utf8");
   assert.match(modals, /al-modal-bg al-theme-ready al-relationship-modal-theme-ready/);
   assert.match(modals, /friendship" : relationResult\.accepted \? "accepted" : "broken"/);
-  assert.match(modals, /al-prop-yes border-accent bg-accent text-white hover:bg-accent-strong/);
+  assert.match(modals, /al-prop-yes border-accent bg-accent text-on-accent hover:bg-accent-strong/);
   assert.match(modalStyles, /\.al-prop-heart\.friendship\{ color:var\(--alive-success\)/);
   assert.match(modalStyles, /\.al-prop-heart\.broken\{ color:var\(--alive-danger\)/);
   assert.doesNotMatch(modalStyles, /#[0-9a-fA-F]{3,8}/);
@@ -360,10 +373,10 @@ test("entry routes use semantic Tailwind classes for their primary actions", () 
   const home = readFileSync(path.resolve(process.cwd(), "src/features/home/HomeScreen.tsx"), "utf8");
   const tour = readFileSync(path.resolve(process.cwd(), "src/features/onboarding/ServiceTour.tsx"), "utf8");
   const confirm = readFileSync(path.resolve(process.cwd(), "src/features/character-setup/ConfirmScreen.tsx"), "utf8");
-  assert.match(auth, /al-auth-btn bg-accent text-white hover:bg-accent-strong/);
-  assert.match(home, /al-accadd first border-accent bg-accent text-white/);
-  assert.match(tour, /al-tour-next bg-accent text-white hover:bg-accent-strong/);
-  assert.match(confirm, /al-start al-confirm-go bg-accent text-white hover:bg-accent-strong/);
+  assert.match(auth, /al-auth-btn bg-accent text-on-accent hover:bg-accent-strong/);
+  assert.match(home, /al-accadd first border-accent bg-accent text-on-accent/);
+  assert.match(tour, /al-tour-next bg-accent text-on-accent hover:bg-accent-strong/);
+  assert.match(confirm, /al-start al-confirm-go bg-accent text-on-accent hover:bg-accent-strong/);
 });
 
 test("entry screens expose no theme toggle and bootstrap remains dark-only", () => {
@@ -382,7 +395,7 @@ test("shared modals use semantic Tailwind input and action states", () => {
   const safety = readFileSync(path.resolve(process.cwd(), "src/app/modals/SafetyModals.tsx"), "utf8");
   assert.match(account, /al-pd-input border-line bg-surface-raised text-ink/);
   assert.match(account, /al-modal-danger bg-danger-soft text-danger hover:bg-danger/);
-  assert.match(persona, /al-pd-save bg-accent text-white hover:bg-accent-strong/);
+  assert.match(persona, /al-pd-save bg-accent text-on-accent hover:bg-accent-strong/);
   assert.match(persona, /al-fixchip border-accent bg-accent-soft text-accent-ink/);
   assert.match(safety, /al-modal-danger bg-danger-soft text-danger hover:bg-danger/);
 });
@@ -399,3 +412,14 @@ test("character visibility is managed in an accessible modal without a link-copy
   assert.match(modal, /나만 보기/);
   assert.match(styles, /\.al-visibility-option\.selected/);
 });
+
+function contrastRatio(firstColor, secondColor) {
+  const luminances = [firstColor, secondColor].map(relativeLuminance).sort((first, second) => second - first);
+  return (luminances[0] + 0.05) / (luminances[1] + 0.05);
+}
+
+function relativeLuminance(color) {
+  const normalized = color.length === 4 ? color.split("").slice(1).map((value) => value + value) : [color.slice(1, 3), color.slice(3, 5), color.slice(5, 7)];
+  const channels = normalized.map((value) => Number.parseInt(value, 16) / 255).map((value) => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
+  return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+}

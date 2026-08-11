@@ -1,7 +1,7 @@
 import React from "react";
 
 const MEMORY_ACTION_CLASS = "border-line-strong bg-surface-raised text-accent-ink hover:border-accent hover:bg-accent-soft";
-const MEMORY_DANGER_ACTION_CLASS = "danger border-danger bg-danger-soft text-danger hover:bg-danger hover:text-white";
+const MEMORY_DANGER_ACTION_CLASS = "danger border-danger bg-danger-soft text-danger hover:bg-danger hover:text-on-danger";
 
 export function DmMemoryPanel({ ctx }) {
   const { deleteMemory, deleteRoomMemory, dmKey, editingMemoryId, editMemory, peerName, setEditingMemoryId, showPeerMem, updateRoomMemory, visibleMems } = ctx;

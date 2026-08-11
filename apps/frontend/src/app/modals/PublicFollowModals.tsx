@@ -98,7 +98,7 @@ export function PublicFollowModals({ ctx }) {
 }
 
 function publicFollowClass(followed: boolean): string {
-  return followed ? "on border-danger bg-danger-soft text-danger hover:bg-danger hover:text-white" : "border-accent bg-accent text-white hover:bg-accent-strong";
+  return followed ? "on border-danger bg-danger-soft text-danger hover:bg-danger hover:text-on-danger" : "border-accent bg-accent text-on-accent hover:bg-accent-strong";
 }
 
 function FollowModalList({ ctx }) {
