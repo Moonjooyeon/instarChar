@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { TOSS_IAP_FULL_FLOW_MIN_VERSIONS, collectRefundedTossIapOrders, hasTossIapFullFlowSupport, isAppsInTossIapRuntime, tossIapErrorMessage } from "../../src/api/tossIap.js";
-import { shouldRecoverTossPurchases } from "../../src/domain/credits/tossPurchaseRecovery.js";
+import { pendingPurchaseRecoveryAttempt, shouldRecoverTossPurchases, summarizePurchaseRecovery } from "../../src/domain/credits/tossPurchaseRecovery.js";
 
 
 test("IAP is exposed only in the Apps in Toss runtime", () => {
@@ -30,6 +30,14 @@ test("session recovery starts only for signed-in Apps in Toss users with configu
   assert.equal(shouldRecoverTossPurchases("", [offer], "apps-in-toss"), false);
   assert.equal(shouldRecoverTossPurchases("user-1", [{ sku: "" }], "apps-in-toss"), false);
   assert.equal(shouldRecoverTossPurchases("user-1", [offer], "web"), false);
+});
+
+
+test("a granted purchase refreshes balance even when provider acknowledgement stays pending", () => {
+  assert.equal(pendingPurchaseRecoveryAttempt("granted", false), "pending");
+  assert.equal(pendingPurchaseRecoveryAttempt("granted", true), "updated");
+  assert.equal(pendingPurchaseRecoveryAttempt("processing", false), "failed");
+  assert.deepEqual(summarizePurchaseRecovery(["updated", "pending", "failed"]), { updated: 2, pending: 1, failed: 1 });
 });
 
 

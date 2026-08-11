@@ -62,7 +62,8 @@ function handleProducts(items: TossIapProduct[] | null, active: boolean, setProd
 function handleRecovered(result: PurchaseRecoveryResult, active: boolean, setNotice: React.Dispatch<React.SetStateAction<string>>, setError: React.Dispatch<React.SetStateAction<string>>, onUpdated: () => void): void {
   if (!active) return;
   if (result.failed > 0) setError(`결제 내역 ${result.failed}건을 확인하지 못했어요. 다시 시도해 주세요.`);
-  if (result.restored > 0) setNotice(`미지급 주문 ${result.restored}건의 크레딧을 복원했어요.`);
+  if (result.pending > 0) setNotice(`크레딧은 복원했어요. 주문 확인 ${result.pending}건은 다음 진입에서 다시 시도해요.`);
+  else if (result.restored > 0) setNotice(`미지급 주문 ${result.restored}건의 크레딧을 복원했어요.`);
   if (result.restored + result.refunded > 0) onUpdated();
 }
 
