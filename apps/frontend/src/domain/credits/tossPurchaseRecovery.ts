@@ -1,10 +1,16 @@
 type ConfiguredOffer = { sku: string };
+type PurchaseOrder = { sku: string };
 export type PurchaseRecoveryAttempt = "updated" | "pending" | "failed";
 export type PurchaseRecoverySummary = { updated: number; pending: number; failed: number };
 
 
 export function shouldRecoverTossPurchases(userId: string, offers: readonly ConfiguredOffer[], runtime: string): boolean {
   return Boolean(userId && runtime === "apps-in-toss" && offers.some((offer) => Boolean(offer.sku)));
+}
+
+export function filterConfiguredPurchaseOrders<Order extends PurchaseOrder>(orders: readonly Order[], configuredSkus: readonly string[]): Order[] {
+  const allowedSkus = new Set(configuredSkus.filter(Boolean));
+  return orders.filter((order) => allowedSkus.has(order.sku));
 }
 
 export function pendingPurchaseRecoveryAttempt(status: string, acknowledged: boolean): PurchaseRecoveryAttempt {

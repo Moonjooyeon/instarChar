@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { TOSS_IAP_FULL_FLOW_MIN_VERSIONS, collectRefundedTossIapOrders, hasTossIapFullFlowSupport, isAppsInTossIapRuntime, tossIapErrorMessage } from "../../src/api/tossIap.js";
-import { pendingPurchaseRecoveryAttempt, shouldRecoverTossPurchases, summarizePurchaseRecovery } from "../../src/domain/credits/tossPurchaseRecovery.js";
+import { filterConfiguredPurchaseOrders, pendingPurchaseRecoveryAttempt, shouldRecoverTossPurchases, summarizePurchaseRecovery } from "../../src/domain/credits/tossPurchaseRecovery.js";
 
 
 test("IAP is exposed only in the Apps in Toss runtime", () => {
@@ -30,6 +30,16 @@ test("session recovery starts only for signed-in Apps in Toss users with configu
   assert.equal(shouldRecoverTossPurchases("", [offer], "apps-in-toss"), false);
   assert.equal(shouldRecoverTossPurchases("user-1", [{ sku: "" }], "apps-in-toss"), false);
   assert.equal(shouldRecoverTossPurchases("user-1", [offer], "web"), false);
+});
+
+
+test("purchase recovery ignores orders outside the configured catalog", () => {
+  const orders = [
+    { orderId: "sandbox-order", sku: "sku_106" },
+    { orderId: "alive-order", sku: "ait.alive.credit-500" },
+  ];
+  const result = filterConfiguredPurchaseOrders(orders, ["ait.alive.credit-500"]);
+  assert.deepEqual(result, [{ orderId: "alive-order", sku: "ait.alive.credit-500" }]);
 });
 
 

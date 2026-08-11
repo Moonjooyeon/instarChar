@@ -46,7 +46,7 @@ function initializePurchases(configuredSkus: string, setProducts: React.Dispatch
   let active = true;
   if (!configuredSkus || !isAppsInTossIapRuntime()) return () => undefined;
   getTossIapProducts().then((items) => handleProducts(items, active, setProducts, setError)).catch((value) => active && setError(tossIapErrorMessage(value)));
-  recoverTossCreditPurchases().then((result) => handleRecovered(result, active, setNotice, setError, onUpdated)).catch(() => active && setError("결제 내역을 확인하지 못했어요. 다시 시도해 주세요."));
+  recoverTossCreditPurchases(configuredSkus.split("|")).then((result) => handleRecovered(result, active, setNotice, setError, onUpdated)).catch(() => active && setError("결제 내역을 확인하지 못했어요. 다시 시도해 주세요."));
   return () => { active = false; };
 }
 

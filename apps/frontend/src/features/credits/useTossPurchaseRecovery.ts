@@ -19,6 +19,6 @@ function startSessionRecovery(userId: string): () => void {
 
 async function recoverConfiguredPurchases(userId: string, offers: readonly CreditOffer[]): Promise<boolean> {
   if (!shouldRecoverTossPurchases(userId, offers, "apps-in-toss")) return false;
-  const result = await recoverTossCreditPurchases();
+  const result = await recoverTossCreditPurchases(offers.map((offer) => offer.sku));
   return result.restored + result.refunded > 0;
 }
