@@ -3,7 +3,7 @@ title: 앱인토스 인앱결제 승인 후 적용 및 출시 검토 계획
 author: black (black@ashwoodfriends.com)
 created: 2026-08-11
 updated: 2026-08-11
-version: 1.2.0
+version: 1.3.0
 status: implemented-local
 ---
 
@@ -34,6 +34,7 @@ status: implemented-local
 - 결제 완료 후 지급 실패 주문의 복원
 - 완료·환불 주문 재조정과 운영 대응
 - 첫 구매 보너스의 1회 지급 및 환불 회수 정책
+- 계정 삭제·재가입 이후에도 토스 사용자 구매 이력 기준으로 첫 구매 보너스 재지급 방지
 - 샌드박스 필수 시나리오와 출시 전 승인 게이트
 - 결제 중단, 롤백, 고객 문의와 정산 확인 절차
 
@@ -62,7 +63,7 @@ status: implemented-local
 
 ### 결제 및 지급
 
-공식 [일회성 IAP 연동 가이드](https://developers-apps-in-toss.toss.im/documentation/common/monetization/iap/in-app-purchase)는 다음 흐름을 요구한다.
+공식 [인앱결제 개발 가이드](https://developers-apps-in-toss.toss.im/iap/develop.html)와 [IAP API 레퍼런스](https://developers-apps-in-toss.toss.im/bedrock/reference/framework/%EC%9D%B8%EC%95%B1%20%EA%B2%B0%EC%A0%9C/IAP.html)는 다음 흐름을 요구한다.
 
 1. `IAP.getProductItemList()`로 노출 ON인 상품을 조회한다.
 2. `IAP.createOneTimePurchaseOrder()`에 콘솔 SKU를 전달한다.
@@ -137,13 +138,14 @@ status: implemented-local
 | 영역 | 상태 | 근거 |
 | --- | --- | --- |
 | 상품 정책·환경 플래그 | 구현 | `credit_products.py`, `TOSS_IAP_*` 환경 설정 |
-| 구매 원장·부채 | 구현 | `CreditPurchase`, `CreditAccount.debt_credits`, migration `0021` |
+| 구매 원장·부채 | 구현 | `CreditPurchase`, `CreditAccount.debt_credits`, migrations `0021`·`0022` |
 | 서버 주문 검증 | 구현 | 공통 mTLS client와 Toss IAP order service |
-| 멱등 지급·첫 구매 보너스 | 구현 | 주문 unique, 계정 row lock, 원장 idempotency key, `first_purchase` unique grant |
+| 멱등 지급·첫 구매 보너스 | 구현 | 주문 unique, 계정 row lock, 원장 idempotency key, 안정적 사용자 해시 이력, `first_purchase` unique grant |
+| 운영 설정 사전 검증 | 구현 | 활성화 시 5개 SKU 누락·중복, 32-byte HMAC 키, mTLS 파일을 시작 단계에서 차단 |
 | 환불 회수·서버 재조정 | 구현 | chargeback, 부족분 debt, 기본 비활성 주기 작업 |
 | 결제 UI·미지급 복원 | 구현 | 토스 runtime IAP, SDK 가격, pending restore, cleanup |
 | 환불 이력·운영 조회 | 구현 | SDK history pagination, 서버 reconciliation, 보호된 주문 조회 API |
-| 자동 검증 | 통과 | backend 294건(실제 PostgreSQL 동시 지급 포함), frontend domain 150건, typecheck, web build, Toss AIT build |
+| 자동 검증 | 통과 | backend 303건(실제 PostgreSQL 동시 지급·재가입 보너스 방지 포함), frontend domain 150건, typecheck, web build, Toss AIT build |
 | 콘솔·mTLS·샌드박스·정산 | 미검증 | 저장소 밖의 운영 정보와 실제 Apps in Toss 앱 필요 |
 
 ## 결정이 필요한 상품 정책
@@ -194,9 +196,10 @@ status: implemented-local
 | `TOSS_IAP_ENABLED` | `false` | 주문 검증·지급·복구 통합 전체 허용 |
 | `TOSS_IAP_PURCHASE_ENABLED` | `false` | 신규 결제 버튼과 상품 구매 가능 상태만 허용 |
 | `TOSS_IAP_CREDIT_*_SKU` | 빈 값 | 콘솔 SKU와 서버 지급 정책 연결 |
+| `TOSS_IAP_SUBJECT_HMAC_KEY` | 빈 값 | 토스 사용자의 구매 이력을 비식별 연결하는 32-byte 이상 전용 비밀키 |
 | `TOSS_IAP_RECONCILIATION_ENABLED` | `false` | 알려진 주문의 서버 주기 재조회 실행 |
 
-스테이징에서는 SKU와 mTLS를 먼저 주입한 뒤 `TOSS_IAP_ENABLED=true`로 복구·검증 경로를 활성화한다. 샌드박스 게이트를 통과하기 전까지 `TOSS_IAP_PURCHASE_ENABLED=false`를 유지한다. 출시·롤백은 신규 결제 플래그만 변경하여 이미 결제된 주문의 지급과 환불 처리가 중단되지 않게 한다.
+스테이징에서는 SKU, 운영 수명 동안 유지할 전용 HMAC 키와 mTLS를 먼저 주입한 뒤 `TOSS_IAP_ENABLED=true`로 복구·검증 경로를 활성화한다. 활성화 설정이 불완전하면 서버 시작 단계에서 실패하도록 구현했다. 샌드박스 게이트를 통과하기 전까지 `TOSS_IAP_PURCHASE_ENABLED=false`를 유지한다. 출시·롤백은 신규 결제 플래그만 변경하여 이미 결제된 주문의 지급과 환불 처리가 중단되지 않게 한다.
 
 ## 구현 단계
 
@@ -218,6 +221,8 @@ status: implemented-local
 - [x] 제공자 원문 응답과 원문 userKey는 저장하지 않는다.
 - [x] 구매 지급, 첫 구매 보너스, 환불 회수를 각각 하나의 트랜잭션과 멱등 키로 처리한다.
 - [x] 계정 삭제 시 구매 기록은 `ON DELETE SET NULL`로 유지하고 userKey는 해시만 보관한다.
+- [x] 인증 세션 키와 분리한 전용 HMAC 키로 사용자 구매 이력을 연결하고, 계정 삭제·재가입 뒤에도 과거 지급 이력이 있으면 첫 구매 보너스를 다시 지급하지 않는다.
+- [x] 사용자 해시·지급 이력 조회용 `0022` 인덱스를 추가한다.
 
 완료 조건: 동일 `orderId` 동시 요청과 반복 요청이 모두 한 번만 잔액을 증가시킨다.
 
@@ -296,7 +301,7 @@ status: implemented-local
 - [x] `orderId` 중복 지급을 데이터베이스 unique, row lock, 원장 idempotency로 차단하고 실제 PostgreSQL 독립 세션 2개의 동시 요청과 반복 요청으로 검증한다. 실제 다중 프로세스 동시성은 샌드박스에서 추가 검증한다.
 - [ ] 결제 성공 후 서버 실패 시 앱 재진입으로 구매가 복원된다.
 - [ ] 환불이 구매 원장, 크레딧 원장과 사용자 이용 가능 상태에 반영된다.
-- [x] 첫 구매 보너스는 unique grant로 한 번만 지급되고 환불 회수 대상에 포함된다.
+- [x] 첫 구매 보너스는 unique grant와 안정적 사용자 해시 이력으로 계정 삭제·재가입 후에도 한 번만 지급되고 환불 회수 대상에 포함된다.
 - [x] 토스 미지원 runtime과 독립 앱에서 IAP module을 호출하지 않는 runtime guard가 테스트됐다.
 - [ ] 샌드박스 필수 시나리오와 자동 테스트가 모두 통과한다.
 - [ ] 정산 정보, 환불 담당자, 인증서 만료일과 결제 사고 대응 책임자가 기록된다.
@@ -319,6 +324,8 @@ status: implemented-local
 - [x] `provider_order_id` unique와 원장 멱등 키를 데이터베이스가 강제한다.
 - [x] 구매 지급과 잔액 증가가 같은 트랜잭션이다.
 - [x] 계정 삭제 시 구매자는 nullable FK와 해시 식별자로 비식별화되고 구매 원장은 보존된다.
+- [x] IAP 활성화 전에 5개 SKU 누락·중복, 32-byte 미만 전용 HMAC 키와 존재하지 않는 mTLS 파일을 시작 단계에서 거절한다.
+- [x] 전용 HMAC 키는 인증 세션 키와 분리되어 있으며 운영 수명 동안 변경하지 않는다고 환경 설정에 명시돼 있다.
 
 ### 프런트엔드
 
@@ -338,9 +345,9 @@ status: implemented-local
 
 | 게이트 | 검증 | 현재 상태 |
 | --- | --- | --- |
-| 도메인 | SKU 매핑, 상태 전이, 첫 구매, 환불 회수 | backend 전체 294건 통과 |
+| 도메인 | SKU 매핑, 상태 전이, 첫 구매, 재가입, 환불 회수 | backend 전체 303건 통과 |
 | 백엔드 | `compileall`, repository/service/API pytest | 통과 |
-| 데이터베이스 | migration head/current, upgrade·downgrade SQL, 동시 지급 | PostgreSQL current `0021`; 양방향 SQL 생성 및 독립 세션 2개 동시 지급 통과 |
+| 데이터베이스 | migration head/current, upgrade·downgrade SQL, 동시 지급 | PostgreSQL current/head `0022`; `0022` 양방향 SQL, 독립 세션 2개 동시 지급과 재가입 보너스 방지 통과 |
 | 프런트엔드 | typecheck, domain test, production build | 150건·typecheck·Vite build 통과 |
 | 앱인토스 빌드 | `npm run build:toss` | AIT artifact 생성 통과 |
 | 크로스 레이어 | 지급 API timeout 뒤 재시도, 잔액 갱신 | 로컬 멱등·PostgreSQL 동시성 테스트 통과; 실제 앱 검증 대기 |
@@ -350,6 +357,8 @@ status: implemented-local
 | 운영 | 콘솔 주문과 내부 구매 원장 대조 | 조회 API 구현; 실제 대조 대기 |
 
 샌드박스에서는 실제 과금이 발생하지 않으며 현재 공식 문서상 일회성 결제를 지원한다. 다음 시나리오를 각각 증빙한다.
+
+실행 절차와 결과 기록 양식은 [앱인토스 인앱결제 샌드박스 검증 가이드](../../../qa/guides/guide_apps-in-toss-iap-sandbox_2026-08-11.md)를 사용한다.
 
 1. 상품 목록: 콘솔 노출 ON 상품만 표시되고 SKU·표시 가격이 일치한다.
 2. 결제 성공: `orderId` 수신, 서버 검증, 1회 지급, 잔액 UI 갱신을 확인한다.
@@ -370,6 +379,7 @@ status: implemented-local
 | mTLS 만료 | 만료 모니터링, 다중 인증서 교체 | 신규 결제 차단, 기존 주문 기록 보존, 인증서 교체 |
 | 제공자 장애 | timeout, 제한 재시도, 지급 보류 | 결제 버튼 비활성화, 미완료 주문 재조정 |
 | 마이그레이션 문제 | staging upgrade와 롤백 검증 | 데이터 보존 후 이전 코드로 복귀; 구매 기록 삭제 금지 |
+| HMAC 키 교체·소실 | 인증 키와 분리, 비밀 저장소 백업, 시작 단계 길이 검증 | 신규 결제 차단 후 기존 키 복구; 새 키로 임의 교체 금지 |
 
 롤백의 기본 단위는 신규 결제 시작 기능이다. 콘솔 상품 노출 OFF와 서버 `TOSS_IAP_PURCHASE_ENABLED=false`로 신규 구매를 막되, `TOSS_IAP_ENABLED=true`를 유지하여 이미 결제된 주문의 검증·복원·환불 처리 API와 운영 작업은 중단하지 않는다.
 
@@ -383,7 +393,8 @@ status: implemented-local
 | IAP-04 운영 조회 | 상태 큐와 주문 상세 조회 | backend API pytest | `1742fb2` |
 | IAP-05 DB 동시성 | 독립 세션 동시 지급 통합 테스트 | PostgreSQL integration pytest | `9307c43` |
 | IAP-06 계획·증빙 | 공식 가이드 매핑, 검증 결과, 출시 게이트 | 문서 링크·체크리스트 | `f41f24c` 및 후속 증빙 커밋 |
-| IAP-07 외부 출시 승인 | 콘솔 매핑, 샌드박스 증빙, 운영 승인 | 수동 게이트 서명 | 운영 정보 준비 후 별도 커밋 |
+| IAP-07 사용자 이력·설정 안전성 | 재가입 보너스 방지, 전용 HMAC 키, 시작 설정 검증, `0022` 인덱스 | backend 303건·PostgreSQL integration·alembic | `5cc2d47` |
+| IAP-08 외부 출시 승인 | 콘솔 매핑, 샌드박스 증빙, 운영 승인 | 수동 게이트 서명 | 운영 정보 준비 후 별도 커밋 |
 
 로컬 구현 커밋과 외부 출시 승인 커밋을 분리하여 코드 완료와 실제 판매 가능 상태를 혼동하지 않는다.
 
@@ -392,8 +403,8 @@ status: implemented-local
 1. 콘솔 승인 종류와 정산 정보 완료 상태를 캡처한다.
 2. 다섯 크레딧 상품의 소모품 SKU를 만들고 실제 판매가는 콘솔 계산 결과로 기록한다.
 3. 상품은 노출 OFF로 유지한 채 SKU·지급량·첫 구매·환불 정책을 승인한다.
-4. mTLS 인증서의 운영 배포 상태와 만료일을 확인한다.
-5. 스테이징에 migration `0021`과 코드 배포 후 `TOSS_IAP_ENABLED=true`, 신규 구매 플래그는 `false`로 둔다.
+4. mTLS 인증서의 운영 배포 상태와 만료일을 확인하고, 인증 세션 키와 별도인 32-byte 이상 `TOSS_IAP_SUBJECT_HMAC_KEY`를 비밀 저장소에 생성·백업한다.
+5. 스테이징에 migrations `0021`·`0022`와 코드 배포 후 설정 사전 검증을 통과시키고 `TOSS_IAP_ENABLED=true`, 신규 구매 플래그는 `false`로 둔다.
 6. 실제 발급 SKU를 환경 변수에 연결하고 SDK `displayAmount`와 콘솔 VAT 포함 판매가를 대조한다.
 7. 공식 샌드박스 필수 시나리오를 `documents/qa/evidence/`에 증빙한다.
 8. 운영·정산·환불 체크리스트 승인 후 `TOSS_IAP_PURCHASE_ENABLED=true`로 제한 활성화한다.
@@ -402,7 +413,7 @@ status: implemented-local
 
 ### 2026-08-11 로컬 환경 준비 점검
 
-- 프로젝트 `.env`에는 `TOSS_IAP_ENABLED`, 신규 구매 플래그, 다섯 SKU와 재조정 플래그가 아직 선언되지 않았다.
+- 프로젝트 `.env`에는 `TOSS_IAP_ENABLED`, 신규 구매 플래그, 다섯 SKU, 전용 HMAC 키와 재조정 플래그가 아직 선언되지 않았다.
 - 로컬 `secrets/toss/toss-mtls-cert.pem`과 `toss-mtls-key.pem` 파일은 존재하지 않는다.
 - 따라서 실제 토스 주문 상태 API 호출과 샌드박스 결제는 아직 실행할 수 없다. 이 값들이 준비되기 전에는 신규 구매 플래그를 활성화하지 않는다.
 
@@ -420,6 +431,7 @@ status: implemented-local
 
 - 콘솔이 계산한 VAT 포함 가격이 현재 앱의 5,000원 단위 가격과 다를 수 있다.
 - 계정 삭제 후 구매 기록은 비식별 상태로 유지하도록 구현했지만 법적 보존 기간은 확정되지 않았다.
+- 전용 HMAC 키를 분실하거나 임의 교체하면 탈퇴 사용자의 과거 구매 이력을 연결할 수 없으므로 운영 비밀 백업·복구 절차가 필요하다.
 - `debt_credits`가 있는 사용자의 유료 기능 제한 범위와 고객지원 해제 절차는 운영 정책 승인이 필요하다.
 - 결제 알림 URL의 이벤트 계약과 운영 인증 방식은 콘솔·공식 세부 문서에서 최종 확인해야 한다.
 - SDK 2.10.8의 `getCompletedOrRefundedOrders` 공개 타입은 페이지 키 인자를 누락하지만 실제 native bridge와 공식 문서는 이를 지원하므로, SDK 업그레이드 때 임시 타입 보정을 제거할 수 있는지 확인해야 한다.
@@ -427,10 +439,9 @@ status: implemented-local
 ## 공식 참고 자료
 
 - [인앱 결제 콘솔·상품·환불 가이드](https://developers-apps-in-toss.toss.im/guide/monetization/in-app-payment)
-- [일회성 인앱결제 연동 및 샌드박스](https://developers-apps-in-toss.toss.im/documentation/common/monetization/iap/in-app-purchase)
-- [IAP SDK API 목록](https://developers-apps-in-toss.toss.im/documentation/sdk/domains-api/iap)
-- [일회성 결제 요청 API](https://developers-apps-in-toss.toss.im/documentation/sdk/domains-api/iap/iap.createonetimepurchaseorder)
-- [mTLS와 API 인증](https://developers-apps-in-toss.toss.im/documentation/api/auth)
+- [인앱결제 개발 및 샌드박스](https://developers-apps-in-toss.toss.im/iap/develop.html)
+- [일회성 IAP API 레퍼런스](https://developers-apps-in-toss.toss.im/bedrock/reference/framework/%EC%9D%B8%EC%95%B1%20%EA%B2%B0%EC%A0%9C/IAP.html)
+- [mTLS 인증서와 API 공통 규격](https://developers-apps-in-toss.toss.im/development/integration-process.html)
 - [정산 안내](https://developers-apps-in-toss.toss.im/guide/settlement)
 
 ## 관련 프로젝트 문서
