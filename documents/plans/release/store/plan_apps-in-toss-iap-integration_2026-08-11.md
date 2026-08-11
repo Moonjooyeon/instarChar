@@ -143,7 +143,7 @@ status: implemented-local
 | 환불 회수·서버 재조정 | 구현 | chargeback, 부족분 debt, 기본 비활성 주기 작업 |
 | 결제 UI·미지급 복원 | 구현 | 토스 runtime IAP, SDK 가격, pending restore, cleanup |
 | 환불 이력·운영 조회 | 구현 | SDK history pagination, 서버 reconciliation, 보호된 주문 조회 API |
-| 자동 검증 | 통과 | backend 293건, frontend domain 150건, typecheck, web build, Toss AIT build |
+| 자동 검증 | 통과 | backend 294건(실제 PostgreSQL 동시 지급 포함), frontend domain 150건, typecheck, web build, Toss AIT build |
 | 콘솔·mTLS·샌드박스·정산 | 미검증 | 저장소 밖의 운영 정보와 실제 Apps in Toss 앱 필요 |
 
 ## 결정이 필요한 상품 정책
@@ -293,7 +293,7 @@ status: implemented-local
 
 - [ ] 콘솔 상품과 서버 SKU 정책이 자동 또는 테스트로 대조된다.
 - [x] 클라이언트 요청은 `order_id`만 받으며 성공 여부, 가격, SKU를 신뢰하지 않는다.
-- [x] `orderId` 중복 지급을 데이터베이스 unique, row lock, 원장 idempotency와 반복 요청 테스트로 차단한다. 실제 다중 프로세스 동시성은 샌드박스에서 추가 검증한다.
+- [x] `orderId` 중복 지급을 데이터베이스 unique, row lock, 원장 idempotency로 차단하고 실제 PostgreSQL 독립 세션 2개의 동시 요청과 반복 요청으로 검증한다. 실제 다중 프로세스 동시성은 샌드박스에서 추가 검증한다.
 - [ ] 결제 성공 후 서버 실패 시 앱 재진입으로 구매가 복원된다.
 - [ ] 환불이 구매 원장, 크레딧 원장과 사용자 이용 가능 상태에 반영된다.
 - [x] 첫 구매 보너스는 unique grant로 한 번만 지급되고 환불 회수 대상에 포함된다.
@@ -338,12 +338,12 @@ status: implemented-local
 
 | 게이트 | 검증 | 현재 상태 |
 | --- | --- | --- |
-| 도메인 | SKU 매핑, 상태 전이, 첫 구매, 환불 회수 | backend 전체 293건 통과 |
+| 도메인 | SKU 매핑, 상태 전이, 첫 구매, 환불 회수 | backend 전체 294건 통과 |
 | 백엔드 | `compileall`, repository/service/API pytest | 통과 |
-| 데이터베이스 | migration head/current, upgrade·downgrade SQL | PostgreSQL current `0021`; 양방향 SQL 생성 통과 |
+| 데이터베이스 | migration head/current, upgrade·downgrade SQL, 동시 지급 | PostgreSQL current `0021`; 양방향 SQL 생성 및 독립 세션 2개 동시 지급 통과 |
 | 프런트엔드 | typecheck, domain test, production build | 150건·typecheck·Vite build 통과 |
 | 앱인토스 빌드 | `npm run build:toss` | AIT artifact 생성 통과 |
-| 크로스 레이어 | 지급 API timeout 뒤 재시도, 잔액 갱신 | 로컬 멱등 단위 테스트 통과; 실제 앱 검증 대기 |
+| 크로스 레이어 | 지급 API timeout 뒤 재시도, 잔액 갱신 | 로컬 멱등·PostgreSQL 동시성 테스트 통과; 실제 앱 검증 대기 |
 | 앱인토스 샌드박스 | 상품 노출, 결제 성공, 서버 지급 실패 복원, 에러 | 미실행 |
 | 환불 | 완료 주문 환불 후 원장·잔액 재조정 | 로컬 단위 테스트 통과; 콘솔 환불 미실행 |
 | 회귀 | 웹·Capacitor runtime IAP guard | domain test와 web build 통과 |
@@ -381,8 +381,9 @@ status: implemented-local
 | IAP-02 지급·환불 | grant API, repository, scheduler | backend pytest | `9fa8c45` |
 | IAP-03 앱 결제 | IAP adapter, hook, credit store UI | typecheck·domain·build:toss | `2ff43ea` |
 | IAP-04 운영 조회 | 상태 큐와 주문 상세 조회 | backend API pytest | `1742fb2` |
-| IAP-05 계획·증빙 | 공식 가이드 매핑, 검증 결과, 출시 게이트 | 문서 링크·체크리스트 | 현재 문서 커밋 |
-| IAP-06 외부 출시 승인 | 콘솔 매핑, 샌드박스 증빙, 운영 승인 | 수동 게이트 서명 | 운영 정보 준비 후 별도 커밋 |
+| IAP-05 DB 동시성 | 독립 세션 동시 지급 통합 테스트 | PostgreSQL integration pytest | `9307c43` |
+| IAP-06 계획·증빙 | 공식 가이드 매핑, 검증 결과, 출시 게이트 | 문서 링크·체크리스트 | `f41f24c` 및 후속 증빙 커밋 |
+| IAP-07 외부 출시 승인 | 콘솔 매핑, 샌드박스 증빙, 운영 승인 | 수동 게이트 서명 | 운영 정보 준비 후 별도 커밋 |
 
 로컬 구현 커밋과 외부 출시 승인 커밋을 분리하여 코드 완료와 실제 판매 가능 상태를 혼동하지 않는다.
 
@@ -411,7 +412,7 @@ status: implemented-local
 - 운영 mTLS 인증서의 배포 여부, 만료일과 실제 연결
 - 샌드박스 앱에서의 결제·복원·환불 동작
 - 운영 정산 계좌와 세금계산서 정보
-- 실제 다중 프로세스 환경의 동시 지급 충돌과 timeout 후 재시도
+- 실제 PostgreSQL 독립 세션 2개의 동시 지급은 통과했으나, 다중 애플리케이션 프로세스 환경의 충돌과 timeout 후 재시도는 미검증
 - 실제 데이터가 있는 스테이징 DB의 downgrade 복구 훈련
 - 실행 중인 프런트엔드가 없어 Playwright 브라우저 회귀는 미실행
 
