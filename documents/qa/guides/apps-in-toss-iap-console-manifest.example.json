@@ -1,0 +1,87 @@
+{
+  "app_name": "ashwoodfriends-alive",
+  "bundle": {
+    "artifact_path": "documents/qa/evidence/ashwoodfriends-alive-iap-415f3a2.ait",
+    "artifact_sha256": "9ac56dcb6ac9d88bb5e92d72acc4660fef1050cd52ef75fec38bfb5094353e56",
+    "deployment_id": "019fef17-2f19-71bf-9f2c-a405896b0e3f",
+    "console_version": "<업로드 후 콘솔 표시 버전 입력>",
+    "minimum_support_version": "<상품에서 선택한 최소 지원 버전 입력>"
+  },
+  "products": [
+    {
+      "offer_id": "credit-5000",
+      "sku": "<콘솔 SKU 입력>",
+      "product_type": "CONSUMABLE",
+      "display_name": "크레딧 500C",
+      "description": "얼라이브 AI 기능에 사용하는 500C",
+      "image_path": "documents/qa/evidence/apps-in-toss-iap-products/credit-500.png",
+      "image_sha256": "4b5738d0794a1c4594504ca3d32fd4894cd668e005fb45107a0d0bc21c324967",
+      "supply_price_krw": 0,
+      "sale_price_krw": 5000,
+      "display_amount": "5,000원",
+      "base_credits": 500,
+      "product_bonus_credits": 0,
+      "exposed": false
+    },
+    {
+      "offer_id": "credit-10000",
+      "sku": "<콘솔 SKU 입력>",
+      "product_type": "CONSUMABLE",
+      "display_name": "크레딧 1,000C",
+      "description": "얼라이브 AI 기능에 사용하는 1,000C",
+      "image_path": "documents/qa/evidence/apps-in-toss-iap-products/credit-1000.png",
+      "image_sha256": "2a76f3283d05a0c90004344b3980421b87436736a8585bafb74d29c60d425a91",
+      "supply_price_krw": 0,
+      "sale_price_krw": 10000,
+      "display_amount": "10,000원",
+      "base_credits": 1000,
+      "product_bonus_credits": 0,
+      "exposed": false
+    },
+    {
+      "offer_id": "credit-30000",
+      "sku": "<콘솔 SKU 입력>",
+      "product_type": "CONSUMABLE",
+      "display_name": "크레딧 3,150C",
+      "description": "기본 3,000C와 추가 150C를 지급해요",
+      "image_path": "documents/qa/evidence/apps-in-toss-iap-products/credit-3150.png",
+      "image_sha256": "43dd4f763359e61017ed1a428cec91a36d57206f77f7f7a20ded3dcf7cb5a2b1",
+      "supply_price_krw": 0,
+      "sale_price_krw": 30000,
+      "display_amount": "30,000원",
+      "base_credits": 3000,
+      "product_bonus_credits": 150,
+      "exposed": false
+    },
+    {
+      "offer_id": "credit-50000",
+      "sku": "<콘솔 SKU 입력>",
+      "product_type": "CONSUMABLE",
+      "display_name": "크레딧 5,500C",
+      "description": "기본 5,000C와 추가 500C를 지급해요",
+      "image_path": "documents/qa/evidence/apps-in-toss-iap-products/credit-5500.png",
+      "image_sha256": "edab8057e9af98016ca1bb33de39b2fe5f9b40c6c5d7d6d398c824bad5c3000c",
+      "supply_price_krw": 0,
+      "sale_price_krw": 50000,
+      "display_amount": "50,000원",
+      "base_credits": 5000,
+      "product_bonus_credits": 500,
+      "exposed": false
+    },
+    {
+      "offer_id": "credit-100000",
+      "sku": "<콘솔 SKU 입력>",
+      "product_type": "CONSUMABLE",
+      "display_name": "크레딧 11,500C",
+      "description": "기본 10,000C와 추가 1,500C를 지급해요",
+      "image_path": "documents/qa/evidence/apps-in-toss-iap-products/credit-11500.png",
+      "image_sha256": "83d2e3c4df0fe08d935722a06a9a6c74f3231d9e0887206337190c810e24d83c",
+      "supply_price_krw": 0,
+      "sale_price_krw": 100000,
+      "display_amount": "100,000원",
+      "base_credits": 10000,
+      "product_bonus_credits": 1500,
+      "exposed": false
+    }
+  ]
+}
