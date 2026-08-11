@@ -1,4 +1,4 @@
-import { postGenerateContent } from "@/api/generate";
+import { createGenerateRequestKey, postGenerateContent } from "@/api/generate";
 import { chatSafetyRules, worldBridgeBlock } from "@/domain/app/textUtils";
 import {
   MODEL_AUTO,
@@ -8,6 +8,7 @@ import {
   speechGuideLine,
 } from "@/domain/app/aliveCore";
 import { intimacyBoundaryRules } from "@/domain/relationships/affinityUtils";
+import { dmResponseMode } from "@/domain/dm/dmResponseMode";
 
 export function useAliveDmGeneration({
   activePersona,
@@ -24,8 +25,8 @@ export function useAliveDmGeneration({
   currentWorldPref,
   dm,
   dmAffOf,
-  dmImageDraft,
   dmInput,
+  dmResponseFlow,
   dmKey,
   dmKeyRef,
   dmRequestSeqRef,
@@ -45,7 +46,6 @@ export function useAliveDmGeneration({
   roomAffOf,
   roomLoreBlockFor,
   setAutoChatting,
-  setDmImageDraft,
   setDmInput,
   setDmSending,
   setDmThread,
@@ -54,25 +54,25 @@ export function useAliveDmGeneration({
 }) {
   async function sendDM() {
     const msg = dmInput.trim();
-    const image = dmImageDraft;
-    if ((!msg && !image) || dmSendingRef.current || !peer) return;
+    if (!msg || dmSendingRef.current || !peer) return;
     const requestId = dmRequestSeqRef.current + 1;
     dmRequestSeqRef.current = requestId;
     const requestKey = dmKey;
     dmSendingRef.current = true;
     if (autoChatRef.current) { autoChatRef.current = false; setAutoChatting(false); }
     setDmInput("");
-    setDmImageDraft(null);
-    const newHist = [...dm, { from: meName, text: msg || "(사진)", img: image || null }];
+    const newHist = [...messagesWithoutFailedTurns(dm), { from: meName, text: msg }];
     setDmThread(newHist);
     setDmSending(true);
+    const responseMode = dmResponseMode(dmResponseFlow);
     const context = dmReplyContext({ activePersona, affOf, char, currentWorldPref, dmAffOf, gallery, meName, ownerLabel, ownerPersona, peer, relationMatched, roomAffOf, speakAs, requestKey, newHist, findPeerChar });
-    context.sys = dmSystemPrompt({ context, correctionBlockFor, currentWorldPref, loreBlockFor, meName, ownerPersona, peer, roomLoreBlockFor });
-    const apiMsgs = dmApiMessages({ meName, newHist, peerName: context.peerName, peerReferenceImage: context.peerReferenceImage });
+    context.sys = dmSystemPrompt({ context, correctionBlockFor, currentWorldPref, loreBlockFor, meName, ownerPersona, peer, responseMode, roomLoreBlockFor });
+    const apiMsgs = dmApiMessages({ meName, newHist: newHist.slice(-responseMode.historyLimit), peerName: context.peerName, peerReferenceImage: context.peerReferenceImage });
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 55000);
     try {
-      const text = await postGenerateContent({ media_thread_key: requestKey, model: MODEL_DIRECT, max_tokens: 2048, system: context.sys, messages: apiMsgs }, "DM 답장 API", { signal: controller.signal });
+      const idempotencyKey = createGenerateRequestKey("dm");
+      const text = await postGenerateContent({ flow: responseMode.code, idempotency_key: idempotencyKey, media_thread_key: requestKey, model: MODEL_DIRECT, max_tokens: responseMode.outputTokens, system: context.sys, messages: apiMsgs }, "DM 답장 API", { signal: controller.signal });
       if (dmRequestSeqRef.current !== requestId || dmKeyRef.current !== requestKey) return;
       setDmThread((items) => [...items, { from: context.peerName, text }]);
       applyDmAffinity({ bumpAffinity, bumpMutual, bumpRoomAffinity, bumpRoomMutual, context, meName, newHist, ownerLabel, peer, relationHintFor, requestKey, text });
@@ -81,7 +81,7 @@ export function useAliveDmGeneration({
       console.error("DM 답장 생성 실패:", e);
       if (dmRequestSeqRef.current !== requestId || dmKeyRef.current !== requestKey) return;
       const message = cleanApiFailureMessage(e, "답장이 잠깐 끊겼어. 같은 말을 다시 보내줘.");
-      setDmThread((items) => [...items, { from: context.peerName, text: `(…${message})` }]);
+      setDmThread((items) => [...items, { from: context.peerName, text: message, deliveryState: "failed" }]);
     } finally {
       window.clearTimeout(timeout);
       if (dmRequestSeqRef.current === requestId && dmKeyRef.current === requestKey) {
@@ -94,7 +94,8 @@ export function useAliveDmGeneration({
     const sys = autoLineSystemPrompt({ correctionBlockFor, dmAffOf, history, listener, loreBlockFor, mode, relationHint, roomAffOf, roomKey, roomLoreBlockFor, speaker, worldPref });
     const apiMsgs = autoLineMessages(history, speaker, listener);
     try {
-      return await postGenerateContent({ model: MODEL_AUTO, max_tokens: 2048, system: sys, messages: apiMsgs }, "자동대화 API");
+      const idempotencyKey = createGenerateRequestKey("auto-dm");
+      return await postGenerateContent({ flow: "direct_dm_basic", idempotency_key: idempotencyKey, model: MODEL_AUTO, max_tokens: 2048, system: sys, messages: apiMsgs }, "자동대화 API");
     } catch (e) {
       console.error("자동대화 생성 실패:", e);
       return null;
@@ -108,7 +109,9 @@ export function useAliveDmGeneration({
     const relForMe = relationMatched(meChar, { name: peer.name });
     autoChatRef.current = true;
     setAutoChatting(true);
-    let hist = dm.map((message) => ({ who: message.from, text: message.text }));
+    const activeDm = messagesWithoutFailedTurns(dm);
+    if (activeDm.length !== dm.length) setDmThread(activeDm);
+    let hist = activeDm.map((message) => ({ who: message.from, text: message.text }));
     const sessionStart = hist.length;
     const firstSpeaker = firstAutoSpeaker(hist, meChar, partner);
     for (let turn = 0; turn < 6; turn += 1) {
@@ -124,7 +127,14 @@ export function useAliveDmGeneration({
     autoChatRef.current = false;
     setAutoChatting(false);
   }
-  return { genLine, sendDM, startAutoChat, stopAutoChat };
+  function restoreFailedDmDraft(index) {
+    const failed = dm[index];
+    const previous = dm[index - 1];
+    if (failed?.deliveryState !== "failed" || !previous || previous.from !== meName) return;
+    setDmInput(previous.text === "(사진)" ? "" : previous.text || "");
+    setDmThread((items) => items.filter((_, itemIndex) => itemIndex !== index && itemIndex !== index - 1));
+  }
+  return { genLine, restoreFailedDmDraft, sendDM, startAutoChat, stopAutoChat };
 }
 
 function dmReplyContext({ activePersona, affOf, char, currentWorldPref, dmAffOf, gallery, meName, ownerLabel, ownerPersona, peer, relationMatched, roomAffOf, speakAs, requestKey, newHist, findPeerChar }) {
@@ -141,6 +151,13 @@ function dmReplyContext({ activePersona, affOf, char, currentWorldPref, dmAffOf,
   return { intimacyRules, npcRoom, peerChar, peerName, peerReferenceImage, relForPeer, senderChar, senderDesc: senderDescription({ activePersona, char, meName, ownerPersona, peer, peerName, senderIsOwner }), senderIsOwner, sys: "" };
 }
 
+function messagesWithoutFailedTurns(messages) {
+  return messages.reduce((items, message) => {
+    if (message.deliveryState !== "failed") return [...items, message];
+    return items.slice(0, -1);
+  }, []);
+}
+
 function responderAffinity({ affOf, dmAffOf, meName, npcRoom, ownerLabel, peer, peerName, relForPeer, requestKey, roomAffOf }) {
   if (npcRoom) return roomAffOf(requestKey, peerName, meName, relForPeer);
   if (peer.asOwner) return affOf(peerName, ownerLabel);
@@ -153,7 +170,7 @@ function senderDescription({ activePersona, char, meName, ownerPersona, peer, pe
   return `"${meName}"은(는) 다음 캐릭터다 — ${char.persona || char.name}.${char.world ? ` 세계관: ${char.world}.` : ""}${char.speech ? ` ${speechGuideLine(char.speech, "말투")}.` : ""}`;
 }
 
-function dmSystemPrompt({ context, correctionBlockFor, currentWorldPref, loreBlockFor, meName, ownerPersona, peer, roomLoreBlockFor }) {
+function dmSystemPrompt({ context, correctionBlockFor, currentWorldPref, loreBlockFor, meName, ownerPersona, peer, responseMode, roomLoreBlockFor }) {
   const identityBlock = context.peerChar
     ? `[너는 "${context.peerChar.name}"이다]\n${selfSettingPriorityBlock(context.peerChar, `${context.peerChar.name} 자기 설정`)}`
     : `[너는 "${context.peerName}"이다]\n${peer.persona ? `설정: ${peer.persona}` : "이 캐릭터에 대한 정보는 제한적이다. 자연스럽게 반응하라."}`;
@@ -172,10 +189,25 @@ ${context.senderDesc}${relNote}${worldBridgeBlock(context.peerChar || { name: co
 - 자기 설정에 금지된 호칭·어미·태도는 절대 쓰지 마라. 관계/호감도/최근 대화보다 자기 설정의 금지 규칙이 우선한다.
 - **반드시 상대의 마지막 말에 직접 이어서 답하라.** 흐름을 무시하고 갑자기 다른 화제로 튀지 마라. 지금까지의 대화 맥락을 기억하고 자연스럽게 이어간다.
 - 받아치고 끝내지 마라. 상대 말에 반응하되 네 생각·감정·되묻는 질문을 얹어 대화가 굴러가게 하라. "...어." "...뭘." 같은 영혼 없는 단답·맞장구만 반복하지 마라. 무뚝뚝한 캐릭터여도 속내나 디테일이 한 줄은 묻어나게.
-- DM 대화체로. 보통 1~3문장. 한두 단어 단답으로 끝내지 말 것. 똑같은 표현 반복은 피하되 맥락은 절대 놓치지 마라.
+- DM 대화체로. ${dmResponseLengthRule(responseMode)} 한두 단어 단답으로 끝내지 말 것. 똑같은 표현 반복은 피하되 맥락은 절대 놓치지 마라.
 - 상대가 사진을 보냈다면 이미지를 실제로 보고, 이미지 속 표정·시선·상황·분위기에 직접 반응하라. 사진 설명문이 아니라 DM 답장처럼 말하라.
 - 참고 이미지가 함께 제공되면 그것은 너 자신의 캐릭터 사진/그림이다. 외형·분위기 기준으로 참고하되, 상대가 보낸 사진으로 착각하지 마라.
-- 지문(괄호 안 행동)은 역극에 쓸 법하면 약간만.${context.intimacyRules}${chatSafetyRules(currentWorldPref)}${roomLoreBlockFor(currentWorldPref, context.peerName, meName)}${context.peerChar && !context.npcRoom ? loreBlockFor(context.peerChar, meName) : ""}${context.peerChar ? correctionBlockFor(context.peerChar) : ""}`;
+- 지문(괄호 안 행동)은 역극에 쓸 법하면 약간만.
+${dmResponseGuidance(responseMode)}${context.intimacyRules}${chatSafetyRules(currentWorldPref)}${roomLoreBlockFor(currentWorldPref, context.peerName, meName, responseMode.memoryLimit)}${context.peerChar && !context.npcRoom ? loreBlockFor(context.peerChar, meName, responseMode.memoryLimit) : ""}${context.peerChar ? correctionBlockFor(context.peerChar) : ""}`;
+}
+
+function dmResponseGuidance(responseMode) {
+  if (responseMode.code === "direct_dm_basic") return "- 기본 대화: 최근 흐름과 핵심 메모만 참고해 가볍고 빠르게 답한다.";
+  if (responseMode.code === "direct_dm_context") return "- 기억 반영: 최근 대화와 저장된 유저 노트를 살펴, 이전 약속이나 취향을 자연스럽게 이어간다.";
+  if (responseMode.code === "direct_dm_pro") return "- 중요한 답장: 중요한 장면인 만큼 말의 뉘앙스와 감정을 충분히 검토해, 밀도 있는 답장을 쓴다.";
+  return "";
+}
+
+function dmResponseLengthRule(responseMode) {
+  if (responseMode.code === "direct_dm_basic") return "보통 1~3문장으로 가볍게 답한다.";
+  if (responseMode.code === "direct_dm_context") return "보통 1~4문장으로 기억을 자연스럽게 이어 답한다.";
+  if (responseMode.code === "direct_dm_pro") return "필요하면 2~5문장으로 중요한 감정과 선택을 밀도 있게 답한다.";
+  return "보통 1~3문장으로 자연스럽게 답한다.";
 }
 
 function dmRelationshipNote({ meName, peer, peerName, relForPeer }) {

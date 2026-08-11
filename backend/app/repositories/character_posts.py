@@ -43,7 +43,7 @@ class CharacterPostsRepository:
         await self.session.commit()
         return self.response(row)
 
-    async def append_generated_post(self, owner_id: UUID, source_account_id: str, post: dict[str, object], is_auto: bool = False) -> CharacterPostsResponse:
+    async def append_generated_post(self, owner_id: UUID, source_account_id: str, post: dict[str, object], is_auto: bool = False, commit: bool = True) -> CharacterPostsResponse:
         require_safe_content(post)
         row = await self.owned_character(owner_id, source_account_id, lock=True)
         row.posts = [post, *list(row.posts or [])][:40]
@@ -53,7 +53,8 @@ class CharacterPostsRepository:
             row.last_auto_post_error = ""
             row.auto_post_failure_count = 0
         await self._sync_shared_posts(row)
-        await self.session.commit()
+        if commit:
+            await self.session.commit()
         return self.response(row)
 
     async def append_public_comment(self, user: User, character_id: UUID, post_id: str, payload: CharacterPostCommentCreate) -> CharacterPostCommentsResponse:
@@ -101,17 +102,31 @@ class CharacterPostsRepository:
         )
 
     async def _sync_shared_posts(self, row: Character) -> None:
+        if row.is_public is False:
+            return
         stmt = select(SharedCharacter).where(SharedCharacter.owner_id == row.owner_id, SharedCharacter.source_account_id == row.source_account_id)
         result = await self.session.execute(stmt)
         shared = result.scalar_one_or_none()
         if not shared:
-            return
-        shared.character = {**dict(shared.character or {}), "posts": list(row.posts or [])}
+            shared = SharedCharacter(owner_id=row.owner_id, source_account_id=row.source_account_id, name=row.name, handle=row.handle)
+            self.session.add(shared)
+        shared.owner_name = str(row.character.get("ownerName") or "user")
+        shared.persona = str(row.character.get("persona") or "")
+        shared.tags = self._tags(row)
+        shared.character = self._public_character(row)
 
     async def _is_shared(self, row: Character) -> bool:
+        if row.is_public is False:
+            return False
         stmt = select(SharedCharacter.id).where(SharedCharacter.owner_id == row.owner_id, SharedCharacter.source_account_id == row.source_account_id)
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none() is not None
+
+    def _public_character(self, row: Character) -> dict[str, object]:
+        return {**dict(row.character or {}), "following": list(row.following or []), "gallery": list(row.gallery or []), "handle": row.handle, "posts": list(row.posts or [])}
+
+    def _tags(self, row: Character) -> list[str]:
+        return [str(value) for value in (row.character.get("age"), row.character.get("surface"), row.character.get("interests")) if value]
 
     def _append_comment(self, row: Character, post_id: str, payload: CharacterPostCommentCreate) -> list[object]:
         posts = [dict(post) for post in row.posts if isinstance(post, dict)]

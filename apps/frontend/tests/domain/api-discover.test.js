@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  listFollowerTargetRows,
+  listFollowerCounts,
   sharedCharacterResults,
   upsertFollowRow,
   upsertOwnFollowRows,
@@ -52,15 +52,12 @@ test("sharedCharacterResults adapts FastAPI discover response to legacy row buck
   }
 });
 
-test("listFollowerTargetRows adapts follower counts to legacy count rows", async () => {
+test("listFollowerCounts preserves compact follower count maps", async () => {
   const restoreFetch = stubFetch(jsonResponse({ counts: { "shared-a": 2, "shared-b": 0 } }));
   try {
-    const result = await listFollowerTargetRows(["shared-a", "shared-b"]);
+    const result = await listFollowerCounts(["shared-a", "shared-b"]);
     assert.equal(globalThis.fetch.calls[0].input, "/api/shared-characters/follower-counts?ids=shared-a&ids=shared-b");
-    assert.deepEqual(result.data, [
-      { target_shared_character_id: "shared-a" },
-      { target_shared_character_id: "shared-a" },
-    ]);
+    assert.deepEqual(result.data, { "shared-a": 2, "shared-b": 0 });
   } finally {
     restoreFetch();
   }

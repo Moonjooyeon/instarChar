@@ -23,6 +23,7 @@
 .al-feed-theme-ready .al-mood:focus-visible{ border-color:var(--alive-accent); outline:none; box-shadow:0 0 0 3px var(--alive-accent-soft); }
 .al-feed-theme-ready .al-moods-cancel{ color:var(--alive-soft); }
 .al-feed-theme-ready .al-moods-cancel:hover{ color:var(--alive-ink); }
+.al-feed-theme-ready .al-auto-credit-note{ margin:10px 0 0; color:var(--alive-soft); font-size:9.5px; line-height:1.5; }
 .al-feed-theme-ready .al-writebox textarea{ border-color:var(--alive-line); background:var(--alive-surface-raised); color:var(--alive-ink); }
 .al-feed-theme-ready .al-writebox textarea::placeholder,.al-feed-theme-ready .al-directive-input::placeholder{ color:var(--alive-faint); }
 .al-feed-theme-ready .al-writebox textarea:focus{ border-color:var(--alive-accent); box-shadow:0 0 0 3px var(--alive-accent-soft); }

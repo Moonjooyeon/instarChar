@@ -207,8 +207,9 @@ class Character(TimestampMixin, Base):
     posts: Mapped[list[object]] = mapped_column(JSONB, nullable=False, default=list)
     posts_revision: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     following: Mapped[list[object]] = mapped_column(JSONB, nullable=False, default=list)
+    is_public: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     auto_post_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    auto_post_interval_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=900)
+    auto_post_interval_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=3600)
     next_auto_post_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     last_auto_post_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     last_auto_post_error: Mapped[str] = mapped_column(Text, nullable=False, default="")
@@ -227,7 +228,10 @@ class UserPersona(TimestampMixin, Base):
 
 class SharedCharacter(TimestampMixin, Base):
     __tablename__ = "shared_characters"
-    __table_args__ = (UniqueConstraint("owner_id", "source_account_id", name="uq_shared_characters_owner_source"),)
+    __table_args__ = (
+        UniqueConstraint("owner_id", "source_account_id", name="uq_shared_characters_owner_source"),
+        Index("ix_shared_characters_tags_gin", "tags", postgresql_using="gin"),
+    )
     id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid4)
     owner_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     owner_name: Mapped[str] = mapped_column(String(120), nullable=False, default="")
@@ -249,6 +253,25 @@ class CharacterFollow(Base):
     follower_character: Mapped[JsonMap] = mapped_column(JSONB, nullable=False, default=dict)
     target_shared_character_id: Mapped[UUID] = mapped_column(ForeignKey("shared_characters.id", ondelete="CASCADE"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class PublicFeedPost(Base):
+    __tablename__ = "public_feed_posts"
+    __table_args__ = (
+        Index("ix_public_feed_posts_cursor", "created_at", "post_id", "author_character_id"),
+        Index("ix_public_feed_posts_author_created", "author_character_id", "created_at", "post_id"),
+    )
+    author_character_id: Mapped[UUID] = mapped_column(ForeignKey("characters.id", ondelete="CASCADE"), primary_key=True)
+    post_id: Mapped[str] = mapped_column(String(120), primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    payload: Mapped[JsonMap] = mapped_column(JSONB, nullable=False, default=dict)
+
+
+class FeedRequestLimit(Base):
+    __tablename__ = "feed_request_limits"
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    request_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    window_started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class CharacterPostLike(Base):
@@ -293,6 +316,7 @@ class AiDailyUsage(TimestampMixin, Base):
     usage_date: Mapped[date] = mapped_column(Date, primary_key=True)
     call_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     estimated_cost_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False, default=Decimal("0"))
+    actual_cost_usd: Mapped[Decimal] = mapped_column(Numeric(14, 8), nullable=False, default=Decimal("0"))
 
 
 class AiMonthlyUsage(TimestampMixin, Base):
@@ -300,3 +324,70 @@ class AiMonthlyUsage(TimestampMixin, Base):
     usage_month: Mapped[str] = mapped_column(String(7), primary_key=True)
     call_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     estimated_cost_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False, default=Decimal("0"))
+    actual_cost_usd: Mapped[Decimal] = mapped_column(Numeric(14, 8), nullable=False, default=Decimal("0"))
+
+
+class CreditAccount(TimestampMixin, Base):
+    __tablename__ = "credit_accounts"
+    __table_args__ = (CheckConstraint("purchased_credits >= 0", name="ck_credit_accounts_purchased_nonnegative"), CheckConstraint("bonus_credits >= 0", name="ck_credit_accounts_bonus_nonnegative"), CheckConstraint("version >= 0", name="ck_credit_accounts_version_nonnegative"))
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    purchased_credits: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    bonus_credits: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
+class EnergyAccount(TimestampMixin, Base):
+    __tablename__ = "energy_accounts"
+    __table_args__ = (CheckConstraint("energy_percent BETWEEN 0 AND 100", name="ck_energy_accounts_percent"),)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    energy_percent: Mapped[int] = mapped_column(Integer, nullable=False, default=100)
+    last_recovered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class CreditLedgerEntry(Base):
+    __tablename__ = "credit_ledger_entries"
+    __table_args__ = (UniqueConstraint("user_id", "idempotency_key", name="uq_credit_ledger_user_idempotency"), Index("ix_credit_ledger_user_created", "user_id", "created_at"), CheckConstraint("entry_type IN ('grant', 'debit', 'refund', 'purchase', 'adjustment', 'chargeback')", name="ck_credit_ledger_entry_type"), CheckConstraint("balance_type IN ('bonus', 'purchased')", name="ck_credit_ledger_balance_type"), CheckConstraint("amount <> 0", name="ck_credit_ledger_amount_nonzero"))
+    id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid4)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    entry_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    balance_type: Mapped[str] = mapped_column(String(16), nullable=False)
+    amount: Mapped[int] = mapped_column(Integer, nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(180), nullable=False)
+    entry_metadata: Mapped[JsonMap] = mapped_column("metadata", JSONB, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class RewardGrant(Base):
+    __tablename__ = "reward_grants"
+    __table_args__ = (UniqueConstraint("user_id", "event_code", name="uq_reward_grants_user_event"), CheckConstraint("credits > 0", name="ck_reward_grants_credits_positive"))
+    id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid4)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    event_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    credits: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class CreditUsage(TimestampMixin, Base):
+    __tablename__ = "credit_usages"
+    __table_args__ = (UniqueConstraint("user_id", "idempotency_key", name="uq_credit_usages_user_idempotency"), Index("ix_credit_usages_user_created", "user_id", "created_at"), CheckConstraint("status IN ('reserved', 'committed', 'refunded')", name="ck_credit_usages_status"), CheckConstraint("credits >= 0", name="ck_credit_usages_credits_nonnegative"), CheckConstraint("energy_percent >= 0", name="ck_credit_usages_energy_nonnegative"), CheckConstraint("bonus_credits >= 0", name="ck_credit_usages_bonus_nonnegative"), CheckConstraint("purchased_credits >= 0", name="ck_credit_usages_purchased_nonnegative"), CheckConstraint("credits = bonus_credits + purchased_credits", name="ck_credit_usages_source_total"), CheckConstraint("energy_percent = 0 OR credits = 0", name="ck_credit_usages_single_payment_kind"), CheckConstraint("provider_attempts >= 0 AND input_tokens >= 0 AND output_tokens >= 0 AND thought_tokens >= 0 AND total_tokens >= 0", name="ck_credit_usages_provider_counts"), CheckConstraint("reserved_cost_usd >= 0 AND provider_cost_usd >= 0", name="ck_credit_usages_provider_costs"))
+    id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid4)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    flow: Mapped[str] = mapped_column(String(64), nullable=False)
+    policy_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    model: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="reserved")
+    credits: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    energy_percent: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    bonus_credits: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    purchased_credits: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    idempotency_key: Mapped[str] = mapped_column(String(180), nullable=False)
+    provider_status: Mapped[str] = mapped_column(String(32), nullable=False, default="")
+    provider_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    input_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    output_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    thought_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    total_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    usage_metadata_complete: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    reserved_cost_usd: Mapped[Decimal] = mapped_column(Numeric(14, 8), nullable=False, default=Decimal("0"))
+    provider_cost_usd: Mapped[Decimal] = mapped_column(Numeric(14, 8), nullable=False, default=Decimal("0"))
+    response_body: Mapped[JsonMap] = mapped_column(JSONB, nullable=False, default=dict)

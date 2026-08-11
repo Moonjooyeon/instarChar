@@ -75,7 +75,11 @@ export function SetupRoutes({ ctx }: SetupRoutesProps) {
       )}
 
       {canUseApp && step === "credits" && (
-        <CreditStoreScreen onBack={closeCredits} />
+        <CreditStoreScreen onBack={closeCredits} onContinueMission={(code) => {
+          if (code === "first_character") return startNewCharacter();
+          if (activeId) return setStep("dmlist");
+          setStep("home");
+        }} />
       )}
 
       {canUseApp && step === "dump" && (

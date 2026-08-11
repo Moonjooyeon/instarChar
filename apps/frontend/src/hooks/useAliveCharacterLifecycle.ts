@@ -11,6 +11,7 @@ type MutableRef<T> = {
 
 type CharacterState = Record<string, unknown> & {
   handle?: string;
+  isPublic?: boolean;
   name?: string;
   persona?: unknown;
 };
@@ -30,6 +31,8 @@ type DeleteTarget = {
 type DeletionState = {
   deletingActive: boolean;
   nextAccounts: AccountState[];
+  nextDmDrafts: Record<string, string>;
+  nextDmResponseFlows: Record<string, unknown>;
   nextDmThreads: Record<string, unknown>;
   nextDmWorldPrefs: Record<string, unknown>;
   nextSnapshot: Record<string, unknown>;
@@ -44,6 +47,8 @@ type CharacterLifecycleOptions = {
   char: CharacterState;
   deleteStructuredCharacterAccount: (targetId: string) => Promise<boolean | undefined>;
   deleteTarget: DeleteTarget | null;
+  dmDrafts: Record<string, string>;
+  dmResponseFlows: Record<string, unknown>;
   dmThreads: Record<string, unknown>;
   dmWorldPrefs: Record<string, unknown>;
   exportAppState: () => Record<string, unknown>;
@@ -59,6 +64,8 @@ type CharacterLifecycleOptions = {
   setChar: SetState<CharacterState>;
   setCharacterSaveError: (value: string) => void;
   setDeleteTarget: (value: DeleteTarget | null) => void;
+  setDmDrafts: SetState<Record<string, string>>;
+  setDmResponseFlows: SetState<Record<string, unknown>>;
   setDmThreads: SetState<Record<string, unknown>>;
   setDmWorldPrefs: SetState<Record<string, unknown>>;
   setDump: (value: string) => void;
@@ -86,6 +93,8 @@ export function useAliveCharacterLifecycle({
   char,
   deleteStructuredCharacterAccount,
   deleteTarget,
+  dmDrafts,
+  dmResponseFlows,
   dmThreads,
   dmWorldPrefs,
   exportAppState,
@@ -101,6 +110,8 @@ export function useAliveCharacterLifecycle({
   setChar,
   setCharacterSaveError,
   setDeleteTarget,
+  setDmDrafts,
+  setDmResponseFlows,
   setDmThreads,
   setDmWorldPrefs,
   setDump,
@@ -255,13 +266,17 @@ export function useAliveCharacterLifecycle({
   function deleteCharacterState(targetId: string): DeletionState {
     const deletingActive = activeId === targetId;
     const nextAccounts = accountSnapshot().filter((a) => a.id !== targetId);
-    const nextDmThreads = Object.fromEntries(Object.entries(dmThreads || {}).filter(([key]) => !key.startsWith(`owner::${targetId}::`)));
-    const nextDmWorldPrefs = Object.fromEntries(Object.entries(dmWorldPrefs || {}).filter(([key]) => !key.startsWith(`owner::${targetId}::`)));
-    const nextSnapshot = { ...exportAppState(), accounts: nextAccounts, activeId: deletingActive ? null : activeId, char: deletingActive ? blankChar() : char, gallery: deletingActive ? [] : gallery, posts: deletingActive ? [] : posts, following: deletingActive ? [] : following, dmThreads: nextDmThreads, dmWorldPrefs: nextDmWorldPrefs };
-    return { deletingActive, nextAccounts, nextDmThreads, nextDmWorldPrefs, nextSnapshot };
+    const nextDmDrafts = Object.fromEntries(Object.entries(dmDrafts).filter(([key]) => !isDeletedAccountDmKey(key, targetId)));
+    const nextDmResponseFlows = Object.fromEntries(Object.entries(dmResponseFlows || {}).filter(([key]) => !isDeletedAccountDmKey(key, targetId)));
+    const nextDmThreads = Object.fromEntries(Object.entries(dmThreads || {}).filter(([key]) => !isDeletedAccountDmKey(key, targetId)));
+    const nextDmWorldPrefs = Object.fromEntries(Object.entries(dmWorldPrefs || {}).filter(([key]) => !isDeletedAccountDmKey(key, targetId)));
+    const nextSnapshot = { ...exportAppState(), accounts: nextAccounts, activeId: deletingActive ? null : activeId, char: deletingActive ? blankChar() : char, gallery: deletingActive ? [] : gallery, posts: deletingActive ? [] : posts, following: deletingActive ? [] : following, dmResponseFlows: nextDmResponseFlows, dmThreads: nextDmThreads, dmWorldPrefs: nextDmWorldPrefs };
+    return { deletingActive, nextAccounts, nextDmDrafts, nextDmResponseFlows, nextDmThreads, nextDmWorldPrefs, nextSnapshot };
   }
-  function applyCharacterDeletion({ deletingActive, nextAccounts, nextDmThreads, nextDmWorldPrefs }: DeletionState): void {
+  function applyCharacterDeletion({ deletingActive, nextAccounts, nextDmDrafts, nextDmResponseFlows, nextDmThreads, nextDmWorldPrefs }: DeletionState): void {
     setAccounts(nextAccounts);
+    setDmDrafts(nextDmDrafts);
+    setDmResponseFlows(nextDmResponseFlows);
     setDmThreads(nextDmThreads);
     setDmWorldPrefs(nextDmWorldPrefs);
     if (!deletingActive) return;
@@ -278,12 +293,16 @@ export function useAliveCharacterLifecycle({
   return { confirmDeleteCharacter, editAccount, goHome, saveCharacterEdits, startNewCharacter, switchAccount, syncActive, wakeCharacter };
 }
 
+function isDeletedAccountDmKey(key: string, targetId: string): boolean {
+  return key.startsWith(`owner::${targetId}::`) || key.startsWith(`local::${targetId}::`);
+}
+
 function characterWritePayload(char: CharacterState, gallery: unknown[], following: unknown[]): CharacterWrite {
-  return { name: textValue(char.name).trim(), handle: textValue(char.handle), character: { ...char }, gallery: [...gallery], following: [...following] };
+  return { name: textValue(char.name).trim(), handle: textValue(char.handle), character: { ...char }, gallery: [...gallery], following: [...following], is_public: char.isPublic !== false };
 }
 
 function responseCharacter(char: CharacterState, saved: Awaited<ReturnType<typeof saveCharacter>>): CharacterState {
-  return { ...char, ...saved.character, name: saved.name, handle: saved.handle };
+  return { ...char, ...saved.character, isPublic: saved.is_public, name: saved.name, handle: saved.handle };
 }
 
 function characterSaveError(error: unknown): string {

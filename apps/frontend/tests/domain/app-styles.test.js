@@ -88,7 +88,13 @@ test("the credit mockup uses a dedicated semantic screen and shared shortcuts", 
   const dmListScreen = readFileSync(path.resolve(process.cwd(), "src/features/dm/DmListScreen.tsx"), "utf8");
   const dmThreadScreen = readFileSync(path.resolve(process.cwd(), "src/app/dm/DmThreadRoute.tsx"), "utf8");
   const creditScreen = readFileSync(path.resolve(process.cwd(), "src/features/credits/CreditStoreScreen.tsx"), "utf8");
+  const creditHint = readFileSync(path.resolve(process.cwd(), "src/features/credits/CreditUsageHint.tsx"), "utf8");
   const creditStyles = readFileSync(path.resolve(process.cwd(), "src/styles/screens/credit.css"), "utf8");
+  const overviewIndex = creditScreen.indexOf("<CreditOverview");
+  const offerIndex = creditScreen.indexOf("<OfferList");
+  const checkoutIndex = creditScreen.indexOf("<CheckoutPreview");
+  const missionsIndex = creditScreen.indexOf("<StarterMissionJourney");
+  const detailsIndex = creditScreen.indexOf("<CreditDetails");
   assert.match(indexStyles, /screens\/credit\.css" layer\(components\)/);
   assert.match(homeScreen, /CreditShortcut/);
   assert.match(feedScreen, /CreditShortcut/);
@@ -96,9 +102,27 @@ test("the credit mockup uses a dedicated semantic screen and shared shortcuts", 
   assert.match(dmListScreen, /CreditShortcut/);
   assert.match(dmThreadScreen, /CreditShortcut/);
   assert.match(creditScreen, /al-phone al-theme-ready al-credit-theme-ready/);
+  assert.match(creditScreen, /FlowCatalog/);
+  assert.ok([overviewIndex, offerIndex, checkoutIndex, missionsIndex, detailsIndex].every((index) => index >= 0));
+  assert.ok(overviewIndex < offerIndex && offerIndex < checkoutIndex && checkoutIndex < missionsIndex && missionsIndex < detailsIndex);
+  assert.match(creditScreen, /<details>/);
+  assert.match(creditHint, /creditCostSummary/);
   assert.match(creditStyles, /\.al-credit-theme-ready \.al-credit-screen/);
   assert.match(creditStyles, /\.al-theme-ready \.al-credit-shortcut/);
   assert.doesNotMatch(creditStyles, /#[0-9a-fA-F]{3,8}/);
+});
+
+test("starter reward missions use a separate semantic journey instead of help copy", () => {
+  const indexStyles = readFileSync(path.resolve(process.cwd(), "src/styles/index.css"), "utf8");
+  const missions = readFileSync(path.resolve(process.cwd(), "src/features/credits/StarterMissions.tsx"), "utf8");
+  const missionStyles = readFileSync(path.resolve(process.cwd(), "src/styles/screens/starter-missions.css"), "utf8");
+  assert.match(indexStyles, /screens\/starter-missions\.css" layer\(components\)/);
+  assert.match(missions, /시작의 세 장면/);
+  assert.match(missions, /첫 이야기 보상/);
+  assert.doesNotMatch(missions, />[^<]*AI[^<]*</);
+  assert.match(missionStyles, /\.al-starter-journey/);
+  assert.match(missionStyles, /\.al-starter-prompt/);
+  assert.doesNotMatch(missionStyles, /#[0-9a-fA-F]{3,8}/);
 });
 
 test("the staged feed profile uses semantic Tailwind colors", () => {
@@ -234,10 +258,30 @@ test("the staged DM relationship and memory panels share semantic direction stat
 test("the DM thread activates after controls and message input receive semantic states", () => {
   const route = readFileSync(path.resolve(process.cwd(), "src/app/dm/DmThreadRoute.tsx"), "utf8");
   const controls = readFileSync(path.resolve(process.cwd(), "src/app/dm/DmControls.tsx"), "utf8");
+  const messages = readFileSync(path.resolve(process.cwd(), "src/app/dm/DmMessages.tsx"), "utf8");
+  const responseModes = readFileSync(path.resolve(process.cwd(), "src/domain/dm/dmResponseMode.ts"), "utf8");
   const threadStyles = readFileSync(path.resolve(process.cwd(), "src/styles/screens/dm-thread.css"), "utf8");
-  assert.match(route, /al-phone al-theme-ready al-dm-thread-theme-ready/);
+  assert.match(route, /al-phone al-theme-ready al-dm-thread al-dm-thread-theme-ready/);
   assert.match(controls, /al-autochat-go border-line-strong bg-surface-raised text-accent-ink/);
+  assert.match(controls, /<details className="al-dm-options">/);
+  assert.match(controls, /<details className="al-dm-response-mode">/);
+  assert.doesNotMatch(responseModes, /Gemini|model:/);
+  assert.doesNotMatch(controls, /Gemini|responseMode\.model|mode\.model/);
+  assert.match(controls, /대화 설정/);
   assert.match(controls, /className="bg-accent text-white hover:bg-accent-strong/);
+  assert.match(messages, /첫 장면의 단서/);
+  assert.match(messages, /다음 이야기/);
+  assert.match(messages, /입력창에 다시 담기/);
+  assert.match(messages, /답장을 쓰고 있어요/);
+  assert.doesNotMatch(controls, /사진 보내기|al-dm-image/);
+  assert.match(threadStyles, /\.al-dm-thread\{ display:flex; overflow-y:auto; flex-direction:column; height:100dvh;/);
+  assert.match(threadStyles, /\.al-dm-thread \.al-dmscroll\{ min-height:0; max-height:none; flex:1 1 auto;/);
+  assert.match(threadStyles, /\.al-dm-thread \.al-dm-options-content\{ max-height:min\(34dvh,260px\); overflow-y:auto;/);
+  assert.match(threadStyles, /\.al-dm-thread \.al-dm-starters/);
+  assert.match(threadStyles, /\.al-dm-thread \.al-dm-delivery-failure/);
+  assert.match(threadStyles, /\.al-dm-thread \.al-dm-credit-status/);
+  assert.match(threadStyles, /\.al-dm-thread \.al-dm-response-list/);
+  assert.doesNotMatch(threadStyles, /al-dm-image|al-dm-preview/);
   assert.match(threadStyles, /\.al-dm-thread-theme-ready \.al-dminput input/);
   assert.match(threadStyles, /@keyframes aliveDmLivePulse/);
   assert.doesNotMatch(threadStyles, /#[0-9a-fA-F]{3,8}/);
@@ -341,4 +385,17 @@ test("shared modals use semantic Tailwind input and action states", () => {
   assert.match(persona, /al-pd-save bg-accent text-white hover:bg-accent-strong/);
   assert.match(persona, /al-fixchip border-accent bg-accent-soft text-accent-ink/);
   assert.match(safety, /al-modal-danger bg-danger-soft text-danger hover:bg-danger/);
+});
+
+test("character visibility is managed in an accessible modal without a link-copy action", () => {
+  const panel = readFileSync(path.resolve(process.cwd(), "src/app/feed/FeedProfilePanel.tsx"), "utf8");
+  const modal = readFileSync(path.resolve(process.cwd(), "src/app/feed/CharacterVisibilityModal.tsx"), "utf8");
+  const styles = readFileSync(path.resolve(process.cwd(), "src/styles/screens/character-visibility-modal.css"), "utf8");
+  assert.match(panel, /<CharacterVisibilityModal/);
+  assert.doesNotMatch(panel, /링크 복사|shareCurrentCharacter/);
+  assert.match(modal, /aria-modal="true"/);
+  assert.match(modal, /registerModalFocus/);
+  assert.match(modal, /추천 탭에 공개/);
+  assert.match(modal, /나만 보기/);
+  assert.match(styles, /\.al-visibility-option\.selected/);
 });

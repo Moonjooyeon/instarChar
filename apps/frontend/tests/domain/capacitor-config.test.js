@@ -16,6 +16,15 @@ test("Android exposes system bar insets to the app shell", () => {
   assert.equal(config.plugins?.SystemBars?.style, "DARK");
 });
 
+test("Android permits local HTTP only in debug builds", () => {
+  const mainPath = path.resolve(process.cwd(), "../../android/app/src/main/AndroidManifest.xml");
+  const debugPath = path.resolve(process.cwd(), "../../android/app/src/debug/AndroidManifest.xml");
+  const mainManifest = readFileSync(mainPath, "utf8");
+  const debugManifest = readFileSync(debugPath, "utf8");
+  assert.doesNotMatch(mainManifest, /usesCleartextTraffic/);
+  assert.match(debugManifest, /android:usesCleartextTraffic="true"/);
+});
+
 test("Android hides the persistent navigation buttons", () => {
   const entryPath = path.resolve(process.cwd(), "src/main.tsx");
   const entry = readFileSync(entryPath, "utf8");

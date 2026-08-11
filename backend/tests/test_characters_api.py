@@ -13,9 +13,10 @@ from app.main import app
 from app.models import UserProvider
 from app.repositories.character_posts import CharacterPostsRepository
 from app.repositories.characters import CharacterRepository
+from app.repositories.credits import CreditRepository
 from app.repositories.profile_state import ProfileStateRepository
 from app.schemas.character_posts import CharacterPostCommentsResponse, CharacterPostsResponse
-from app.schemas.characters import CharacterHandleAvailabilityResponse, CharacterWriteResponse
+from app.schemas.characters import CharacterHandleAvailabilityResponse, CharacterVisibilityResponse, CharacterWriteResponse
 from app.services.ai import GenerateApiResult
 from app.services.feed_generation import FeedGenerationService
 
@@ -79,14 +80,20 @@ def test_character_handle_availability_rejects_reserved_value() -> None:
 
 
 def test_save_character_returns_authoritative_handle(monkeypatch: MonkeyPatch) -> None:
+    grants: list[str] = []
     async def save(self: object, user: StubUser, source_account_id: str, payload: object) -> CharacterWriteResponse:
         return character_response(source_account_id, "hero")
+    async def grant(self: object, user_id: object, event_code: str, credits: int) -> bool:
+        grants.append(f"{event_code}:{credits}")
+        return True
 
     monkeypatch.setattr(CharacterRepository, "save", save)
+    monkeypatch.setattr(CreditRepository, "grant", grant)
     with make_test_client() as client:
         response = client.put("/api/characters/draft-1", json={"name": "Hero", "handle": "@Hero", "character": {"handle": "stale"}})
     assert response.status_code == 200
     assert response.json()["handle"] == "hero"
+    assert grants == ["first_character:50"]
 
 
 def test_save_character_returns_stable_handle_conflict(monkeypatch: MonkeyPatch) -> None:
@@ -98,6 +105,19 @@ def test_save_character_returns_stable_handle_conflict(monkeypatch: MonkeyPatch)
         response = client.put("/api/characters/draft-1", json={"name": "Hero", "handle": "hero"})
     assert response.status_code == 409
     assert response.json()["error"] == "CHARACTER_HANDLE_TAKEN"
+
+
+def test_character_visibility_updates_the_server_owned_setting(monkeypatch: MonkeyPatch) -> None:
+    async def update_visibility(self: object, user: StubUser, source_account_id: str, is_public: bool) -> CharacterVisibilityResponse:
+        assert source_account_id == "char-1"
+        assert is_public is False
+        return CharacterVisibilityResponse(is_public=False)
+
+    monkeypatch.setattr(CharacterRepository, "update_visibility", update_visibility)
+    with make_test_client() as client:
+        response = client.patch("/api/characters/char-1/visibility", json={"is_public": False})
+    assert response.status_code == 200
+    assert response.json() == {"is_public": False, "shared_id": ""}
 
 
 def test_get_character_posts_returns_authoritative_state(monkeypatch: MonkeyPatch) -> None:
@@ -130,7 +150,7 @@ def test_auto_post_accepts_only_supported_intervals(monkeypatch: MonkeyPatch) ->
 
     monkeypatch.setattr(CharacterPostsRepository, "update_auto_post", update_auto_post)
     with make_test_client() as client:
-        accepted = client.patch("/api/characters/char-1/auto-post", json={"enabled": True, "interval_seconds": 1800})
+        accepted = client.patch("/api/characters/char-1/auto-post", json={"enabled": True, "interval_seconds": 21600})
         rejected = client.patch("/api/characters/char-1/auto-post", json={"enabled": True, "interval_seconds": 30})
     assert accepted.status_code == 200
     assert rejected.status_code == 422
@@ -142,9 +162,15 @@ def test_generate_character_post_uses_backend_service(monkeypatch: MonkeyPatch) 
 
     monkeypatch.setattr(FeedGenerationService, "generate", generate)
     with make_test_client() as client:
-        response = client.post("/api/characters/char-1/posts/generate", json={"mood": "일상"})
+        response = client.post("/api/characters/char-1/posts/generate", json={"idempotency_key": "feed-post:test-key", "mood": "일상"})
     assert response.status_code == 200
     assert response.json()["post"]["text"] == "새 글"
+
+
+def test_generate_character_post_requires_idempotency_key() -> None:
+    with make_test_client() as client:
+        response = client.post("/api/characters/char-1/posts/generate", json={"mood": "일상"})
+    assert response.status_code == 422
 
 
 def test_create_public_post_comment_uses_the_authoritative_post(monkeypatch: MonkeyPatch) -> None:
@@ -181,4 +207,4 @@ def posts_response() -> CharacterPostsResponse:
 
 
 def character_response(source_account_id: str, handle: str) -> CharacterWriteResponse:
-    return CharacterWriteResponse(source_account_id=source_account_id, name="Hero", handle=handle, character={"handle": handle})
+    return CharacterWriteResponse(source_account_id=source_account_id, name="Hero", handle=handle, character={"handle": handle}, is_public=True)

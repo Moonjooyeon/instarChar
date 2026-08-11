@@ -14,6 +14,7 @@ from app.models import Character
 class ClaimedAutoPost:
     owner_id: UUID
     source_account_id: str
+    scheduled_for: datetime
 
 
 class AutoPostRepository:
@@ -23,10 +24,11 @@ class AutoPostRepository:
     async def claim_due(self, now: datetime, batch_size: int) -> list[ClaimedAutoPost]:
         result = await self.session.execute(self.due_statement(now, batch_size))
         rows = list(result.scalars().all())
+        claims = [ClaimedAutoPost(row.owner_id, row.source_account_id, row.next_auto_post_at or now) for row in rows]
         for row in rows:
             row.next_auto_post_at = now + timedelta(seconds=row.auto_post_interval_seconds)
         await self.session.commit()
-        return [ClaimedAutoPost(row.owner_id, row.source_account_id) for row in rows]
+        return claims
 
     def due_statement(self, now: datetime, batch_size: int) -> object:
         return (

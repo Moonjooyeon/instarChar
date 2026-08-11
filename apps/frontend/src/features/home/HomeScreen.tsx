@@ -4,6 +4,8 @@ import { CharacterAvatarImage } from "@/components/ui/CharacterAvatarImage";
 import { USER_PERSONA_FEATURE_ENABLED } from "@/domain/app/featureFlags";
 import { ServiceTour } from "@/features/onboarding/ServiceTour";
 import { CreditShortcut } from "@/features/credits/CreditShortcut";
+import { StarterMissionPrompt } from "@/features/credits/StarterMissions";
+import { useRewardMissions } from "@/hooks/useRewardMissions";
 import {
   ACCOUNT_DELETION_URL,
   PRIVACY_POLICY_URL,
@@ -35,6 +37,7 @@ export function HomeScreen({
   const hasCharacters = accounts.length > 0;
   const saveMessage = /중$|실패|오류/.test(saveStatus) ? saveStatus : "";
   const [isTourOpen, setIsTourOpen] = React.useState(false);
+  const rewardMissions = useRewardMissions(hasBackendApiConfig);
   if (!hasCharacters && isTourOpen) return <ServiceTour completeLabel="내 캐릭터 만들기" onBack={() => setIsTourOpen(false)} onComplete={startNewCharacter} />;
   return (
     <div className="al-phone al-theme-ready">
@@ -45,7 +48,7 @@ export function HomeScreen({
           <CreditShortcut onOpen={openCredits} />
           {hasBackendApiConfig && <button className={HOME_SIGN_OUT_CLASS} onClick={signOut}>로그아웃</button>}
         </div>
-        {hasCharacters ? <CharacterShelf accounts={accounts} editAccount={editAccount} onDelete={setDeleteTarget} onOpen={switchAccount} onStartNew={startNewCharacter} /> : <FirstCharacterEntry onStart={startNewCharacter} onTour={() => setIsTourOpen(true)} />}
+        {hasCharacters ? <CharacterShelf accounts={accounts} editAccount={editAccount} onDelete={setDeleteTarget} onOpen={switchAccount} onStartNew={startNewCharacter} /> : <FirstCharacterEntry missions={rewardMissions} onStart={startNewCharacter} onTour={() => setIsTourOpen(true)} />}
 
         {USER_PERSONA_FEATURE_ENABLED && <div className="al-persona-mgr">
           <div className="al-pm-head"><AliveIcon name="masks" size={17} /> 내 페르소나 <span>{personas.length > 0 && `(${personas.length})`}</span></div>
@@ -101,6 +104,6 @@ function CharacterRelationSummary({ relationText }) {
   return <span className="al-cast-relation-line" aria-label={`관계 ${relationText}`}><AliveIcon name="heart-filled" size={13} /> {relationText}</span>;
 }
 
-function FirstCharacterEntry({ onStart, onTour }) {
-  return <><header className="al-home-head"><span className="al-flow-eyebrow">첫 번째 이야기</span><h1>한 줄만 남기면<br />캐릭터가 이어가요.</h1><p>첫 글과 대화는 ALIVE가 이어갑니다.</p></header><div className="al-acclist"><section className="al-first-sequence" aria-label="캐릭터 이야기가 시작되는 과정"><div className="al-first-scene"><span>01</span><div><small>당신의 설정</small><p>“리안, 21세. 마법학교 야간 조교.”</p></div></div><div className="al-first-scene"><span>02</span><div><small>캐릭터의 첫 기록</small><p>오늘도 마지막 순찰은 혼자였다.</p></div></div><div className="al-first-scene"><span>03</span><div><small>이어지는 대화</small><p><b>카엘</b> 오늘 밤도 교실에 있어?</p></div></div></section><button aria-label="첫 캐릭터 만들기" className={FIRST_CHARACTER_CLASS} onClick={onStart}><span>첫 캐릭터 만들기</span><i>01 <AliveIcon name="arrow-up-right" size={11} /></i></button><button className={HOME_TOUR_CLASS} onClick={onTour}><span className="al-first-demo-icon"><AliveIcon name="play" size={11} /></span><span><b>서비스 먼저 둘러보기</b><small>3개의 실제 장면으로 미리 보기</small></span><i><AliveIcon name="arrow-right" size={15} /></i></button></div></>;
+function FirstCharacterEntry({ missions, onStart, onTour }) {
+  return <><header className="al-home-head"><span className="al-flow-eyebrow">첫 번째 이야기</span><h1>한 줄만 남기면<br />캐릭터가 이어가요.</h1><p>첫 글과 대화는 ALIVE가 이어갑니다.</p></header><div className="al-acclist"><StarterMissionPrompt missionCode="first_character" missions={missions} onContinue={onStart} /><section className="al-first-sequence" aria-label="캐릭터 이야기가 시작되는 과정"><div className="al-first-scene"><span>01</span><div><small>당신의 설정</small><p>“리안, 21세. 마법학교 야간 조교.”</p></div></div><div className="al-first-scene"><span>02</span><div><small>캐릭터의 첫 기록</small><p>오늘도 마지막 순찰은 혼자였다.</p></div></div><div className="al-first-scene"><span>03</span><div><small>이어지는 대화</small><p><b>카엘</b> 오늘 밤도 교실에 있어?</p></div></div></section><button aria-label="첫 캐릭터 만들기" className={FIRST_CHARACTER_CLASS} onClick={onStart}><span>첫 캐릭터 만들기</span><i>01 <AliveIcon name="arrow-up-right" size={11} /></i></button><button className={HOME_TOUR_CLASS} onClick={onTour}><span className="al-first-demo-icon"><AliveIcon name="play" size={11} /></span><span><b>서비스 먼저 둘러보기</b><small>3개의 실제 장면으로 미리 보기</small></span><i><AliveIcon name="arrow-right" size={15} /></i></button></div></>;
 }

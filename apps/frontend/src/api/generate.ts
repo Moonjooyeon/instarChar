@@ -1,4 +1,5 @@
 import { API_LIMIT_MESSAGE } from "../domain/app/aliveCore.js";
+import { notifyCreditBalanceUpdated } from "./credits.js";
 import { apiUrl } from "./client.js";
 
 type JsonRecord = Record<string, unknown>;
@@ -16,12 +17,13 @@ export type GenerateImageBlock = {
 };
 
 export type GenerateMessage = {
-  role: "user" | "assistant" | "system";
+  role: "user" | "assistant";
   content: string | Array<GenerateTextBlock | GenerateImageBlock>;
 };
 
 export type GenerateRequest = {
-  flow?: string;
+  flow: string;
+  idempotency_key: string;
   max_tokens: number;
   media_thread_key?: string;
   messages: GenerateMessage[];
@@ -46,8 +48,14 @@ export async function postGenerate(body: GenerateRequest, options: GenerateOptio
   });
 }
 
+export function createGenerateRequestKey(scope: string): string {
+  return `${scope}:${crypto.randomUUID()}`;
+}
+
 export async function postGenerateContent(body: GenerateRequest, label: string, options: GenerateOptions = {}): Promise<string> {
-  return readApiContent(await postGenerate(body, options), label);
+  const content = await readApiContent(await postGenerate(body, options), label);
+  notifyCreditBalanceUpdated();
+  return content;
 }
 
 export async function readApiJson(res: Response, label: string): Promise<unknown> {
@@ -65,6 +73,12 @@ export function apiErrorText(data: unknown): string {
   const error = stringValue(record.error);
   if (error === "DAILY_LIMIT_EXCEEDED" || error === "MONTHLY_COST_LIMIT_EXCEEDED") return API_LIMIT_MESSAGE;
   if (error === "EMPTY_RESPONSE") return "AI 응답이 잠깐 비었어. 같은 말을 다시 보내줘.";
+  if (error === "CREDIT_INSUFFICIENT") return "무료 에너지가 모두 소진됐어. 크레딧을 사용하면 계속 이어갈 수 있어.";
+  if (error === "FREE_FLOW_DAILY_LIMIT_EXCEEDED") return "오늘 무료 사용량을 모두 사용했어. 구매 크레딧이 있으면 계속 이용할 수 있어.";
+  if (error === "FLOW_DAILY_LIMIT_EXCEEDED") return "이 기능의 오늘 사용 한도에 도달했어. 내일 다시 이용해줘.";
+  if (error === "REQUEST_IN_PROGRESS") return "요청을 처리하고 있어. 잠시 후 결과를 다시 확인해줘.";
+  if (error === "REQUEST_ALREADY_PROCESSED") return "이미 처리된 요청이야. 새 메시지로 다시 시도해줘.";
+  if (error === "CONTEXT_TOO_LONG") return "대화가 많이 길어졌어. 새 대화에서 이어가줘.";
   return stringValue(record.message)
     || nestedErrorMessage(record.detail)
     || finishReasonText(record)
@@ -83,7 +97,7 @@ export function cleanApiFailureMessage(error: unknown, fallback = "응답이 잠
   const name = stringValue(record.name);
   const message = name === "AbortError" ? "응답 시간이 길어져서 중단됐어. 다시 시도해줘." : stringValue(record.message);
   if (!message) return fallback;
-  if (/Gemini|finishReason|EMPTY_RESPONSE|API_ERROR|SERVER_CRASH|응답에 텍스트|빈 응답/i.test(message)) return fallback;
+  if (/Gemini|MonoGPT|finishReason|EMPTY_RESPONSE|API_ERROR|SERVER_CRASH|응답에 텍스트|빈 응답/i.test(message)) return fallback;
   return message;
 }
 

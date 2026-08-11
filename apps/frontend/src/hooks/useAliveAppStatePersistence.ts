@@ -2,6 +2,7 @@ import { sanitizePosts, type FeedPost } from "@/domain/feed/feedUtils";
 import { hasRemoteApiClient, hasBackendApiConfig } from "@/api/client";
 import { upsertProfile } from "@/api/profiles";
 import type { AppStep } from "@/domain/app/aliveCore";
+import { DM_RESPONSE_MODES, type DmResponseFlow } from "@/domain/dm/dmResponseMode";
 import type { RoomAffinityPref } from "@/hooks/useAliveRelationships";
 
 type SetState<T> = (value: T | ((prev: T) => T)) => void;
@@ -31,6 +32,7 @@ type AppState = {
   deletedDmKeys?: string[];
   discoverQuery?: string;
   dmThreadTitles?: Record<string, string>;
+  dmResponseFlows?: Record<string, DmResponseFlow>;
   dmThreads?: Record<string, unknown>;
   dmWorldPrefs?: Record<string, RoomAffinityPref>;
   following?: unknown[];
@@ -67,6 +69,7 @@ type AppStatePersistenceOptions = {
   deletedDmKeys: string[];
   deletedDmKeysRef: MutableRef<Set<string>>;
   dmThreadTitles: Record<string, string>;
+  dmResponseFlows: Record<string, DmResponseFlow>;
   dmThreads: Record<string, unknown>;
   dmWorldPrefs: Record<string, RoomAffinityPref>;
   feedInitRef: MutableRef<boolean>;
@@ -90,9 +93,10 @@ type AppStatePersistenceOptions = {
   setCommentText: (value: string) => void;
   setDeletedDmKeys: SetState<string[]>;
   setDiscoverQuery: (value: string) => void;
-  setDmInput: (value: string) => void;
+  setDmDrafts: SetState<Record<string, string>>;
   setDmThreads: SetState<Record<string, unknown>>;
   setDmThreadTitles: SetState<Record<string, string>>;
+  setDmResponseFlows: SetState<Record<string, DmResponseFlow>>;
   setDmWorldPrefs: SetState<Record<string, RoomAffinityPref>>;
   setEditingDmTitle: (value: unknown) => void;
   setFollowerCounts: SetState<Record<string, number>>;
@@ -106,7 +110,6 @@ type AppStatePersistenceOptions = {
   setProfileName: (value: string) => void;
   setSaveStatus: (value: string) => void;
   setSharedFocusId: (value: string) => void;
-  setShareStatus: (value: string) => void;
   setStep: (value: AppStep) => void;
 };
 
@@ -119,6 +122,7 @@ export function useAliveAppStatePersistence({
   deletedDmKeys,
   deletedDmKeysRef,
   dmThreadTitles,
+  dmResponseFlows,
   dmThreads,
   dmWorldPrefs,
   feedInitRef,
@@ -142,9 +146,10 @@ export function useAliveAppStatePersistence({
   setCommentText,
   setDeletedDmKeys,
   setDiscoverQuery,
-  setDmInput,
+  setDmDrafts,
   setDmThreads,
   setDmThreadTitles,
+  setDmResponseFlows,
   setDmWorldPrefs,
   setEditingDmTitle,
   setFollowerCounts,
@@ -158,7 +163,6 @@ export function useAliveAppStatePersistence({
   setProfileName,
   setSaveStatus,
   setSharedFocusId,
-  setShareStatus,
   setStep,
 }: AppStatePersistenceOptions) {
   function blankAppState(name = ""): AppState {
@@ -173,6 +177,7 @@ export function useAliveAppStatePersistence({
       personas: [],
       dmThreads: {},
       dmThreadTitles: {},
+      dmResponseFlows: {},
       dmWorldPrefs: {},
       deletedDmKeys: [],
       ownerPersona: "",
@@ -186,7 +191,7 @@ export function useAliveAppStatePersistence({
     return {
       ...saved,
       accounts: Array.isArray(saved.accounts)
-        ? saved.accounts.map((account) => ({ ...account, posts: sanitizePosts(account.posts) }))
+        ? saved.accounts.map(normalizeSavedAccount).filter((account): account is AccountState => account !== null)
         : [],
       posts: sanitizePosts(saved.posts),
     };
@@ -206,6 +211,7 @@ export function useAliveAppStatePersistence({
       personas,
       dmThreads,
       dmThreadTitles,
+      dmResponseFlows,
       dmWorldPrefs,
       deletedDmKeys,
       ownerPersona,
@@ -268,13 +274,12 @@ export function useAliveAppStatePersistence({
     applyAppState(blankAppState(name));
     setProfileName(name);
     setPeer(null);
-    setDmInput("");
+    setDmDrafts({});
     setCommentOn(null);
     setCommentText("");
     setNewChatMode(null);
     setEditingDmTitle(null);
     setDmThreadTitles({});
-    setShareStatus("");
     setSharedFocusId("");
     setActiveSharedId("");
     setFollowerCounts({});
@@ -291,6 +296,7 @@ export function useAliveAppStatePersistence({
   function applyDmState(cleanSaved: AppState): void {
     setDmThreads(cleanSaved.dmThreads || {});
     setDmThreadTitles(cleanSaved.dmThreadTitles || {});
+    setDmResponseFlows(sanitizeDmResponseFlows(cleanSaved.dmResponseFlows));
     setDmWorldPrefs(cleanSaved.dmWorldPrefs || {});
     const nextDeletedKeys = Array.isArray(cleanSaved.deletedDmKeys) ? cleanSaved.deletedDmKeys : [];
     setDeletedDmKeys(nextDeletedKeys);
@@ -306,6 +312,27 @@ export function useAliveAppStatePersistence({
     feedInitRef.current = Boolean(active?.posts?.length || cleanSaved.posts?.length);
   }
   return { accountSnapshot, applyAppState, blankAppState, compactProfileBackup, exportAppState, profileUpsertPayload, resetRuntimeState, sanitizeSavedState, saveAppStateSnapshot };
+  function normalizeSavedAccount(value: AccountState): AccountState | null {
+    if (!value || typeof value !== "object" || typeof value.id !== "string" || !value.id) return null;
+    const char = normalizeSavedCharacter(value.char);
+    return { ...value, char, posts: sanitizePosts(value.posts) };
+  }
+
+  function normalizeSavedCharacter(value: unknown): CharacterState {
+    const raw = value && typeof value === "object" && !Array.isArray(value) ? value as CharacterState : {};
+    const character = { ...blankChar(), ...raw };
+    ["name", "handle", "age", "tone", "persona", "world", "speech", "catchphrase", "avatarImg", "headerImg", "surface", "inner", "situational", "triggers", "interests", "relations", "directions"].forEach((key) => {
+      if (typeof character[key] !== "string") character[key] = "";
+    });
+    character.corrections = Array.isArray(character.corrections) ? character.corrections : [];
+    character.lorebook = Array.isArray(character.lorebook) ? character.lorebook : [];
+    return character;
+  }
+}
+
+function sanitizeDmResponseFlows(value: unknown): Record<string, DmResponseFlow> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return Object.fromEntries(Object.entries(value).filter((entry): entry is [string, DmResponseFlow] => DM_RESPONSE_MODES.some((mode) => mode.code === entry[1])));
 }
 
 function compactAccountBackup(account: AccountState): AccountState {

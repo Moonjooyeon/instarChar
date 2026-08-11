@@ -144,7 +144,7 @@ backend/
 | Models                   | `backend/app/models/entities.py`            | SQLAlchemy ORM entities for auth credentials, profiles, characters, media, moderation, follows, post likes, DM threads, and AI usage counters |
 | Repositories             | `backend/app/repositories/`                 | Database operations and authorization-sensitive data access                                                                                   |
 | Schemas                  | `backend/app/schemas/`                      | Pydantic request/response contracts                                                                                                           |
-| Services                 | `backend/app/services/`                     | OAuth, Toss/native login, Gemini generation, media storage/validation, safety, account deletion, feed generation, and autonomous scheduling   |
+| Services                 | `backend/app/services/`                     | OAuth, Toss/native login, MonoGPT Gemini generation, media storage/validation, safety, account deletion, feed generation, and autonomous scheduling   |
 | Legal/public assets      | `backend/app/legal/`, `backend/app/public/` | Privacy, terms, account-deletion pages, CSS, and public brand assets                                                                          |
 | Migrations               | `backend/migrations/`                       | Alembic schema migration files                                                                                                                |
 | Tests                    | `backend/tests/`                            | FastAPI route and core security tests                                                                                                         |
@@ -171,7 +171,7 @@ All API routes are mounted under `/api` except the system health check.
 | `PUT`    | `/api/profile/state`                                                    | `profiles.py`          | Save compact profile backup                                                                      |
 | `POST`   | `/api/profile/structured-state`                                         | `profiles.py`          | Upsert characters, personas, owner DM, shared DM rows                                            |
 | `POST`   | `/api/profile/onboarding`                                               | `profiles.py`          | Save display name and mark onboarding complete                                                   |
-| `POST`   | `/api/ai/generate`                                                      | `ai.py`                | Generate character, feed, DM, or analysis text through Gemini                                    |
+| `POST`   | `/api/ai/generate`                                                      | `ai.py`                | Generate character, feed, DM, or analysis text through MonoGPT Gemini                             |
 | `GET`    | `/api/characters/handle-availability`                                   | `characters.py`        | Normalize a handle and report global availability, optionally excluding one owned source account |
 | `PUT`    | `/api/characters/{source_account_id}`                                   | `characters.py`        | Atomically create or update a character and its authoritative globally unique handle             |
 | `GET`    | `/api/characters/{source_account_id}/posts`                             | `characters.py`        | Load authoritative posts, revision, and autonomous schedule state                                |

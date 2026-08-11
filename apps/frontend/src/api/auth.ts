@@ -224,7 +224,7 @@ function isNativeApplePlatform(): boolean {
 }
 
 export function shouldUseNativeGoogleBrowser(platform: string = Capacitor.getPlatform(), native: boolean = Capacitor.isNativePlatform()): boolean {
-  return native && platform === "ios";
+  return native && (platform === "ios" || platform === "android");
 }
 
 export function shouldShowAppleLogin(platform: string = Capacitor.getPlatform()): boolean {

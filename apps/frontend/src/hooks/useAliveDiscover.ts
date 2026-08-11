@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
+import { useState, type Dispatch, type SetStateAction } from "react";
 import {
   deleteFollowRow as deleteRemoteFollowRow,
-  listFollowerTargetRows,
+  listFollowerCounts,
   listSharedFollowers,
   loadSharedCharacterRow,
   saveRelationshipFollowBack,
@@ -9,10 +9,9 @@ import {
   updateSharedCharacter,
   upsertFollowRow as upsertRemoteFollowRow,
   upsertOwnFollowRows,
-  upsertSharedCharacter,
 } from "@/api/discover";
+import { updateCharacterVisibility } from "@/api/characters";
 import { hasRemoteApiClient, hasBackendApiConfig } from "@/api/client";
-import { sharedCharacterUrl } from "@/domain/app/aliveCore";
 import { followerCharacterId, mergeDiscoverCharacters, sameDiscoverCharacter, sharedRowToChar, type CharacterData, type CharacterRow, type DiscoverCharacter, type SharedCharacterRow } from "@/domain/discover/discoverUtils";
 
 type SetState<T> = Dispatch<SetStateAction<T>>;
@@ -30,6 +29,7 @@ type AliveCharacter = CharacterData & {
   interests?: string;
   name?: string;
   persona?: string;
+  isPublic?: boolean;
   surface?: string;
 };
 
@@ -76,6 +76,7 @@ type QueryErrorLike = {
 type UseAliveDiscoverOptions = {
   activeId?: string | null;
   char?: AliveCharacter | null;
+  onVisibilityChange?: (isPublic: boolean) => void;
   profileName?: string;
   session?: SessionLike | null;
 };
@@ -85,7 +86,6 @@ type UseAliveDiscoverReturn = {
   baseFollowerCount: (name?: string) => number;
   discoverQuery: string;
   discoverShowFollowed: boolean;
-  flashShareStatus: (message: string, ms?: number) => void;
   followerCounts: Record<string, number>;
   followPanel: unknown;
   following: DiscoverCharacter[];
@@ -100,6 +100,7 @@ type UseAliveDiscoverReturn = {
   recordFollowChange: (poolChar: DiscoverCharacter, wasFollowing: boolean) => Promise<boolean | undefined>;
   recordRelationshipFollowBack: (poolChar: DiscoverCharacter) => Promise<boolean>;
   setActiveSharedId: SetState<string>;
+  setCharacterVisibility: (isPublic: boolean) => Promise<boolean>;
   setDiscoverQuery: SetState<string>;
   setDiscoverShowFollowed: SetState<boolean>;
   setFollowerCounts: SetState<Record<string, number>>;
@@ -110,15 +111,11 @@ type UseAliveDiscoverReturn = {
   setSharedFocusId: SetState<string>;
   setSharedFollowers: SetState<SharedFollowersState>;
   setSharedLoadState: SetState<SharedLoadState>;
-  setShareStatus: SetState<string>;
   setWorldModal: SetState<unknown>;
-  shareCurrentCharacter: (publicPostSnapshot: PostSnapshotProvider) => Promise<void>;
   sharedCharacters: DiscoverCharacter[];
   sharedFocusId: string;
   sharedFollowers: SharedFollowersState;
   sharedLoadState: SharedLoadState;
-  shareStatus: string;
-  shareStatusTimerRef: MutableRefObject<ReturnType<typeof setTimeout> | null>;
   syncActiveSharedCharacter: (publicPostSnapshot: PostSnapshotProvider, nextFollowing?: DiscoverCharacter[], nextChar?: AliveCharacter | null) => Promise<void>;
   syncOwnFollowRows: (publicPostSnapshot: PostSnapshotProvider, nextFollowing?: DiscoverCharacter[], nextChar?: AliveCharacter | null) => Promise<void>;
   worldModal: unknown;
@@ -131,15 +128,6 @@ type SharedResultRows = {
   characterRows: CharacterRow[];
   sharedError: QueryErrorLike | unknown;
   sharedRows: SharedCharacterRow[];
-};
-
-type SharedPayloadOptions = {
-  activeId: string;
-  char: AliveCharacter;
-  following: DiscoverCharacter[];
-  profileName: string;
-  publicPostSnapshot: PostSnapshotProvider;
-  session: SessionLike;
 };
 
 type OwnFollowRowsOptions = {
@@ -167,7 +155,7 @@ type UpsertFollowRowOptions = {
   session: SessionLike;
 };
 
-export function useAliveDiscover({ activeId = null, char = null, profileName = "", session = null }: UseAliveDiscoverOptions = {}): UseAliveDiscoverReturn {
+export function useAliveDiscover({ activeId = null, char = null, onVisibilityChange, profileName = "", session = null }: UseAliveDiscoverOptions = {}): UseAliveDiscoverReturn {
   const [publicProfile, setPublicProfile] = useState<unknown>(null);
   const [worldModal, setWorldModal] = useState<unknown>(null);
   const [followPanel, setFollowPanel] = useState<unknown>(null);
@@ -180,8 +168,6 @@ export function useAliveDiscover({ activeId = null, char = null, profileName = "
   const [followerCounts, setFollowerCounts] = useState<Record<string, number>>({});
   const [sharedFollowers, setSharedFollowers] = useState<SharedFollowersState>({ loading: false, rows: [], error: "" });
   const [activeSharedId, setActiveSharedId] = useState("");
-  const [shareStatus, setShareStatus] = useState<string>("");
-  const shareStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isFollowing = (id: string): boolean => {
     const target = [...sharedCharacters, ...sharedFollowers.rows].find((item) => item.id === id);
     return following.some((item) => target ? sameDiscoverCharacter(item, target) : item.id === id);
@@ -196,12 +182,12 @@ export function useAliveDiscover({ activeId = null, char = null, profileName = "
     if (!hasRemoteApiClient() || !rows?.length) return;
     const ids = rows.map((row) => row.id).filter(Boolean);
     if (!ids.length) return;
-    const { data, error } = await listFollowerTargetRows(ids);
+    const { data, error } = await listFollowerCounts(ids);
     if (error) {
       console.warn("팔로워 수 불러오기 실패:", error);
       return;
     }
-    setFollowerCounts((prev) => ({ ...prev, ...followerCountsForRows(ids, data || []) }));
+    setFollowerCounts((prev) => ({ ...prev, ...(data || {}) }));
   }
   async function loadSharedFollowers(sharedId = activeSharedId): Promise<void> {
     if (!hasRemoteApiClient() || !sharedId) {
@@ -250,20 +236,17 @@ export function useAliveDiscover({ activeId = null, char = null, profileName = "
     loadFollowerCountsFor([data]);
     return next;
   }
-  async function shareCurrentCharacter(publicPostSnapshot: PostSnapshotProvider): Promise<void> {
-    if (!activeId || !char?.name?.trim()) return;
-    if (!hasRemoteApiClient() || !session?.user) {
-      flashShareStatus("로그인 후 공유할 수 있어.");
-      return;
+  async function setCharacterVisibility(isPublic: boolean): Promise<boolean> {
+    if (!activeId || !hasRemoteApiClient() || !session?.user) return false;
+    try {
+      const { is_public, shared_id } = await updateCharacterVisibility(activeId, isPublic);
+      onVisibilityChange?.(is_public);
+      setActiveSharedId(shared_id);
+      loadSharedCharacters();
+      return true;
+    } catch (error) {
+      return false;
     }
-    const { data, error } = await upsertSharedCharacter(sharedCharacterPayload({ activeId, char, following, profileName, publicPostSnapshot, session }));
-    if (error) {
-      flashShareStatus(`공유 실패: ${error.message}`, 3600);
-      return;
-    }
-    setActiveSharedId(data.id);
-    await writeShareUrl(data.id, flashShareStatus);
-    loadSharedCharacters();
   }
   async function syncActiveSharedCharacter(publicPostSnapshot: PostSnapshotProvider, nextFollowing = following, nextChar = char): Promise<void> {
     if (!hasRemoteApiClient() || !session?.user || !activeId || !activeSharedId || !nextChar?.name?.trim()) return;
@@ -294,36 +277,16 @@ export function useAliveDiscover({ activeId = null, char = null, profileName = "
     loadFollowerCountsFor([{ id: activeSharedId }, { id: poolChar.sharedId }]);
     return true;
   }
-  function flashShareStatus(message: string, ms = 2200): void {
-    if (shareStatusTimerRef.current) clearTimeout(shareStatusTimerRef.current);
-    setShareStatus(message);
-    shareStatusTimerRef.current = setTimeout(() => {
-      setShareStatus("");
-      shareStatusTimerRef.current = null;
-    }, ms);
-  }
-  useEffect(() => () => {
-    if (shareStatusTimerRef.current) clearTimeout(shareStatusTimerRef.current);
-  }, []);
   function updateFollowerCount(sharedId: string, wasFollowing: boolean): void {
     setFollowerCounts((prev) => ({ ...prev, [sharedId]: Math.max(0, (prev[sharedId] || 0) + (wasFollowing ? -1 : 1)) }));
   }
-  return { activeSharedId, baseFollowerCount, discoverQuery, discoverShowFollowed, flashShareStatus, followerCounts, followPanel, following, isFollowing, loadFollowerCountsFor, loadSharedCharacterById, loadSharedCharacters, loadSharedFollowers, publicFollowerCount, publicFollowingCount, publicProfile, recordFollowChange, recordRelationshipFollowBack, setActiveSharedId, setDiscoverQuery, setDiscoverShowFollowed, setFollowerCounts, setFollowPanel, setFollowing, setPublicProfile, setSharedCharacters, setSharedFocusId, setSharedFollowers, setSharedLoadState, setShareStatus, setWorldModal, shareCurrentCharacter, sharedCharacters, sharedFocusId, sharedFollowers, sharedLoadState, shareStatus, shareStatusTimerRef, syncActiveSharedCharacter, syncOwnFollowRows, worldModal };
+  return { activeSharedId, baseFollowerCount, discoverQuery, discoverShowFollowed, followerCounts, followPanel, following, isFollowing, loadFollowerCountsFor, loadSharedCharacterById, loadSharedCharacters, loadSharedFollowers, publicFollowerCount, publicFollowingCount, publicProfile, recordFollowChange, recordRelationshipFollowBack, setActiveSharedId, setCharacterVisibility, setDiscoverQuery, setDiscoverShowFollowed, setFollowerCounts, setFollowPanel, setFollowing, setPublicProfile, setSharedCharacters, setSharedFocusId, setSharedFollowers, setSharedLoadState, setWorldModal, sharedCharacters, sharedFocusId, sharedFollowers, sharedLoadState, syncActiveSharedCharacter, syncOwnFollowRows, worldModal };
 }
 
 function deterministicFollowerCount(name: string): number {
   let hash = 0;
   for (let index = 0; index < name.length; index += 1) hash = (hash * 31 + name.charCodeAt(index)) % 9000;
   return 800 + hash;
-}
-
-function followerCountsForRows(ids: string[], rows: FollowRow[]): Record<string, number> {
-  const counts = Object.fromEntries(ids.map((id) => [id, 0]));
-  rows.forEach((row) => {
-    if (!row.target_shared_character_id) return;
-    counts[row.target_shared_character_id] = (counts[row.target_shared_character_id] || 0) + 1;
-  });
-  return counts;
 }
 
 function followerRowToChar(row: FollowRow, sharedCharacters: DiscoverCharacter[]): FollowerCharacter {
@@ -340,23 +303,10 @@ function sharedResultRows(characterResult: SharedCharacterQueryResult, sharedRes
   return { characterError, sharedError, characterRows, sharedRows };
 }
 
-function sharedCharacterPayload({ activeId, char, following, profileName, publicPostSnapshot, session }: SharedPayloadOptions): Record<string, unknown> {
-  return { owner_id: session.user.id, owner_name: profileName || session.user.email?.split("@")[0] || "user", source_account_id: activeId, name: char.name, handle: char.handle || "", persona: char.persona || "", tags: [char.age, char.surface, char.interests].filter(Boolean).slice(0, 6), character: { ...char, following, posts: publicPostSnapshot() } };
-}
-
 function sharedCharacterUpdatePayload(char: AliveCharacter, following: DiscoverCharacter[], publicPostSnapshot: PostSnapshotProvider): Record<string, unknown> {
   return { name: char.name, handle: char.handle || "", persona: char.persona || "", tags: [char.age, char.surface, char.interests].filter(Boolean).slice(0, 6), character: { ...char, following, posts: publicPostSnapshot() } };
 }
 
-async function writeShareUrl(sharedId: string, flashShareStatus: (message: string, ms?: number) => void): Promise<void> {
-  const url = sharedCharacterUrl(window.location.origin, sharedId);
-  try {
-    await navigator.clipboard.writeText(url);
-    flashShareStatus("공유 링크를 복사했어.");
-  } catch (error) {
-    flashShareStatus(url, 4200);
-  }
-}
 
 function ownFollowRows({ activeId, nextChar, nextFollowing, profileName, publicPostSnapshot, session }: OwnFollowRowsOptions): FollowRowPayload[] {
   return (nextFollowing || []).filter((item) => item?.sharedId).map((item) => ({ follower_id: session.user.id, follower_name: profileName || session.user.email?.split("@")[0] || "user", follower_account_id: activeId, follower_character: { ...nextChar, following: nextFollowing, posts: publicPostSnapshot() }, target_shared_character_id: item.sharedId }));

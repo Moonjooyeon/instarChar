@@ -74,10 +74,10 @@ type FollowResponse = {
   ok?: boolean;
 };
 
-export async function listFollowerTargetRows(ids: string[]): Promise<ApiResult<FollowRow[]>> {
+export async function listFollowerCounts(ids: string[]): Promise<ApiResult<Record<string, number>>> {
   const result = await apiResult<FollowerCountsResponse>("/shared-characters/follower-counts", { query: { ids } });
   if (result.error) return { data: null, error: result.error };
-  return { data: followerRowsForCounts(result.data?.counts || {}), error: null };
+  return { data: result.data?.counts || {}, error: null };
 }
 
 export async function listSharedFollowers(sharedId: string): Promise<ApiResult<FollowRow[]>> {
@@ -227,10 +227,6 @@ function shareIdResult(result: ApiResult<ShareIdResponse>): ApiResult<{ id: stri
   if (result.error) return { data: null, error: result.error };
   const id = stringValue(result.data?.id);
   return id ? { data: { id }, error: null } : { data: null, error: { message: "Share id missing." } };
-}
-
-function followerRowsForCounts(counts: Record<string, number>): FollowRow[] {
-  return Object.entries(counts).flatMap(([id, count]) => Array.from({ length: Math.max(0, Math.floor(count)) }, () => ({ target_shared_character_id: id })));
 }
 
 function charRows(characters: DiscoverCharacterDto[]): CharacterRow[] {

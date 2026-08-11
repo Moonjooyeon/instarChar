@@ -1,3 +1,18 @@
+x-backend: &backend
+  build:
+    context: ./backend
+    dockerfile: Dockerfile
+  env_file:
+    - .env
+  environment:
+    DATABASE_URL: postgresql+asyncpg://instarchat:instarchat@db:5432/instarchat
+    AUTO_POST_SCHEDULER_ENABLED: "false"
+    ACCOUNT_DELETION_SCHEDULER_ENABLED: "false"
+  volumes:
+    - ./backend:/app
+  networks:
+    - instarchat-local-net
+
 services:
   db:
     build:
@@ -16,30 +31,47 @@ services:
       timeout: 5s
       retries: 10
 
-  # backend:
-  #   build:
-  #     context: ./backend
-  #     dockerfile: Dockerfile
-  #   container_name: instarchat-local-backend
-  #   ports:
-  #     - "${BACKEND_PORT:-8000}:8000"
-  #   volumes:
-  #     - ./backend:/app
-  #   environment:
-  #     DATABASE_URL: postgresql+asyncpg://instarchat:instarchat@db:5432/instarchat
-  #     # FRONTEND_ORIGINS: ${FRONTEND_ORIGINS:-http://localhost:3000}
-  #     # ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-  #     # GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
-  #     # AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-false}
-  #     # TOSS_CLIENT_KEY: ${TOSS_CLIENT_KEY:-}
-  #     # TOSS_SECRET_KEY: ${TOSS_SECRET_KEY:-}
-  #     # TOSS_SECURE_KEY: ${TOSS_SECURE_KEY:-}
-  #     # TOSS_IS_SANDBOX: ${TOSS_IS_SANDBOX:-true}
-  #   networks:
-  #     - instarchat-local-net
-  #   depends_on:
-  #     db:
-  #       condition: service_healthy
+  migrate:
+    <<: *backend
+    container_name: instarchat-local-migrate
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        if [ -z "$$(alembic current 2>/dev/null)" ]; then
+          alembic stamp 20260626_0001
+        fi
+        alembic upgrade head
+    depends_on:
+      db:
+        condition: service_healthy
+
+  backend:
+    <<: *backend
+    container_name: instarchat-local-backend
+    command:
+      - uvicorn
+      - app.main:app
+      - --reload
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8888"
+    ports:
+      - "${BACKEND_PORT:-8000}:8888"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen("http://127.0.0.1:8888/health", timeout=3)
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
 
 volumes:
   pg_data_local:

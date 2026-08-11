@@ -40,7 +40,13 @@ class StubSession:
         self.results = list(results or [])
         self.error = error
         self.committed = False
+        self.added: list[object] = []
         self.rolled_back = False
+
+    def add(self, row: object) -> None:
+        if isinstance(row, SharedCharacter) and row.id is None:
+            row.id = uuid4()
+        self.added.append(row)
 
     async def execute(self, statement: object) -> StubResult:
         if self.error:
@@ -93,6 +99,29 @@ async def test_save_is_idempotent_and_syncs_handle_snapshots() -> None:
     assert shared.handle == "hero"
     assert follower.follower_character["handle"] == "hero"
     assert session.committed is True
+
+
+@pytest.mark.anyio
+async def test_public_visibility_creates_a_discover_snapshot() -> None:
+    owner_id = uuid4()
+    row = Character(owner_id=owner_id, source_account_id="draft-1", name="Hero", handle="hero", character={})
+    session = StubSession([StubResult(row), StubResult(None)])
+    response = await CharacterRepository(session).update_visibility(StubUser(owner_id), "draft-1", True)  # type: ignore[arg-type]
+    assert response.is_public is True
+    assert response.shared_id
+    assert len(session.added) == 1
+
+
+@pytest.mark.anyio
+async def test_private_visibility_hides_an_existing_discover_snapshot() -> None:
+    owner_id = uuid4()
+    row = Character(owner_id=owner_id, source_account_id="draft-1", name="Hero", handle="hero", character={})
+    shared = SharedCharacter(owner_id=owner_id, source_account_id="draft-1", name="Hero", handle="hero")
+    session = StubSession([StubResult(row), StubResult(shared)])
+    response = await CharacterRepository(session).update_visibility(StubUser(owner_id), "draft-1", False)  # type: ignore[arg-type]
+    assert response.is_public is False
+    assert response.shared_id == ""
+    assert session.added == []
 
 
 @pytest.mark.anyio

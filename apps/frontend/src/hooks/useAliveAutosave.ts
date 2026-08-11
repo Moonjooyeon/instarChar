@@ -20,6 +20,7 @@ type AutosaveOptions = {
   deletedDmKeys: unknown;
   discoverQuery: unknown;
   dmThreadTitles: unknown;
+  dmResponseFlows: unknown;
   dmThreads: unknown;
   dmWorldPrefs: unknown;
   exportAppState: () => unknown;
@@ -48,6 +49,7 @@ export function useAliveAutosave({
   deletedDmKeys,
   discoverQuery,
   dmThreadTitles,
+  dmResponseFlows,
   dmThreads,
   dmWorldPrefs,
   exportAppState,
@@ -80,7 +82,7 @@ export function useAliveAutosave({
       saveRemoteSnapshot({ profileTableBrokenRef, profileUpsertPayload, setSaveStatus, snapshot, syncStructuredState });
     }, 700);
     return () => clearTimeout(saveTimerRef.current);
-  }, [accounts, activeId, char, gallery, personas, dmThreads, dmThreadTitles, dmWorldPrefs, deletedDmKeys, ownerPersona, following, affinity, profileName, onboardingOpen, stateReady, session?.user?.id]);
+  }, [accounts, activeId, char, gallery, personas, dmThreads, dmThreadTitles, dmResponseFlows, dmWorldPrefs, deletedDmKeys, ownerPersona, following, affinity, profileName, onboardingOpen, stateReady, session?.user?.id]);
   useEffect(() => {
     if (!stateReady) return;
     function saveBeforeLeave() {
@@ -93,7 +95,7 @@ export function useAliveAutosave({
       window.removeEventListener("pagehide", saveBeforeLeave);
       window.removeEventListener("beforeunload", saveBeforeLeave);
     };
-  }, [accounts, activeId, char, gallery, personas, dmThreads, dmThreadTitles, dmWorldPrefs, deletedDmKeys, ownerPersona, following, affinity, discoverQuery, profileName, onboardingOpen, stateReady]);
+  }, [accounts, activeId, char, gallery, personas, dmThreads, dmThreadTitles, dmResponseFlows, dmWorldPrefs, deletedDmKeys, ownerPersona, following, affinity, discoverQuery, profileName, onboardingOpen, stateReady]);
 }
 
 function saveLocalSnapshot(snapshot: unknown, persistLocalSnapshot: (snapshot: unknown) => void, setSaveStatus: (value: string) => void): void {

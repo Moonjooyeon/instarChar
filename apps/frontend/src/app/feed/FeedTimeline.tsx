@@ -4,6 +4,7 @@ import { CharacterAvatarImage } from "@/components/ui/CharacterAvatarImage";
 import { mediaUrl } from "@/api/media";
 import { USER_PERSONA_FEATURE_ENABLED } from "@/domain/app/featureFlags";
 import { canManagePost } from "@/domain/feed/feedUtils";
+import { CreditUsageHint } from "@/features/credits/CreditUsageHint";
 
 interface GenerationFailureProps {
   message: string;
@@ -41,11 +42,15 @@ export function FeedTimeline({ ctx }) {
     deletePost,
     editingComment,
     editingPost,
+    feedError,
     feedTopRef,
     feedView,
     generatePost,
+    hasMoreFeedPosts,
     isLikePending,
     loading,
+    loadingFeedPosts,
+    loadMoreFeedPosts,
     moodOpen,
     myPosts,
     openCommentBox,
@@ -55,6 +60,7 @@ export function FeedTimeline({ ctx }) {
     savePostEdit,
     recommendationPosts,
     recommendationUsesInterests,
+    retryFeedPosts,
     setCommentAs,
     setCommentOn,
     setCommentText,
@@ -75,8 +81,15 @@ export function FeedTimeline({ ctx }) {
     toggleLike,
     visiblePosts,
   } = ctx;
+  const feedBottomRef = React.useRef<HTMLDivElement | null>(null);
   const isFirstPost = myPosts.length === 0;
   const generationError = typeof saveStatus === "string" && saveStatus.startsWith("글 생성 실패:") ? saveStatus : "";
+  React.useEffect(() => {
+    if (feedView === "mine" || feedError || !hasMoreFeedPosts || loadingFeedPosts || !feedBottomRef.current) return;
+    const observer = new IntersectionObserver(([entry]) => { if (entry.isIntersecting) loadMoreFeedPosts(); }, { rootMargin: "240px" });
+    observer.observe(feedBottomRef.current);
+    return () => observer.disconnect();
+  }, [feedError, feedView, hasMoreFeedPosts, loadingFeedPosts, loadMoreFeedPosts]);
   return (
     <>
       <div className="al-feed-tabs" role="tablist" aria-label="게시글 공간">
@@ -95,7 +108,8 @@ export function FeedTimeline({ ctx }) {
         {!loading && generationError && <GenerationFailure message={generationError} onRetry={() => { setSaveStatus("저장됨"); setFeedView("mine"); setMoodOpen(true); }} />}
         {feedView === "recommendations" && !loading && recommendationPosts.length > 0 && <RecommendationIntro usesInterests={recommendationUsesInterests} />}
         {isFirstPost && feedView === "mine" && !loading && !moodOpen && !generationError && <EmptyFeed char={char} feedView="mine" onExplore={() => setStep("discover")} onGenerate={(mood) => { setFeedView("mine"); generatePost(mood); }} onStart={() => { setFeedView("mine"); setMoodOpen(true); }} />}
-        {!(isFirstPost && feedView === "mine") && visiblePosts.length === 0 && !loading && (
+        {feedView !== "mine" && feedError && <FeedLoadFailure message={feedError} onRetry={retryFeedPosts} />}
+        {!(isFirstPost && feedView === "mine") && visiblePosts.length === 0 && !loading && !loadingFeedPosts && !feedError && (
           <EmptyFeed char={char} feedView={feedView} onExplore={() => setStep("discover")} onGenerate={generatePost} onStart={() => { setFeedView("mine"); setMoodOpen(true); }} />
         )}
         {visiblePosts.map((post) => (
@@ -103,6 +117,7 @@ export function FeedTimeline({ ctx }) {
             <FeedPostCard post={post} ctx={{ activeId, canLikePost, char, commentAs, commentOn, commentText, deleteComment, deletePost, editingComment, editingPost, isLikePending, openCommentBox, personas, saveCommentEdit, savePostEdit, setCommentAs, setCommentOn, setCommentText, setEditingComment, setEditingPost, setFixTarget, setFixText, setPersonaDraft, setReportTarget, submitUserComment, timeAgo, toggleFollow, toggleLike }} />
           </React.Fragment>
         ))}
+        {feedView !== "mine" && <div ref={feedBottomRef} className="al-feed-page-status" role="status" aria-live="polite">{loadingFeedPosts ? "게시글을 더 불러오는 중이에요." : hasMoreFeedPosts ? "" : visiblePosts.length > 0 ? "모든 게시글을 확인했어요." : ""}</div>}
       </div>
     </>
   );
@@ -120,11 +135,15 @@ function RecommendationIntro({ usesInterests }: { usesInterests: boolean }): Rea
 }
 
 function GeneratingPost({ char }) {
-  return <div className="al-generating-post" role="status" aria-live="polite"><span className="al-generating-avatar"><CharacterAvatarImage src={char.avatarImg} /><i /></span><div><small>새 글을 쓰는 중</small><b>{char.name}가 장면을 떠올리고 있어요</b><p>말투와 설정을 살펴보고 있어요.</p><span className="al-generating-line"><i /><i /><i /></span></div></div>;
+  return <div className="al-generating-post" role="status" aria-live="polite"><span className="al-generating-avatar"><CharacterAvatarImage src={char.avatarImg} /><i /></span><div><small>새 글을 쓰는 중</small><b>{char.name}가 장면을 떠올리고 있어요</b><p>말투와 설정을 살펴보고 있어요.</p><CreditUsageHint busy className="generating" flowCode="feed_post" /><span className="al-generating-line"><i /><i /><i /></span></div></div>;
 }
 
 function GenerationFailure({ message, onRetry }: GenerationFailureProps): React.ReactElement {
   return <div className="al-generation-failure" role="alert"><div><b>글을 완성하지 못했어요.</b><p>{message.replace(/^글 생성 실패:\s*/, "")}</p></div><button className="border-danger bg-danger-soft text-danger hover:bg-danger hover:text-white" type="button" onClick={onRetry}>다시 장면 고르기</button></div>;
+}
+
+function FeedLoadFailure({ message, onRetry }: GenerationFailureProps): React.ReactElement {
+  return <div className="al-feed-load-failure" role="alert"><span>{message}</span><button type="button" onClick={onRetry}>다시 시도</button></div>;
 }
 
 function FeedPostCard({ post, ctx }) {

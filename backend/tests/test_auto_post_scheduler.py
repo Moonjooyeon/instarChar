@@ -10,7 +10,7 @@ from sqlalchemy.dialects import postgresql
 from app.core.config import Settings
 from app.models import Character
 from app.repositories.auto_posts import AutoPostRepository, ClaimedAutoPost
-from app.services.auto_post_scheduler import AutoPostScheduler
+from app.services.auto_post_scheduler import AutoPostScheduler, auto_post_request_key
 from app.services.feed_generation import retry_delay_seconds
 
 
@@ -52,17 +52,18 @@ def test_due_statement_uses_skip_locked() -> None:
 
 def test_claim_due_advances_next_run_before_generation() -> None:
     now = datetime.now(timezone.utc)
-    row = Character(owner_id=uuid4(), source_account_id="char-1", auto_post_interval_seconds=1800)
+    row = Character(owner_id=uuid4(), source_account_id="char-1", auto_post_interval_seconds=21600)
     session = StubSession([row])
     claims = asyncio.run(AutoPostRepository(session).claim_due(now, 10))
-    assert claims == [ClaimedAutoPost(row.owner_id, "char-1")]
-    assert int((row.next_auto_post_at - now).total_seconds()) == 1800
+    assert claims == [ClaimedAutoPost(row.owner_id, "char-1", now)]
+    assert int((row.next_auto_post_at - now).total_seconds()) == 21600
     assert session.commits == 1
 
 
 def test_scheduler_processes_each_claim(monkeypatch: MonkeyPatch) -> None:
     scheduler = AutoPostScheduler(Settings(), object())
-    claims = [ClaimedAutoPost(uuid4(), "a"), ClaimedAutoPost(uuid4(), "b")]
+    now = datetime.now(timezone.utc)
+    claims = [ClaimedAutoPost(uuid4(), "a", now), ClaimedAutoPost(uuid4(), "b", now)]
     processed: list[str] = []
 
     async def claim_due() -> list[ClaimedAutoPost]:
@@ -83,12 +84,17 @@ def test_retry_delay_is_exponential_and_capped() -> None:
     assert retry_delay_seconds(10) == 900
 
 
+def test_auto_post_request_key_is_stable_for_a_claim() -> None:
+    claim = ClaimedAutoPost(uuid4(), "char-1", datetime(2026, 8, 9, 3, tzinfo=timezone.utc))
+    assert auto_post_request_key(claim) == "auto-post:char-1:2026-08-09T03:00:00+00:00"
+
+
 def test_scheduler_settings_enable_background_generation_by_default() -> None:
     settings = Settings(_env_file=None)
     assert settings.auto_post_scheduler_enabled is True
     assert settings.auto_post_poll_seconds == 30
     assert settings.auto_post_batch_size == 10
-    assert settings.auto_post_default_interval_seconds == 900
+    assert settings.auto_post_default_interval_seconds == 3600
 
 
 def test_scheduler_can_be_disabled_for_local_tests(monkeypatch: MonkeyPatch) -> None:

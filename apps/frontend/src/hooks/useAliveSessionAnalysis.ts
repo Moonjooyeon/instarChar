@@ -1,4 +1,4 @@
-import { postGenerateContent } from "@/api/generate";
+import { createGenerateRequestKey, postGenerateContent } from "@/api/generate";
 import { MODEL_UTIL } from "@/domain/app/aliveCore";
 
 type JsonRecord = Record<string, unknown>;
@@ -87,7 +87,8 @@ async function judgeAffinityDelta(from: string, to: string, transcript: string):
 - 보통의 어색함·삐침은 작게(-1~-4). 하지만 ${to}가 ${from}에게 바람·불륜·배신·심한 모욕·일부러 상처주기 같은 과한 행동을 했다면 크게 떨어뜨려라(-12 ~ -30). 그런 게 없으면 작은 범위로.
 - 숫자 하나만 출력. -30 ~ +8 범위 정수. 설명·기호 금지. 예: 5 또는 -20`;
   try {
-    const raw = (await postGenerateContent({ model: MODEL_UTIL, max_tokens: 10, system: sys, messages: [{ role: "user", content: transcript }] }, "호감도 판정 API")).trim();
+    const idempotencyKey = createGenerateRequestKey("session-affinity");
+    const raw = (await postGenerateContent({ flow: "assist_session", idempotency_key: idempotencyKey, model: MODEL_UTIL, max_tokens: 10, system: sys, messages: [{ role: "user", content: transcript }] }, "호감도 판정 API")).trim();
     const match = raw.match(/-?\d+/);
     return match ? Math.max(-30, Math.min(8, parseInt(match[0], 10))) : 0;
   } catch (e) {
@@ -121,7 +122,8 @@ async function analyzeSessionSummary(aName: string, bName: string, transcript: s
 출력 형식(반드시 이 형태의 유효한 JSON으로 작성할 것):
 {"aff_a_to_b": 0, "aff_b_to_a": 0, "mem_a": [{"content":"감정 변화와 원인 또는 기억할 사건","importance":3}], "mem_b": []}
 기억할 게 없으면 빈 배열.`;
-  const raw = await postGenerateContent({ model: MODEL_UTIL, max_tokens: 2048, system: sys, messages: [{ role: "user", content: transcript }] }, "기억 통합 API");
+  const idempotencyKey = createGenerateRequestKey("session-summary");
+  const raw = await postGenerateContent({ flow: "assist_session", idempotency_key: idempotencyKey, model: MODEL_UTIL, max_tokens: 2048, system: sys, messages: [{ role: "user", content: transcript }] }, "기억 통합 API");
   return parseJsonRecord(extractJsonObject(raw));
 }
 

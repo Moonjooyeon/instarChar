@@ -196,19 +196,19 @@ function roomMemoryEntries(pref: RoomPrefs | null | undefined, viewer: string, o
   return (book[viewer] || []).filter((entry) => !other || entry.peer === other);
 }
 
-function roomLoreBlockFor(pref: RoomPrefs | null | undefined, viewer: string, other?: string): string {
-  const picked = roomMemoryEntries(pref, viewer, other).slice(-12).map((entry) => (entry.content || "").trim()).filter(Boolean);
+function roomLoreBlockFor(pref: RoomPrefs | null | undefined, viewer: string, other?: string, limit = 12): string {
+  const picked = roomMemoryEntries(pref, viewer, other).slice(-limit).map((entry) => (entry.content || "").trim()).filter(Boolean);
   if (!picked.length) return "";
   return `\n\n[이 DM방에서만 이어지는 기억 — 다른 NPC방/공유DM과 섞지 마라]\n${picked.map((text) => `- ${text}`).join("\n")}`;
 }
 
-function loreBlockFor(char: CharacterState | null | undefined, withName?: string): string {
+function loreBlockFor(char: CharacterState | null | undefined, withName?: string, limit = 12): string {
   const mem = (char && char.lorebook) || [];
   if (!mem.length) return "";
   const globalOnly = (entry) => !entry.roomKey;
   const rel = withName ? mem.filter((entry) => entry.peer === withName && globalOnly(entry)) : [];
   const gen = mem.filter((entry) => (!entry.peer || entry.peer === "*") && !entry.roomKey);
-  const picked = [...rel, ...gen].slice(-12).map((entry) => (entry.content || "").trim()).filter(Boolean);
+  const picked = [...rel, ...gen].slice(-limit).map((entry) => (entry.content || "").trim()).filter(Boolean);
   if (!picked.length) return "";
   return `\n\n[지금까지의 기억 — 이미 일어난 일이다. 일관되게 이어가고 절대 잊지 마라]\n${picked.map((text) => `- ${text}`).join("\n")}`;
 }

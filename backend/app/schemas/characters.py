@@ -19,6 +19,7 @@ class CharacterWrite(BaseModel):
     character: JsonMap = Field(default_factory=dict)
     gallery: list[object] = Field(default_factory=list)
     following: list[object] = Field(default_factory=list)
+    is_public: bool | None = None
 
     @field_validator("handle")
     @classmethod
@@ -28,3 +29,13 @@ class CharacterWrite(BaseModel):
 
 class CharacterWriteResponse(CharacterWrite):
     source_account_id: str
+    is_public: bool
+
+
+class CharacterVisibilityUpdate(BaseModel):
+    is_public: bool
+
+
+class CharacterVisibilityResponse(BaseModel):
+    is_public: bool
+    shared_id: str = ""

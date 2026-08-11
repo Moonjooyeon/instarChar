@@ -1,4 +1,4 @@
-import { postGenerateContent } from "@/api/generate";
+import { createGenerateRequestKey, postGenerateContent } from "@/api/generate";
 import {
   MODEL_CHAT,
   MODEL_UTIL,
@@ -153,7 +153,8 @@ export function useAliveRelationshipMutations({
     const sys = proposalSystemPrompt({ askerChar, askerName, curRel, otherName });
     let line = `나, ${josa(otherName, "이/가")} 좋아진 것 같아요. 좋아해도 될까요?`;
     try {
-      const text = (await postGenerateContent({ model: MODEL_CHAT, max_tokens: 200, system: sys, messages: [{ role: "user", content: `(${askerName}가 오너에게 ${otherName}에 대한 마음을 털어놓으며 허락을 구한다.)` }] }, "관계 제안 API")).trim();
+      const idempotencyKey = createGenerateRequestKey("relationship-proposal");
+      const text = (await postGenerateContent({ flow: "assist_relationship", idempotency_key: idempotencyKey, model: MODEL_CHAT, max_tokens: 200, system: sys, messages: [{ role: "user", content: `(${askerName}가 오너에게 ${otherName}에 대한 마음을 털어놓으며 허락을 구한다.)` }] }, "관계 제안 API")).trim();
       if (text) line = text.replace(/^["'""']|["'""']$/g, "");
     } catch (error) {
       // 기본 멘트 사용
@@ -188,7 +189,8 @@ export function useAliveRelationshipMutations({
     const otherChar = findPeerChar(otherName);
     const back = affOf(otherName, askerName);
     try {
-      const raw = (await postGenerateContent({ model: MODEL_UTIL, max_tokens: 10, system: acceptancePrompt({ askerName, back, otherChar, otherName }), messages: [{ role: "user", content: "판정:" }] }, "관계 판정 API")).toUpperCase();
+      const idempotencyKey = createGenerateRequestKey("relationship-judge");
+      const raw = (await postGenerateContent({ flow: "assist_relationship", idempotency_key: idempotencyKey, model: MODEL_UTIL, max_tokens: 10, system: acceptancePrompt({ askerName, back, otherChar, otherName }), messages: [{ role: "user", content: "판정:" }] }, "관계 판정 API")).toUpperCase();
       return raw.includes("ACCEPT");
     } catch (error) {
       return back >= 50;

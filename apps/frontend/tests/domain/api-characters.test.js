@@ -4,6 +4,7 @@ import {
   CharacterApiError,
   getCharacterHandleAvailability,
   saveCharacter,
+  updateCharacterVisibility,
 } from "../../src/api/characters.js";
 
 test("availability normalizes the handle and sends edit exclusion", async () => {
@@ -20,6 +21,9 @@ test("availability normalizes the handle and sends edit exclusion", async () => 
 test("saveCharacter encodes the stable source id and sends full state", async () => {
   const payload = { name: "Hero", handle: "@Hero", character: {}, gallery: [], following: [] };
   const restoreFetch = stubFetch(jsonResponse({ ...payload, handle: "hero", source_account_id: "draft 1" }));
+  const restoreWindow = stubWindow();
+  let notified = false;
+  window.addEventListener("alive:credit-balance-updated", () => { notified = true; });
   try {
     const result = await saveCharacter("draft 1", payload);
     const request = globalThis.fetch.calls[0];
@@ -27,8 +31,10 @@ test("saveCharacter encodes the stable source id and sends full state", async ()
     assert.equal(request.init.method, "PUT");
     assert.deepEqual(JSON.parse(request.init.body), payload);
     assert.equal(result.handle, "hero");
+    assert.equal(notified, true);
   } finally {
     restoreFetch();
+    restoreWindow();
   }
 });
 
@@ -46,8 +52,31 @@ test("saveCharacter preserves stable conflict details", async () => {
   }
 });
 
+test("updateCharacterVisibility uses the server-owned visibility route", async () => {
+  const restoreFetch = stubFetch(jsonResponse({ is_public: false, shared_id: "" }));
+  try {
+    const result = await updateCharacterVisibility("draft 1", false);
+    const request = globalThis.fetch.calls[0];
+    assert.equal(request.input, "/api/characters/draft%201/visibility");
+    assert.equal(request.init.method, "PATCH");
+    assert.deepEqual(JSON.parse(request.init.body), { is_public: false });
+    assert.deepEqual(result, { is_public: false, shared_id: "" });
+  } finally {
+    restoreFetch();
+  }
+});
+
 function jsonResponse(body, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+}
+
+function stubWindow() {
+  const originalWindow = globalThis.window;
+  globalThis.window = new EventTarget();
+  return () => {
+    if (originalWindow === undefined) delete globalThis.window;
+    else globalThis.window = originalWindow;
+  };
 }
 
 function stubFetch(response) {
