@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -100,6 +101,7 @@ class CreditPurchaseOperationsDetail(BaseModel):
     provider_checked_at: datetime | None
     granted_at: datetime | None
     refunded_at: datetime | None
+    created_at: datetime | None = None
 
 
 class CreditPurchaseOperationsAccount(BaseModel):
@@ -126,3 +128,25 @@ class CreditPurchaseOperationsResponse(BaseModel):
 
 class CreditPurchaseOperationsQueueResponse(BaseModel):
     purchases: list[CreditPurchaseOperationsDetail]
+
+
+class CreditPurchaseAuditItemResponse(BaseModel):
+    purchase: CreditPurchaseOperationsDetail
+    reasons: list[Literal["stale_processing", "status_review", "status_failed", "grant_amount_invalid", "purchase_ledger_mismatch", "refund_amount_mismatch", "chargeback_ledger_mismatch"]]
+
+
+class CreditAccountAuditItemResponse(BaseModel):
+    user_id: UUID
+    purchased_credits: int
+    bonus_credits: int
+    debt_credits: int
+    purchased_ledger_total: int
+    bonus_ledger_total: int
+    reasons: list[Literal["purchased_balance_mismatch", "bonus_balance_mismatch"]]
+
+
+class CreditPurchaseAuditResponse(BaseModel):
+    generated_at: datetime
+    purchases: list[CreditPurchaseAuditItemResponse]
+    accounts: list[CreditAccountAuditItemResponse]
+    truncated: bool

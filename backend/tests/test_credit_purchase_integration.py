@@ -36,6 +36,7 @@ async def _verify_concurrent_purchase() -> None:
         results = await asyncio.gather(_grant_purchase(user_id, order_id, subject_hash), _grant_purchase(user_id, order_id, subject_hash))
         assert all(result.status == "granted" for result in results)
         await _assert_single_grant(user_id, order_id)
+        await _assert_audit_detects_ledger_tamper(user_id, order_id)
     finally:
         await _cleanup_purchase(user_id, order_id)
 
@@ -94,6 +95,21 @@ async def _assert_no_repeat_bonus(user_id: UUID, order_id: str) -> None:
         reward_count = await session.scalar(select(func.count()).select_from(RewardGrant).where(RewardGrant.user_id == user_id, RewardGrant.event_code == "first_purchase"))
         assert purchase.first_purchase_bonus_credits == 0
         assert reward_count == 0
+
+
+async def _assert_audit_detects_ledger_tamper(user_id: UUID, order_id: str) -> None:
+    async with AsyncSessionLocal() as session:
+        clean = await CreditPurchaseRepository(session).audit(200)
+        assert all(item.purchase.provider_order_id != order_id for item in clean.purchases)
+        ledger = (await session.execute(select(CreditLedgerEntry).where(CreditLedgerEntry.idempotency_key == f"purchase:{order_id}"))).scalar_one()
+        ledger.amount -= 1
+        await session.commit()
+    async with AsyncSessionLocal() as session:
+        report = await CreditPurchaseRepository(session).audit(200)
+        purchase = next(item for item in report.purchases if item.purchase.provider_order_id == order_id)
+        account = next(item for item in report.accounts if item.user_id == user_id)
+        assert purchase.reasons == ("purchase_ledger_mismatch",)
+        assert account.reasons == ("purchased_balance_mismatch",)
 
 
 async def _cleanup_purchase(user_id: UUID, *order_ids: str) -> None:

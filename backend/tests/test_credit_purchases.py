@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable, Coroutine
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from uuid import UUID, uuid4
 
 import pytest
@@ -118,6 +118,19 @@ def test_reconciliation_query_uses_skip_locked() -> None:
     sql = str(statement.compile(dialect=postgresql.dialect()))
     assert "FOR UPDATE SKIP LOCKED" in sql
     assert "provider_checked_at" in sql
+
+
+def test_purchase_audit_reasons_cover_stale_and_ledger_mismatches() -> None:
+    repository = CreditPurchaseRepository(StubSession())  # type: ignore[arg-type]
+    now = datetime.now(timezone.utc)
+    stale = purchase_row(uuid4(), "order-stale", "sku-500")
+    stale.created_at = now - timedelta(hours=7)
+    refunded = purchase_row(uuid4(), "order-refund-audit", "sku-500", status="refunded", granted=550)
+    refunded.chargeback_credits = 500
+    invalid = purchase_row(uuid4(), "order-invalid-grant", "sku-500", status="granted")
+    assert repository._purchase_audit_reasons(stale, 0, 0, now) == ("stale_processing",)
+    assert repository._purchase_audit_reasons(refunded, 500, -400, now) == ("purchase_ledger_mismatch", "refund_amount_mismatch", "chargeback_ledger_mismatch")
+    assert repository._purchase_audit_reasons(invalid, 0, 0, now) == ("grant_amount_invalid",)
 
 
 @pytest.mark.parametrize("status,expected", [("PURCHASED", "review"), ("FAILED", "failed")])

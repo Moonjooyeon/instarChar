@@ -4,10 +4,11 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from uuid import UUID, uuid4
 
-from sqlalchemy import or_, select
+from sqlalchemy import and_, case, func, literal, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import Select
+from sqlalchemy.sql.selectable import ScalarSelect
 
 from app.core.credit_products import FIRST_PURCHASE_BONUS_PERCENT, CreditProduct
 from app.core.errors import BadRequestError, ConflictError
@@ -16,6 +17,7 @@ from app.services.toss_iap import TossIapOrder
 
 
 FIRST_PURCHASE_EVENT = "first_purchase"
+PURCHASE_AUDIT_STALE_AFTER = timedelta(hours=6)
 
 
 @dataclass(frozen=True)
@@ -32,6 +34,31 @@ class CreditPurchaseResult:
 class CreditPurchaseClaim:
     id: UUID
     order_id: str
+
+
+@dataclass(frozen=True)
+class CreditPurchaseAuditItem:
+    purchase: CreditPurchase
+    reasons: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class CreditAccountAuditItem:
+    user_id: UUID
+    purchased_credits: int
+    bonus_credits: int
+    debt_credits: int
+    purchased_ledger_total: int
+    bonus_ledger_total: int
+    reasons: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class CreditPurchaseAuditReport:
+    generated_at: datetime
+    purchases: list[CreditPurchaseAuditItem]
+    accounts: list[CreditAccountAuditItem]
+    truncated: bool
 
 
 class CreditPurchaseRepository:
@@ -79,10 +106,70 @@ class CreditPurchaseRepository:
         statement = statement.order_by(CreditPurchase.provider_checked_at.asc().nullsfirst(), CreditPurchase.created_at).limit(limit)
         return list((await self.session.execute(statement)).scalars().all())
 
+    async def audit(self, limit: int, now: datetime | None = None) -> CreditPurchaseAuditReport:
+        current = now or datetime.now(timezone.utc)
+        purchase_rows = list((await self.session.execute(self._purchase_audit_statement(limit + 1, current))).all())
+        account_rows = list((await self.session.execute(self._account_audit_statement(limit + 1))).all())
+        purchases = [CreditPurchaseAuditItem(row[0], self._purchase_audit_reasons(row[0], int(row[1]), int(row[2]), current)) for row in purchase_rows[:limit]]
+        accounts = [self._account_audit_item(row[0], int(row[1]), int(row[2])) for row in account_rows[:limit]]
+        return CreditPurchaseAuditReport(current, purchases, accounts, len(purchase_rows) > limit or len(account_rows) > limit)
+
     def due_statement(self, limit: int, now: datetime) -> Select[tuple[CreditPurchase]]:
         cutoff = now - timedelta(hours=6)
         due = or_(CreditPurchase.provider_checked_at.is_(None), CreditPurchase.provider_checked_at < cutoff)
         return select(CreditPurchase).where(CreditPurchase.status.in_(("processing", "granted")), due).order_by(CreditPurchase.provider_checked_at.asc().nullsfirst()).limit(limit).with_for_update(skip_locked=True)
+
+    def _purchase_audit_statement(self, limit: int, now: datetime) -> Select[tuple[CreditPurchase, int, int]]:
+        purchase_total = self._purchase_ledger_total("purchase:")
+        chargeback_total = self._purchase_ledger_total("chargeback:")
+        active = CreditPurchase.user_id.is_not(None)
+        stale = and_(CreditPurchase.status == "processing", CreditPurchase.created_at < now - PURCHASE_AUDIT_STALE_AFTER)
+        invalid_grant = and_(CreditPurchase.status == "granted", CreditPurchase.granted_credits <= 0)
+        bad_purchase_ledger = and_(active, CreditPurchase.status.in_(("granted", "refunded")), purchase_total != CreditPurchase.granted_credits)
+        bad_refund = and_(CreditPurchase.status == "refunded", CreditPurchase.chargeback_credits != CreditPurchase.granted_credits)
+        bad_chargeback_ledger = and_(active, CreditPurchase.status == "refunded", chargeback_total != -CreditPurchase.chargeback_credits)
+        return select(CreditPurchase, purchase_total, chargeback_total).where(or_(stale, invalid_grant, CreditPurchase.status.in_(("review", "failed")), bad_purchase_ledger, bad_refund, bad_chargeback_ledger)).order_by(CreditPurchase.updated_at.desc()).limit(limit)
+
+    def _account_audit_statement(self, limit: int) -> Select[tuple[CreditAccount, int, int]]:
+        totals = select(CreditLedgerEntry.user_id.label("user_id"), func.coalesce(func.sum(case((CreditLedgerEntry.balance_type == "purchased", CreditLedgerEntry.amount), else_=0)), 0).label("purchased"), func.coalesce(func.sum(case((CreditLedgerEntry.balance_type == "bonus", CreditLedgerEntry.amount), else_=0)), 0).label("bonus")).group_by(CreditLedgerEntry.user_id).subquery()
+        purchased = func.coalesce(totals.c.purchased, 0)
+        bonus = func.coalesce(totals.c.bonus, 0)
+        mismatch = or_(CreditAccount.purchased_credits - CreditAccount.debt_credits != purchased, CreditAccount.bonus_credits != bonus)
+        purchase_user = select(CreditPurchase.id).where(CreditPurchase.user_id == CreditAccount.user_id).exists()
+        return select(CreditAccount, purchased, bonus).outerjoin(totals, totals.c.user_id == CreditAccount.user_id).where(purchase_user, mismatch).order_by(CreditAccount.updated_at.desc()).limit(limit)
+
+    def _purchase_ledger_total(self, prefix: str) -> ScalarSelect[int]:
+        key = literal(prefix) + CreditPurchase.provider_order_id
+        return select(func.coalesce(func.sum(CreditLedgerEntry.amount), 0)).where(CreditLedgerEntry.user_id == CreditPurchase.user_id, CreditLedgerEntry.idempotency_key == key).correlate(CreditPurchase).scalar_subquery()
+
+    def _purchase_audit_reasons(self, purchase: CreditPurchase, purchase_total: int, chargeback_total: int, now: datetime) -> tuple[str, ...]:
+        reasons = self._purchase_state_reasons(purchase, now)
+        if purchase.user_id and purchase.status in ("granted", "refunded") and purchase_total != purchase.granted_credits:
+            reasons.append("purchase_ledger_mismatch")
+        if purchase.status == "refunded" and purchase.chargeback_credits != purchase.granted_credits:
+            reasons.append("refund_amount_mismatch")
+        if purchase.user_id and purchase.status == "refunded" and chargeback_total != -purchase.chargeback_credits:
+            reasons.append("chargeback_ledger_mismatch")
+        return tuple(reasons)
+
+    def _purchase_state_reasons(self, purchase: CreditPurchase, now: datetime) -> list[str]:
+        reasons: list[str] = []
+        if purchase.status == "processing" and purchase.created_at and purchase.created_at < now - PURCHASE_AUDIT_STALE_AFTER:
+            reasons.append("stale_processing")
+        if purchase.status in ("review", "failed"):
+            reasons.append(f"status_{purchase.status}")
+        if purchase.status == "granted" and purchase.granted_credits <= 0:
+            reasons.append("grant_amount_invalid")
+        return reasons
+
+    def _account_audit_item(self, account: CreditAccount, purchased_total: int, bonus_total: int) -> CreditAccountAuditItem:
+        debt = int(account.debt_credits or 0)
+        reasons: list[str] = []
+        if account.purchased_credits - debt != purchased_total:
+            reasons.append("purchased_balance_mismatch")
+        if account.bonus_credits != bonus_total:
+            reasons.append("bonus_balance_mismatch")
+        return CreditAccountAuditItem(account.user_id, account.purchased_credits, account.bonus_credits, debt, purchased_total, bonus_total, tuple(reasons))
 
     async def reconcile(self, purchase_id: UUID, order: TossIapOrder) -> None:
         purchase = await self._purchase_by_id(purchase_id)
