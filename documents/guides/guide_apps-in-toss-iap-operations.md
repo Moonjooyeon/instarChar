@@ -3,7 +3,7 @@ title: 앱인토스 인앱결제 배포 및 운영 가이드
 author: black (black@ashwoodfriends.com)
 created: 2026-08-11
 updated: 2026-08-11
-version: 1.2.0
+version: 1.3.0
 status: ready
 ---
 
@@ -52,9 +52,18 @@ status: ready
 5. `GET /api/moderation/credit-purchases/audit` 결과의 `purchases`와 `accounts`가 비어 있는지 확인한다.
 6. 검증할 `.ait`를 콘솔 `앱 출시`에 업로드하고 배포 ID·QR을 기록한다.
 7. 업로드 버전을 상품 `최소 지원 버전`으로 선택해 상품을 소모품·노출 OFF로 등록한다.
-8. 샌드박스 시간에만 신규 구매 `ON`, 롤아웃 `100`, 테스트 상품 노출 ON으로 전환한다.
-9. 정상 결제, 서버 지급 실패 복원, 오류, 반복 요청, 환불, 사용자 결제 내역과 기기 변경 시나리오를 증빙한다.
-10. 모든 게이트 승인 후 운영 초기 공개 값을 적용하고 24시간 이상 관찰한다.
+8. [콘솔 매니페스트 예시](../qa/guides/apps-in-toss-iap-console-manifest.example.json)를 증거 폴더에 복사해 실제 값을 채우고 사전 검증을 통과시킨다.
+9. 샌드박스 시간에만 신규 구매 `ON`, 롤아웃 `100`, 테스트 상품 노출 ON으로 전환한다.
+10. 정상 결제, 서버 지급 실패 복원, 오류, 반복 요청, 환불, 사용자 결제 내역과 기기 변경 시나리오를 증빙한다.
+11. 모든 게이트 승인 후 운영 초기 공개 값을 적용하고 24시간 이상 관찰한다.
+
+완성한 매니페스트에는 인증서, 개인키, HMAC 키나 운영 API 키를 넣지 않는다. 스테이징의 실제 `TOSS_IAP_CREDIT_*_SKU` 환경 변수가 주입된 셸에서 다음 명령을 실행한다.
+
+```bash
+make iap-release-check IAP_RELEASE_MANIFEST=documents/qa/evidence/apps-in-toss-iap-console-manifest.json
+```
+
+`passed for 5 products`가 출력되지 않으면 상품 노출과 신규 구매를 켜지 않는다. 검증기는 `.ait` SHA-256·내부 배포 ID·앱 이름, 콘솔/최소 지원 버전, SKU, 공급가·판매가·표시가격, 지급량, 승인 문구, PNG 크기·해시와 노출 OFF를 검사한다.
 
 ## 탈퇴 계정 구매기록
 
