@@ -1,9 +1,9 @@
 {
   "app_name": "ashwoodfriends-alive",
   "bundle": {
-    "artifact_path": "documents/qa/evidence/ashwoodfriends-alive-iap-415f3a2.ait",
-    "artifact_sha256": "9ac56dcb6ac9d88bb5e92d72acc4660fef1050cd52ef75fec38bfb5094353e56",
-    "deployment_id": "019fef17-2f19-71bf-9f2c-a405896b0e3f",
+    "artifact_path": "documents/qa/evidence/ashwoodfriends-alive-iap-2471416.ait",
+    "artifact_sha256": "58bd2e1868bce606d24d9de82e2e56bdef1567144d440b5c18c6e5b873e56d6f",
+    "deployment_id": "019fef5f-aa96-7f25-81fc-450ce522b0f2",
     "console_version": "<업로드 후 콘솔 표시 버전 입력>",
     "minimum_support_version": "<상품에서 선택한 최소 지원 버전 입력>"
   },
