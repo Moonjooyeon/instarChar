@@ -11,8 +11,8 @@ from app.api.v1.credits import _offers, get_credit_catalog
 from app.core.config import Settings
 from app.db.session import get_db_session
 from app.main import app
-from app.models import CreditUsage, UserProvider
-from app.repositories.credit_purchases import CreditPurchaseResult
+from app.models import CreditPurchase, CreditUsage, UserProvider
+from app.repositories.credit_purchases import CreditPurchaseRepository, CreditPurchaseResult
 from app.repositories.credits import CreditRepository
 from app.services.credit_purchases import CreditPurchaseService
 
@@ -103,6 +103,21 @@ def test_credit_purchase_grant_returns_server_balance(monkeypatch: pytest.Monkey
         response = client.post("/api/credits/purchases/grant", json={"order_id": "order-1"})
     assert response.status_code == 200
     assert response.json() == {"order_id": "order-1", "status": "granted", "granted_credits": 550, "purchased_credits": 500, "bonus_credits": 50, "debt_credits": 0, "total_credits": 550}
+
+
+def test_credit_purchase_history_is_scoped_to_current_user(monkeypatch: pytest.MonkeyPatch) -> None:
+    requested_users: list[object] = []
+    created_at = datetime(2026, 8, 11, tzinfo=timezone.utc)
+    async def history(self: object, user_id: object, limit: int = 30) -> list[CreditPurchase]:
+        requested_users.append(user_id)
+        return [CreditPurchase(provider_order_id="order-1", provider_subject_hash="hash", sku="sku-500", status="granted", provider_status="PURCHASED", price_krw=5000, base_credits=500, product_bonus_credits=0, first_purchase_bonus_credits=50, granted_credits=550, chargeback_credits=0, failure_reason="", created_at=created_at)]
+    monkeypatch.setattr(CreditPurchaseRepository, "history", history)
+    with make_test_client() as client:
+        response = client.get("/api/credits/purchases")
+    assert response.status_code == 200
+    assert len(requested_users) == 1
+    assert response.json()["items"][0]["granted_credits"] == 550
+    assert "failure_reason" not in response.json()["items"][0]
 
 
 def test_credit_usage_returns_separate_balance_sources(monkeypatch: pytest.MonkeyPatch) -> None:

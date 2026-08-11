@@ -85,8 +85,28 @@ export type CreditPurchaseGrant = {
   total_credits: number;
 };
 
+export type CreditPurchase = {
+  provider_order_id: string;
+  sku: string;
+  status: "processing" | "granted" | "refunded" | "failed" | "review";
+  base_credits: number;
+  product_bonus_credits: number;
+  first_purchase_bonus_credits: number;
+  granted_credits: number;
+  chargeback_credits: number;
+  created_at: string;
+  granted_at: string | null;
+  refunded_at: string | null;
+};
+
+export type CreditPurchaseList = { items: CreditPurchase[] };
+
 export function grantCreditPurchase(orderId: string): Promise<CreditPurchaseGrant> {
   return apiJson<CreditPurchaseGrant>("/credits/purchases/grant", { method: "POST", body: JSON.stringify({ order_id: orderId }) });
+}
+
+export function getCreditPurchases(): Promise<CreditPurchaseList> {
+  return apiJson<CreditPurchaseList>("/credits/purchases");
 }
 
 export function notifyCreditBalanceUpdated(): void {

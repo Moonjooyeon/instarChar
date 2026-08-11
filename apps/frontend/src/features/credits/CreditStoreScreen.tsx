@@ -2,17 +2,20 @@ import React from "react";
 import {
   getCreditBalance,
   getCreditCatalog,
+  getCreditPurchases,
   getCreditUsage,
   type CreditBalance,
   type CreditCatalog,
   type CreditFlow,
   type CreditOffer,
+  type CreditPurchase,
   type CreditUsage,
 } from "@/api/credits";
 import { AliveIcon } from "@/components/ui/AliveIcon";
 import { creditUsageAmount } from "@/domain/credits/creditPresentation";
 import { dmResponseFlowLabel } from "@/domain/dm/dmResponseMode";
 import { CreditChargeOrder, CreditFlowCatalog } from "@/features/credits/CreditFlowCatalog";
+import { CreditPurchaseHistory } from "@/features/credits/CreditPurchaseHistory";
 import { StarterMissionJourney } from "@/features/credits/StarterMissions";
 import { useTossCreditPurchase } from "@/features/credits/useTossCreditPurchase";
 import type { RewardMissionCode } from "@/domain/credits/rewardMissions";
@@ -24,6 +27,7 @@ interface CreditStoreScreenProps {
 type CreditStoreData = {
   balance: CreditBalance | null;
   catalog: CreditCatalog | null;
+  purchases: CreditPurchase[];
   usages: CreditUsage[];
 };
 
@@ -57,6 +61,7 @@ export function CreditStoreScreen({
         <StarterMissionJourney missions={data.balance?.reward_missions || []} onContinue={onContinueMission} />
         <CreditDetails
           flows={data.catalog?.flows || []}
+          purchases={data.purchases}
           usages={data.usages}
         />
       </main>
@@ -73,6 +78,7 @@ function useCreditStoreData(): {
   const [data, setData] = React.useState<CreditStoreData>({
     balance: null,
     catalog: null,
+    purchases: [],
     usages: [],
   });
   const [error, setError] = React.useState("");
@@ -82,9 +88,9 @@ function useCreditStoreData(): {
   React.useEffect(() => {
     setLoading(true);
     setError("");
-    Promise.all([getCreditBalance(), getCreditCatalog(), getCreditUsage()])
-      .then(([balance, catalog, usage]) =>
-        setData({ balance, catalog, usages: usage.items }),
+    Promise.all([getCreditBalance(), getCreditCatalog(), getCreditPurchases(), getCreditUsage()])
+      .then(([balance, catalog, purchases, usage]) =>
+        setData({ balance, catalog, purchases: purchases.items, usages: usage.items }),
       )
       .catch(() => setError("크레딧 정보를 불러오지 못했어."))
       .finally(() => setLoading(false));
@@ -289,9 +295,12 @@ function CheckoutPreview({
   );
 }
 
-function CreditDetails({ flows, usages }: { flows: CreditFlow[]; usages: CreditUsage[] }): React.ReactElement {
+function CreditDetails({ flows, purchases, usages }: { flows: CreditFlow[]; purchases: CreditPurchase[]; usages: CreditUsage[] }): React.ReactElement {
   return (
     <section className="al-credit-details" aria-label="크레딧 상세 정보">
+      <CreditDisclosure title="결제 내역" summary="충전과 환불 기록">
+        <CreditPurchaseHistory items={purchases} />
+      </CreditDisclosure>
       <CreditDisclosure title="최근 사용 내역" summary="차감과 환급 기록">
         <UsageHistory items={usages} />
       </CreditDisclosure>

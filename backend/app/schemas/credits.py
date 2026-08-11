@@ -84,6 +84,25 @@ class CreditPurchaseGrantResponse(BaseModel):
     total_credits: int
 
 
+class CreditPurchaseHistoryItemResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    provider_order_id: str
+    sku: str
+    status: Literal["processing", "granted", "refunded", "failed", "review"]
+    base_credits: int
+    product_bonus_credits: int
+    first_purchase_bonus_credits: int
+    granted_credits: int
+    chargeback_credits: int
+    created_at: datetime
+    granted_at: datetime | None
+    refunded_at: datetime | None
+
+
+class CreditPurchaseHistoryResponse(BaseModel):
+    items: list[CreditPurchaseHistoryItemResponse] = Field(default_factory=list)
+
+
 class CreditPurchaseOperationsDetail(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     provider_order_id: str

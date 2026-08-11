@@ -9,7 +9,7 @@ from app.db.session import get_db_session
 from app.models import User
 from app.repositories.credit_purchases import CreditPurchaseRepository
 from app.repositories.credits import CreditRepository
-from app.schemas.credits import CreditBalanceResponse, CreditCatalogResponse, CreditFlowResponse, CreditOfferResponse, CreditPurchaseGrantRequest, CreditPurchaseGrantResponse, CreditUsageListResponse, CreditUsageResponse
+from app.schemas.credits import CreditBalanceResponse, CreditCatalogResponse, CreditFlowResponse, CreditOfferResponse, CreditPurchaseGrantRequest, CreditPurchaseGrantResponse, CreditPurchaseHistoryItemResponse, CreditPurchaseHistoryResponse, CreditUsageListResponse, CreditUsageResponse
 from app.services.credit_purchases import CreditPurchaseService
 
 
@@ -37,6 +37,12 @@ async def get_credit_usage(user: User = Depends(get_current_user), session: Asyn
 async def grant_credit_purchase(payload: CreditPurchaseGrantRequest, user: User = Depends(get_current_user), session: AsyncSession = Depends(get_db_session), settings: Settings = Depends(get_settings)) -> CreditPurchaseGrantResponse:
     result = await CreditPurchaseService(settings, CreditPurchaseRepository(session)).grant(user, payload.order_id)
     return CreditPurchaseGrantResponse(order_id=result.order_id, status=result.status, granted_credits=result.granted_credits, purchased_credits=result.purchased_credits, bonus_credits=result.bonus_credits, debt_credits=result.debt_credits, total_credits=result.purchased_credits + result.bonus_credits)
+
+
+@router.get("/purchases", response_model=CreditPurchaseHistoryResponse)
+async def get_credit_purchase_history(user: User = Depends(get_current_user), session: AsyncSession = Depends(get_db_session)) -> CreditPurchaseHistoryResponse:
+    items = await CreditPurchaseRepository(session).history(user.id)
+    return CreditPurchaseHistoryResponse(items=[CreditPurchaseHistoryItemResponse.model_validate(item) for item in items])
 
 
 def _offers(settings: Settings, purchase_available: bool = False) -> list[CreditOfferResponse]:

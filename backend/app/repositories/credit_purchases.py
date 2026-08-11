@@ -106,6 +106,10 @@ class CreditPurchaseRepository:
         statement = statement.order_by(CreditPurchase.provider_checked_at.asc().nullsfirst(), CreditPurchase.created_at).limit(limit)
         return list((await self.session.execute(statement)).scalars().all())
 
+    async def history(self, user_id: UUID, limit: int = 30) -> list[CreditPurchase]:
+        statement = select(CreditPurchase).where(CreditPurchase.user_id == user_id).order_by(CreditPurchase.created_at.desc()).limit(limit)
+        return list((await self.session.execute(statement)).scalars().all())
+
     async def audit(self, limit: int, now: datetime | None = None) -> CreditPurchaseAuditReport:
         current = now or datetime.now(timezone.utc)
         purchase_rows = list((await self.session.execute(self._purchase_audit_statement(limit + 1, current))).all())
