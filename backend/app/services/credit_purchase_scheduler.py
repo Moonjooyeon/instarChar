@@ -45,7 +45,7 @@ class CreditPurchaseScheduler:
         except asyncio.CancelledError:
             raise
         except Exception:
-            logger.exception("Credit purchase reconciliation failed for %s", claim.order_id)
+            logger.exception("Credit purchase reconciliation failed")
 
     async def _reconcile(self, claim: CreditPurchaseClaim) -> None:
         async with self.session_factory() as session:

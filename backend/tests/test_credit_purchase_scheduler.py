@@ -56,6 +56,19 @@ def test_clean_integrity_audit_does_not_emit_error(caplog: LogCaptureFixture) ->
     assert caplog.records == []
 
 
+def test_reconciliation_failure_log_omits_order_identifier(monkeypatch: pytest.MonkeyPatch, caplog: LogCaptureFixture) -> None:
+    claim = CreditPurchaseClaim(uuid4(), "sensitive-order-id")
+    scheduler = CreditPurchaseScheduler(Settings(_env_file=None), StubSessionFactory())  # type: ignore[arg-type]
+    async def fail_reconciliation(value: CreditPurchaseClaim) -> None:
+        raise RuntimeError("provider unavailable")
+    monkeypatch.setattr(scheduler, "_reconcile", fail_reconciliation)
+    with caplog.at_level(logging.ERROR):
+        asyncio.run(scheduler._reconcile_safely(claim))
+    message = caplog.records[0].getMessage()
+    assert "reconciliation failed" in message
+    assert claim.order_id not in message
+
+
 def test_scheduler_runs_integrity_audit_when_enabled(monkeypatch: pytest.MonkeyPatch, caplog: LogCaptureFixture) -> None:
     report = CreditPurchaseAuditReport(datetime.now(timezone.utc), [CreditPurchaseAuditItem(cast(CreditPurchase, object()), ("status_review",))], [], False)
     async def claim_due(self: object, limit: int) -> list[CreditPurchaseClaim]:
