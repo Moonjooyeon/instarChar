@@ -3,7 +3,7 @@ title: 앱인토스 인앱결제 샌드박스 검증 가이드
 author: black (black@ashwoodfriends.com)
 created: 2026-08-11
 updated: 2026-08-11
-version: 1.7.0
+version: 1.8.0
 status: ready
 ---
 
@@ -19,12 +19,12 @@ Apps in Toss 일회성 인앱결제를 실제 판매 전에 샌드박스 앱에�
 
 | 항목 | 값 |
 | --- | --- |
-| 파일 | `documents/qa/evidence/ashwoodfriends-alive-iap-2471416.ait` |
-| 앱 코드 커밋 | `2471416` |
-| 산출물 고정 커밋 | `4142a1a` |
+| 파일 | `documents/qa/evidence/ashwoodfriends-alive-iap-8c45566.ait` |
+| 앱 코드 커밋 | `8c45566` |
+| 산출물 고정 커밋 | `44d4b7c` |
 | 백엔드 IAP·탈퇴·로그 보안 커밋 | `f2592e5`, `8871cb8` |
-| 빌드 생성 배포 ID | `019fef5f-aa96-7f25-81fc-450ce522b0f2` |
-| SHA-256 | `58bd2e1868bce606d24d9de82e2e56bdef1567144d440b5c18c6e5b873e56d6f` |
+| 빌드 생성 배포 ID | `019fef70-0349-7199-9458-ca7ec28e1899` |
+| SHA-256 | `b1b6733a674431e5b9fb0f45ca3b8b9621c41aab62b41249d793beb791ed6702` |
 | 크기 | 약 6.9MB |
 | 상태 | `npm run build:toss` 통과, 콘솔 업로드 전 |
 

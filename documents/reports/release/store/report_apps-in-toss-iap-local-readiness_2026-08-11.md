@@ -3,7 +3,7 @@ title: 앱인토스 인앱결제 로컬 출시 준비 감사
 author: black (black@ashwoodfriends.com)
 created: 2026-08-11
 updated: 2026-08-11
-version: 1.2.0
+version: 1.3.0
 status: partial
 ---
 
@@ -42,8 +42,8 @@ status: partial
 
 | 요구사항 | 상태 | 저장소 증거 | 남은 외부 증거 또는 행동 |
 | --- | --- | --- | --- |
-| IAP 포함 `.ait` 준비 | 통과 | [ashwoodfriends-alive-iap-2471416.ait](../../../qa/evidence/ashwoodfriends-alive-iap-2471416.ait), SHA-256 `58bd2e1868bce606d24d9de82e2e56bdef1567144d440b5c18c6e5b873e56d6f`; 앱 코드 `2471416`, 산출물 고정 `4142a1a` | 콘솔 `앱 출시` 업로드 |
-| 콘솔 배포 ID·표시 버전·QR 확보 | 미실행 | 로컬 번들 내부 앱 이름 `ashwoodfriends-alive`, 배포 ID `019fef5f-aa96-7f25-81fc-450ce522b0f2` 확인 | 콘솔 업로드 결과와 QR 테스트 증빙 |
+| IAP 포함 `.ait` 준비 | 통과 | [ashwoodfriends-alive-iap-8c45566.ait](../../../qa/evidence/ashwoodfriends-alive-iap-8c45566.ait), SHA-256 `b1b6733a674431e5b9fb0f45ca3b8b9621c41aab62b41249d793beb791ed6702`; 앱 코드 `8c45566`, 산출물 고정 `44d4b7c` | 콘솔 `앱 출시` 업로드 |
+| 콘솔 배포 ID·표시 버전·QR 확보 | 미실행 | 로컬 번들 내부 앱 이름 `ashwoodfriends-alive`, 배포 ID `019fef70-0349-7199-9458-ca7ec28e1899` 확인 | 콘솔 업로드 결과와 QR 테스트 증빙 |
 | 상품 폼 `최소 지원 버전` 선택 | 미실행 | 계획서에서 미니앱 번들 버전과 토스 앱 런타임 버전을 구분 | 업로드한 번들이 드롭다운에 나타나는지 확인하고 선택 |
 | 소모품 5개 등록·노출 OFF | 통과 | [상품 이미지·등록 결과](../../../qa/evidence/apps-in-toss-iap-products/README.md), 실제 SKU·공급가·VAT 포함 판매가·문구 기록 | IAP 포함 승인 버전으로 최소 지원 버전 변경, 상품 수정 검토 여부 확인 |
 | 콘솔 값과 코드 정책 사전 검증 | 부분 통과 | [사전 검증기](../../../../backend/app/iap_release_check.py) 테스트 5건 통과, 실제 고유 SKU·공급가·판매가를 예시 매니페스트와 서버 정책에 반영 | 새 번들의 콘솔 표시 버전·최소 지원 버전을 기록한 뒤 전체 검증 통과 필요 |
@@ -71,6 +71,7 @@ status: partial
 | 상품 목록과 SDK 표시 가격 사용 | 통과(코드) / 미실행(실값) | [크레딧 상점](../../../../apps/frontend/src/features/credits/CreditStoreScreen.tsx) | 콘솔 상품 노출 뒤 가격 대조 |
 | 일회성 주문·서버 지급·cleanup | 통과 | [구매 hook](../../../../apps/frontend/src/features/credits/useTossCreditPurchase.ts), domain test | 성공·취소·pending·네트워크 실패 실기기 QA |
 | 앱 재진입 미지급 복원 | 통과(코드) / 미실행(실기기) | [복원 흐름](../../../../apps/frontend/src/features/credits/tossPurchaseRecovery.ts), 로그인 후 자동 복원 hook과 156개 domain test. 서버 지급 성공·완료 통지 실패를 pending으로 분리해 잔액을 갱신하고 다음 진입에서 통지를 재시도 | Android·iOS 샌드박스에서 서버 실패 및 완료 통지 실패 후 재진입 복원 |
+| 버튼 글자 대비와 비활성 상태 | 통과(코드) / 미실행(실기기) | 공통 `on-accent`·`on-danger` 토큰, 생성 화면 disabled cascade와 비공개 전환 버튼 회귀 검사. 검증 조합 최소 대비 `4.60:1` | 새 QR 번들에서 생성·공개 설정·결제·DM·모달 버튼 직접 확인 |
 | 복원 API 전체 최소 버전 강제 | 통과 | Android 5.234.0·iOS 5.233.0 이상에서만 신규 구매 가능 | 각 플랫폼 상·하위 버전 실기기 확인 |
 | 사용자 구매·환불 내역 | 통과 | [구매 내역 UI](../../../../apps/frontend/src/features/credits/CreditPurchaseHistory.tsx), 사용자 범위 API 테스트 | 실제 환불 상태 반영 시간 확인 |
 | 브라우저 E2E 회귀 | 미실행 | 실행 중인 프런트엔드 프로세스가 없었음 | 기존 검증 환경이 준비되면 Playwright 실행 |
@@ -103,12 +104,12 @@ status: partial
 | PostgreSQL 구매 통합 테스트 | 1 passed | 통과. 동시 지급, 재가입 보너스 방지, 원장 변조 탐지, 탈퇴 보존·만료 파기 포함 |
 | `make backend-compile` | exit 0 | 통과 |
 | frontend typecheck | exit 0 | 통과 |
-| frontend domain tests | 156 passed | 통과 |
+| frontend domain tests | 157 passed | 통과 |
 | frontend production build | Vite build 성공 | 통과 |
 | migration 왕복 | `0023 → 0022 → 0023`, 최종 `20260811_0023 (head)` | 통과 |
 | 사전 검증기 테스트 | 5 passed | 통과. 중복 SKU와 공급가 드리프트도 차단 |
 | 예시 콘솔 매니페스트 | 실제 SKU·공급가·판매가 정책 대조 통과, 번들 관련 오류 2건으로 exit 2 | 상품 매핑 완료. 새 번들 콘솔 표시 버전·최소 지원 버전만 미입력되어 출시 차단 유지 |
-| Toss `.ait` | 프런트엔드 커밋 `2471416` 산출물, 배포 ID와 SHA-256 확인 | 통과. 콘솔 업로드는 미실행 |
+| Toss `.ait` | 프런트엔드 커밋 `8c45566` 산출물, 배포 ID와 SHA-256 확인 | 통과. 콘솔 업로드는 미실행 |
 
 migration 왕복과 PostgreSQL 통합 테스트는 같은 데이터베이스에 동시에 실행하면 안 된다. 감사 중 이를 병렬 실행했을 때 `0022` 스키마에서 `retention_until` 열을 조회해 1회 실패했고, `0023 (head)` 복구 후 통합 테스트를 단독 재실행해 통과했다. 이는 제품 실패가 아니라 검증 명령 간 경합이며 최종 DB 상태는 `0023 (head)`다.
 
@@ -120,11 +121,12 @@ migration 왕복과 PostgreSQL 통합 테스트는 같은 데이터베이스에 
 | --- | --- |
 | 서버 기반·지급·환불 | `82e45c6`, `9fa8c45` |
 | 프런트 결제·복원 | `2ff43ea`, `2b60179`, `415f3a2`, `2471416` |
+| 프런트 버튼 대비 | `8c45566` |
 | DB 동시성·재무 감사 | `9307c43`, `4f83a4d` |
 | 제한 롤아웃·무결성 경보 | `035f144`, `437bce6`, `28f5155`, `8871cb8` |
 | 사용자 구매 내역 | `4901127` |
 | 탈퇴·5년 보존 수명주기 | `f2592e5` |
-| 상품 자산·콘솔 사전 검증 | `4813d0f`, `5b6d5e6`, `41aa53a`, `ff735eb`, `4142a1a` |
+| 상품 자산·콘솔 사전 검증 | `4813d0f`, `5b6d5e6`, `41aa53a`, `ff735eb`, `4142a1a`, `44d4b7c` |
 | 운영·법률·계획 문서 | `8916f0d`, `b9001f3`, `9c3c978`, `366bbfd` |
 
 ## 외부 차단 조건과 필요한 입력
@@ -144,7 +146,7 @@ migration 왕복과 PostgreSQL 통합 테스트는 같은 데이터베이스에 
 
 ## 재개 순서
 
-1. 준비된 `ashwoodfriends-alive-iap-2471416.ait`를 콘솔 `앱 출시`에 업로드하고 배포 ID·표시 버전·QR을 기록한다.
+1. 준비된 `ashwoodfriends-alive-iap-8c45566.ait`를 콘솔 `앱 출시`에 업로드하고 배포 ID·표시 버전·QR을 기록한다.
 2. 업로드·검토가 끝난 IAP 포함 버전을 상품 5개의 `최소 지원 버전`으로 변경하고 필요한 상품 수정 검토를 받는다.
 3. 콘솔 표시 버전과 최소 지원 버전을 매니페스트에 기록한다.
 4. `make iap-release-check IAP_RELEASE_MANIFEST=documents/qa/evidence/apps-in-toss-iap-console-manifest.json`을 통과시킨다.

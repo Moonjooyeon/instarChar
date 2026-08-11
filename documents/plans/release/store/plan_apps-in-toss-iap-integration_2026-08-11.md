@@ -3,7 +3,7 @@ title: 앱인토스 인앱결제 승인 후 적용 및 출시 검토 계획
 author: black (black@ashwoodfriends.com)
 created: 2026-08-11
 updated: 2026-08-11
-version: 2.4.0
+version: 2.5.0
 status: implemented-local
 ---
 
@@ -189,7 +189,7 @@ status: implemented-local
 | 구매 제한 활성화 | 구현 | 토스 provider만 허용하고 HMAC 기반 사용자 코호트를 0~100%로 결정하는 카탈로그 게이트 |
 | 운영 무결성 신호 | 구현 | 재조정 주기마다 감사하고 이상 시 식별자 없는 `iap_integrity_alert` 오류 로그 발행 |
 | 콘솔 매니페스트 사전 검증 | 구현 | `.ait`·배포 ID·앱 이름·5개 상품의 고유 SKU·공급가·판매가·문구·이미지·노출·최소 지원 버전 대조 CLI |
-| 자동 검증 | 통과 | backend 332 passed, 1 skipped(별도 PostgreSQL 통합 테스트), frontend domain 156 passed, typecheck, web build, Toss AIT build |
+| 자동 검증 | 통과 | backend 332 passed, 1 skipped(별도 PostgreSQL 통합 테스트), frontend domain 157 passed, typecheck, web build, Toss AIT build |
 | 콘솔·mTLS·샌드박스·정산 | 미검증 | 저장소 밖의 운영 정보와 실제 Apps in Toss 앱 필요 |
 
 ## 결정이 필요한 상품 정책
@@ -435,8 +435,8 @@ status: implemented-local
 | 도메인 | SKU 매핑, 상태 전이, 첫 구매, 재가입, 환불 회수, 재무 감사, 사용자 롤아웃·경보·구매 내역·탈퇴 보존·콘솔 사전 검증 | backend 332 passed, 1 skipped; PostgreSQL 통합 테스트는 별도 1 passed |
 | 백엔드 | `compileall`, repository/service/API pytest | 통과 |
 | 데이터베이스 | migration head/current, upgrade·downgrade SQL, 동시 지급 | PostgreSQL current/head `0023`; `0022 → 0023 → 0022 → 0023`, 독립 세션 동시 지급·재가입 보너스 방지·탈퇴 원장 만료 삭제 통과 |
-| 프런트엔드 | typecheck, domain test, production build | 156건·typecheck·Vite build 통과 |
-| 앱인토스 빌드 | `npm run build:toss` | 최신 AIT artifact 생성 통과, 앱 코드 `2471416`, 산출물 `4142a1a` |
+| 프런트엔드 | typecheck, domain test, production build | 157건·typecheck·Vite build 통과. 생성·공개 설정을 포함한 solid action 최소 대비 `4.60:1` |
+| 앱인토스 빌드 | `npm run build:toss` | 최신 AIT artifact 생성 통과, 앱 코드 `8c45566`, 산출물 `44d4b7c` |
 | 상품 이미지 | 5개 SKU별 1024×1024 PNG, SVG 원본, 해시와 직접 시각 검수 | 로컬 준비 통과; 콘솔 업로드 미실행 |
 | 콘솔 매니페스트 | `.ait` SHA·배포 ID·앱 이름, 상품 고유 SKU·공급가·판매가·문구·이미지·노출·최소 지원 버전 | 실제 상품 정책 대조 통과; 새 번들의 콘솔 표시 버전·최소 지원 버전 오류 2건만 남아 전체 검증은 의도적으로 실패 |
 | 앱인토스 번들 업로드 | 콘솔 `앱 출시` 업로드, 배포 ID·QR 생성, 최소 지원 버전 후보 확인 | 미실행 |
@@ -503,13 +503,15 @@ status: implemented-local
 | IAP-23 복원 지급·통지 분리 | 서버 지급 성공 후 완료 통지 실패를 pending으로 분류하고 잔액 갱신·재진입 재시도 | frontend domain 156건·typecheck·web·AIT build | `2471416` |
 | IAP-24 재조정 로그 식별자 제거 | 주문별 재조정 예외 로그에서 원본 주문 ID 제거 | scheduler 5건·backend 332 passed, 1 skipped·compile | `8871cb8` |
 | IAP-25 최신 출시 후보 고정 | IAP-23 포함 `.ait`, SHA-256, 배포 ID와 예시 매니페스트를 Git에 고정 | preflight 5 passed·번들 문자열·해시 대조 | `4142a1a` |
+| IAP-26 버튼 대비 회귀 수정 | accent·danger 전경 토큰, 생성 화면 disabled cascade, 비공개 전환 반전·disabled 상태와 전체 solid action 적용 | frontend domain 157건·typecheck·web build·대비 4.5:1 이상 | `8c45566` |
+| IAP-27 대비 수정 출시 후보 | IAP-26 포함 `.ait`, SHA-256, 배포 ID와 예시 매니페스트를 Git에 고정 | preflight 5 passed·번들 문자열·해시 대조 | `44d4b7c` |
 
 로컬 구현 커밋과 외부 출시 승인 커밋을 분리하여 코드 완료와 실제 판매 가능 상태를 혼동하지 않는다.
 
 ## 남은 행동 순서
 
 1. 콘솔 승인 종류와 정산 정보 완료 상태를 캡처한다.
-2. 준비된 `ashwoodfriends-alive-iap-2471416.ait`를 콘솔 `앱 출시`에 업로드한다. 이전 `ashwoodfriends-alive-iap-415f3a2.ait`는 기록 보존용이며 업로드하지 않는다.
+2. 준비된 `ashwoodfriends-alive-iap-8c45566.ait`를 콘솔 `앱 출시`에 업로드한다. 이전 `ashwoodfriends-alive-iap-2471416.ait`와 `ashwoodfriends-alive-iap-415f3a2.ait`는 기록 보존용이며 업로드하지 않는다.
 3. 배포 ID·콘솔 표시 버전·테스트 QR을 기록하고 QR 테스트를 최소 1회 완료한다.
 4. 인앱 상품 등록 화면에서 업로드한 번들을 `최소 지원 버전`으로 선택한다.
 5. 등록된 상품 5개의 최소 지원 버전을 IAP 포함 승인 번들로 변경하고, 상품 수정 검토가 요구되면 제출한다.
