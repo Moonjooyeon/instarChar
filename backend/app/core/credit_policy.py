@@ -6,7 +6,7 @@ from decimal import Decimal
 from zoneinfo import ZoneInfo
 
 
-CREDIT_POLICY_VERSION = "credit-2026-08-v3"
+CREDIT_POLICY_VERSION = "credit-2026-08-v4"
 ENERGY_POLICY_VERSION = "energy-2026-08-v2"
 ENERGY_MAX_PERCENT = 100
 ENERGY_RECOVERY_PERCENT = 25
@@ -38,11 +38,8 @@ class FlowPolicy:
 FLOW_POLICIES: dict[str, FlowPolicy] = {
     "direct_dm_basic": FlowPolicy("direct_dm_basic", 1, 8, "flash", "기본 대화", 12000, 512, 0, 50),
     "direct_dm_context": FlowPolicy("direct_dm_context", 2, 15, "flash", "기억 반영", 24000, 768, 256, 50),
-    "direct_dm_flash_long": FlowPolicy("direct_dm_flash_long", 2, 20, "flash", "긴 맥락", 40000, 1536, 512, 50),
     "direct_dm_pro": FlowPolicy("direct_dm_pro", 5, 25, "pro", "중요한 답장", 24000, 1536, 256, 20, energy_allowed=False, bonus_allowed=False, hard_daily_limit=20),
-    "direct_dm_pro_story": FlowPolicy("direct_dm_pro_story", 7, 30, "pro", "서사 집중", 50000, 3072, 1024, 10, energy_allowed=False, bonus_allowed=False, hard_daily_limit=10),
     "feed_post": FlowPolicy("feed_post", 3, 20, "flash", "피드 글 생성", 20000, 1200, 256, 30),
-    "image_understanding": FlowPolicy("image_understanding", 5, 30, "flash", "이미지 이해", 20000, 2048, 256, 20),
     "character_interaction": FlowPolicy("character_interaction", 5, 25, "flash", "캐릭터 상호작용", 30000, 2048, 512, 20),
     "assist_social": FlowPolicy("assist_social", 0, 0, "flash", "SNS 보조 생성", 6000, 256, 0, 20),
     "assist_relationship": FlowPolicy("assist_relationship", 0, 0, "flash", "관계 보조 처리", 8000, 256, 0, 10),

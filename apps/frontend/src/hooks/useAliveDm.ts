@@ -1,5 +1,4 @@
-import { useState, type ChangeEvent } from "react";
-import { uploadImage } from "@/api/media";
+import { useState } from "react";
 import {
   canonicalDmKey,
   localRoomIdFromDmThreadKey,
@@ -63,7 +62,6 @@ export function useAliveDm({ activeId, char }: DmOptions) {
   const [dmPrefDraft, setDmPrefDraft] = useState({ mode: "bridge", note: "" });
   const [peer, setPeer] = useState<DmPeer | null>(null);
   const [dmDrafts, setDmDrafts] = useState<Record<string, string>>({});
-  const [dmImageDrafts, setDmImageDrafts] = useState<Record<string, unknown>>({});
   const [dmSending, setDmSending] = useState(false);
   const [ownerPersona, setOwnerPersona] = useState("");
   const [speakAs, setSpeakAs] = useState("char");
@@ -81,7 +79,6 @@ export function useAliveDm({ activeId, char }: DmOptions) {
   const meName = peer ? currentSpeakerName(peer, activePersona, ownerSpeaking, ownerLabel, char) : (char.name || "나");
   const dmKey = peer ? dmKeyFor(peer, speakAs) : "";
   const dmInput = dmKey ? dmDrafts[dmKey] || "" : "";
-  const dmImageDraft = dmKey ? dmImageDrafts[dmKey] || null : null;
   const dmResponseFlow = dmResponseFlows[dmKey] || "direct_dm_basic";
   const currentWorldPref = dmKey ? dmWorldPrefs[dmKey] : null;
   const dm = (peer && dmThreads[dmKey]) || [];
@@ -92,16 +89,6 @@ export function useAliveDm({ activeId, char }: DmOptions) {
   function setDmInput(value: string): void {
     if (!dmKey) return;
     setDmDrafts((drafts) => ({ ...drafts, [dmKey]: value }));
-  }
-  function setDmImageDraft(value: unknown): void {
-    if (!dmKey) return;
-    setDmImageDrafts((drafts) => value ? { ...drafts, [dmKey]: value } : omitDmDraft(drafts, dmKey));
-  }
-  function handleDmImage(event: ChangeEvent<HTMLInputElement>): void {
-    const file = filesFromInput(event.target)[0];
-    if (!file) return;
-    void uploadDmImage(file, activeId, setDmImageDraft);
-    event.target.value = "";
   }
   function defaultDmTitle(conv: DmConversation | null | undefined): string {
     if (!conv) return "대화방";
@@ -152,25 +139,7 @@ export function useAliveDm({ activeId, char }: DmOptions) {
     const myNames = new Set([me, ...personas.map((persona) => persona.name)]);
     return Object.entries(dmThreads).filter(([key]) => conversationBelongsToCharacter(key, activeId, char, ownerLabel, myNames)).map(([key, messages]) => conversationFromThread(key, messages as DmMessage[], me, ownerLabel, personas));
   }
-  return { activePersona, autoChatting, chatMode, currentWorldPref, defaultDmTitle, deletedDmKeys, deletePersona, displayDmTitle, dm, dmDrafts, dmImageDraft, dmImageDrafts, dmInput, dmKey, dmKeyFor, dmPrefDraft, dmResponseFlow, dmResponseFlows, dmSending, dmSettingsOpen, dmThreadTitles, dmThreads, dmWorldDraft, dmWorldPrefs, editingDmTitle, handleDmImage, localDmKey, meName, myConversations, newChatMode, newChatSpeaker, ownerDmKey, ownerLabel, ownerPersona, ownerSpeaking, peer, pendingDm, personaDraft, personas, saveRenameDm, setAutoChatting, setChatMode, setDeletedDmKeys, setDmDrafts, setDmImageDraft, setDmImageDrafts, setDmInput, setDmPrefDraft, setDmResponseFlow, setDmResponseFlows, setDmSending, setDmSettingsOpen, setDmThreadTitles, setDmThreads, setDmWorldDraft, setDmWorldPrefs, setEditingDmTitle, setNewChatMode, setNewChatSpeaker, setOwnerPersona, setPeer, setPendingDm, setPersonaDraft, setPersonas, setSpeakAs, speakAs, speakerNameFor, startRenameDm };
-}
-
-async function uploadDmImage(file: File, sourceAccountId: string | null | undefined, setImage: (value: unknown) => void): Promise<void> {
-  try {
-    setImage(await uploadImage(file, "dm_attachment", sourceAccountId || ""));
-  } catch (error) {
-    console.error("DM 이미지 업로드 실패:", error);
-  }
-}
-
-function filesFromInput(input: HTMLInputElement): File[] {
-  return Array.from(input.files || []) as File[];
-}
-
-function omitDmDraft<T>(drafts: Record<string, T>, key: string): Record<string, T> {
-  const next = { ...drafts };
-  delete next[key];
-  return next;
+  return { activePersona, autoChatting, chatMode, currentWorldPref, defaultDmTitle, deletedDmKeys, deletePersona, displayDmTitle, dm, dmDrafts, dmInput, dmKey, dmKeyFor, dmPrefDraft, dmResponseFlow, dmResponseFlows, dmSending, dmSettingsOpen, dmThreadTitles, dmThreads, dmWorldDraft, dmWorldPrefs, editingDmTitle, localDmKey, meName, myConversations, newChatMode, newChatSpeaker, ownerDmKey, ownerLabel, ownerPersona, ownerSpeaking, peer, pendingDm, personaDraft, personas, saveRenameDm, setAutoChatting, setChatMode, setDeletedDmKeys, setDmDrafts, setDmInput, setDmPrefDraft, setDmResponseFlow, setDmResponseFlows, setDmSending, setDmSettingsOpen, setDmThreadTitles, setDmThreads, setDmWorldDraft, setDmWorldPrefs, setEditingDmTitle, setNewChatMode, setNewChatSpeaker, setOwnerPersona, setPeer, setPendingDm, setPersonaDraft, setPersonas, setSpeakAs, speakAs, speakerNameFor, startRenameDm };
 }
 
 function nextThreadTitles(prev: Record<string, string>, key: string, title: string): Record<string, string> {

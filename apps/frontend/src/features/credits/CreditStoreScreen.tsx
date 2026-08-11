@@ -405,7 +405,6 @@ function flowLabel(flow: string): string {
       {
         direct_dm_basic: "기본 대화",
         feed_post: "피드 글 생성",
-        image_understanding: "이미지 이해",
         character_interaction: "캐릭터 상호작용",
       } as Record<string, string>
     )[flow] || "AI 기능"

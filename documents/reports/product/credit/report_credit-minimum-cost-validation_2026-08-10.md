@@ -2,12 +2,14 @@
 title: ALIVE 크레딧 최소비용 실측·가격 확정 결과
 author: black (black@ashwoodfriends.com)
 created: 2026-08-10
-updated: 2026-08-10
+updated: 2026-08-11
 version: 1.0.0
-status: complete
+status: deprecated
 ---
 
 # ALIVE 크레딧 최소비용 실측·가격 확정 결과
+
+> **Deprecated** — 이 결과는 2026-08-10의 다섯 단계 가격과 이미지 이해 flow의 실측 기록이다. 현재 정책은 기본 1C·기억 반영 2C·중요한 답장 5C이며, DM 사진 첨부와 이미지 이해 flow는 제거됐다. 최신 범위는 [DM 피드백 단순화 계획](../../../plans/product/app-flow/plan_dm-feedback-simplification_2026-08-11.md)을 따른다.
 
 ## 결론
 

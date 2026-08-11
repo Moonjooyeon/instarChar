@@ -1,6 +1,5 @@
 import React from "react";
 import { AliveIcon } from "@/components/ui/AliveIcon";
-import { mediaUrl } from "@/api/media";
 import { USER_PERSONA_FEATURE_ENABLED } from "@/domain/app/featureFlags";
 import { DM_RESPONSE_MODES, dmResponseMode } from "@/domain/dm/dmResponseMode";
 import { DmCreditStatus } from "@/features/credits/DmCreditStatus";
@@ -12,12 +11,9 @@ export function DmControls({ ctx }) {
     autoChatting,
     char,
     chatMode,
-    dm,
-    dmImageDraft,
     dmInput,
     dmResponseFlow,
     dmSending,
-    handleDmImage,
     josa,
     meName,
     openCredits,
@@ -26,7 +22,6 @@ export function DmControls({ ctx }) {
     personas,
     sendDM,
     setChatMode,
-    setDmImageDraft,
     setDmInput,
     setDmResponseFlow,
     setOwnerPersona,
@@ -37,8 +32,6 @@ export function DmControls({ ctx }) {
     startAutoChat,
     stopAutoChat,
   } = ctx;
-  const pendingImage = dmSending && Boolean(dm[dm.length - 1]?.img);
-  const usesImage = Boolean(dmImageDraft) || pendingImage;
   const responseMode = dmResponseMode(dmResponseFlow);
   if (peer.readOnly) {
     return <div className="al-dm-composer al-dmctrl">과거 페르소나 대화는 읽기 전용으로 보관됩니다.</div>;
@@ -85,21 +78,18 @@ export function DmControls({ ctx }) {
           )}
         </div>
       </details>
-      {dmImageDraft && <div className="al-dm-preview"><img src={mediaUrl(dmImageDraft)} alt="" /><button type="button" onClick={() => setDmImageDraft(null)} aria-label="첨부 이미지 제거"><AliveIcon name="close" size={16} /></button></div>}
       <details className="al-dm-response-mode">
-        <summary><span>응답 모드</span><b>{usesImage ? "사진 답장" : responseMode.name}</b><small>{usesImage ? "5C" : `${responseMode.credits}C`}</small><AliveIcon name="chevron-down" size={16} /></summary>
+        <summary><span>응답 모드</span><b>{responseMode.name}</b><small>{responseMode.credits}C</small><AliveIcon name="chevron-down" size={16} /></summary>
         <div className="al-dm-response-list" role="radiogroup" aria-label="DM 응답 모드">
-          {usesImage && <p className="al-dm-image-mode-note" role="status">사진을 보내면 선택한 응답 모드 대신 사진 답장 5C로 처리돼요.</p>}
           {DM_RESPONSE_MODES.map((mode) => <button key={mode.code} type="button" role="radio" aria-checked={dmResponseFlow === mode.code} className={dmResponseFlow === mode.code ? "on" : ""} onClick={() => setDmResponseFlow(mode.code)}>
             <span><b>{mode.name}</b><small>{mode.description}</small></span><strong>{mode.credits}C</strong>
           </button>)}
         </div>
       </details>
-      <DmCreditStatus busy={dmSending && !autoChatting} flowCode={usesImage ? "image_understanding" : dmResponseFlow} onOpenCredits={openCredits} />
+      <DmCreditStatus busy={dmSending && !autoChatting} flowCode={responseMode.code} onOpenCredits={openCredits} />
       <div className="al-dminput">
-        <label className="al-dm-image-btn border-line-strong bg-surface-raised text-accent-ink hover:border-accent hover:bg-accent-soft" title="사진 보내기"><AliveIcon name="image" size={20} /><input type="file" accept="image/*" onChange={handleDmImage} /></label>
         <input value={dmInput} onChange={(event) => setDmInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) sendDM(); }} placeholder={autoChatting ? `끼어들기: ${meName}(으)로 입력…` : `${meName}(으)로 메시지…`} />
-        <button className="bg-accent text-white hover:bg-accent-strong disabled:bg-surface-muted disabled:text-faint" aria-label="메시지 보내기" onClick={sendDM} disabled={(!dmInput.trim() && !dmImageDraft) || dmSending}><AliveIcon name="send" size={19} /></button>
+        <button className="bg-accent text-white hover:bg-accent-strong disabled:bg-surface-muted disabled:text-faint" aria-label="메시지 보내기" onClick={sendDM} disabled={!dmInput.trim() || dmSending}><AliveIcon name="send" size={19} /></button>
       </div>
     </div>
   );

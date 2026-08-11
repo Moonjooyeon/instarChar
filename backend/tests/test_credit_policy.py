@@ -49,7 +49,7 @@ def test_monthly_usage_resets_at_first_day_korean_midnight() -> None:
 
 def test_onboarding_bonus_policy_totals_150_credits() -> None:
     assert SIGNUP_BONUS_CREDITS + FIRST_CHARACTER_BONUS_CREDITS + FIRST_DM_BONUS_CREDITS == 150
-    assert CREDIT_POLICY_VERSION == "credit-2026-08-v3"
+    assert CREDIT_POLICY_VERSION == "credit-2026-08-v4"
     assert ENERGY_POLICY_VERSION == "energy-2026-08-v2"
 
 
@@ -87,15 +87,12 @@ def test_pro_flows_disable_energy_and_bonus() -> None:
     assert policy.hard_daily_limit == 20
 
 
-def test_conversation_tiers_use_beta_prices() -> None:
+def test_conversation_tiers_use_three_clear_prices() -> None:
     assert resolve_public_flow("direct_dm_context").credits == 2
-    assert resolve_public_flow("direct_dm_flash_long").credits == 2
-    assert resolve_public_flow("direct_dm_pro_story").credits == 7
+    assert resolve_public_flow("direct_dm_pro").credits == 5
 
 
 def test_conversation_tiers_limit_output_by_their_purchased_depth() -> None:
     assert resolve_public_flow("direct_dm_basic").max_output_tokens == 512
     assert resolve_public_flow("direct_dm_context").max_output_tokens == 768
-    assert resolve_public_flow("direct_dm_flash_long").max_output_tokens == 1536
     assert resolve_public_flow("direct_dm_pro").max_output_tokens == 1536
-    assert resolve_public_flow("direct_dm_pro_story").max_output_tokens == 3072

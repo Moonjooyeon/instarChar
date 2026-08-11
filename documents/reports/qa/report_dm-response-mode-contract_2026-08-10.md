@@ -2,12 +2,14 @@
 title: DM 응답 모드 비용·토큰 계약 검증
 author: black (black@ashwoodfriends.com)
 created: 2026-08-10
-updated: 2026-08-10
-version: 1.0
-status: implemented-local
+updated: 2026-08-11
+version: 1.1
+status: deprecated
 ---
 
 # DM 응답 모드 비용·토큰 계약 검증
+
+> **Deprecated** — 이 문서는 2026-08-10의 다섯 단계 계약 검증 기록이다. 현재 DM 정책은 기본 1C·기억 반영 2C·중요한 답장 5C이며, DM 사진 첨부와 이미지 이해 flow는 제거됐다. 최신 범위는 [DM 피드백 단순화 계획](../../plans/product/app-flow/plan_dm-feedback-simplification_2026-08-11.md)을 따른다.
 
 ## 결과
 

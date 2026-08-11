@@ -2,12 +2,14 @@
 title: ALIVE 크레딧·AI·운영 출시 준비 계획
 author: black (black@ashwoodfriends.com)
 created: 2026-08-09
-updated: 2026-08-10
+updated: 2026-08-11
 version: 1.1.0
-status: in-progress
+status: partial
 ---
 
 # ALIVE 크레딧·AI·운영 출시 준비 계획
+
+> **DM 정책 업데이트 — 2026-08-11**: 현재 DM은 기본 1C·기억 반영 2C·중요한 답장 5C의 세 단계만 제공하며, DM 사진 첨부와 `image_understanding` flow는 제거됐다. 아래의 5단계·이미지 이해 항목은 당시 출시 준비 기록이며 현재 구현 기준은 [DM 피드백 단순화 계획](../app-flow/plan_dm-feedback-simplification_2026-08-11.md)이다.
 
 ## 0. 구현 현황 — 2026-08-09
 

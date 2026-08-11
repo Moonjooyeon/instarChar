@@ -51,7 +51,6 @@ function FlowCard({ flow }: { flow: CreditFlow }): React.ReactElement {
 
 function FlowIcon({ code }: { code: string }): React.ReactElement {
   if (code === "feed_post") return <AliveIcon name="pen" size={16} />;
-  if (code === "image_understanding") return <AliveIcon name="image" size={16} />;
   if (code === "character_interaction") return <AliveIcon name="relationship" size={16} />;
   return <AliveIcon name="message" size={16} />;
 }

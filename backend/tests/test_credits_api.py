@@ -51,15 +51,11 @@ def test_credit_catalog_is_visible_but_payment_is_disabled() -> None:
     assert response.json()["offers"][2]["first_purchase_total_credits"] == 3465
     assert response.json()["flows"][0]["code"] == "direct_dm_basic"
     pro = next(flow for flow in response.json()["flows"] if flow["code"] == "direct_dm_pro")
-    story = next(flow for flow in response.json()["flows"] if flow["code"] == "direct_dm_pro_story")
-    long = next(flow for flow in response.json()["flows"] if flow["code"] == "direct_dm_flash_long")
-    assert long["label"] == "긴 맥락"
-    assert long["credits"] == 2
     assert pro["label"] == "중요한 답장"
     assert pro["credits"] == 5
     assert pro["energy_eligible"] is False
     assert pro["bonus_eligible"] is False
-    assert (story["label"], story["credits"]) == ("서사 집중", 7)
+    assert [flow["code"] for flow in response.json()["flows"] if flow["code"].startswith("direct_dm")] == ["direct_dm_basic", "direct_dm_context", "direct_dm_pro"]
 
 
 def test_credit_usage_returns_separate_balance_sources(monkeypatch: pytest.MonkeyPatch) -> None:

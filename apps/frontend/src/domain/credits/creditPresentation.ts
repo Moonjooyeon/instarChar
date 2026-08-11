@@ -37,11 +37,8 @@ export type CreditUsagePreview = {
 const FLOW_META: Record<string, CreditFlowMeta> = {
   direct_dm_basic: { available: true, category: "conversation", description: "짧고 빠르게 이어가는 일상 대화", tier: "기본 대화" },
   direct_dm_context: { available: true, category: "conversation", description: "장기기억과 유저 노트를 조금 더 반영", tier: "기억 반영" },
-  direct_dm_flash_long: { available: true, category: "conversation", description: "긴 기억과 관계 맥락을 폭넓게 반영", tier: "긴 맥락" },
   direct_dm_pro: { available: true, category: "conversation", description: "중요한 장면을 위한 고품질 응답", tier: "중요한 답장" },
-  direct_dm_pro_story: { available: true, category: "conversation", description: "긴 추론과 감정선을 깊게 이어가는 서사", tier: "서사 집중" },
   feed_post: { available: true, category: "content", description: "캐릭터의 말투로 피드 글 한 편 생성", tier: "피드" },
-  image_understanding: { available: true, category: "content", description: "보낸 사진을 보고 맥락에 맞게 답장", tier: "이미지" },
   character_interaction: { available: false, category: "content", description: "캐릭터 사이의 관계 장면과 상호작용", tier: "관계" },
 };
 

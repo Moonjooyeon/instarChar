@@ -94,7 +94,6 @@ type AppStatePersistenceOptions = {
   setDeletedDmKeys: SetState<string[]>;
   setDiscoverQuery: (value: string) => void;
   setDmDrafts: SetState<Record<string, string>>;
-  setDmImageDrafts: SetState<Record<string, unknown>>;
   setDmThreads: SetState<Record<string, unknown>>;
   setDmThreadTitles: SetState<Record<string, string>>;
   setDmResponseFlows: SetState<Record<string, DmResponseFlow>>;
@@ -148,7 +147,6 @@ export function useAliveAppStatePersistence({
   setDeletedDmKeys,
   setDiscoverQuery,
   setDmDrafts,
-  setDmImageDrafts,
   setDmThreads,
   setDmThreadTitles,
   setDmResponseFlows,
@@ -277,7 +275,6 @@ export function useAliveAppStatePersistence({
     setProfileName(name);
     setPeer(null);
     setDmDrafts({});
-    setDmImageDrafts({});
     setCommentOn(null);
     setCommentText("");
     setNewChatMode(null);

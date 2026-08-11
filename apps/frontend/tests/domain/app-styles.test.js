@@ -270,8 +270,10 @@ test("the DM thread activates after controls and message input receive semantic 
   assert.match(controls, /대화 설정/);
   assert.match(controls, /className="bg-accent text-white hover:bg-accent-strong/);
   assert.match(messages, /첫 장면의 단서/);
+  assert.match(messages, /다음 이야기/);
   assert.match(messages, /입력창에 다시 담기/);
   assert.match(messages, /답장을 쓰고 있어요/);
+  assert.doesNotMatch(controls, /사진 보내기|al-dm-image/);
   assert.match(threadStyles, /\.al-dm-thread\{ display:flex; overflow-y:auto; flex-direction:column; height:100dvh;/);
   assert.match(threadStyles, /\.al-dm-thread \.al-dmscroll\{ min-height:0; max-height:none; flex:1 1 auto;/);
   assert.match(threadStyles, /\.al-dm-thread \.al-dm-options-content\{ max-height:min\(34dvh,260px\); overflow-y:auto;/);
@@ -279,7 +281,7 @@ test("the DM thread activates after controls and message input receive semantic 
   assert.match(threadStyles, /\.al-dm-thread \.al-dm-delivery-failure/);
   assert.match(threadStyles, /\.al-dm-thread \.al-dm-credit-status/);
   assert.match(threadStyles, /\.al-dm-thread \.al-dm-response-list/);
-  assert.match(threadStyles, /\.al-dm-thread \.al-dm-image-mode-note/);
+  assert.doesNotMatch(threadStyles, /al-dm-image|al-dm-preview/);
   assert.match(threadStyles, /\.al-dm-thread-theme-ready \.al-dminput input/);
   assert.match(threadStyles, /@keyframes aliveDmLivePulse/);
   assert.doesNotMatch(threadStyles, /#[0-9a-fA-F]{3,8}/);

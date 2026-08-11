@@ -1130,10 +1130,6 @@ button.al-fstat{ cursor:pointer; }
 .al-bubble.me .al-bubble-img{ border:1px solid rgba(255,255,255,.25); }
 .al-bubble.char .al-bubble-img{ border:1px solid rgba(0,0,0,.08); }
 
-.al-dm-preview{ display:flex; align-items:center; gap:10px; padding:10px 14px 0; border-top:1px solid var(--line); background:#1f1e26; }
-.al-dm-preview img{ width:74px; height:74px; object-fit:cover; border-radius:14px; border:1px solid #45424f; box-shadow:0 10px 24px -18px #000; }
-.al-dm-preview button{ width:32px; height:32px; border-radius:50%; border:1px solid #45424f; background:#2a2932; color:#ddd7ea; font-size:18px; font-weight:800; cursor:pointer; }
-.al-dm-preview button:hover{ border-color:var(--accent); color:#fff; }
 .al-dminput{ display:flex; gap:8px; padding:12px 14px; border-top:1px solid var(--line); background:#1f1e26; }
 .al-dminput input{ flex:1; background:#2a2932; border:1px solid #45424f; border-radius:22px;
   padding:11px 16px; font-family:inherit; font-size:14px; color:var(--ink); }
@@ -1141,10 +1137,6 @@ button.al-fstat{ cursor:pointer; }
 .al-dminput button{ width:42px; height:42px; flex-shrink:0; border-radius:50%; border:none; cursor:pointer;
   background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#fff; font-size:18px; font-weight:800; }
 .al-dminput button:disabled{ background:#2a2a32; color:#5a5a64; cursor:not-allowed; }
-.al-dm-image-btn{ width:42px; height:42px; flex-shrink:0; border-radius:50%; border:1px solid #45424f; cursor:pointer;
-  display:flex; align-items:center; justify-content:center; background:#2a2932; color:#d9c8ff; font-size:24px; font-weight:500; line-height:1; }
-.al-dm-image-btn:hover{ border-color:var(--accent); color:#fff; }
-.al-dm-image-btn input{ display:none; }
 
 @media (max-width:430px){
   .al-root{ padding:0; align-items:stretch; }

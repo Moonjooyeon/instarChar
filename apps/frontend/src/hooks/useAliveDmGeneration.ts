@@ -25,7 +25,6 @@ export function useAliveDmGeneration({
   currentWorldPref,
   dm,
   dmAffOf,
-  dmImageDraft,
   dmInput,
   dmResponseFlow,
   dmKey,
@@ -47,7 +46,6 @@ export function useAliveDmGeneration({
   roomAffOf,
   roomLoreBlockFor,
   setAutoChatting,
-  setDmImageDraft,
   setDmInput,
   setDmSending,
   setDmThread,
@@ -56,16 +54,14 @@ export function useAliveDmGeneration({
 }) {
   async function sendDM() {
     const msg = dmInput.trim();
-    const image = dmImageDraft;
-    if ((!msg && !image) || dmSendingRef.current || !peer) return;
+    if (!msg || dmSendingRef.current || !peer) return;
     const requestId = dmRequestSeqRef.current + 1;
     dmRequestSeqRef.current = requestId;
     const requestKey = dmKey;
     dmSendingRef.current = true;
     if (autoChatRef.current) { autoChatRef.current = false; setAutoChatting(false); }
     setDmInput("");
-    setDmImageDraft(null);
-    const newHist = [...messagesWithoutFailedTurns(dm), { from: meName, text: msg || "(사진)", img: image || null }];
+    const newHist = [...messagesWithoutFailedTurns(dm), { from: meName, text: msg }];
     setDmThread(newHist);
     setDmSending(true);
     const responseMode = dmResponseMode(dmResponseFlow);
@@ -75,10 +71,8 @@ export function useAliveDmGeneration({
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 55000);
     try {
-      const flow = image ? "image_understanding" : responseMode.code;
       const idempotencyKey = createGenerateRequestKey("dm");
-      const maxTokens = image ? 2048 : responseMode.outputTokens;
-      const text = await postGenerateContent({ flow, idempotency_key: idempotencyKey, media_thread_key: requestKey, model: MODEL_DIRECT, max_tokens: maxTokens, system: context.sys, messages: apiMsgs }, "DM 답장 API", { signal: controller.signal });
+      const text = await postGenerateContent({ flow: responseMode.code, idempotency_key: idempotencyKey, media_thread_key: requestKey, model: MODEL_DIRECT, max_tokens: responseMode.outputTokens, system: context.sys, messages: apiMsgs }, "DM 답장 API", { signal: controller.signal });
       if (dmRequestSeqRef.current !== requestId || dmKeyRef.current !== requestKey) return;
       setDmThread((items) => [...items, { from: context.peerName, text }]);
       applyDmAffinity({ bumpAffinity, bumpMutual, bumpRoomAffinity, bumpRoomMutual, context, meName, newHist, ownerLabel, peer, relationHintFor, requestKey, text });
@@ -138,7 +132,6 @@ export function useAliveDmGeneration({
     const previous = dm[index - 1];
     if (failed?.deliveryState !== "failed" || !previous || previous.from !== meName) return;
     setDmInput(previous.text === "(사진)" ? "" : previous.text || "");
-    setDmImageDraft(previous.img || null);
     setDmThread((items) => items.filter((_, itemIndex) => itemIndex !== index && itemIndex !== index - 1));
   }
   return { genLine, restoreFailedDmDraft, sendDM, startAutoChat, stopAutoChat };
@@ -206,17 +199,15 @@ ${dmResponseGuidance(responseMode)}${context.intimacyRules}${chatSafetyRules(cur
 function dmResponseGuidance(responseMode) {
   if (responseMode.code === "direct_dm_basic") return "- 기본 대화: 최근 흐름과 핵심 메모만 참고해 가볍고 빠르게 답한다.";
   if (responseMode.code === "direct_dm_context") return "- 기억 반영: 최근 대화와 저장된 유저 노트를 살펴, 이전 약속이나 취향을 자연스럽게 이어간다.";
-  if (responseMode.code === "direct_dm_flash_long") return "- 긴 맥락: 오래 이어진 대화의 관계 변화와 기억을 세심하게 반영한다.";
   if (responseMode.code === "direct_dm_pro") return "- 중요한 답장: 중요한 장면인 만큼 말의 뉘앙스와 감정을 충분히 검토해, 밀도 있는 답장을 쓴다.";
-  return "- 서사 집중: 긴 관계의 감정선과 앞선 사건을 깊이 이해한 뒤, 장면의 여운과 다음 흐름까지 고려해 답한다.";
+  return "";
 }
 
 function dmResponseLengthRule(responseMode) {
   if (responseMode.code === "direct_dm_basic") return "보통 1~3문장으로 가볍게 답한다.";
   if (responseMode.code === "direct_dm_context") return "보통 1~4문장으로 기억을 자연스럽게 이어 답한다.";
-  if (responseMode.code === "direct_dm_flash_long") return "필요하면 2~5문장으로 관계와 상황을 충분히 풀어 답한다.";
   if (responseMode.code === "direct_dm_pro") return "필요하면 2~5문장으로 중요한 감정과 선택을 밀도 있게 답한다.";
-  return "장면이 필요하면 3~7문장으로 감정선과 짧은 지문을 함께 써도 된다.";
+  return "보통 1~3문장으로 자연스럽게 답한다.";
 }
 
 function dmRelationshipNote({ meName, peer, peerName, relForPeer }) {

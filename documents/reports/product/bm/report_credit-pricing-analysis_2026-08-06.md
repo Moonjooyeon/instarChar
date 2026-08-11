@@ -2,12 +2,14 @@
 title: ALIVE 크레딧 BM 및 AI 사용량 통합안
 author: black (black@ashwoodfriends.com)
 created: 2026-08-06
-updated: 2026-08-10
+updated: 2026-08-11
 version: 1.3.0
-status: draft
+status: deprecated
 ---
 
 # ALIVE 크레딧 BM 및 AI 사용량 통합안
+
+> **Deprecated** — 이 BM 초안의 다섯 단계 DM 가격과 이미지 이해 제안은 현재 제품 정책이 아니다. 현재 DM 정책은 기본 1C·기억 반영 2C·중요한 답장 5C이며, DM 사진 첨부와 이미지 이해 flow는 제거됐다. 최신 범위는 [DM 피드백 단순화 계획](../../../plans/product/app-flow/plan_dm-feedback-simplification_2026-08-11.md)을 따른다.
 
 > **가격 결정 업데이트** — 2026-08-10 제품 결정과 최소비용 실측을 반영해 초기 베타 대화 가격을 기본 1C, 문맥형 2C, 긴 기억·관계형 2C, Pro 5C, Pro 서사형 7C로 확정했다. 근거는 [최소비용 실측·가격 확정 결과](../credit/report_credit-minimum-cost-validation_2026-08-10.md)를 따른다.
 

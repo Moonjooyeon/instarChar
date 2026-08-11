@@ -10,7 +10,7 @@ test("credit cost copy explains energy-first fallback without hiding credits", (
 
 test("credit flow metadata makes every DM response tier available", () => {
   assert.deepEqual(creditFlowMeta("direct_dm_basic"), { available: true, category: "conversation", description: "짧고 빠르게 이어가는 일상 대화", tier: "기본 대화" });
-  assert.equal(creditFlowMeta("direct_dm_pro_story").available, true);
+  assert.equal(creditFlowMeta("direct_dm_pro").available, true);
   assert.equal(creditFlowMeta("character_interaction").category, "content");
 });
 

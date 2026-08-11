@@ -1,9 +1,12 @@
 import React from "react";
 import { mediaUrl } from "@/api/media";
 import { CharacterAvatarImage } from "@/components/ui/CharacterAvatarImage";
+import { dmSuggestionPrompts } from "@/domain/dm/dmSuggestions";
 
 export function DmMessages({ ctx }) {
-  const { char, currentWorldPref, dm, dmEndRef, dmKey, dmSending, josa, openCredits, peer, peerAvatar, peerName, restoreFailedDmDraft, setDmInput, setFixTarget, setFixText, setReportTarget, speakerName } = ctx;
+  const { autoChatting, char, currentWorldPref, dm, dmEndRef, dmInput, dmKey, dmSending, josa, openCredits, peer, peerAvatar, peerName, restoreFailedDmDraft, setDmInput, setFixTarget, setFixText, setReportTarget, speakerName } = ctx;
+  const lastMessage = dm[dm.length - 1];
+  const showSuggestions = !autoChatting && !dmSending && !dmInput.trim() && lastMessage?.from === peerName;
   return (
     <div className="al-dmscroll">
       {dm.length === 0 && (
@@ -44,16 +47,16 @@ export function DmMessages({ ctx }) {
           <div className="al-bubble char typing"><span className="al-typing"><i/><i/><i/></span><span className="al-typing-label">{peerName}가 답장을 쓰고 있어요</span></div>
         </div>
       )}
+      {showSuggestions && <DmStarters lastText={lastMessage.text} messageCount={dm.length} peer={peer} peerName={peerName} setDmInput={setDmInput} />}
       <div ref={dmEndRef} />
     </div>
   );
 }
 
-function DmStarters({ peer, peerName, setDmInput }) {
-  const prompts = peer.asOwner
-    ? ["지금 잠깐 이야기할 수 있어?", "오늘은 어떤 하루였어?", "요즘 네가 가장 신경 쓰는 건 뭐야?"]
-    : [`${peerName}에게 가볍게 인사한다.`, `${peerName}의 오늘 이야기를 조심스럽게 묻는다.`, `이 장면에서 ${peerName}와 함께할 일을 제안한다.`];
-  return <div className="al-dm-starters"><span>첫 장면의 단서</span><div>{prompts.map((prompt) => <button key={prompt} type="button" onClick={() => setDmInput(prompt)}>{prompt}</button>)}</div></div>;
+function DmStarters({ lastText = "", messageCount = 0, peer, peerName, setDmInput }) {
+  const prompts = dmSuggestionPrompts({ asOwner: Boolean(peer.asOwner), lastText, messageCount, peerName });
+  const label = lastText ? "다음 이야기" : "첫 장면의 단서";
+  return <div className="al-dm-starters"><span>{label}</span><div>{prompts.map((prompt) => <button key={prompt} type="button" onClick={() => setDmInput(prompt)}>{prompt}</button>)}</div></div>;
 }
 
 function DmDeliveryFailure({ message, onOpenCredits, onRestore }) {

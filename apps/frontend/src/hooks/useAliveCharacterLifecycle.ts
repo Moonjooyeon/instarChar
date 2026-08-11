@@ -32,7 +32,6 @@ type DeletionState = {
   deletingActive: boolean;
   nextAccounts: AccountState[];
   nextDmDrafts: Record<string, string>;
-  nextDmImageDrafts: Record<string, unknown>;
   nextDmResponseFlows: Record<string, unknown>;
   nextDmThreads: Record<string, unknown>;
   nextDmWorldPrefs: Record<string, unknown>;
@@ -49,7 +48,6 @@ type CharacterLifecycleOptions = {
   deleteStructuredCharacterAccount: (targetId: string) => Promise<boolean | undefined>;
   deleteTarget: DeleteTarget | null;
   dmDrafts: Record<string, string>;
-  dmImageDrafts: Record<string, unknown>;
   dmResponseFlows: Record<string, unknown>;
   dmThreads: Record<string, unknown>;
   dmWorldPrefs: Record<string, unknown>;
@@ -67,7 +65,6 @@ type CharacterLifecycleOptions = {
   setCharacterSaveError: (value: string) => void;
   setDeleteTarget: (value: DeleteTarget | null) => void;
   setDmDrafts: SetState<Record<string, string>>;
-  setDmImageDrafts: SetState<Record<string, unknown>>;
   setDmResponseFlows: SetState<Record<string, unknown>>;
   setDmThreads: SetState<Record<string, unknown>>;
   setDmWorldPrefs: SetState<Record<string, unknown>>;
@@ -97,7 +94,6 @@ export function useAliveCharacterLifecycle({
   deleteStructuredCharacterAccount,
   deleteTarget,
   dmDrafts,
-  dmImageDrafts,
   dmResponseFlows,
   dmThreads,
   dmWorldPrefs,
@@ -115,7 +111,6 @@ export function useAliveCharacterLifecycle({
   setCharacterSaveError,
   setDeleteTarget,
   setDmDrafts,
-  setDmImageDrafts,
   setDmResponseFlows,
   setDmThreads,
   setDmWorldPrefs,
@@ -272,17 +267,15 @@ export function useAliveCharacterLifecycle({
     const deletingActive = activeId === targetId;
     const nextAccounts = accountSnapshot().filter((a) => a.id !== targetId);
     const nextDmDrafts = Object.fromEntries(Object.entries(dmDrafts).filter(([key]) => !isDeletedAccountDmKey(key, targetId)));
-    const nextDmImageDrafts = Object.fromEntries(Object.entries(dmImageDrafts).filter(([key]) => !isDeletedAccountDmKey(key, targetId)));
     const nextDmResponseFlows = Object.fromEntries(Object.entries(dmResponseFlows || {}).filter(([key]) => !isDeletedAccountDmKey(key, targetId)));
     const nextDmThreads = Object.fromEntries(Object.entries(dmThreads || {}).filter(([key]) => !isDeletedAccountDmKey(key, targetId)));
     const nextDmWorldPrefs = Object.fromEntries(Object.entries(dmWorldPrefs || {}).filter(([key]) => !isDeletedAccountDmKey(key, targetId)));
     const nextSnapshot = { ...exportAppState(), accounts: nextAccounts, activeId: deletingActive ? null : activeId, char: deletingActive ? blankChar() : char, gallery: deletingActive ? [] : gallery, posts: deletingActive ? [] : posts, following: deletingActive ? [] : following, dmResponseFlows: nextDmResponseFlows, dmThreads: nextDmThreads, dmWorldPrefs: nextDmWorldPrefs };
-    return { deletingActive, nextAccounts, nextDmDrafts, nextDmImageDrafts, nextDmResponseFlows, nextDmThreads, nextDmWorldPrefs, nextSnapshot };
+    return { deletingActive, nextAccounts, nextDmDrafts, nextDmResponseFlows, nextDmThreads, nextDmWorldPrefs, nextSnapshot };
   }
-  function applyCharacterDeletion({ deletingActive, nextAccounts, nextDmDrafts, nextDmImageDrafts, nextDmResponseFlows, nextDmThreads, nextDmWorldPrefs }: DeletionState): void {
+  function applyCharacterDeletion({ deletingActive, nextAccounts, nextDmDrafts, nextDmResponseFlows, nextDmThreads, nextDmWorldPrefs }: DeletionState): void {
     setAccounts(nextAccounts);
     setDmDrafts(nextDmDrafts);
-    setDmImageDrafts(nextDmImageDrafts);
     setDmResponseFlows(nextDmResponseFlows);
     setDmThreads(nextDmThreads);
     setDmWorldPrefs(nextDmWorldPrefs);

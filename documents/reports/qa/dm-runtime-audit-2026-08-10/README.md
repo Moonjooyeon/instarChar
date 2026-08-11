@@ -1,5 +1,7 @@
 # DM response mode runtime audit — 2026-08-10
 
+> **Historical policy notice — 2026-08-11**: 이 감사의 다섯 단계 DM과 사진 첨부 상태는 현재 제품 정책이 아니다. 현재 정책은 기본 1C·기억 반영 2C·중요한 답장 5C이며, DM 사진 첨부와 이미지 이해 flow는 제거됐다. 최신 범위는 [DM 피드백 단순화 계획](../../../plans/product/app-flow/plan_dm-feedback-simplification_2026-08-11.md)을 따른다.
+
 ## Scope
 
 Android Pixel 9 (`emulator-5554`) running the locally configured Capacitor build. The flow reviewed was an existing DM with the `서사 집중` response mode selected and the insufficient purchased-credit state.

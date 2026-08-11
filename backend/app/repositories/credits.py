@@ -105,7 +105,7 @@ class CreditRepository:
             usage.provider_status = "success"
             self._apply_provider_usage(usage, provider or ProviderUsage())
             usage.response_body = response_body or {}
-            dm_flow = usage.flow.startswith("direct_dm") or usage.flow == "image_understanding"
+            dm_flow = usage.flow.startswith("direct_dm")
             await self._grant_if_missing(user_id, "first_dm", FIRST_DM_BONUS_CREDITS, account, dm_flow)
             await self._commit()
 

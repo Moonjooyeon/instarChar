@@ -2,12 +2,14 @@
 title: ALIVE 크레딧 최소비용 실측·가격 확정 계획
 author: black (black@ashwoodfriends.com)
 created: 2026-08-10
-updated: 2026-08-10
+updated: 2026-08-11
 version: 1.0.0
-status: complete
+status: deprecated
 ---
 
 # ALIVE 크레딧 최소비용 실측·가격 확정 계획
+
+> **Deprecated** — 이 계획의 5단계 DM 가격과 이미지 이해 flow는 더 이상 현재 제품 정책이 아니다. 현재 정책은 [DM 피드백 단순화 계획](../app-flow/plan_dm-feedback-simplification_2026-08-11.md)을 따른다.
 
 ## 목표
 

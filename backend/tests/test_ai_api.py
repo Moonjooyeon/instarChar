@@ -145,9 +145,7 @@ def test_generation_config_uses_policy_thinking_budget() -> None:
 @pytest.mark.parametrize(("flow", "credits", "model", "max_input_chars", "max_output_tokens", "thinking_budget"), [
     ("direct_dm_basic", 1, "flash-tier", 12000, 512, 0),
     ("direct_dm_context", 2, "flash-tier", 24000, 768, 256),
-    ("direct_dm_flash_long", 2, "flash-tier", 40000, 1536, 512),
     ("direct_dm_pro", 5, "pro-tier", 24000, 1536, 256),
-    ("direct_dm_pro_story", 7, "pro-tier", 50000, 3072, 1024),
 ])
 def test_each_dm_response_tier_keeps_its_server_owned_cost_and_generation_limits(
     flow: str,
@@ -173,7 +171,7 @@ def test_each_dm_response_tier_keeps_its_server_owned_cost_and_generation_limits
 def test_empty_dm_retry_keeps_the_selected_tier_output_limit() -> None:
     service = MonoGptGeminiGenerateService(make_settings(), StubCancellationUsage())  # type: ignore[arg-type]
     assert service._retry_max_tokens(512, "direct_dm_basic") == 512
-    assert service._retry_max_tokens(3072, "direct_dm_pro_story") == 3072
+    assert service._retry_max_tokens(1536, "direct_dm_pro") == 1536
 
 
 def test_generate_returns_empty_response_error_without_safety_retry(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -238,7 +236,7 @@ def test_generate_enforces_server_validation(monkeypatch: pytest.MonkeyPatch) ->
     image = {"type": "image_url", "image_url": {"url": "data:image/png;base64,aGVsbG8="}}
     png_image = {"type": "image_url", "image_url": {"url": "data:image/png;base64,iVBORw0KGgo="}}
     invalid_image = {"type": "image_url", "image_url": {"url": "data:image/png;base64,%%%"}}
-    cases = [({"messages": []}, 400), ({"max_tokens": -1}, 422), ({"flow": "free-please"}, 422), ({"flow": "internal"}, 422), ({"messages": [{"role": "user", "content": [{"type": "text", "text": ""}] * 201}]}, 413), ({"flow": "direct_dm_basic", "messages": [{"role": "user", "content": "x" * 12001}]}, 413), ({"flow": "image_understanding", "messages": [{"role": "user", "content": [image]}]}, 400), ({"flow": "image_understanding", "messages": [{"role": "user", "content": [invalid_image]}]}, 400), ({"flow": "image_understanding", "messages": [{"role": "user", "content": [png_image] * 5}]}, 400)]
+    cases = [({"messages": []}, 400), ({"max_tokens": -1}, 422), ({"flow": "free-please"}, 422), ({"flow": "internal"}, 422), ({"flow": "image_understanding"}, 422), ({"messages": [{"role": "user", "content": [{"type": "text", "text": ""}] * 201}]}, 413), ({"flow": "direct_dm_basic", "messages": [{"role": "user", "content": "x" * 12001}]}, 413), ({"flow": "feed_post", "messages": [{"role": "user", "content": [image]}]}, 400), ({"flow": "feed_post", "messages": [{"role": "user", "content": [invalid_image]}]}, 400), ({"flow": "feed_post", "messages": [{"role": "user", "content": [png_image] * 5}]}, 400)]
     with make_test_client(monkeypatch) as client:
         for override, expected_status in cases:
             response = client.post("/api/ai/generate", json={**generate_body(), **override})
@@ -269,7 +267,7 @@ def test_image_payload_uses_gemini_inline_data(monkeypatch: pytest.MonkeyPatch) 
         return MonoGptGeminiResponse(200, gemini_response("봤어"))
     encoded = base64.b64encode(b"\x89PNG\r\n\x1a\n" + b"a" * 30000).decode("ascii")
     image = {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{encoded}"}}
-    body = {**generate_body(), "flow": "image_understanding", "messages": [{"role": "user", "content": [{"type": "text", "text": "이 사진 어때?"}, image]}]}
+    body = {**generate_body(), "flow": "feed_post", "messages": [{"role": "user", "content": [{"type": "text", "text": "이 사진 어때?"}, image]}]}
     monkeypatch.setattr(MonoGptGeminiGenerateService, "_call_gemini_once", call_gemini_once)
     with make_test_client(monkeypatch) as client:
         assert client.post("/api/ai/generate", json=body).status_code == 200

@@ -2,12 +2,14 @@
 title: AI 대화 경험 심화 개선 계획
 author: black (black@ashwoodfriends.com)
 created: 2026-08-10
-updated: 2026-08-10
-version: 1.1.0
-status: in-progress
+updated: 2026-08-11
+version: 1.2.0
+status: deprecated
 ---
 
 # AI 대화 경험 심화 개선 계획
+
+> **Deprecated** — DM 사진 첨부 제거, 세 단계 응답 모드, 이어지는 추천 메시지 정책은 [DM 피드백 단순화 계획](plan_dm-feedback-simplification_2026-08-11.md)으로 대체됐다. 아래 내용은 2026-08-10 당시의 감사 기록이다.
 
 ## 목표
 
