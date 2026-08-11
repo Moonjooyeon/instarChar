@@ -9,10 +9,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.core.config import Settings, get_settings
-from app.core.errors import ForbiddenError
+from app.core.errors import ForbiddenError, NotFoundError
 from app.db.session import get_db_session
 from app.models import ContentReport, ReportStatus, User
+from app.repositories.credit_purchases import CreditPurchaseRepository
 from app.repositories.moderation import ModerationRepository
+from app.schemas.credits import CreditPurchaseOperationsAccount, CreditPurchaseOperationsDetail, CreditPurchaseOperationsLedger, CreditPurchaseOperationsResponse
 from app.schemas.moderation import BlockedUserResponse, ConsentResponse, ContentReportCreate, ContentReportResponse, ModerationDecision, ModerationQueueResponse, ModerationReportResponse
 
 
@@ -67,6 +69,16 @@ async def moderate_report(report_id: UUID, payload: ModerationDecision, key: Mod
     _require_moderator(key, settings)
     row = await ModerationRepository(session).decide(report_id, payload, settings.moderation_actor)
     return _report_response(row)
+
+
+@router.get("/moderation/credit-purchases/{order_id}", response_model=CreditPurchaseOperationsResponse)
+async def credit_purchase_operations(order_id: str, key: ModerationKey, settings: Settings = Depends(get_settings), session: AsyncSession = Depends(get_db_session)) -> CreditPurchaseOperationsResponse:
+    _require_moderator(key, settings)
+    result = await CreditPurchaseRepository(session).operations(order_id)
+    if not result:
+        raise NotFoundError("Credit purchase not found")
+    purchase, account, ledger = result
+    return CreditPurchaseOperationsResponse(purchase=CreditPurchaseOperationsDetail.model_validate(purchase), account=CreditPurchaseOperationsAccount.model_validate(account) if account else None, ledger=[CreditPurchaseOperationsLedger.model_validate(item) for item in ledger])
 
 
 def _require_moderator(key: str, settings: Settings) -> None:

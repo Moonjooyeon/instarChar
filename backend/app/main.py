@@ -14,6 +14,7 @@ from app.core.errors import AppError
 from app.db.session import AsyncSessionLocal
 from app.services.auto_post_scheduler import AutoPostScheduler
 from app.services.account_deletion_scheduler import AccountDeletionScheduler
+from app.services.credit_purchase_scheduler import CreditPurchaseScheduler
 
 
 settings = get_settings()
@@ -24,21 +25,27 @@ public_directory = Path(__file__).resolve().parent / "public"
 
 @asynccontextmanager
 async def lifespan(application: FastAPI) -> AsyncIterator[None]:
-    task = None
-    deletion_task = None
-    if settings.auto_post_scheduler_enabled:
-        task = asyncio.create_task(AutoPostScheduler(settings, AsyncSessionLocal).run())
-    if settings.account_deletion_scheduler_enabled:
-        deletion_task = asyncio.create_task(AccountDeletionScheduler(settings, AsyncSessionLocal).run())
+    tasks = _background_tasks()
     yield
-    if task:
+    await _cancel_tasks(tasks)
+
+
+def _background_tasks() -> list[asyncio.Task[None]]:
+    tasks: list[asyncio.Task[None]] = []
+    if settings.auto_post_scheduler_enabled:
+        tasks.append(asyncio.create_task(AutoPostScheduler(settings, AsyncSessionLocal).run()))
+    if settings.account_deletion_scheduler_enabled:
+        tasks.append(asyncio.create_task(AccountDeletionScheduler(settings, AsyncSessionLocal).run()))
+    if settings.toss_iap_enabled and settings.toss_iap_reconciliation_enabled:
+        tasks.append(asyncio.create_task(CreditPurchaseScheduler(settings, AsyncSessionLocal).run()))
+    return tasks
+
+
+async def _cancel_tasks(tasks: list[asyncio.Task[None]]) -> None:
+    for task in tasks:
         task.cancel()
         with suppress(asyncio.CancelledError):
             await task
-    if deletion_task:
-        deletion_task.cancel()
-        with suppress(asyncio.CancelledError):
-            await deletion_task
 
 
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
