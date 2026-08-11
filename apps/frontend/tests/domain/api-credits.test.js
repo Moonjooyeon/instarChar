@@ -4,6 +4,7 @@ import {
   getCreditBalance,
   getCreditCatalog,
   getCreditUsage,
+  grantCreditPurchase,
 } from "../../src/api/credits.js";
 
 test("credit APIs read the server-owned balance, catalog, and usage", async () => {
@@ -36,6 +37,20 @@ test("credit APIs read the server-owned balance, catalog, and usage", async () =
       globalThis.fetch.calls.map((call) => call.input),
       ["/api/credits", "/api/credits/catalog", "/api/credits/usage"],
     );
+  } finally {
+    restoreFetch();
+  }
+});
+
+test("credit purchase grant posts only the provider order id", async () => {
+  const restoreFetch = stubFetch([{ order_id: "order-1", status: "granted", granted_credits: 550 }]);
+  try {
+    const result = await grantCreditPurchase("order-1");
+    const call = globalThis.fetch.calls[0];
+    assert.equal(result.status, "granted");
+    assert.equal(call.input, "/api/credits/purchases/grant");
+    assert.equal(call.init.method, "POST");
+    assert.deepEqual(JSON.parse(call.init.body), { order_id: "order-1" });
   } finally {
     restoreFetch();
   }

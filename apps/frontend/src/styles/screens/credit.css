@@ -51,7 +51,9 @@
 .al-credit-theme-ready .al-credit-checkout > div{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; color:var(--alive-soft); font-size:10px; }
 .al-credit-theme-ready .al-credit-checkout > div b{ color:var(--alive-ink); font-size:11.5px; font-variant-numeric:tabular-nums; }
 .al-credit-theme-ready .al-credit-checkout > button{ width:100%; min-height:44px; border:1px solid var(--alive-line); background:var(--alive-surface-muted); color:var(--alive-faint); font-family:inherit; font-size:12px; font-weight:800; cursor:not-allowed; }
+.al-credit-theme-ready .al-credit-checkout > button:not(:disabled){ border-color:var(--alive-accent); background:var(--alive-accent); color:white; cursor:pointer; }
 .al-credit-theme-ready .al-credit-checkout p{ display:flex; align-items:center; gap:5px; margin:8px 0 0; color:var(--alive-faint); font-size:9.5px; }
+.al-credit-theme-ready .al-credit-checkout p.error{ color:var(--alive-danger); }
 .al-credit-theme-ready .al-credit-details{ margin-top:25px; border-top:1px solid var(--alive-line-strong); }
 .al-credit-theme-ready .al-credit-details > details{ border-bottom:1px solid var(--alive-line); }
 .al-credit-theme-ready .al-credit-details summary{ display:flex; min-height:62px; align-items:center; justify-content:space-between; gap:12px; cursor:pointer; list-style:none; }

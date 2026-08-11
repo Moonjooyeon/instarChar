@@ -2,6 +2,7 @@ import { apiJson } from "./client.js";
 
 export type CreditOffer = {
   id: string;
+  sku: string;
   price_krw: number;
   base_credits: number;
   product_bonus_credits: number;
@@ -52,6 +53,7 @@ export type CreditRewardMission = {
 export type CreditBalance = {
   purchased_credits: number;
   bonus_credits: number;
+  debt_credits: number;
   total_credits: number;
   energy_percent: number;
   energy_max_percent: number;
@@ -71,6 +73,20 @@ export function getCreditCatalog(): Promise<CreditCatalog> {
 
 export function getCreditUsage(): Promise<CreditUsageList> {
   return apiJson<CreditUsageList>("/credits/usage");
+}
+
+export type CreditPurchaseGrant = {
+  order_id: string;
+  status: "granted" | "refunded" | "processing" | "failed" | "review";
+  granted_credits: number;
+  purchased_credits: number;
+  bonus_credits: number;
+  debt_credits: number;
+  total_credits: number;
+};
+
+export function grantCreditPurchase(orderId: string): Promise<CreditPurchaseGrant> {
+  return apiJson<CreditPurchaseGrant>("/credits/purchases/grant", { method: "POST", body: JSON.stringify({ order_id: orderId }) });
 }
 
 export function notifyCreditBalanceUpdated(): void {

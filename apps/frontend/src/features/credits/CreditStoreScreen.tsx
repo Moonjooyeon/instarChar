@@ -14,6 +14,7 @@ import { creditUsageAmount } from "@/domain/credits/creditPresentation";
 import { dmResponseFlowLabel } from "@/domain/dm/dmResponseMode";
 import { CreditChargeOrder, CreditFlowCatalog } from "@/features/credits/CreditFlowCatalog";
 import { StarterMissionJourney } from "@/features/credits/StarterMissions";
+import { useTossCreditPurchase } from "@/features/credits/useTossCreditPurchase";
 import type { RewardMissionCode } from "@/domain/credits/rewardMissions";
 
 interface CreditStoreScreenProps {
@@ -32,6 +33,7 @@ export function CreditStoreScreen({
 }: CreditStoreScreenProps): React.ReactElement {
   const { data, error, loading, retry } = useCreditStoreData();
   const offers = data.catalog?.offers || [];
+  const purchase = useTossCreditPurchase(offers, retry);
   const featured =
     offers.find((offer) => offer.id === "credit-30000") || offers[0];
   const [selectedId, setSelectedId] = React.useState("");
@@ -46,11 +48,12 @@ export function CreditStoreScreen({
         <LoadNotice error={error} loading={loading} retry={retry} />
         <CreditOverview balance={data.balance} />
         <OfferList
+          displayAmounts={purchase.displayAmounts}
           offers={offers}
           selectedId={selected?.id || ""}
           onSelect={setSelectedId}
         />
-        <CheckoutPreview offer={selected} />
+        <CheckoutPreview offer={selected} purchase={purchase} />
         <StarterMissionJourney missions={data.balance?.reward_missions || []} onContinue={onContinueMission} />
         <CreditDetails
           flows={data.catalog?.flows || []}
@@ -75,6 +78,7 @@ function useCreditStoreData(): {
   const [error, setError] = React.useState("");
   const [loading, setLoading] = React.useState(true);
   const [refreshKey, setRefreshKey] = React.useState(0);
+  const retry = React.useCallback(() => setRefreshKey((value) => value + 1), []);
   React.useEffect(() => {
     setLoading(true);
     setError("");
@@ -89,7 +93,7 @@ function useCreditStoreData(): {
     data,
     error,
     loading,
-    retry: () => setRefreshKey((value) => value + 1),
+    retry,
   };
 }
 
@@ -157,6 +161,7 @@ function BalanceBreakdown({ balance }: { balance: CreditBalance | null }): React
     <dl className="al-credit-balance-breakdown">
       <BalanceSource detail="먼저 사용" label="무료" value={balance?.bonus_credits} />
       <BalanceSource detail="Pro 사용 가능" label="구매" value={balance?.purchased_credits} />
+      {Boolean(balance?.debt_credits) && <BalanceSource detail="다음 구매에서 우선 정산" label="환불 정산" value={-(balance?.debt_credits || 0)} />}
     </dl>
   );
 }
@@ -188,10 +193,12 @@ function EnergyMeter({ percent }: { percent: number }): React.ReactElement {
 }
 
 function OfferList({
+  displayAmounts,
   offers,
   onSelect,
   selectedId,
 }: {
+  displayAmounts: Record<string, string>;
   offers: readonly CreditOffer[];
   onSelect: (id: string) => void;
   selectedId: string;
@@ -211,6 +218,7 @@ function OfferList({
             isSelected={offer.id === selectedId}
             key={offer.id}
             offer={offer}
+            displayAmount={displayAmounts[offer.sku]}
             onSelect={onSelect}
           />
         ))}
@@ -220,10 +228,12 @@ function OfferList({
 }
 
 function OfferRow({
+  displayAmount,
   isSelected,
   offer,
   onSelect,
 }: {
+  displayAmount?: string;
   isSelected: boolean;
   offer: CreditOffer;
   onSelect: (id: string) => void;
@@ -241,7 +251,7 @@ function OfferRow({
       </span>
       <em>
         {offer.id === "credit-30000" && <mark>추천</mark>}
-        <b>{offer.price_krw.toLocaleString("ko-KR")}원</b>
+        <b>{offerPriceText(offer, displayAmount)}</b>
         <small>
           첫 구매 {offer.first_purchase_total_credits.toLocaleString("ko-KR")} C
         </small>
@@ -253,25 +263,28 @@ function OfferRow({
 
 function CheckoutPreview({
   offer,
+  purchase,
 }: {
   offer?: CreditOffer;
+  purchase: ReturnType<typeof useTossCreditPurchase>;
 }): React.ReactElement {
+  const displayAmount = offer ? purchase.displayAmounts[offer.sku] : "";
+  const available = Boolean(offer?.payment_available && offer.sku && purchase.availableSkus.has(offer.sku));
+  const purchasing = Boolean(offer?.sku && purchase.purchasingSku === offer.sku);
   return (
     <section className="al-credit-checkout" aria-label="결제 요약">
       <div>
         <span>선택한 상품</span>
         <b>
           {offer
-            ? `${offer.price_krw.toLocaleString("ko-KR")}원 · ${offer.total_credits.toLocaleString("ko-KR")}C`
+            ? `${offerPriceText(offer, displayAmount)} · ${offer.total_credits.toLocaleString("ko-KR")}C`
             : "상품 확인 중"}
         </b>
       </div>
-      <button type="button" disabled>
-        결제 준비 중
+      <button type="button" disabled={!available || purchasing} onClick={() => offer?.sku && purchase.purchase(offer.sku)}>
+        {purchasing ? "결제 처리 중" : available ? "구매하기" : "결제 준비 중"}
       </button>
-      <p>
-        <AliveIcon name="check" size={13} /> 지금은 결제되지 않아요.
-      </p>
+      <p className={purchase.error ? "error" : ""}><AliveIcon name={purchase.error ? "help" : "check"} size={13} />{purchase.error || purchase.notice || (available ? "결제 후 크레딧이 바로 지급돼요." : "지금은 결제되지 않아요.")}</p>
     </section>
   );
 }
@@ -370,6 +383,12 @@ function CreditPolicy(): React.ReactElement {
 function offerDescription(offer: CreditOffer): string {
   if (!offer.product_bonus_credits) return offer.label;
   return `기본 ${offer.base_credits.toLocaleString("ko-KR")} + 추가 ${offer.product_bonus_credits.toLocaleString("ko-KR")}`;
+}
+
+function offerPriceText(offer: CreditOffer, displayAmount?: string): string {
+  if (displayAmount) return displayAmount;
+  if (offer.payment_available) return "가격 확인 중";
+  return `${offer.price_krw.toLocaleString("ko-KR")}원`;
 }
 
 function energyStatusText(balance: CreditBalance | null): string {
