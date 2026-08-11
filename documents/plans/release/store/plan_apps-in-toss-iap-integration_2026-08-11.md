@@ -3,7 +3,7 @@ title: 앱인토스 인앱결제 승인 후 적용 및 출시 검토 계획
 author: black (black@ashwoodfriends.com)
 created: 2026-08-11
 updated: 2026-08-11
-version: 1.9.0
+version: 2.0.0
 status: implemented-local
 ---
 
@@ -35,6 +35,7 @@ status: implemented-local
 - 완료·환불 주문 재조정과 운영 대응
 - 첫 구매 보너스의 1회 지급 및 환불 회수 정책
 - 계정 삭제·재가입 이후에도 토스 사용자 구매 이력 기준으로 첫 구매 보너스 재지급 방지
+- 계정 삭제 시 Toss 로그인 연결 해제, 구매 원장 분리 보관과 법정 기간 만료 파기
 - 샌드박스 필수 시나리오와 출시 전 승인 게이트
 - 결제 중단, 롤백, 고객 문의와 정산 확인 절차
 
@@ -78,6 +79,10 @@ status: implemented-local
 7. `IAP.getCompletedOrRefundedOrders()`와 서버 주문 상태 조회로 완료·환불 상태를 재조정한다.
 
 `IAP.createOneTimePurchaseOrder()`는 cleanup 함수를 반환하므로 화면 이탈 또는 결제 흐름 종료 시 호출한다. SDK의 기본 IAP는 토스 앱 5.219.0부터 동작하지만 `getPendingOrders()`는 Android 5.234.0·iOS 5.231.0, `completeProductGrant()`는 양 플랫폼 5.233.0부터 동작한다. `alive`는 구매 후 복원을 필수 계약으로 보므로 generic `isMinVersionSupported()`로 **Android 5.234.0·iOS 5.233.0** 이상일 때만 신규 구매 상품을 활성화한다. 이 토스 앱 실행 버전 조건은 콘솔 상품 폼의 미니앱 `최소 지원 버전`과 다른 개념이다. `USER_CANCELED`, `PAYMENT_PENDING`, 네트워크 오류, 상품 불일치, 서버 지급 실패와 미지원 버전은 서로 다른 사용자 상태로 처리한다.
+
+### 탈퇴·구매기록 보존
+
+전자상거래법 시행령 제6조의 계약·청약철회 및 대금결제·공급 기록 5년과 개인정보 보호법 제21조의 분리 보관·파기 원칙을 로컬 기술 기준으로 적용했다. 최종 계정 파기 시 Toss `remove-by-user-key` API로 로그인 연결을 끊고, 구매행의 사용자 FK를 제거한 뒤 거래일 기준 5년까지 제한 보관한다. 만료 뒤에는 HMAC이나 주문 ID만 남기지 않고 구매행 전체를 삭제한다. 세부 근거와 고객 문서 변경안은 [구매기록 보존 및 탈퇴 처리 결정](decision_apps-in-toss-iap-purchase-retention_2026-08-11.md)에 기록했다. 이 기준의 법무·대표자 승인과 공개 약관 개정은 별도 출시 게이트다.
 
 공식 [비게임 출시 체크리스트](https://developers-apps-in-toss.toss.im/checklist/app-nongame.html)의 결제 항목도 적용한다. 앱에는 재생 중인 오디오·영상 기능이 없어 결제 중 미디어 일시정지는 적용 대상이 아니며, 결제 가격 대조·성공 반영·취소 복귀·실패 안내·환불·기기 변경 복원은 샌드박스 필수 시나리오로 둔다. 사용자가 자신의 충전·환불 상태를 확인할 수 있도록 서버 소유 구매 원장 기반 결제 내역 API와 크레딧 상점의 `결제 내역` 화면을 제공한다.
 
@@ -146,6 +151,7 @@ status: implemented-local
 | --- | --- | --- |
 | 상품 정책·환경 플래그 | 구현 | `credit_products.py`, `TOSS_IAP_*` 환경 설정 |
 | 구매 원장·부채 | 구현 | `CreditPurchase`, `CreditAccount.debt_credits`, migrations `0021`·`0022` |
+| 탈퇴·법정 보존 수명주기 | 구현·승인 대기 | Toss 연결 해제, nullable FK, `retention_until`, 5년 만료 삭제, migration `0023`; 고객 문서 법무 승인 필요 |
 | 서버 주문 검증 | 구현 | 공통 mTLS client와 Toss IAP order service |
 | 멱등 지급·첫 구매 보너스 | 구현 | 주문 unique, 계정 row lock, 원장 idempotency key, 안정적 사용자 해시 이력, `first_purchase` unique grant |
 | 운영 설정 사전 검증 | 구현 | 활성화 시 5개 SKU 누락·중복, 32-byte HMAC 키, mTLS 파일을 시작 단계에서 차단 |
@@ -155,7 +161,7 @@ status: implemented-local
 | 재무 정합성 감사 | 구현 | 장기 미지급, 상태 검토, 구매·환불 원장과 계정 잔액 불일치 감사 API |
 | 구매 제한 활성화 | 구현 | 토스 provider만 허용하고 HMAC 기반 사용자 코호트를 0~100%로 결정하는 카탈로그 게이트 |
 | 운영 무결성 신호 | 구현 | 재조정 주기마다 감사하고 이상 시 식별자 없는 `iap_integrity_alert` 오류 로그 발행 |
-| 자동 검증 | 통과 | backend 316건(실제 PostgreSQL 동시 지급·재가입·원장 변조 탐지 포함), frontend domain 155건, typecheck, web build, Toss AIT build |
+| 자동 검증 | 통과 | backend 326건(실제 PostgreSQL 동시 지급·재가입·원장 변조·탈퇴 원장 만료 삭제 포함), frontend domain 155건, typecheck, web build, Toss AIT build |
 | 콘솔·mTLS·샌드박스·정산 | 미검증 | 저장소 밖의 운영 정보와 실제 Apps in Toss 앱 필요 |
 
 ## 결정이 필요한 상품 정책
@@ -177,7 +183,8 @@ status: implemented-local
 - [x] 첫 구매 10% 보너스의 대상은 토스 사용자 기준 최초 **지급 완료 구매 1회**로 정한다.
 - [x] 환불 이력이 있는 구매도 첫 구매 이력으로 유지하고, 해당 구매의 첫 구매 보너스도 회수한다.
 - [x] 환불 회수 시 잔액이 부족하면 음수 잔액을 허용하지 않고 `debt_credits`로 기록하며 다음 구매 지급분으로 우선 상환한다.
-- [ ] 계정 삭제 뒤에도 결제·환불 처리에 필요한 최소 구매 기록의 법적 보존 기간과 비식별화 방법을 확정한다.
+- [x] 로컬 기술 기준은 계정 삭제 후 구매 원장을 거래일 기준 5년까지 분리 보관하고 만료 시 구매행 전체를 삭제하도록 구현한다.
+- [ ] 5년 보존 목적, HMAC 연결값, 법적 보존 정지와 고객 노출 문구를 대표자·법무가 승인한다.
 
 ### 콘솔 상품 입력안
 
@@ -255,6 +262,8 @@ status: implemented-local
 - [x] 계정 삭제 시 구매 기록은 `ON DELETE SET NULL`로 유지하고 userKey는 해시만 보관한다.
 - [x] 인증 세션 키와 분리한 전용 HMAC 키로 사용자 구매 이력을 연결하고, 계정 삭제·재가입 뒤에도 과거 지급 이력이 있으면 첫 구매 보너스를 다시 지급하지 않는다.
 - [x] 사용자 해시·지급 이력 조회용 `0022` 인덱스를 추가한다.
+- [x] 최종 탈퇴 시 Toss `userKey` 연결을 해제하고 구매행에 `retention_until`을 설정한다.
+- [x] 탈퇴 구매행은 거래일 기준 5년이 지나면 계정 삭제 스케줄러가 전체 삭제하며, `0023` 인덱스로 만료 대상을 조회한다.
 
 완료 조건: 동일 `orderId` 동시 요청과 반복 요청이 모두 한 번만 잔액을 증가시킨다.
 
@@ -345,6 +354,8 @@ status: implemented-local
 - [x] 신규 결제와 IAP 복구 플래그를 분리해 롤백 시 미지급 주문 복원을 유지한다.
 - [x] 신규 구매는 토스 provider와 0~100% 결정적 사용자 롤아웃을 모두 통과해야 노출되며, 비대상 사용자의 기존 주문 복원 SKU는 유지된다.
 - [x] 사용자는 자신의 최근 결제·환불 상태를 서버 원장 기준으로 확인할 수 있고 다른 사용자의 구매 내역은 조회할 수 없다.
+- [x] 계정 최종 파기 시 Toss 로그인 연결을 해제하고 구매 원장은 법정 기술 기준에 따라 분리 보관·만료 삭제된다.
+- [ ] 개인정보처리방침과 유료서비스·환불 약관 개정안을 승인하고 배포 전에 필요한 재동의를 완료한다.
 
 ## 검토 체크리스트
 
@@ -366,6 +377,8 @@ status: implemented-local
 - [x] IAP 활성화 전에 5개 SKU 누락·중복, 32-byte 미만 전용 HMAC 키와 존재하지 않는 mTLS 파일을 시작 단계에서 거절한다.
 - [x] 전용 HMAC 키는 인증 세션 키와 분리되어 있으며 운영 수명 동안 변경하지 않는다고 환경 설정에 명시돼 있다.
 - [x] 롤아웃 비율 범위와 감사 경보·재조정 플래그 조합을 시작 단계에서 검증한다.
+- [x] `0023`이 탈퇴 구매 원장의 보존 만료를 기록하고 실제 PostgreSQL에서 5년 만료 행 삭제를 검증한다.
+- [x] Toss 계정 최종 파기 시 mTLS `remove-by-user-key` 응답의 동일 `userKey`를 확인한 뒤 계정을 삭제한다.
 
 ### 프런트엔드
 
@@ -388,9 +401,9 @@ status: implemented-local
 
 | 게이트 | 검증 | 현재 상태 |
 | --- | --- | --- |
-| 도메인 | SKU 매핑, 상태 전이, 첫 구매, 재가입, 환불 회수, 재무 감사, 사용자 롤아웃·경보·구매 내역 | backend 전체 316건 통과 |
+| 도메인 | SKU 매핑, 상태 전이, 첫 구매, 재가입, 환불 회수, 재무 감사, 사용자 롤아웃·경보·구매 내역·탈퇴 보존 | backend 전체 326건 통과 |
 | 백엔드 | `compileall`, repository/service/API pytest | 통과 |
-| 데이터베이스 | migration head/current, upgrade·downgrade SQL, 동시 지급 | PostgreSQL current/head `0022`; `0022` 양방향 SQL, 독립 세션 2개 동시 지급과 재가입 보너스 방지 통과 |
+| 데이터베이스 | migration head/current, upgrade·downgrade SQL, 동시 지급 | PostgreSQL current/head `0023`; `0022 → 0023 → 0022 → 0023`, 독립 세션 동시 지급·재가입 보너스 방지·탈퇴 원장 만료 삭제 통과 |
 | 프런트엔드 | typecheck, domain test, production build | 155건·typecheck·Vite build 통과 |
 | 앱인토스 빌드 | `npm run build:toss` | 최신 AIT artifact 생성 통과, 앱 코드 `415f3a2` |
 | 상품 이미지 | 5개 SKU별 1024×1024 PNG, SVG 원본, 해시와 직접 시각 검수 | 로컬 준비 통과; 콘솔 업로드 미실행 |
@@ -450,6 +463,8 @@ status: implemented-local
 | IAP-15 전체 복원 최소 버전 | Android 5.234.0·iOS 5.233.0 구매 게이트 | SDK 계약 대조·frontend 155건·typecheck·AIT build | `415f3a2` |
 | IAP-16 구매 안전 설정 | 구매 ON 시 재조정·감사 경보 강제 | 설정 테스트·backend 전체 316건 | `28f5155` |
 | IAP-17 외부 출시 승인 | 콘솔 매핑, 샌드박스 증빙, 외부 알림 연결, 운영 승인 | 수동 게이트 서명 | 운영 정보 준비 후 별도 커밋 |
+| IAP-18 탈퇴·구매기록 수명주기 | Toss 연결 해제, 5년 분리 보관, `0023`, 만료 삭제 | backend 326건·PostgreSQL integration·alembic | `f2592e5` |
+| IAP-19 고객 문서·법무 승인 | 개인정보처리방침, 유료서비스·환불 약관, 재동의 | 대표자·법무 서명과 공개 URL 확인 | 승인 후 별도 커밋 |
 
 로컬 구현 커밋과 외부 출시 승인 커밋을 분리하여 코드 완료와 실제 판매 가능 상태를 혼동하지 않는다.
 
@@ -462,13 +477,14 @@ status: implemented-local
 5. 준비한 SKU별 1024px PNG를 사용해 다섯 크레딧 상품을 소모품으로 만들고 실제 판매가는 콘솔 계산 결과로 기록한다.
 6. 상품은 노출 OFF로 유지한 채 SKU·지급량·첫 구매·환불 정책을 승인한다.
 7. mTLS 인증서의 운영 배포 상태와 만료일을 확인하고, 인증 세션 키와 별도인 32-byte 이상 `TOSS_IAP_SUBJECT_HMAC_KEY`를 비밀 저장소에 생성·백업한다.
-8. 스테이징에 migrations `0021`·`0022`와 코드를 배포하고 통합 ON, 신규 구매 OFF, 롤아웃 0, 재조정·감사 경보 ON으로 시작 검증을 통과시킨다.
+8. 스테이징에 migrations `0021`·`0022`·`0023`과 코드를 배포하고 통합 ON, 신규 구매 OFF, 롤아웃 0, 재조정·감사 경보 ON으로 시작 검증을 통과시킨다.
 9. 실제 발급 SKU를 환경 변수에 연결하고 SDK `displayAmount`와 콘솔 VAT 포함 판매가를 대조한다.
 10. Android 5.234.0 이상과 iOS 5.233.0 이상 테스트 기기를 준비하고, 그 미만 버전에서는 구매가 비활성화되는지 확인한다.
 11. 샌드박스 시간에 신규 구매 ON·롤아웃 100과 테스트 상품 노출 ON으로 필수 시나리오를 `documents/qa/evidence/`에 증빙한다.
 12. 로그 수집 시스템에 `iap_integrity_alert`와 재조정 실패 critical 알림, 담당자와 응답 시간을 등록한다.
-13. 운영·정산·환불 체크리스트 승인 후 신규 구매 ON·롤아웃 10%로 제한 활성화하고 24시간 이상 관찰한다.
-14. 감사·정산 대조가 깨끗할 때 25% → 50% → 100%로 확대한다.
+13. 구매기록 보존 결정과 개인정보처리방침·유료서비스·환불 약관을 승인·배포하고 필요한 재동의를 완료한다.
+14. 운영·정산·환불 체크리스트 승인 후 신규 구매 ON·롤아웃 10%로 제한 활성화하고 24시간 이상 관찰한다.
+15. 감사·정산 대조가 깨끗할 때 25% → 50% → 100%로 확대한다.
 
 ## 검증하지 못한 것
 
@@ -487,13 +503,13 @@ status: implemented-local
 - 운영 정산 계좌와 세금계산서 정보
 - 실제 PostgreSQL 독립 세션 2개의 동시 지급은 통과했으나, 다중 애플리케이션 프로세스 환경의 충돌과 timeout 후 재시도는 미검증
 - 실제 데이터가 있는 스테이징 DB의 downgrade 복구 훈련
-- `0022` 실제 적용과 범위 지정 업·다운 SQL은 통과했지만, 빈 DB부터 전체 오프라인 SQL을 생성하는 명령은 기존 `0009` 데이터 변환 마이그레이션의 오프라인 연결 미지원으로 실패한다. 스테이징에서는 온라인 migration과 백업·복구 절차를 사용한다.
+- `0023` 실제 적용·다운·재적용과 PostgreSQL 수명주기 통합 테스트는 통과했지만, 빈 DB부터 전체 오프라인 SQL을 생성하는 명령은 기존 `0009` 데이터 변환 마이그레이션의 오프라인 연결 미지원으로 실패한다. 스테이징에서는 온라인 migration과 백업·복구 절차를 사용한다.
 - 실행 중인 프런트엔드가 없어 Playwright 브라우저 회귀는 미실행
 
 ## 남은 위험
 
 - 콘솔이 계산한 VAT 포함 가격이 현재 앱의 5,000원 단위 가격과 다를 수 있다.
-- 계정 삭제 후 구매 기록은 비식별 상태로 유지하도록 구현했지만 법적 보존 기간은 확정되지 않았다.
+- 계정 삭제 후 구매 원장의 5년 분리 보관·만료 삭제는 구현됐지만, HMAC 기반 부정 이용 방지 목적과 공개 문구는 법무·대표자 승인이 필요하다.
 - 전용 HMAC 키를 분실하거나 임의 교체하면 탈퇴 사용자의 과거 구매 이력을 연결할 수 없으므로 운영 비밀 백업·복구 절차가 필요하다.
 - `debt_credits`가 있는 사용자의 유료 기능 제한 범위와 고객지원 해제 절차는 운영 정책 승인이 필요하다.
 - 결제 알림 URL의 이벤트 계약과 운영 인증 방식은 콘솔·공식 세부 문서에서 최종 확인해야 한다.
@@ -511,9 +527,14 @@ status: implemented-local
 - [비게임 출시 체크리스트](https://developers-apps-in-toss.toss.im/checklist/app-nongame.html)
 - [mTLS 인증서와 API 공통 규격](https://developers-apps-in-toss.toss.im/development/integration-process.html)
 - [정산 안내](https://developers-apps-in-toss.toss.im/guide/settlement)
+- [Toss 로그인 연결 끊기](https://developers-apps-in-toss.toss.im/login/develop.html)
+- [전자상거래법 시행령 제6조](https://www.law.go.kr/LSW/lsSideInfoP.do?docCls=jo&joBrNo=00&joNo=0006&lsiSeq=269055&urlMode=lsScJoRltInfoR)
+- [개인정보 보호법 제21조](https://www.law.go.kr/LSW/lsLinkCommonInfo.do?ancYnChk=&chrClsCd=010202&lsJoLnkSeq=1020398651)
 
 ## 관련 프로젝트 문서
 
+- [앱인토스 인앱결제 구매기록 보존 및 탈퇴 처리 결정](decision_apps-in-toss-iap-purchase-retention_2026-08-11.md)
+- [앱인토스 인앱결제 고객 노출 법률 문구 초안](proposal_apps-in-toss-iap-legal-copy_2026-08-11.md)
 - [앱인토스 인앱결제 배포 및 운영 가이드](../../../guides/guide_apps-in-toss-iap-operations.md)
 - [앱인토스 출시 백로그](plan_apps-in-toss-launch-backlog_2026-07-31.md)
 - [크레딧 BM 및 AI 출시 준비 계획](../../product/credit/plan_credit-bm-and-ai-release-readiness_2026-08-09.md)

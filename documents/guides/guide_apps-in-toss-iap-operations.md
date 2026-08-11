@@ -3,7 +3,7 @@ title: 앱인토스 인앱결제 배포 및 운영 가이드
 author: black (black@ashwoodfriends.com)
 created: 2026-08-11
 updated: 2026-08-11
-version: 1.1.0
+version: 1.2.0
 status: ready
 ---
 
@@ -46,7 +46,7 @@ status: ready
 ## 최초 배포 순서
 
 1. 데이터베이스 백업과 migration current/head를 확인한다.
-2. migrations `0021`·`0022`와 백엔드 코드를 배포한다.
+2. migrations `0021`·`0022`·`0023`과 백엔드 코드를 배포한다.
 3. 다섯 콘솔 SKU, mTLS 인증서·키, 전용 HMAC 키를 비밀 저장소에 주입한다.
 4. `IAP=ON`, 신규 구매 `OFF`, 롤아웃 `0`, 재조정·감사 경보 `ON`으로 시작 단계 설정 검증을 통과시킨다.
 5. `GET /api/moderation/credit-purchases/audit` 결과의 `purchases`와 `accounts`가 비어 있는지 확인한다.
@@ -55,6 +55,17 @@ status: ready
 8. 샌드박스 시간에만 신규 구매 `ON`, 롤아웃 `100`, 테스트 상품 노출 ON으로 전환한다.
 9. 정상 결제, 서버 지급 실패 복원, 오류, 반복 요청, 환불, 사용자 결제 내역과 기기 변경 시나리오를 증빙한다.
 10. 모든 게이트 승인 후 운영 초기 공개 값을 적용하고 24시간 이상 관찰한다.
+
+## 탈퇴 계정 구매기록
+
+- 계정 삭제 요청 후 7일 동안은 계정과 구매 원장을 유지해 재로그인 복구를 허용한다.
+- 최종 파기 시 Apps in Toss `remove-by-user-key`를 mTLS로 호출한다. 실패하면 사용자 행을 삭제하지 않고 스케줄러 재실행 대상으로 남긴다.
+- 최종 파기 트랜잭션은 구매행의 `retention_until`을 `max(거래일+5년, 파기 시각)`으로 설정하고 사용자 FK를 제거한다.
+- 계정 삭제 스케줄러는 `user_id IS NULL`이고 보존 만료가 지난 구매행 전체를 삭제한다.
+- 분쟁·수사·법적 보존 정지가 필요하면 만료 전에 `retention_until`을 연장하고 주문 ID, 근거, 승인자, 새 만료일을 접근 통제된 운영 기록에 남긴다.
+- HMAC, 원문 `userKey`, 인증서, 액세스 토큰을 고객지원 티켓이나 일반 로그에 복사하지 않는다.
+
+보존 기간과 고객 노출 문구의 승인 상태는 [구매기록 보존 및 탈퇴 처리 결정](../plans/release/store/decision_apps-in-toss-iap-purchase-retention_2026-08-11.md)을 따른다. 법무·대표자 승인과 공개 약관 개정 전에는 신규 결제를 활성화하지 않는다.
 
 ## 확대 게이트
 
