@@ -54,11 +54,13 @@ def credit_product_by_sku(settings: Settings, sku: str) -> CreditProduct | None:
 
 
 def validate_toss_iap_configuration(settings: Settings) -> None:
-    requested = settings.toss_iap_enabled or settings.toss_iap_purchase_enabled or settings.toss_iap_reconciliation_enabled
+    requested = settings.toss_iap_enabled or settings.toss_iap_purchase_enabled or settings.toss_iap_reconciliation_enabled or settings.toss_iap_audit_alerts_enabled
     if not requested:
         return
     if not settings.toss_iap_enabled:
         raise ValueError("TOSS_IAP_ENABLED must be true before enabling purchase or reconciliation")
+    if settings.toss_iap_audit_alerts_enabled and not settings.toss_iap_reconciliation_enabled:
+        raise ValueError("TOSS_IAP_RECONCILIATION_ENABLED must be true before enabling audit alerts")
     _validate_iap_credentials(settings)
     _validate_iap_skus(settings)
     _validate_iap_rollout(settings)

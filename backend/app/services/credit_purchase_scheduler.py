@@ -6,7 +6,7 @@ import logging
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config import Settings
-from app.repositories.credit_purchases import CreditPurchaseClaim, CreditPurchaseRepository
+from app.repositories.credit_purchases import CreditPurchaseAuditReport, CreditPurchaseClaim, CreditPurchaseRepository
 from app.services.credit_purchases import CreditPurchaseService
 
 
@@ -32,6 +32,8 @@ class CreditPurchaseScheduler:
         claims = await self._claim_due()
         for claim in claims:
             await self._reconcile_safely(claim)
+        if self.settings.toss_iap_audit_alerts_enabled:
+            await self._audit_integrity()
 
     async def _claim_due(self) -> list[CreditPurchaseClaim]:
         async with self.session_factory() as session:
@@ -49,3 +51,24 @@ class CreditPurchaseScheduler:
         async with self.session_factory() as session:
             purchases = CreditPurchaseRepository(session)
             await CreditPurchaseService(self.settings, purchases).reconcile(claim.id, claim.order_id)
+
+    async def _audit_integrity(self) -> None:
+        async with self.session_factory() as session:
+            report = await CreditPurchaseRepository(session).audit(self.settings.toss_iap_reconciliation_batch_size)
+        log_credit_purchase_audit(report)
+
+
+def log_credit_purchase_audit(report: CreditPurchaseAuditReport) -> None:
+    if not report.purchases and not report.accounts:
+        return
+    reasons = _audit_reason_counts(report)
+    logger.error("iap_integrity_alert purchases=%s accounts=%s truncated=%s reasons=%s", len(report.purchases), len(report.accounts), report.truncated, reasons)
+
+
+def _audit_reason_counts(report: CreditPurchaseAuditReport) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    groups = [item.reasons for item in report.purchases] + [item.reasons for item in report.accounts]
+    for reasons in groups:
+        for reason in reasons:
+            counts[reason] = counts.get(reason, 0) + 1
+    return counts

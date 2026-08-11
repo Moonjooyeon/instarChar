@@ -59,6 +59,13 @@ def test_toss_iap_configuration_rejects_invalid_rollout(tmp_path: Path) -> None:
         validate_toss_iap_configuration(settings)
 
 
+def test_audit_alerts_require_reconciliation(tmp_path: Path) -> None:
+    settings = _configured_settings(tmp_path)
+    settings.toss_iap_audit_alerts_enabled = True
+    with pytest.raises(ValueError, match="RECONCILIATION_ENABLED"):
+        validate_toss_iap_configuration(settings)
+
+
 def test_purchase_rollout_requires_toss_user_and_flags(tmp_path: Path) -> None:
     settings = _configured_settings(tmp_path)
     settings.toss_iap_purchase_enabled = True
