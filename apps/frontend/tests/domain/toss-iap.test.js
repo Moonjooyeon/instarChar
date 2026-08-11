@@ -2,12 +2,22 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { collectRefundedTossIapOrders, isAppsInTossIapRuntime, tossIapErrorMessage } from "../../src/api/tossIap.js";
+import { shouldRecoverTossPurchases } from "../../src/domain/credits/tossPurchaseRecovery.js";
 
 
 test("IAP is exposed only in the Apps in Toss runtime", () => {
   assert.equal(isAppsInTossIapRuntime("apps-in-toss"), true);
   assert.equal(isAppsInTossIapRuntime("capacitor"), false);
   assert.equal(isAppsInTossIapRuntime("web"), false);
+});
+
+
+test("session recovery starts only for signed-in Apps in Toss users with configured products", () => {
+  const offer = { sku: "sku-1" };
+  assert.equal(shouldRecoverTossPurchases("user-1", [offer], "apps-in-toss"), true);
+  assert.equal(shouldRecoverTossPurchases("", [offer], "apps-in-toss"), false);
+  assert.equal(shouldRecoverTossPurchases("user-1", [{ sku: "" }], "apps-in-toss"), false);
+  assert.equal(shouldRecoverTossPurchases("user-1", [offer], "web"), false);
 });
 
 

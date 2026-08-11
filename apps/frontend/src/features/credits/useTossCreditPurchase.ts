@@ -1,7 +1,8 @@
 import React from "react";
 
 import { grantCreditPurchase, type CreditOffer } from "@/api/credits";
-import { completeTossIapGrant, getPendingTossIapOrders, getRefundedTossIapOrders, getTossIapProducts, isAppsInTossIapRuntime, startTossIapPurchase, tossIapErrorMessage, type TossIapProduct } from "@/api/tossIap";
+import { getTossIapProducts, isAppsInTossIapRuntime, startTossIapPurchase, tossIapErrorMessage, type TossIapProduct } from "@/api/tossIap";
+import { recoverTossCreditPurchases, type PurchaseRecoveryResult } from "@/features/credits/tossPurchaseRecovery";
 
 
 type TossCreditPurchaseState = {
@@ -12,9 +13,6 @@ type TossCreditPurchaseState = {
   error: string;
   purchase: (sku: string) => Promise<void>;
 };
-
-type RecoveryCount = { updated: number; failed: number };
-type PurchaseRecoveryResult = { restored: number; refunded: number; failed: number };
 
 export function useTossCreditPurchase(offers: CreditOffer[], onUpdated: () => void): TossCreditPurchaseState {
   const [products, setProducts] = React.useState<TossIapProduct[]>([]);
@@ -48,51 +46,8 @@ function initializePurchases(configuredSkus: string, setProducts: React.Dispatch
   let active = true;
   if (!configuredSkus || !isAppsInTossIapRuntime()) return () => undefined;
   getTossIapProducts().then((items) => handleProducts(items, active, setProducts, setError)).catch((value) => active && setError(tossIapErrorMessage(value)));
-  recoverPurchases().then((result) => handleRecovered(result, active, setNotice, setError, onUpdated)).catch(() => active && setError("결제 내역을 확인하지 못했어요. 다시 시도해 주세요."));
+  recoverTossCreditPurchases().then((result) => handleRecovered(result, active, setNotice, setError, onUpdated)).catch(() => active && setError("결제 내역을 확인하지 못했어요. 다시 시도해 주세요."));
   return () => { active = false; };
-}
-
-async function recoverPurchases(): Promise<PurchaseRecoveryResult> {
-  const restored = await restorePendingPurchases();
-  const refunded = await reconcileRefundedPurchases();
-  return { restored: restored.updated, refunded: refunded.updated, failed: restored.failed + refunded.failed };
-}
-
-async function restorePendingPurchases(): Promise<RecoveryCount> {
-  const orders = await getPendingTossIapOrders();
-  if (!orders) return { updated: 0, failed: 0 };
-  return settleRecovery(orders.map((order) => restorePendingOrder(order.orderId)));
-}
-
-async function restorePendingOrder(orderId: string): Promise<boolean> {
-  try {
-    const result = await grantCreditPurchase(orderId);
-    if (result.status !== "granted") return false;
-    return completeTossIapGrant(orderId);
-  } catch {
-    return false;
-  }
-}
-
-async function reconcileRefundedPurchases(): Promise<RecoveryCount> {
-  const orders = await getRefundedTossIapOrders();
-  if (!orders) return { updated: 0, failed: 0 };
-  return settleRecovery(orders.map((order) => reconcileRefundedOrder(order.orderId)));
-}
-
-async function reconcileRefundedOrder(orderId: string): Promise<boolean> {
-  try {
-    const result = await grantCreditPurchase(orderId);
-    return result.status === "refunded";
-  } catch {
-    return false;
-  }
-}
-
-async function settleRecovery(tasks: Promise<boolean>[]): Promise<RecoveryCount> {
-  const results = await Promise.all(tasks);
-  const updated = results.filter(Boolean).length;
-  return { updated, failed: results.length - updated };
 }
 
 function handleProducts(items: TossIapProduct[] | null, active: boolean, setProducts: React.Dispatch<React.SetStateAction<TossIapProduct[]>>, setError: React.Dispatch<React.SetStateAction<string>>): void {
