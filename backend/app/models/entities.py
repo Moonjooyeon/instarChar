@@ -329,10 +329,11 @@ class AiMonthlyUsage(TimestampMixin, Base):
 
 class CreditAccount(TimestampMixin, Base):
     __tablename__ = "credit_accounts"
-    __table_args__ = (CheckConstraint("purchased_credits >= 0", name="ck_credit_accounts_purchased_nonnegative"), CheckConstraint("bonus_credits >= 0", name="ck_credit_accounts_bonus_nonnegative"), CheckConstraint("version >= 0", name="ck_credit_accounts_version_nonnegative"))
+    __table_args__ = (CheckConstraint("purchased_credits >= 0", name="ck_credit_accounts_purchased_nonnegative"), CheckConstraint("bonus_credits >= 0", name="ck_credit_accounts_bonus_nonnegative"), CheckConstraint("debt_credits >= 0", name="ck_credit_accounts_debt_nonnegative"), CheckConstraint("version >= 0", name="ck_credit_accounts_version_nonnegative"))
     user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     purchased_credits: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     bonus_credits: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    debt_credits: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
 
@@ -355,6 +356,29 @@ class CreditLedgerEntry(Base):
     idempotency_key: Mapped[str] = mapped_column(String(180), nullable=False)
     entry_metadata: Mapped[JsonMap] = mapped_column("metadata", JSONB, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class CreditPurchase(TimestampMixin, Base):
+    __tablename__ = "credit_purchases"
+    __table_args__ = (UniqueConstraint("provider_order_id", name="uq_credit_purchases_provider_order"), Index("ix_credit_purchases_user_created", "user_id", "created_at"), Index("ix_credit_purchases_status_checked", "status", "provider_checked_at"), CheckConstraint("status IN ('processing', 'granted', 'refunded', 'failed', 'review')", name="ck_credit_purchases_status"), CheckConstraint("base_credits >= 0 AND product_bonus_credits >= 0 AND first_purchase_bonus_credits >= 0 AND granted_credits >= 0 AND chargeback_credits >= 0", name="ck_credit_purchases_credit_amounts"))
+    id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid4)
+    user_id: Mapped[Optional[UUID]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    provider: Mapped[str] = mapped_column(String(32), nullable=False, default="apps_in_toss")
+    provider_order_id: Mapped[str] = mapped_column(String(80), nullable=False)
+    provider_subject_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    sku: Mapped[str] = mapped_column(String(255), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="processing")
+    provider_status: Mapped[str] = mapped_column(String(32), nullable=False, default="")
+    price_krw: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    base_credits: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    product_bonus_credits: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    first_purchase_bonus_credits: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    granted_credits: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    chargeback_credits: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    failure_reason: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    provider_checked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    granted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    refunded_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
 
 class RewardGrant(Base):

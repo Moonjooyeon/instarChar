@@ -42,6 +42,16 @@ class Settings(BaseSettings):
     toss_app_name: str = "ashwoodfriends-alive"
     toss_mtls_cert_path: str = "/run/secrets/toss/toss-mtls-cert.pem"
     toss_mtls_key_path: str = "/run/secrets/toss/toss-mtls-key.pem"
+    toss_iap_enabled: bool = False
+    toss_iap_purchase_enabled: bool = False
+    toss_iap_credit_5000_sku: str = ""
+    toss_iap_credit_10000_sku: str = ""
+    toss_iap_credit_30000_sku: str = ""
+    toss_iap_credit_50000_sku: str = ""
+    toss_iap_credit_100000_sku: str = ""
+    toss_iap_reconciliation_enabled: bool = False
+    toss_iap_reconciliation_poll_seconds: int = 3600
+    toss_iap_reconciliation_batch_size: int = 50
     monogpt_gemini_api_key: str = ""
     monogpt_gemini_base_url: str = "https://monogpt.kr/api/monorouter/v1/gemini"
     monogpt_gemini_model_fast: str = "gemini-2.5-flash"
