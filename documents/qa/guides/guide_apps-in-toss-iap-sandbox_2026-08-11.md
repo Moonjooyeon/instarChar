@@ -3,7 +3,7 @@ title: 앱인토스 인앱결제 샌드박스 검증 가이드
 author: black (black@ashwoodfriends.com)
 created: 2026-08-11
 updated: 2026-08-11
-version: 1.0.0
+version: 1.1.0
 status: ready
 ---
 
@@ -14,6 +14,19 @@ status: ready
 Apps in Toss 일회성 인앱결제를 실제 판매 전에 샌드박스 앱에서 검증하고, 주문·지급·복원·환불 정합성을 재현 가능한 증거로 남긴다. 샌드박스에서는 실제 과금이 발생하지 않는다.
 
 공식 [인앱결제 개발 가이드](https://developers-apps-in-toss.toss.im/iap/develop.html)와 [IAP API 레퍼런스](https://developers-apps-in-toss.toss.im/bedrock/reference/framework/%EC%9D%B8%EC%95%B1%20%EA%B2%B0%EC%A0%9C/IAP.html)를 기준으로 한다.
+
+## 준비된 업로드 후보
+
+| 항목 | 값 |
+| --- | --- |
+| 파일 | `documents/qa/evidence/ashwoodfriends-alive-iap-1dc867a.ait` |
+| 앱 코드 커밋 | `1dc867a` |
+| 빌드 생성 배포 ID | `019feefd-ec7b-7490-8f68-7b89cc072411` |
+| SHA-256 | `4b6da20300c6a907afe7a94d8bf5988b4c46166a2c275c85c962c05f61145a5e` |
+| 크기 | 약 6.9MB |
+| 상태 | `npm run build:toss` 통과, 콘솔 업로드 전 |
+
+이 후보는 IAP 앱 코드를 포함하지만 콘솔 업로드, QR 실행과 운영 백엔드 배포까지 증명하지 않는다. 콘솔 업로드 후 표시되는 값과 위 배포 ID가 같은지 확인하고 실행 정보에 기록한다.
 
 ## 판정 규칙
 
@@ -31,6 +44,9 @@ Apps in Toss 일회성 인앱결제를 실제 판매 전에 샌드박스 앱에�
 | 브랜치·커밋 | `codex/apps-in-toss-iap` /  |
 | 앱 이름 | `ashwoodfriends-alive` |
 | SDK | `@apps-in-toss/web-framework` 2.10.8 |
+| `.ait` 파일·커밋 |  |
+| 배포 ID·콘솔 표시 버전 |  |
+| 상품 최소 지원 버전 |  |
 | 샌드박스 앱·OS·버전 |  |
 | 스테이징 API URL |  |
 | DB migration current/head | `20260811_0022` / `20260811_0022` |
@@ -52,12 +68,16 @@ Apps in Toss 일회성 인앱결제를 실제 판매 전에 샌드박스 앱에�
 
 사전 조건을 아래 순서로 확인한다.
 
-1. 콘솔 상품 유형이 모두 `소모품`이고 테스트 대상만 노출 ON인지 확인한다.
-2. 스테이징 비밀 저장소에 32-byte 이상 `TOSS_IAP_SUBJECT_HMAC_KEY`, mTLS 인증서와 키가 있는지 확인한다.
-3. 다섯 SKU가 모두 존재하고 중복되지 않는지 배포 로그의 설정 사전 검증 결과로 확인한다.
-4. migration current/head가 모두 `20260811_0022`인지 확인한다.
-5. 먼저 `TOSS_IAP_ENABLED=true`, `TOSS_IAP_PURCHASE_ENABLED=false`로 복원·조회 경로만 확인한다.
-6. 담당자 승인 후 테스트 시간 동안에만 신규 결제 플래그와 대상 상품 노출을 활성화한다.
+1. 현재 검증할 커밋으로 `npm run build:toss`를 실행해 `.ait`를 생성한다.
+2. 콘솔 `앱 출시` 메뉴에 `.ait`를 업로드하고 배포 ID, 콘솔 표시 버전과 테스트 QR을 기록한다.
+3. QR로 업로드 번들을 최소 1회 실행하고 앱 이름과 API 연결을 확인한다.
+4. 상품 등록 화면의 `최소 지원 버전`에서 업로드한 번들을 선택한다. 목록이 비어 있으면 상품 등록을 중단하고 번들 업로드 상태부터 확인한다.
+5. 콘솔 상품 유형이 모두 `소모품`이고 테스트 대상만 노출 ON인지 확인한다.
+6. 스테이징 비밀 저장소에 32-byte 이상 `TOSS_IAP_SUBJECT_HMAC_KEY`, mTLS 인증서와 키가 있는지 확인한다.
+7. 다섯 SKU가 모두 존재하고 중복되지 않는지 배포 로그의 설정 사전 검증 결과로 확인한다.
+8. migration current/head가 모두 `20260811_0022`인지 확인한다.
+9. 먼저 `TOSS_IAP_ENABLED=true`, `TOSS_IAP_PURCHASE_ENABLED=false`로 복원·조회 경로만 확인한다.
+10. 담당자 승인 후 테스트 시간 동안에만 신규 결제 플래그와 대상 상품 노출을 활성화한다.
 
 ## 필수 시나리오
 

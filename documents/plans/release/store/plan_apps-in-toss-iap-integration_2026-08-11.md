@@ -3,7 +3,7 @@ title: 앱인토스 인앱결제 승인 후 적용 및 출시 검토 계획
 author: black (black@ashwoodfriends.com)
 created: 2026-08-11
 updated: 2026-08-11
-version: 1.5.0
+version: 1.6.0
 status: implemented-local
 ---
 
@@ -57,9 +57,13 @@ status: implemented-local
 - 현금성·환가성 재화로 설명하거나 토스 포인트와 결합하지 않는다.
 - 상품명은 지급량을 그대로 드러내고, 상품 이미지는 1024 × 1024px로 준비한다.
 - 콘솔에는 VAT 제외 공급가를 입력하며 VAT 포함 판매가는 자동 계산된다. 앱의 하드코딩 가격이 아니라 콘솔의 최종 `displayAmount`를 사용자에게 표시한다.
+- 인앱 상품의 `최소 지원 버전`은 해당 상품을 포함하는 **업로드된 미니앱 번들 버전**을 선택한다. 토스 앱 IAP API 최소 버전 `5.219.0`이나 프런트엔드 `package.json`의 `0.1.0`을 입력하는 항목이 아니다.
+- `최소 지원 버전` 목록이 비어 있으면 상품 등록을 진행하지 않고, 먼저 `npm run build:toss`로 `.ait` 번들을 만든 뒤 콘솔 `앱 출시` 메뉴에 업로드한다. 업로드 성공과 테스트용 스킴·QR 생성을 확인한 후 상품 등록 화면을 다시 열어 해당 버전을 선택한다.
 - 콘솔 할인은 등록 후 수정할 수 없으므로 초기 출시에서는 사용하지 않는다. 현재 앱의 “첫 구매 10% 추가”는 가격 할인이 아니라 서버가 지급하는 크레딧 보너스로 별도 처리한다.
 - 실제 판매 전까지 상품 노출을 OFF로 유지하고, 샌드박스 확인 단계에서 필요한 상품만 ON으로 전환한다.
 - 결제 알림 URL을 사용하려면 이벤트 계약, 인증, 재시도 정책을 먼저 확인한다. Basic Auth 값은 비밀 저장소에 보관하고 알림 처리는 멱등하게 구현한다.
+
+공식 가이드는 `.ait` 업로드 시 배포 ID와 테스트 QR이 생성되는 절차를 명시하지만 상품 폼의 `최소 지원 버전` 의존성을 본문으로 설명하지는 않는다. 위 판단은 사용자가 제공한 현재 콘솔 화면에서 선택지가 비어 있고, 프로젝트에 콘솔 업로드 이력이 확인되지 않는 점을 함께 근거로 한 현재 콘솔 동작 해석이다. 업로드 후에도 목록이 비어 있으면 임의 값을 넣지 말고 채널톡에 앱 이름과 배포 ID를 첨부해 문의한다.
 
 ### 결제 및 지급
 
@@ -111,6 +115,7 @@ status: implemented-local
 | 앱인토스 SDK | `@apps-in-toss/web-framework` 2.10.8 사용 | [`apps/frontend/package.json`](../../../../apps/frontend/package.json) | IAP API를 같은 SDK에서 추가 가능 |
 | 토스 빌드 | `ait build`, 전용 runtime과 API URL 존재 | [`apps/frontend/package.json`](../../../../apps/frontend/package.json) | 결제 기능을 토스 runtime에만 노출 가능 |
 | 미니앱 설정 | `appName=ashwoodfriends-alive` 설정 | [`apps/frontend/granite.config.ts`](../../../../apps/frontend/granite.config.ts) | 콘솔 앱 이름과 SKU 소속을 대조해야 함 |
+| 콘솔 미니앱 버전 | 로컬 `.ait` 빌드는 통과했으나 업로드된 번들은 확인되지 않음 | 콘솔 `최소 지원 버전` 드롭다운이 비어 있는 사용자 캡처 | 상품보다 먼저 `.ait`를 `앱 출시`에 업로드해야 함 |
 | 토스 로그인 | `userKey`를 `provider_subject`로 저장 | [`backend/app/services/toss_login.py`](../../../../backend/app/services/toss_login.py) | 주문 조회의 `x-toss-user-key` 결합에 재사용 가능 |
 | mTLS 설정 | API base URL과 인증서·키 경로 존재 | [`backend/app/core/config.py`](../../../../backend/app/core/config.py) | 로그인 전용 구현을 공통 토스 API 클라이언트로 분리 가능 |
 | 크레딧 계정 | 구매·보너스 잔액 분리, row lock과 사용 원장 존재 | [`backend/app/models/entities.py`](../../../../backend/app/models/entities.py) | 검증된 구매 지급 대상 기반은 준비됨 |
@@ -170,6 +175,20 @@ status: implemented-local
 - [x] 환불 회수 시 잔액이 부족하면 음수 잔액을 허용하지 않고 `debt_credits`로 기록하며 다음 구매 지급분으로 우선 상환한다.
 - [ ] 계정 삭제 뒤에도 결제·환불 처리에 필요한 최소 구매 기록의 법적 보존 기간과 비식별화 방법을 확정한다.
 
+### 콘솔 상품 입력안
+
+상품명은 내부 가격 ID가 아니라 실제 지급량을 기준으로 작성한다. 설명은 45자 제한 안에서 상품 용도와 지급량만 표현하고, 현금·환전·투자성 표현은 사용하지 않는다.
+
+| 내부 상품 | 상품 유형 | 상품명 초안 | 설명 초안 | 공급가 | 최소 지원 버전 | 최초 노출 |
+| --- | --- | --- | --- | --- | --- | --- |
+| `credit-5000` | 소모품 | `크레딧 500C` | `얼라이브 AI 기능에 사용하는 500C` | 승인 대기 | 업로드한 IAP 번들 | OFF |
+| `credit-10000` | 소모품 | `크레딧 1,000C` | `얼라이브 AI 기능에 사용하는 1,000C` | 승인 대기 | 업로드한 IAP 번들 | OFF |
+| `credit-30000` | 소모품 | `크레딧 3,150C` | `기본 3,000C와 추가 150C를 지급해요` | 승인 대기 | 업로드한 IAP 번들 | OFF |
+| `credit-50000` | 소모품 | `크레딧 5,500C` | `기본 5,000C와 추가 500C를 지급해요` | 승인 대기 | 업로드한 IAP 번들 | OFF |
+| `credit-100000` | 소모품 | `크레딧 11,500C` | `기본 10,000C와 추가 1,500C를 지급해요` | 승인 대기 | 업로드한 IAP 번들 | OFF |
+
+공급가는 현재 앱의 5,000·10,000원 표기를 그대로 입력하는 값이 아니다. 콘솔이 VAT 포함 판매가를 자동 계산하므로 첫 상품 하나에서 계산 결과를 확인한 뒤 다섯 단계의 최종 판매가를 제품·재무 담당자가 승인한다. 상품 이미지는 각 지급량을 구분할 수 있는 1024 × 1024px 파일로 준비한다.
+
 ## 영향 경로
 
 ```text
@@ -204,15 +223,18 @@ status: implemented-local
 
 ## 구현 단계
 
-### 1. 승인과 콘솔 상태 고정
+### 1. 승인, 미니앱 번들 버전과 콘솔 상태 고정
 
 - [ ] 승인 화면에서 승인 종류, 승인 일시, 앱 이름과 워크스페이스를 캡처해 `documents/qa/evidence/`에 보관한다.
 - [ ] 사업자 정보, 약관 동의, 정산 계좌와 세금계산서 이메일의 검토 완료 상태를 확인한다.
 - [ ] mTLS 인증서 만료일과 교체 담당자를 기록하고 운영 비밀 저장소에 인증서·키를 등록한다.
+- [ ] 현재 IAP 구현을 포함한 `.ait` 번들을 생성하고 콘솔 `앱 출시` 메뉴에 업로드한다.
+- [ ] 업로드된 번들의 배포 ID, 콘솔 표시 버전, 출시 메모와 테스트용 QR을 증빙하고 QR 테스트를 최소 1회 완료한다.
+- [ ] 인앱 상품 등록 화면을 다시 열어 `최소 지원 버전`에 방금 업로드한 번들이 표시되는지 확인한다.
 - [ ] 크레딧 상품을 소모품으로 등록하되 실제 판매 전 노출은 OFF로 둔다.
 - [ ] 각 SKU, 공급가, VAT 포함 판매가, 상품명, 이미지와 지급량을 상품 매핑표에 기록한다.
 
-완료 조건: 콘솔의 앱·SKU·판매가와 서버에서 사용할 정책표가 1:1로 대조된다.
+완료 조건: 업로드한 미니앱 번들이 상품의 `최소 지원 버전`으로 선택되고, 콘솔의 앱·SKU·판매가와 서버 정책표가 1:1로 대조된다.
 
 ### 2. 구매 데이터 모델과 정책 추가
 
@@ -352,6 +374,7 @@ status: implemented-local
 | 데이터베이스 | migration head/current, upgrade·downgrade SQL, 동시 지급 | PostgreSQL current/head `0022`; `0022` 양방향 SQL, 독립 세션 2개 동시 지급과 재가입 보너스 방지 통과 |
 | 프런트엔드 | typecheck, domain test, production build | 151건·typecheck·Vite build 통과 |
 | 앱인토스 빌드 | `npm run build:toss` | AIT artifact 생성 통과 |
+| 앱인토스 번들 업로드 | 콘솔 `앱 출시` 업로드, 배포 ID·QR 생성, 최소 지원 버전 후보 확인 | 미실행 |
 | 크로스 레이어 | 지급 API timeout 뒤 재시도, 잔액 갱신 | 로컬 멱등·PostgreSQL 동시성 테스트 통과; 실제 앱 검증 대기 |
 | 앱인토스 샌드박스 | 상품 노출, 결제 성공, 서버 지급 실패 복원, 에러 | 미실행 |
 | 환불 | 완료 주문 환불 후 원장·잔액 재조정 | 로컬 단위 테스트 통과; 콘솔 환불 미실행 |
@@ -405,13 +428,16 @@ status: implemented-local
 ## 남은 행동 순서
 
 1. 콘솔 승인 종류와 정산 정보 완료 상태를 캡처한다.
-2. 다섯 크레딧 상품의 소모품 SKU를 만들고 실제 판매가는 콘솔 계산 결과로 기록한다.
-3. 상품은 노출 OFF로 유지한 채 SKU·지급량·첫 구매·환불 정책을 승인한다.
-4. mTLS 인증서의 운영 배포 상태와 만료일을 확인하고, 인증 세션 키와 별도인 32-byte 이상 `TOSS_IAP_SUBJECT_HMAC_KEY`를 비밀 저장소에 생성·백업한다.
-5. 스테이징에 migrations `0021`·`0022`와 코드 배포 후 설정 사전 검증을 통과시키고 `TOSS_IAP_ENABLED=true`, 신규 구매 플래그는 `false`로 둔다.
-6. 실제 발급 SKU를 환경 변수에 연결하고 SDK `displayAmount`와 콘솔 VAT 포함 판매가를 대조한다.
-7. 공식 샌드박스 필수 시나리오를 `documents/qa/evidence/`에 증빙한다.
-8. 운영·정산·환불 체크리스트 승인 후 `TOSS_IAP_PURCHASE_ENABLED=true`로 제한 활성화한다.
+2. 현재 브랜치의 IAP 구현을 포함한 `.ait`를 만들고 콘솔 `앱 출시`에 업로드한다.
+3. 배포 ID·콘솔 표시 버전·테스트 QR을 기록하고 QR 테스트를 최소 1회 완료한다.
+4. 인앱 상품 등록 화면에서 업로드한 번들을 `최소 지원 버전`으로 선택한다.
+5. 다섯 크레딧 상품의 소모품 SKU를 만들고 실제 판매가는 콘솔 계산 결과로 기록한다.
+6. 상품은 노출 OFF로 유지한 채 SKU·지급량·첫 구매·환불 정책을 승인한다.
+7. mTLS 인증서의 운영 배포 상태와 만료일을 확인하고, 인증 세션 키와 별도인 32-byte 이상 `TOSS_IAP_SUBJECT_HMAC_KEY`를 비밀 저장소에 생성·백업한다.
+8. 스테이징에 migrations `0021`·`0022`와 코드 배포 후 설정 사전 검증을 통과시키고 `TOSS_IAP_ENABLED=true`, 신규 구매 플래그는 `false`로 둔다.
+9. 실제 발급 SKU를 환경 변수에 연결하고 SDK `displayAmount`와 콘솔 VAT 포함 판매가를 대조한다.
+10. 공식 샌드박스 필수 시나리오를 `documents/qa/evidence/`에 증빙한다.
+11. 운영·정산·환불 체크리스트 승인 후 `TOSS_IAP_PURCHASE_ENABLED=true`로 제한 활성화한다.
 
 ## 검증하지 못한 것
 
@@ -424,6 +450,7 @@ status: implemented-local
 ### 외부 확인 대기
 
 - 실제 앱인토스 콘솔의 승인 종류, 정산 검토 상태와 발급 SKU
+- `.ait` 업로드 후 발급되는 배포 ID·콘솔 표시 버전과 상품 `최소 지원 버전` 후보
 - 운영 mTLS 인증서의 배포 여부, 만료일과 실제 연결
 - 샌드박스 앱에서의 결제·복원·환불 동작
 - 운영 정산 계좌와 세금계산서 정보
@@ -444,6 +471,8 @@ status: implemented-local
 ## 공식 참고 자료
 
 - [인앱 결제 콘솔·상품·환불 가이드](https://developers-apps-in-toss.toss.im/guide/monetization/in-app-payment)
+- [앱 번들 업로드와 토스앱 테스트](https://developers-apps-in-toss.toss.im/development/test/toss.html)
+- [미니앱 검토·출시·버전 관리](https://developers-apps-in-toss.toss.im/development/deploy.html)
 - [인앱결제 개발 및 샌드박스](https://developers-apps-in-toss.toss.im/iap/develop.html)
 - [일회성 IAP API 레퍼런스](https://developers-apps-in-toss.toss.im/bedrock/reference/framework/%EC%9D%B8%EC%95%B1%20%EA%B2%B0%EC%A0%9C/IAP.html)
 - [mTLS 인증서와 API 공통 규격](https://developers-apps-in-toss.toss.im/development/integration-process.html)
