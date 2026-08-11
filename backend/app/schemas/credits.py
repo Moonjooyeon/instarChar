@@ -120,6 +120,7 @@ class CreditPurchaseOperationsDetail(BaseModel):
     provider_checked_at: datetime | None
     granted_at: datetime | None
     refunded_at: datetime | None
+    retention_until: datetime | None = None
     created_at: datetime | None = None
 
 

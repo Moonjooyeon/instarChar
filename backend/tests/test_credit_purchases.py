@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Callable, Coroutine
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 from uuid import UUID, uuid4
 
 import pytest
@@ -27,6 +28,17 @@ class StubSession:
 
     async def commit(self) -> None:
         self.commits += 1
+
+
+class UpdateSession(StubSession):
+    def __init__(self, rowcount: int = 0) -> None:
+        super().__init__()
+        self.rowcount = rowcount
+        self.statements: list[object] = []
+
+    async def execute(self, statement: object) -> object:
+        self.statements.append(statement)
+        return SimpleNamespace(rowcount=self.rowcount)
 
 
 class StubIap:
@@ -118,6 +130,23 @@ def test_reconciliation_query_uses_skip_locked() -> None:
     sql = str(statement.compile(dialect=postgresql.dialect()))
     assert "FOR UPDATE SKIP LOCKED" in sql
     assert "provider_checked_at" in sql
+
+
+def test_account_deletion_schedules_five_year_subject_retention() -> None:
+    session = UpdateSession()
+    repository = CreditPurchaseRepository(session)  # type: ignore[arg-type]
+    asyncio.run(repository.retain_subject_link_for_deletion(uuid4(), datetime.now(timezone.utc)))
+    sql = str(session.statements[0].compile(dialect=postgresql.dialect()))
+    assert "INTERVAL '5 years'" in sql
+    assert "retention_until" in sql
+
+
+def test_expired_detached_purchases_are_deleted() -> None:
+    session = UpdateSession(rowcount=2)
+    repository = CreditPurchaseRepository(session)  # type: ignore[arg-type]
+    cleared = asyncio.run(repository.delete_expired_detached_purchases(datetime.now(timezone.utc)))
+    sql = str(session.statements[0].compile(dialect=postgresql.dialect()))
+    assert (cleared, sql.startswith("DELETE"), "user_id IS NULL" in sql) == (2, True, True)
 
 
 def test_purchase_audit_reasons_cover_stale_and_ledger_mismatches() -> None:

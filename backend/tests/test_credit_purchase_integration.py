@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+from datetime import datetime, timedelta, timezone
 from uuid import UUID, uuid4
 
 import pytest
@@ -25,6 +26,7 @@ def test_purchase_database_invariants() -> None:
 async def _verify_purchase_database_invariants() -> None:
     await _verify_concurrent_purchase()
     await _verify_rejoined_subject_purchase()
+    await _verify_detached_purchase_retention()
 
 
 async def _verify_concurrent_purchase() -> None:
@@ -54,6 +56,43 @@ async def _verify_rejoined_subject_purchase() -> None:
         await _assert_no_repeat_bonus(user_id, order_id)
     finally:
         await _cleanup_purchase(user_id, order_id, prior_order_id)
+
+
+async def _verify_detached_purchase_retention() -> None:
+    user_id = uuid4()
+    order_id = f"integration-{uuid4()}"
+    now = datetime.now(timezone.utc)
+    await _prepare_user(user_id)
+    try:
+        await _grant_purchase(user_id, order_id, f"integration-{uuid4()}")
+        await _detach_purchase(user_id, order_id, now)
+        await _expire_and_purge_purchase(order_id, now)
+    finally:
+        await _cleanup_purchase(user_id, order_id)
+
+
+async def _detach_purchase(user_id: UUID, order_id: str, now: datetime) -> None:
+    async with AsyncSessionLocal() as session:
+        await CreditPurchaseRepository(session).retain_subject_link_for_deletion(user_id, now)
+        user = await session.get(User, user_id)
+        assert user is not None
+        await session.delete(user)
+        await session.commit()
+    async with AsyncSessionLocal() as session:
+        purchase = (await session.execute(select(CreditPurchase).where(CreditPurchase.provider_order_id == order_id))).scalar_one()
+        assert purchase.user_id is None and purchase.retention_until and purchase.retention_until > now
+
+
+async def _expire_and_purge_purchase(order_id: str, now: datetime) -> None:
+    async with AsyncSessionLocal() as session:
+        purchase = (await session.execute(select(CreditPurchase).where(CreditPurchase.provider_order_id == order_id))).scalar_one()
+        purchase.retention_until = now - timedelta(seconds=1)
+        await session.commit()
+    async with AsyncSessionLocal() as session:
+        deleted = await CreditPurchaseRepository(session).delete_expired_detached_purchases(now)
+        await session.commit()
+        remaining = await session.scalar(select(func.count()).select_from(CreditPurchase).where(CreditPurchase.provider_order_id == order_id))
+        assert (deleted, remaining) == (1, 0)
 
 
 async def _prepare_user(user_id: UUID) -> None:

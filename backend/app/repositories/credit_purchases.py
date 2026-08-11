@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from uuid import UUID, uuid4
 
-from sqlalchemy import and_, case, func, literal, or_, select
+from sqlalchemy import and_, case, delete, func, literal, or_, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import Select
@@ -109,6 +109,19 @@ class CreditPurchaseRepository:
     async def history(self, user_id: UUID, limit: int = 30) -> list[CreditPurchase]:
         statement = select(CreditPurchase).where(CreditPurchase.user_id == user_id).order_by(CreditPurchase.created_at.desc()).limit(limit)
         return list((await self.session.execute(statement)).scalars().all())
+
+    async def retain_subject_link_for_deletion(self, user_id: UUID, now: datetime) -> None:
+        legal_until = CreditPurchase.created_at + text("INTERVAL '5 years'")
+        retained_until = func.greatest(legal_until, now)
+        current_until = func.coalesce(CreditPurchase.retention_until, retained_until)
+        statement = update(CreditPurchase).where(CreditPurchase.user_id == user_id).values(retention_until=func.greatest(current_until, retained_until))
+        await self.session.execute(statement)
+
+    async def delete_expired_detached_purchases(self, now: datetime) -> int:
+        expired = CreditPurchase.retention_until <= now
+        statement = delete(CreditPurchase).where(CreditPurchase.user_id.is_(None), CreditPurchase.retention_until.is_not(None), expired)
+        result = await self.session.execute(statement)
+        return result.rowcount or 0
 
     async def audit(self, limit: int, now: datetime | None = None) -> CreditPurchaseAuditReport:
         current = now or datetime.now(timezone.utc)

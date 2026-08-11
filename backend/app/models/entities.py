@@ -360,12 +360,13 @@ class CreditLedgerEntry(Base):
 
 class CreditPurchase(TimestampMixin, Base):
     __tablename__ = "credit_purchases"
-    __table_args__ = (UniqueConstraint("provider_order_id", name="uq_credit_purchases_provider_order"), Index("ix_credit_purchases_user_created", "user_id", "created_at"), Index("ix_credit_purchases_status_checked", "status", "provider_checked_at"), Index("ix_credit_purchases_subject_granted", "provider_subject_hash", "granted_credits"), CheckConstraint("status IN ('processing', 'granted', 'refunded', 'failed', 'review')", name="ck_credit_purchases_status"), CheckConstraint("base_credits >= 0 AND product_bonus_credits >= 0 AND first_purchase_bonus_credits >= 0 AND granted_credits >= 0 AND chargeback_credits >= 0", name="ck_credit_purchases_credit_amounts"))
+    __table_args__ = (UniqueConstraint("provider_order_id", name="uq_credit_purchases_provider_order"), Index("ix_credit_purchases_user_created", "user_id", "created_at"), Index("ix_credit_purchases_status_checked", "status", "provider_checked_at"), Index("ix_credit_purchases_subject_granted", "provider_subject_hash", "granted_credits"), Index("ix_credit_purchases_retention", "retention_until"), CheckConstraint("status IN ('processing', 'granted', 'refunded', 'failed', 'review')", name="ck_credit_purchases_status"), CheckConstraint("base_credits >= 0 AND product_bonus_credits >= 0 AND first_purchase_bonus_credits >= 0 AND granted_credits >= 0 AND chargeback_credits >= 0", name="ck_credit_purchases_credit_amounts"))
     id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid4)
     user_id: Mapped[Optional[UUID]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     provider: Mapped[str] = mapped_column(String(32), nullable=False, default="apps_in_toss")
     provider_order_id: Mapped[str] = mapped_column(String(80), nullable=False)
     provider_subject_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    retention_until: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     sku: Mapped[str] = mapped_column(String(255), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="processing")
     provider_status: Mapped[str] = mapped_column(String(32), nullable=False, default="")

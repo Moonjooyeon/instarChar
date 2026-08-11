@@ -42,6 +42,18 @@ class StubSession:
         self.events.append("commit")
 
 
+class StubPurchases:
+    def __init__(self, events: list[str]) -> None:
+        self.events = events
+
+    async def retain_subject_link_for_deletion(self, user_id: UUID, now: datetime) -> None:
+        self.events.append("retain-purchase")
+
+    async def delete_expired_detached_purchases(self, now: datetime) -> int:
+        self.events.append("clear-purchase")
+        return 2
+
+
 class SharedThreadSession:
     def __init__(self, rows: list[object]) -> None:
         self.rows = rows
@@ -94,11 +106,12 @@ def test_due_account_purge_revokes_then_deletes(monkeypatch: MonkeyPatch) -> Non
             return 1
     service.revoker = StubRevoker()
     service.users = StubUsers()
+    service.purchases = StubPurchases(events)
     async def delete_media(target: User) -> None:
         events.append("media")
     monkeypatch.setattr(service, "_delete_media", delete_media)
     asyncio.run(service.purge_due_accounts(20, datetime.now(timezone.utc)))
-    assert events == ["media", "revoke", "delete"]
+    assert events == ["media", "revoke", "retain-purchase", "delete"]
     assert session.events == ["commit"]
 
 
@@ -117,11 +130,48 @@ def test_google_account_does_not_revoke_during_purge() -> None:
         async def delete_account(self, target: User) -> None:
             events.append("delete")
     service.users = StubUsers()
+    service.purchases = StubPurchases(events)
     async def delete_media(target: User) -> None:
         events.append("media")
     service._delete_media = delete_media
     asyncio.run(service.purge_due_accounts(20))
-    assert events == ["media", "delete"]
+    assert events == ["media", "retain-purchase", "delete"]
+
+
+def test_toss_account_purge_disconnects_provider_before_deletion(monkeypatch: MonkeyPatch) -> None:
+    events: list[str] = []
+    session = StubSession()
+    service = AccountDeletionService(Settings(), cast(AsyncSession, session))
+    user = cast(User, StubUser(uuid4(), UserProvider.toss, "123"))
+    class StubUsers:
+        claimed = False
+        async def claim_due_deletion(self, now: datetime, excluded_user_ids: set[UUID]) -> User | None:
+            if self.claimed:
+                return None
+            self.claimed = True
+            return user
+        async def delete_account(self, target: User) -> None:
+            events.append("delete")
+    class StubToss:
+        async def disconnect(self, subject: str) -> None:
+            events.append(f"disconnect:{subject}")
+    service.users = StubUsers()
+    service.toss = StubToss()
+    service.purchases = StubPurchases(events)
+    async def delete_media(target: User) -> None:
+        events.append("media")
+    monkeypatch.setattr(service, "_delete_media", delete_media)
+    asyncio.run(service.purge_due_accounts(20, datetime.now(timezone.utc)))
+    assert events == ["media", "disconnect:123", "retain-purchase", "delete"]
+
+
+def test_account_deletion_purges_expired_detached_purchases() -> None:
+    events: list[str] = []
+    session = StubSession()
+    service = AccountDeletionService(Settings(), cast(AsyncSession, session))
+    service.purchases = StubPurchases(events)
+    cleared = asyncio.run(service.purge_expired_detached_purchases(datetime.now(timezone.utc)))
+    assert (cleared, events, session.events) == (2, ["clear-purchase"], ["commit"])
 
 
 def test_account_deletion_preserves_shared_dm_for_other_participants() -> None:

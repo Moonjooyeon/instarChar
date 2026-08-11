@@ -16,6 +16,7 @@ from app.services.toss_api import TossApiClient
 
 TOSS_LOGIN_TOKEN_PATH = "/api-partner/v1/apps-in-toss/user/oauth2/generate-token"
 TOSS_LOGIN_ME_PATH = "/api-partner/v1/apps-in-toss/user/oauth2/login-me"
+TOSS_LOGIN_DISCONNECT_PATH = "/api-partner/v1/apps-in-toss/user/oauth2/access/remove-by-user-key"
 TOSS_FALLBACK_EMAIL_DOMAIN = "toss-login.ashwoodfriends.com"
 TOSS_FALLBACK_DIGEST_LENGTH = 58
 
@@ -47,6 +48,21 @@ class TossLoginService:
         if isinstance(value, int) and not isinstance(value, bool) and value > 0:
             return value
         raise BadRequestError("Toss login user response is invalid")
+
+    async def disconnect(self, subject: str) -> None:
+        user_key = self._subject_user_key(subject)
+        response = await self.api.post(TOSS_LOGIN_DISCONNECT_PATH, {"userKey": user_key})
+        returned_user_key = response.get("userKey")
+        if not isinstance(returned_user_key, int) or isinstance(returned_user_key, bool) or returned_user_key != user_key:
+            raise BadRequestError("Toss login disconnect response is invalid")
+
+    def _subject_user_key(self, subject: str) -> int:
+        if not subject.isdigit():
+            raise BadRequestError("Toss login user key is invalid")
+        user_key = int(subject)
+        if user_key > 0:
+            return user_key
+        raise BadRequestError("Toss login user key is invalid")
 
     def _required_string(self, response: dict[str, object], key: str) -> str:
         value = response.get(key)

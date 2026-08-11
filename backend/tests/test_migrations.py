@@ -156,3 +156,15 @@ def test_feed_pagination_migration_installs_incremental_projection(monkeypatch: 
 def test_feed_limit_migration_follows_feed_pagination() -> None:
     migration = _load_migration("20260810_0020_feed_limits_and_concurrent_tags_index.py")
     assert migration.down_revision == "20260810_0019"
+
+
+def test_iap_subject_retention_migration_follows_subject_history(monkeypatch: pytest.MonkeyPatch) -> None:
+    migration = _load_migration("20260811_0023_iap_purchase_retention.py")
+    statements: list[str] = []
+    monkeypatch.setattr(migration.op, "add_column", lambda *args, **kwargs: None)
+    monkeypatch.setattr(migration.op, "alter_column", lambda *args, **kwargs: None)
+    monkeypatch.setattr(migration.op, "create_index", lambda *args, **kwargs: None)
+    monkeypatch.setattr(migration.op, "execute", lambda statement: statements.append(str(statement)))
+    cast(Callable[[], None], migration.upgrade)()
+    assert migration.down_revision == "20260811_0022"
+    assert "INTERVAL '5 years'" in statements[0]

@@ -8,7 +8,7 @@ import pytest
 from app.core.config import Settings
 from app.core.errors import BadRequestError, ServiceUnavailableError
 from app.services.toss_api import TossApiClient
-from app.services.toss_login import TOSS_LOGIN_ME_PATH, TOSS_LOGIN_TOKEN_PATH, TossLoginService
+from app.services.toss_login import TOSS_LOGIN_DISCONNECT_PATH, TOSS_LOGIN_ME_PATH, TOSS_LOGIN_TOKEN_PATH, TossLoginService
 
 
 class StubClient:
@@ -67,3 +67,22 @@ def test_toss_login_uses_shared_api_contract() -> None:
     user_key = asyncio.run(service._user_key(token))
     assert (token, user_key) == ("access-token", 123)
     assert api.calls == [("POST", TOSS_LOGIN_TOKEN_PATH, {"authorizationCode": "code", "referrer": "referrer"}), ("GET", TOSS_LOGIN_ME_PATH, {"Authorization": "Bearer access-token"})]
+
+
+def test_toss_login_disconnects_by_user_key() -> None:
+    service = TossLoginService(Settings(_env_file=None), object())  # type: ignore[arg-type]
+    api = StubApi()
+    async def post(path: str, payload: dict[str, object]) -> dict[str, object]:
+        api.calls.append(("POST", path, payload))
+        return {"userKey": 123}
+    api.post = post  # type: ignore[method-assign]
+    service.api = api  # type: ignore[assignment]
+    asyncio.run(service.disconnect("123"))
+    assert api.calls == [("POST", TOSS_LOGIN_DISCONNECT_PATH, {"userKey": 123})]
+
+
+@pytest.mark.parametrize("subject", ["", "0", "-1", "not-a-number"])
+def test_toss_login_rejects_invalid_disconnect_user_key(subject: str) -> None:
+    service = TossLoginService(Settings(_env_file=None), object())  # type: ignore[arg-type]
+    with pytest.raises(BadRequestError):
+        asyncio.run(service.disconnect(subject))
