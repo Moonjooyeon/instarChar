@@ -3,7 +3,7 @@ title: 앱인토스 인앱결제 승인 후 적용 및 출시 검토 계획
 author: black (black@ashwoodfriends.com)
 created: 2026-08-11
 updated: 2026-08-11
-version: 1.8.0
+version: 1.9.0
 status: implemented-local
 ---
 
@@ -77,7 +77,9 @@ status: implemented-local
 6. 복원 지급이 성공하면 `IAP.completeProductGrant()`로 지급 완료를 알린다.
 7. `IAP.getCompletedOrRefundedOrders()`와 서버 주문 상태 조회로 완료·환불 상태를 재조정한다.
 
-`IAP.createOneTimePurchaseOrder()`는 cleanup 함수를 반환하므로 화면 이탈 또는 결제 흐름 종료 시 호출한다. 현재 설치된 SDK 2.10.8에는 IAP별 `isSupported()`가 없으므로 `getProductItemList()`·`getPendingOrders()`가 `undefined`를 반환하는 경우를 미지원 토스 앱 버전으로 처리한다. 향후 SDK를 올릴 때 공식 타입에 지원 판별 API가 추가됐는지 다시 확인한다. `USER_CANCELED`, `PAYMENT_PENDING`, 네트워크 오류, 상품 불일치, 서버 지급 실패와 미지원 버전은 서로 다른 사용자 상태로 처리한다.
+`IAP.createOneTimePurchaseOrder()`는 cleanup 함수를 반환하므로 화면 이탈 또는 결제 흐름 종료 시 호출한다. SDK의 기본 IAP는 토스 앱 5.219.0부터 동작하지만 `getPendingOrders()`는 Android 5.234.0·iOS 5.231.0, `completeProductGrant()`는 양 플랫폼 5.233.0부터 동작한다. `alive`는 구매 후 복원을 필수 계약으로 보므로 generic `isMinVersionSupported()`로 **Android 5.234.0·iOS 5.233.0** 이상일 때만 신규 구매 상품을 활성화한다. 이 토스 앱 실행 버전 조건은 콘솔 상품 폼의 미니앱 `최소 지원 버전`과 다른 개념이다. `USER_CANCELED`, `PAYMENT_PENDING`, 네트워크 오류, 상품 불일치, 서버 지급 실패와 미지원 버전은 서로 다른 사용자 상태로 처리한다.
+
+공식 [비게임 출시 체크리스트](https://developers-apps-in-toss.toss.im/checklist/app-nongame.html)의 결제 항목도 적용한다. 앱에는 재생 중인 오디오·영상 기능이 없어 결제 중 미디어 일시정지는 적용 대상이 아니며, 결제 가격 대조·성공 반영·취소 복귀·실패 안내·환불·기기 변경 복원은 샌드박스 필수 시나리오로 둔다. 사용자가 자신의 충전·환불 상태를 확인할 수 있도록 서버 소유 구매 원장 기반 결제 내역 API와 크레딧 상점의 `결제 내역` 화면을 제공한다.
 
 ### 서버 검증과 상태 의미
 
@@ -153,7 +155,7 @@ status: implemented-local
 | 재무 정합성 감사 | 구현 | 장기 미지급, 상태 검토, 구매·환불 원장과 계정 잔액 불일치 감사 API |
 | 구매 제한 활성화 | 구현 | 토스 provider만 허용하고 HMAC 기반 사용자 코호트를 0~100%로 결정하는 카탈로그 게이트 |
 | 운영 무결성 신호 | 구현 | 재조정 주기마다 감사하고 이상 시 식별자 없는 `iap_integrity_alert` 오류 로그 발행 |
-| 자동 검증 | 통과 | backend 313건(실제 PostgreSQL 동시 지급·재가입·원장 변조 탐지 포함), frontend domain 151건, typecheck, web build, Toss AIT build |
+| 자동 검증 | 통과 | backend 316건(실제 PostgreSQL 동시 지급·재가입·원장 변조 탐지 포함), frontend domain 155건, typecheck, web build, Toss AIT build |
 | 콘솔·mTLS·샌드박스·정산 | 미검증 | 저장소 밖의 운영 정보와 실제 Apps in Toss 앱 필요 |
 
 ## 결정이 필요한 상품 정책
@@ -223,7 +225,7 @@ status: implemented-local
 | `TOSS_IAP_RECONCILIATION_ENABLED` | `false` | 알려진 주문의 서버 주기 재조회 실행 |
 | `TOSS_IAP_AUDIT_ALERTS_ENABLED` | `false` | 재조정 감사 이상 시 `iap_integrity_alert` 오류 로그 발행 |
 
-스테이징에서는 SKU, 운영 수명 동안 유지할 전용 HMAC 키와 mTLS를 먼저 주입한 뒤 `TOSS_IAP_ENABLED=true`로 복구·검증 경로를 활성화한다. 활성화 설정이 불완전하거나 롤아웃 비율이 0~100 범위를 벗어나거나 감사 경보만 재조정 없이 켜면 서버 시작 단계에서 실패한다. 샌드박스 게이트 전에는 신규 구매 OFF·롤아웃 0을 유지하고, 테스트 시간에만 신규 구매 ON·롤아웃 100을 사용한다. 운영은 10%부터 단계적으로 확대한다.
+스테이징에서는 SKU, 운영 수명 동안 유지할 전용 HMAC 키와 mTLS를 먼저 주입한 뒤 `TOSS_IAP_ENABLED=true`로 복구·검증 경로를 활성화한다. 활성화 설정이 불완전하거나 롤아웃 비율이 0~100 범위를 벗어나거나 감사 경보만 재조정 없이 켜면 서버 시작 단계에서 실패한다. 신규 구매 ON은 재조정과 감사 경보가 모두 ON일 때만 허용되며 잘못된 조합은 서버 시작 단계에서 거절한다. 샌드박스 게이트 전에는 신규 구매 OFF·롤아웃 0을 유지하고, 테스트 시간에만 신규 구매 ON·롤아웃 100을 사용한다. 운영은 10%부터 단계적으로 확대한다.
 
 롤아웃은 앱 카탈로그의 구매 가능 상태를 제어하는 소프트 게이트다. 이미 SKU를 아는 구버전·변조 클라이언트의 제공자 주문 생성을 완전히 차단한다고 가정하지 않는다. 실제 신규 판매를 확실히 중단하려면 콘솔 상품 노출도 OFF로 전환하되, 이미 결제된 주문의 지급·복원을 위해 통합과 재조정은 ON으로 유지한다. 상세 절차는 [인앱결제 배포 및 운영 가이드](../../../guides/guide_apps-in-toss-iap-operations.md)를 따른다.
 
@@ -234,7 +236,8 @@ status: implemented-local
 - [ ] 승인 화면에서 승인 종류, 승인 일시, 앱 이름과 워크스페이스를 캡처해 `documents/qa/evidence/`에 보관한다.
 - [ ] 사업자 정보, 약관 동의, 정산 계좌와 세금계산서 이메일의 검토 완료 상태를 확인한다.
 - [ ] mTLS 인증서 만료일과 교체 담당자를 기록하고 운영 비밀 저장소에 인증서·키를 등록한다.
-- [ ] 현재 IAP 구현을 포함한 `.ait` 번들을 생성하고 콘솔 `앱 출시` 메뉴에 업로드한다.
+- [x] 현재 IAP 구현을 포함한 `.ait` 번들을 생성하고 파일명·앱 코드 커밋·빌드 배포 ID·SHA-256을 QA 가이드에 기록한다.
+- [ ] 준비된 `.ait`를 콘솔 `앱 출시` 메뉴에 업로드한다.
 - [ ] 업로드된 번들의 배포 ID, 콘솔 표시 버전, 출시 메모와 테스트용 QR을 증빙하고 QR 테스트를 최소 1회 완료한다.
 - [ ] 인앱 상품 등록 화면을 다시 열어 `최소 지원 버전`에 방금 업로드한 번들이 표시되는지 확인한다.
 - [ ] 크레딧 상품을 소모품으로 등록하되 실제 판매 전 노출은 OFF로 둔다.
@@ -281,6 +284,7 @@ status: implemented-local
 - [x] 앱인토스 runtime에서만 IAP 모듈을 동적 import한다.
 - [x] `getProductItemList()` 결과의 SKU와 `displayAmount`를 서버 정책과 결합한다.
 - [x] SDK 2.10.8의 상품·미결 주문 API가 `undefined`를 반환하면 토스 앱 업데이트 안내를 표시한다.
+- [x] 미지급 복원과 지급 완료 확인을 모두 보장하도록 Android 5.234.0·iOS 5.233.0 미만에서는 신규 구매를 비활성화한다.
 - [x] 결제 중 버튼을 잠그고 중복 탭과 화면 이탈을 처리한다.
 - [x] `processProductGrant`에서 지급 API 성공 여부를 반환한다.
 - [x] 성공 시 잔액을 재조회하고 접근 가능한 상태 메시지를 제공한다.
@@ -298,6 +302,7 @@ status: implemented-local
 - [x] 1차 출시는 결제 알림 URL을 사용하지 않고 SDK 이력과 서버 재조정 작업을 사용한다. 이후 알림 URL을 도입하면 인증, 서명 또는 Basic Auth, 재시도와 중복 이벤트 테스트를 별도 태스크로 추가한다.
 - [x] 알려진 미완료·지급 완료 구매를 서버가 주기적으로 재조회하는 기본 비활성 운영 작업을 추가한다.
 - [x] 환불 시 구매 크레딧·상품 보너스·첫 구매 보너스를 정책대로 회수하고 부족분을 `debt_credits`로 기록한다.
+- [x] 인증된 사용자가 `GET /api/credits/purchases`와 크레딧 상점의 `결제 내역`에서 자신의 지급·처리·환불·실패 상태, 지급량, 시각과 주문 식별자를 확인할 수 있다. 내부 실패 사유는 사용자 응답에 노출하지 않는다.
 
 완료 조건: 결제 직후 앱·서버가 중단되어도 다음 진입 또는 서버 재조정에서 정확히 한 번 지급되며, 환불이 잔액과 권한에 반영된다.
 
@@ -339,6 +344,7 @@ status: implemented-local
 - [ ] 정산 정보, 환불 담당자, 인증서 만료일과 결제 사고 대응 책임자가 기록된다.
 - [x] 신규 결제와 IAP 복구 플래그를 분리해 롤백 시 미지급 주문 복원을 유지한다.
 - [x] 신규 구매는 토스 provider와 0~100% 결정적 사용자 롤아웃을 모두 통과해야 노출되며, 비대상 사용자의 기존 주문 복원 SKU는 유지된다.
+- [x] 사용자는 자신의 최근 결제·환불 상태를 서버 원장 기준으로 확인할 수 있고 다른 사용자의 구매 내역은 조회할 수 없다.
 
 ## 검토 체크리스트
 
@@ -367,6 +373,8 @@ status: implemented-local
 - [x] 중복 탭, 취소, 대기, 일반 오류, 토스 앱 업데이트 필요 상태가 분리된다.
 - [x] cleanup과 화면 재진입 복원 경로가 구현되고 정적·도메인 테스트를 통과했다.
 - [x] 결제 처리 중에는 진행 상태만 표시하고 서버 지급 성공 뒤 성공 문구를 표시한다.
+- [x] 전체 복원 API를 지원하는 토스 앱 최소 버전을 검사하고, 미지원 버전에는 업데이트 안내와 비활성 구매 버튼을 표시한다.
+- [x] 크레딧 상점에서 사용자 본인의 최근 결제 상태와 환불 상태를 확인할 수 있다.
 
 ### 운영·고객지원
 
@@ -380,11 +388,11 @@ status: implemented-local
 
 | 게이트 | 검증 | 현재 상태 |
 | --- | --- | --- |
-| 도메인 | SKU 매핑, 상태 전이, 첫 구매, 재가입, 환불 회수, 재무 감사, 사용자 롤아웃·경보 | backend 전체 313건 통과 |
+| 도메인 | SKU 매핑, 상태 전이, 첫 구매, 재가입, 환불 회수, 재무 감사, 사용자 롤아웃·경보·구매 내역 | backend 전체 316건 통과 |
 | 백엔드 | `compileall`, repository/service/API pytest | 통과 |
 | 데이터베이스 | migration head/current, upgrade·downgrade SQL, 동시 지급 | PostgreSQL current/head `0022`; `0022` 양방향 SQL, 독립 세션 2개 동시 지급과 재가입 보너스 방지 통과 |
-| 프런트엔드 | typecheck, domain test, production build | 151건·typecheck·Vite build 통과 |
-| 앱인토스 빌드 | `npm run build:toss` | AIT artifact 생성 통과 |
+| 프런트엔드 | typecheck, domain test, production build | 155건·typecheck·Vite build 통과 |
+| 앱인토스 빌드 | `npm run build:toss` | 최신 AIT artifact 생성 통과, 앱 코드 `415f3a2` |
 | 상품 이미지 | 5개 SKU별 1024×1024 PNG, SVG 원본, 해시와 직접 시각 검수 | 로컬 준비 통과; 콘솔 업로드 미실행 |
 | 앱인토스 번들 업로드 | 콘솔 `앱 출시` 업로드, 배포 ID·QR 생성, 최소 지원 버전 후보 확인 | 미실행 |
 | 크로스 레이어 | 지급 API timeout 뒤 재시도, 잔액 갱신 | 로컬 멱등·PostgreSQL 동시성 테스트 통과; 실제 앱 검증 대기 |
@@ -404,6 +412,7 @@ status: implemented-local
 5. 반복 호출: 같은 `orderId`를 동시에 여러 번 호출해도 한 번만 지급한다.
 6. 재진입: 결제 도중 앱 종료 후 로그인 직후 복원을 시작하고, 상점 진입에서도 결과 안내 또는 재시도가 가능한지 확인한다.
 7. 환불: `REFUNDED` 상태가 원장과 잔액에 반영된다.
+8. 결제 내역·기기 변경: 지급·환불 상태가 사용자 내역에 보이고 같은 토스 계정의 다른 기기에서도 잔액·내역이 유지된다.
 
 ## 위험과 롤백
 
@@ -437,14 +446,17 @@ status: implemented-local
 | IAP-11 제한 활성화 | 토스 provider 전용 결정적 퍼센트 롤아웃 | backend 대상 테스트·전체 313건 | `035f144` |
 | IAP-12 운영 무결성 신호 | 재조정 감사 오류 로그와 설정 검증 | scheduler·설정 테스트·전체 313건 | `437bce6` |
 | IAP-13 상품 등록 자산 | SKU별 SVG 원본·1024px PNG·SHA-256 매니페스트 | 크기·형식·알파 채널·직접 시각 검수 | `4813d0f` |
-| IAP-14 외부 출시 승인 | 콘솔 매핑, 샌드박스 증빙, 외부 알림 연결, 운영 승인 | 수동 게이트 서명 | 운영 정보 준비 후 별도 커밋 |
+| IAP-14 사용자 결제 내역 | 사용자 범위 구매 API, 크레딧 상점 결제·환불 상태 | backend API·frontend domain·typecheck·build | `4901127` |
+| IAP-15 전체 복원 최소 버전 | Android 5.234.0·iOS 5.233.0 구매 게이트 | SDK 계약 대조·frontend 155건·typecheck·AIT build | `415f3a2` |
+| IAP-16 구매 안전 설정 | 구매 ON 시 재조정·감사 경보 강제 | 설정 테스트·backend 전체 316건 | `28f5155` |
+| IAP-17 외부 출시 승인 | 콘솔 매핑, 샌드박스 증빙, 외부 알림 연결, 운영 승인 | 수동 게이트 서명 | 운영 정보 준비 후 별도 커밋 |
 
 로컬 구현 커밋과 외부 출시 승인 커밋을 분리하여 코드 완료와 실제 판매 가능 상태를 혼동하지 않는다.
 
 ## 남은 행동 순서
 
 1. 콘솔 승인 종류와 정산 정보 완료 상태를 캡처한다.
-2. 현재 브랜치의 IAP 구현을 포함한 `.ait`를 만들고 콘솔 `앱 출시`에 업로드한다.
+2. 준비된 `ashwoodfriends-alive-iap-415f3a2.ait`를 콘솔 `앱 출시`에 업로드한다.
 3. 배포 ID·콘솔 표시 버전·테스트 QR을 기록하고 QR 테스트를 최소 1회 완료한다.
 4. 인앱 상품 등록 화면에서 업로드한 번들을 `최소 지원 버전`으로 선택한다.
 5. 준비한 SKU별 1024px PNG를 사용해 다섯 크레딧 상품을 소모품으로 만들고 실제 판매가는 콘솔 계산 결과로 기록한다.
@@ -452,10 +464,11 @@ status: implemented-local
 7. mTLS 인증서의 운영 배포 상태와 만료일을 확인하고, 인증 세션 키와 별도인 32-byte 이상 `TOSS_IAP_SUBJECT_HMAC_KEY`를 비밀 저장소에 생성·백업한다.
 8. 스테이징에 migrations `0021`·`0022`와 코드를 배포하고 통합 ON, 신규 구매 OFF, 롤아웃 0, 재조정·감사 경보 ON으로 시작 검증을 통과시킨다.
 9. 실제 발급 SKU를 환경 변수에 연결하고 SDK `displayAmount`와 콘솔 VAT 포함 판매가를 대조한다.
-10. 샌드박스 시간에 신규 구매 ON·롤아웃 100과 테스트 상품 노출 ON으로 필수 시나리오를 `documents/qa/evidence/`에 증빙한다.
-11. 로그 수집 시스템에 `iap_integrity_alert`와 재조정 실패 critical 알림, 담당자와 응답 시간을 등록한다.
-12. 운영·정산·환불 체크리스트 승인 후 신규 구매 ON·롤아웃 10%로 제한 활성화하고 24시간 이상 관찰한다.
-13. 감사·정산 대조가 깨끗할 때 25% → 50% → 100%로 확대한다.
+10. Android 5.234.0 이상과 iOS 5.233.0 이상 테스트 기기를 준비하고, 그 미만 버전에서는 구매가 비활성화되는지 확인한다.
+11. 샌드박스 시간에 신규 구매 ON·롤아웃 100과 테스트 상품 노출 ON으로 필수 시나리오를 `documents/qa/evidence/`에 증빙한다.
+12. 로그 수집 시스템에 `iap_integrity_alert`와 재조정 실패 critical 알림, 담당자와 응답 시간을 등록한다.
+13. 운영·정산·환불 체크리스트 승인 후 신규 구매 ON·롤아웃 10%로 제한 활성화하고 24시간 이상 관찰한다.
+14. 감사·정산 대조가 깨끗할 때 25% → 50% → 100%로 확대한다.
 
 ## 검증하지 못한 것
 
@@ -485,6 +498,7 @@ status: implemented-local
 - `debt_credits`가 있는 사용자의 유료 기능 제한 범위와 고객지원 해제 절차는 운영 정책 승인이 필요하다.
 - 결제 알림 URL의 이벤트 계약과 운영 인증 방식은 콘솔·공식 세부 문서에서 최종 확인해야 한다.
 - SDK 2.10.8의 `getCompletedOrRefundedOrders` 공개 타입은 페이지 키 인자를 누락하지만 실제 native bridge와 공식 문서는 이를 지원하므로, SDK 업그레이드 때 임시 타입 보정을 제거할 수 있는지 확인해야 한다.
+- 기본 IAP 지원 버전 5.219.0과 달리 `alive`는 전체 복원 계약 때문에 Android 5.234.0·iOS 5.233.0을 요구한다. SDK 업그레이드 때 각 IAP 함수의 최소 버전을 다시 대조해야 한다.
 - 퍼센트 롤아웃은 클라이언트 카탈로그 게이트이므로 제공자 측 신규 판매의 최종 차단 수단은 콘솔 상품 노출 OFF다.
 
 ## 공식 참고 자료
@@ -494,6 +508,7 @@ status: implemented-local
 - [미니앱 검토·출시·버전 관리](https://developers-apps-in-toss.toss.im/development/deploy.html)
 - [인앱결제 개발 및 샌드박스](https://developers-apps-in-toss.toss.im/iap/develop.html)
 - [일회성 IAP API 레퍼런스](https://developers-apps-in-toss.toss.im/bedrock/reference/framework/%EC%9D%B8%EC%95%B1%20%EA%B2%B0%EC%A0%9C/IAP.html)
+- [비게임 출시 체크리스트](https://developers-apps-in-toss.toss.im/checklist/app-nongame.html)
 - [mTLS 인증서와 API 공통 규격](https://developers-apps-in-toss.toss.im/development/integration-process.html)
 - [정산 안내](https://developers-apps-in-toss.toss.im/guide/settlement)
 
