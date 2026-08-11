@@ -3,7 +3,7 @@ title: 앱인토스 인앱결제 승인 후 적용 및 출시 검토 계획
 author: black (black@ashwoodfriends.com)
 created: 2026-08-11
 updated: 2026-08-11
-version: 2.3.0
+version: 2.3.1
 status: implemented-local
 ---
 
@@ -84,7 +84,7 @@ status: implemented-local
 - 크레딧은 사용 후 소진되고 다시 구매할 수 있으므로 상품 유형을 `소모품`으로 설정한다.
 - 현금성·환가성 재화로 설명하거나 토스 포인트와 결합하지 않는다.
 - 상품명은 지급량을 그대로 드러내고, 상품 이미지는 1024 × 1024px로 준비한다.
-- 콘솔에는 VAT 제외 공급가를 입력하며 VAT 포함 판매가는 자동 계산된다. 앱의 하드코딩 가격이 아니라 콘솔의 최종 `displayAmount`를 사용자에게 표시한다.
+- 콘솔에는 VAT 제외 공급가를 400원 이상 1,400,000원 이하, 10원 단위로 입력하며 VAT 포함 판매가는 자동 계산된다. 앱의 하드코딩 가격이 아니라 콘솔의 최종 `displayAmount`를 사용자에게 표시한다.
 - 인앱 상품의 `최소 지원 버전`은 해당 상품을 포함하는 **업로드된 미니앱 번들 버전**을 선택한다. 토스 앱 IAP API 최소 버전 `5.219.0`이나 프런트엔드 `package.json`의 `0.1.0`을 입력하는 항목이 아니다.
 - `최소 지원 버전` 목록이 비어 있으면 상품 등록을 진행하지 않고, 먼저 `npm run build:toss`로 `.ait` 번들을 만든 뒤 콘솔 `앱 출시` 메뉴에 업로드한다. 업로드 성공과 테스트용 스킴·QR 생성을 확인한 후 상품 등록 화면을 다시 열어 해당 버전을 선택한다.
 - 콘솔 할인은 등록 후 수정할 수 없으므로 초기 출시에서는 사용하지 않는다. 현재 앱의 “첫 구매 10% 추가”는 가격 할인이 아니라 서버가 지급하는 크레딧 보너스로 별도 처리한다.
@@ -188,8 +188,8 @@ status: implemented-local
 | 재무 정합성 감사 | 구현 | 장기 미지급, 상태 검토, 구매·환불 원장과 계정 잔액 불일치 감사 API |
 | 구매 제한 활성화 | 구현 | 토스 provider만 허용하고 HMAC 기반 사용자 코호트를 0~100%로 결정하는 카탈로그 게이트 |
 | 운영 무결성 신호 | 구현 | 재조정 주기마다 감사하고 이상 시 식별자 없는 `iap_integrity_alert` 오류 로그 발행 |
-| 콘솔 매니페스트 사전 검증 | 구현 | `.ait`·배포 ID·앱 이름·5개 상품 SKU·가격·문구·이미지·노출·최소 지원 버전 대조 CLI |
-| 자동 검증 | 통과 | backend 330건(실제 PostgreSQL 동시 지급·재가입·원장 변조·탈퇴 원장 만료 삭제 포함), frontend domain 155건, typecheck, web build, Toss AIT build |
+| 콘솔 매니페스트 사전 검증 | 구현 | `.ait`·배포 ID·앱 이름·5개 상품의 고유 SKU·공급가·판매가·문구·이미지·노출·최소 지원 버전 대조 CLI |
+| 자동 검증 | 통과 | backend 331 passed, 1 skipped(별도 PostgreSQL 통합 테스트), frontend domain 155 passed, typecheck, web build, Toss AIT build |
 | 콘솔·mTLS·샌드박스·정산 | 미검증 | 저장소 밖의 운영 정보와 실제 Apps in Toss 앱 필요 |
 
 ## 결정이 필요한 상품 정책
@@ -371,7 +371,7 @@ status: implemented-local
 
 ## 성공 조건
 
-- [x] 콘솔 상품과 서버 SKU·가격·지급량·상품 문구·이미지·노출 정책을 대조하는 자동 검증기와 실패 테스트가 구현됐다.
+- [x] 콘솔 상품과 서버의 고유 SKU·공급가·판매가·지급량·상품 문구·이미지·노출 정책을 대조하는 자동 검증기와 실패 테스트가 구현됐다.
 - [ ] 실제 콘솔 값으로 완성한 매니페스트가 `make iap-release-check`를 통과한다.
 - [x] 클라이언트 요청은 `order_id`만 받으며 성공 여부, 가격, SKU를 신뢰하지 않는다.
 - [x] `orderId` 중복 지급을 데이터베이스 unique, row lock, 원장 idempotency로 차단하고 실제 PostgreSQL 독립 세션 2개의 동시 요청과 반복 요청으로 검증한다. 실제 다중 프로세스 동시성은 샌드박스에서 추가 검증한다.
@@ -431,13 +431,13 @@ status: implemented-local
 
 | 게이트 | 검증 | 현재 상태 |
 | --- | --- | --- |
-| 도메인 | SKU 매핑, 상태 전이, 첫 구매, 재가입, 환불 회수, 재무 감사, 사용자 롤아웃·경보·구매 내역·탈퇴 보존·콘솔 사전 검증 | backend 전체 330건 통과 |
+| 도메인 | SKU 매핑, 상태 전이, 첫 구매, 재가입, 환불 회수, 재무 감사, 사용자 롤아웃·경보·구매 내역·탈퇴 보존·콘솔 사전 검증 | backend 331 passed, 1 skipped; PostgreSQL 통합 테스트는 별도 1 passed |
 | 백엔드 | `compileall`, repository/service/API pytest | 통과 |
 | 데이터베이스 | migration head/current, upgrade·downgrade SQL, 동시 지급 | PostgreSQL current/head `0023`; `0022 → 0023 → 0022 → 0023`, 독립 세션 동시 지급·재가입 보너스 방지·탈퇴 원장 만료 삭제 통과 |
 | 프런트엔드 | typecheck, domain test, production build | 155건·typecheck·Vite build 통과 |
 | 앱인토스 빌드 | `npm run build:toss` | 최신 AIT artifact 생성 통과, 앱 코드 `415f3a2` |
 | 상품 이미지 | 5개 SKU별 1024×1024 PNG, SVG 원본, 해시와 직접 시각 검수 | 로컬 준비 통과; 콘솔 업로드 미실행 |
-| 콘솔 매니페스트 | `.ait` SHA·배포 ID·앱 이름, 상품 SKU·가격·문구·이미지·노출·최소 지원 버전 | 실제 상품 SKU·가격 정책 대조 통과; 새 번들의 콘솔 표시 버전·최소 지원 버전 오류 2건만 남아 전체 검증은 의도적으로 실패 |
+| 콘솔 매니페스트 | `.ait` SHA·배포 ID·앱 이름, 상품 고유 SKU·공급가·판매가·문구·이미지·노출·최소 지원 버전 | 실제 상품 정책 대조 통과; 새 번들의 콘솔 표시 버전·최소 지원 버전 오류 2건만 남아 전체 검증은 의도적으로 실패 |
 | 앱인토스 번들 업로드 | 콘솔 `앱 출시` 업로드, 배포 ID·QR 생성, 최소 지원 버전 후보 확인 | 미실행 |
 | 크로스 레이어 | 지급 API timeout 뒤 재시도, 잔액 갱신 | 로컬 멱등·PostgreSQL 동시성 테스트 통과; 실제 앱 검증 대기 |
 | 앱인토스 샌드박스 | 상품 노출, 결제 성공, 서버 지급 실패 복원, 에러 | 미실행 |
@@ -497,6 +497,8 @@ status: implemented-local
 | IAP-18 탈퇴·구매기록 수명주기 | Toss 연결 해제, 5년 분리 보관, `0023`, 만료 삭제 | backend 326건·PostgreSQL integration·alembic | `f2592e5` |
 | IAP-19 고객 문서·법무 승인 | 개인정보처리방침, 유료서비스·환불 약관, 재동의 | 대표자·법무 서명과 공개 URL 확인 | 승인 후 별도 커밋 |
 | IAP-20 콘솔 출시 사전 검증 | 콘솔 매니페스트 모델·CLI·Make target·실패형 템플릿 | backend 330건·preflight 4건 | `5b6d5e6` |
+| IAP-21 실제 콘솔 상품 매핑 | SKU 5개, 공급가·판매가, 서버 정책, 환경 예시, 상품 증거 | backend 329 passed, 1 skipped·frontend domain 155 passed·preflight 상품 정책 통과 | `41aa53a` |
+| IAP-22 콘솔 상품 불변식 강화 | 공급가 서버 정책 고정, 매니페스트 중복 SKU·공급가 드리프트 차단 | backend 331 passed, 1 skipped·preflight 5 passed | `ff735eb` |
 
 로컬 구현 커밋과 외부 출시 승인 커밋을 분리하여 코드 완료와 실제 판매 가능 상태를 혼동하지 않는다.
 
