@@ -129,7 +129,7 @@ class CreditPurchaseRepository:
             return await self._review(purchase, order, "Purchase user no longer exists")
         account = await self._locked_account(user_id)
         eligible_credits = purchase.base_credits + purchase.product_bonus_credits
-        first_bonus = await self._first_purchase_bonus(user_id, eligible_credits)
+        first_bonus = await self._first_purchase_bonus(user_id, purchase, eligible_credits)
         total = eligible_credits + first_bonus
         self._apply_debt(account, total)
         self._add_purchase_ledger(user_id, purchase, total, first_bonus)
@@ -194,10 +194,16 @@ class CreditPurchaseRepository:
     async def _user_exists(self, user_id: UUID) -> bool:
         return (await self.session.execute(select(User.id).where(User.id == user_id))).scalar_one_or_none() is not None
 
-    async def _first_purchase_bonus(self, user_id: UUID, eligible_credits: int) -> int:
+    async def _first_purchase_bonus(self, user_id: UUID, purchase: CreditPurchase, eligible_credits: int) -> int:
+        if await self._has_prior_grant(purchase):
+            return 0
         credits = eligible_credits * FIRST_PURCHASE_BONUS_PERCENT // 100
         statement = insert(RewardGrant).values(user_id=user_id, event_code=FIRST_PURCHASE_EVENT, credits=credits).on_conflict_do_nothing().returning(RewardGrant.id)
         return credits if (await self.session.execute(statement)).scalar_one_or_none() else 0
+
+    async def _has_prior_grant(self, purchase: CreditPurchase) -> bool:
+        statement = select(CreditPurchase.id).where(CreditPurchase.provider_subject_hash == purchase.provider_subject_hash, CreditPurchase.id != purchase.id, CreditPurchase.granted_credits > 0).limit(1)
+        return (await self.session.execute(statement)).scalar_one_or_none() is not None
 
     def _validate_owner(self, purchase: CreditPurchase, user_id: UUID, sku: str) -> None:
         if purchase.user_id != user_id or purchase.sku != sku:

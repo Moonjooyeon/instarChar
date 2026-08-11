@@ -41,5 +41,7 @@ class CreditPurchaseService:
             raise ForbiddenError("Apps in Toss login is required")
 
     def _subject_hash(self, subject: str) -> str:
+        if len(self.settings.toss_iap_subject_hmac_key.encode()) < 32:
+            raise ServiceUnavailableError("Purchase identity protection is not configured")
         message = f"toss:{subject}".encode()
-        return new_hmac(self.settings.auth_secret_key.encode(), message, sha256).hexdigest()
+        return new_hmac(self.settings.toss_iap_subject_hmac_key.encode(), message, sha256).hexdigest()

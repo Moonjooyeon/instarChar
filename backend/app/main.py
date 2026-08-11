@@ -10,6 +10,7 @@ from fastapi.responses import FileResponse, JSONResponse
 
 from app.api.v1 import api_router
 from app.core.config import get_settings
+from app.core.credit_products import validate_toss_iap_configuration
 from app.core.errors import AppError
 from app.db.session import AsyncSessionLocal
 from app.services.auto_post_scheduler import AutoPostScheduler
@@ -25,6 +26,7 @@ public_directory = Path(__file__).resolve().parent / "public"
 
 @asynccontextmanager
 async def lifespan(application: FastAPI) -> AsyncIterator[None]:
+    validate_toss_iap_configuration(settings)
     tasks = _background_tasks()
     yield
     await _cancel_tasks(tasks)

@@ -140,7 +140,7 @@ def test_reconciliation_marks_provider_sku_mismatch_for_review(monkeypatch: pyte
 
 
 def test_service_uses_toss_user_and_server_product_mapping() -> None:
-    settings = Settings(_env_file=None, toss_iap_enabled=True, toss_iap_credit_5000_sku="sku-500")
+    settings = Settings(_env_file=None, toss_iap_enabled=True, toss_iap_credit_5000_sku="sku-500", toss_iap_subject_hmac_key="purchase-secret-at-least-32-bytes")
     order = toss_order("order-4", "sku-500", "PAYMENT_COMPLETED")
     expected = CreditPurchaseResult("order-4", "granted", 550, 550, 0, 0)
     purchases = StubPurchases(expected)
@@ -152,6 +152,16 @@ def test_service_uses_toss_user_and_server_product_mapping() -> None:
     assert purchases.calls[0][3] == CREDIT_PRODUCTS[0]
     assert len(purchases.calls[0][1]) == 64
     assert "123" not in purchases.calls[0][1]
+
+
+def test_prior_subject_purchase_prevents_repeat_first_purchase_bonus(monkeypatch: pytest.MonkeyPatch) -> None:
+    session = StubSession()
+    repository = CreditPurchaseRepository(session)  # type: ignore[arg-type]
+    purchase = purchase_row(uuid4(), "order-rejoined", "sku-500")
+    monkeypatch.setattr(repository, "_has_prior_grant", async_value(True))
+    result = asyncio.run(repository._first_purchase_bonus(purchase.user_id, purchase, 500))
+    assert result == 0
+    assert session.added == []
 
 
 def test_granted_purchase_replay_does_not_add_another_ledger(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -187,7 +197,7 @@ def test_terminal_provider_failures_are_not_scheduled_forever(provider_status: s
 
 
 def test_purchase_recovery_stays_available_when_new_orders_are_disabled() -> None:
-    settings = Settings(_env_file=None, toss_iap_enabled=True, toss_iap_purchase_enabled=False, toss_iap_credit_5000_sku="sku-500")
+    settings = Settings(_env_file=None, toss_iap_enabled=True, toss_iap_purchase_enabled=False, toss_iap_credit_5000_sku="sku-500", toss_iap_subject_hmac_key="purchase-secret-at-least-32-bytes")
     expected = CreditPurchaseResult("order-7", "granted", 500, 500, 0, 0)
     service = CreditPurchaseService(settings, StubPurchases(expected), StubIap(toss_order("order-7", "sku-500", "PAYMENT_COMPLETED")))  # type: ignore[arg-type]
     result = asyncio.run(service.grant(User(id=uuid4(), provider=UserProvider.toss, provider_subject="123"), "order-7"))
@@ -202,6 +212,14 @@ def test_purchase_service_rejects_disabled_integration_and_non_toss_users() -> N
     enabled = CreditPurchaseService(Settings(_env_file=None, toss_iap_enabled=True), StubPurchases(result), StubIap(toss_order("order-8", "sku-500", "PAYMENT_COMPLETED")))  # type: ignore[arg-type]
     with pytest.raises(ForbiddenError):
         asyncio.run(enabled.grant(User(id=uuid4(), provider=UserProvider.google, provider_subject="123"), "order-8"))
+
+
+def test_purchase_service_requires_dedicated_subject_hmac_key() -> None:
+    result = CreditPurchaseResult("order-9", "granted", 500, 500, 0, 0)
+    settings = Settings(_env_file=None, toss_iap_enabled=True, toss_iap_credit_5000_sku="sku-500")
+    service = CreditPurchaseService(settings, StubPurchases(result), StubIap(toss_order("order-9", "sku-500", "PAYMENT_COMPLETED")))  # type: ignore[arg-type]
+    with pytest.raises(ServiceUnavailableError, match="identity protection"):
+        asyncio.run(service.grant(User(id=uuid4(), provider=UserProvider.toss, provider_subject="123"), "order-9"))
 
 
 def purchase_row(user_id: UUID, order_id: str, sku: str, status: str = "processing", granted: int = 0) -> CreditPurchase:

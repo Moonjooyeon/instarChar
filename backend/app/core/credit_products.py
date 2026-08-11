@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 from app.core.config import Settings
 
@@ -47,3 +48,33 @@ def credit_product_skus(settings: Settings) -> dict[str, str]:
 def credit_product_by_sku(settings: Settings, sku: str) -> CreditProduct | None:
     configured = credit_product_skus(settings)
     return next((product for product in CREDIT_PRODUCTS if configured[product.offer_id] == sku and sku), None)
+
+
+def validate_toss_iap_configuration(settings: Settings) -> None:
+    requested = settings.toss_iap_enabled or settings.toss_iap_purchase_enabled or settings.toss_iap_reconciliation_enabled
+    if not requested:
+        return
+    if not settings.toss_iap_enabled:
+        raise ValueError("TOSS_IAP_ENABLED must be true before enabling purchase or reconciliation")
+    _validate_iap_credentials(settings)
+    _validate_iap_skus(settings)
+
+
+def _validate_iap_credentials(settings: Settings) -> None:
+    key = settings.toss_iap_subject_hmac_key
+    if len(key.encode()) < 32 or not key.strip():
+        raise ValueError("TOSS_IAP_SUBJECT_HMAC_KEY must contain at least 32 bytes")
+    if key == settings.auth_secret_key:
+        raise ValueError("TOSS_IAP_SUBJECT_HMAC_KEY must be separate from AUTH_SECRET_KEY")
+    files = ((settings.toss_mtls_cert_path, "TOSS_MTLS_CERT_PATH"), (settings.toss_mtls_key_path, "TOSS_MTLS_KEY_PATH"))
+    missing = next((name for path, name in files if not path or not Path(path).is_file()), "")
+    if missing:
+        raise ValueError(f"{missing} must point to an existing file when Toss IAP is enabled")
+
+
+def _validate_iap_skus(settings: Settings) -> None:
+    skus = list(credit_product_skus(settings).values())
+    if any(not sku.strip() or sku != sku.strip() for sku in skus):
+        raise ValueError("All Toss IAP credit SKUs must be present without surrounding whitespace")
+    if len(set(skus)) != len(skus):
+        raise ValueError("Toss IAP credit SKUs must be unique")
