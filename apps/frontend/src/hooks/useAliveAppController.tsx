@@ -98,6 +98,7 @@ import { useAliveStructuredPersistence } from "@/hooks/useAliveStructuredPersist
 import { useAliveSafety } from "@/hooks/useAliveSafety";
 import { useCharacterAccounts } from "@/hooks/useCharacterAccounts";
 import { useCharacterHandleAvailability } from "@/hooks/useCharacterHandleAvailability";
+import { useTossPurchaseRecovery } from "@/features/credits/useTossPurchaseRecovery";
 
 // ─────────────────────────────────────────────
 //  ALIVE — 내 캐릭터가 자기 SNS를 운영한다
@@ -778,6 +779,7 @@ export function useAliveAppController() {
     setSession,
     setStateReady,
   });
+  useTossPurchaseRecovery(session?.user?.id || "");
   useAliveProfileBootstrap({
     applyAppState,
     blankAppState,

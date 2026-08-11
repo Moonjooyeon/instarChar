@@ -5,12 +5,12 @@
 .al-common-modal-theme-ready .al-pd-input,.al-common-modal-theme-ready .al-fixinput,.al-common-modal-theme-ready .al-report-select,.al-common-modal-theme-ready .al-report-detail{ border-color:var(--alive-line); background:var(--alive-surface-raised); color:var(--alive-ink); }
 .al-common-modal-theme-ready .al-pd-input::placeholder,.al-common-modal-theme-ready .al-fixinput::placeholder,.al-common-modal-theme-ready .al-report-detail::placeholder{ color:var(--alive-faint); }
 .al-common-modal-theme-ready .al-pd-input:focus,.al-common-modal-theme-ready .al-fixinput:focus,.al-common-modal-theme-ready .al-report-select:focus,.al-common-modal-theme-ready .al-report-detail:focus{ border-color:var(--alive-accent); outline:none; box-shadow:0 0 0 3px var(--alive-accent-soft); }
-.al-common-modal-theme-ready .al-pd-save,.al-common-modal-theme-ready .al-modal-save{ background:var(--alive-accent); color:white; }
+.al-common-modal-theme-ready .al-pd-save,.al-common-modal-theme-ready .al-modal-save{ background:var(--alive-accent); color:var(--alive-on-accent); }
 .al-common-modal-theme-ready .al-pd-save:hover,.al-common-modal-theme-ready .al-modal-save:hover{ background:var(--alive-accent-strong); }
 .al-common-modal-theme-ready .al-pd-cancel,.al-common-modal-theme-ready .al-modal-cancel{ border-color:var(--alive-line); background:var(--alive-surface-raised); color:var(--alive-soft); }
 .al-common-modal-theme-ready .al-pd-cancel:hover,.al-common-modal-theme-ready .al-modal-cancel:hover{ border-color:var(--alive-line-strong); background:var(--alive-surface-muted); color:var(--alive-ink); }
 .al-common-modal-theme-ready .al-pd-del,.al-common-modal-theme-ready .al-modal-danger{ background:var(--alive-danger-soft); color:var(--alive-danger); }
-.al-common-modal-theme-ready .al-pd-del:hover,.al-common-modal-theme-ready .al-modal-danger:hover{ background:var(--alive-danger); color:white; }
+.al-common-modal-theme-ready .al-pd-del:hover,.al-common-modal-theme-ready .al-modal-danger:hover{ background:var(--alive-danger); color:var(--alive-on-danger); }
 .al-common-modal-theme-ready .al-modal-quote{ border-left-color:var(--alive-accent); background:var(--alive-surface); color:var(--alive-soft); }
 .al-common-modal-theme-ready .al-fixchip{ border-color:var(--alive-accent); background:var(--alive-accent-soft); color:var(--alive-accent-ink); }
 .al-common-modal-theme-ready .al-fixchip:hover{ border-color:var(--alive-accent-strong); background:var(--alive-surface-muted); }

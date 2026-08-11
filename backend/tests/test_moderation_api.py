@@ -11,6 +11,7 @@ from app.core.config import get_settings
 from app.db.session import get_db_session
 from app.main import app
 from app.models import ReportStatus, UserProvider
+from app.repositories.credit_purchases import CreditAccountAuditItem, CreditPurchaseAuditItem, CreditPurchaseAuditReport, CreditPurchaseRepository
 from app.repositories.moderation import ModerationRepository
 
 
@@ -89,6 +90,48 @@ def test_moderation_queue_requires_configured_secret(monkeypatch) -> None:
         allowed = client.get("/api/moderation/reports", headers={"X-Moderation-Key": "moderation-secret"})
     assert forbidden.status_code == 403
     assert allowed.json() == {"reports": []}
+
+
+def test_credit_purchase_operations_returns_purchase_ledger_and_debt(monkeypatch) -> None:
+    async def operations(self: object, order_id: str) -> object:
+        purchase = SimpleNamespace(provider_order_id=order_id, user_id=uuid4(), sku="sku-500", status="refunded", provider_status="REFUNDED", price_krw=5000, base_credits=500, product_bonus_credits=0, first_purchase_bonus_credits=50, granted_credits=550, chargeback_credits=550, failure_reason="", provider_checked_at=None, granted_at=None, refunded_at=None)
+        account = SimpleNamespace(purchased_credits=0, bonus_credits=10, debt_credits=450)
+        ledger = [SimpleNamespace(entry_type="chargeback", balance_type="purchased", amount=-550, idempotency_key=f"chargeback:{order_id}", created_at=datetime.now(timezone.utc))]
+        return purchase, account, ledger
+    monkeypatch.setattr(CreditPurchaseRepository, "operations", operations)
+    with make_test_client() as client:
+        response = client.get("/api/moderation/credit-purchases/order-1", headers={"X-Moderation-Key": "moderation-secret"})
+    assert response.status_code == 200
+    assert response.json()["account"]["debt_credits"] == 450
+    assert response.json()["ledger"][0]["amount"] == -550
+
+
+def test_credit_purchase_operations_queue_filters_internal_status(monkeypatch) -> None:
+    calls = []
+    async def operations_queue(self: object, status: str | None, limit: int) -> list[object]:
+        calls.append((status, limit))
+        return [SimpleNamespace(provider_order_id="order-review", user_id=None, sku="sku-500", status="review", provider_status="PURCHASED", price_krw=5000, base_credits=500, product_bonus_credits=0, first_purchase_bonus_credits=0, granted_credits=0, chargeback_credits=0, failure_reason="review", provider_checked_at=None, granted_at=None, refunded_at=None)]
+    monkeypatch.setattr(CreditPurchaseRepository, "operations_queue", operations_queue)
+    with make_test_client() as client:
+        response = client.get("/api/moderation/credit-purchases?status=review&limit=20", headers={"X-Moderation-Key": "moderation-secret"})
+    assert response.status_code == 200
+    assert response.json()["purchases"][0]["status"] == "review"
+    assert calls == [("review", 20)]
+
+
+def test_credit_purchase_audit_returns_actionable_anomalies(monkeypatch) -> None:
+    generated_at = datetime.now(timezone.utc)
+    async def audit(self: object, limit: int) -> CreditPurchaseAuditReport:
+        purchase = SimpleNamespace(provider_order_id="order-stale", user_id=uuid4(), sku="sku-500", status="processing", provider_status="PAYMENT_COMPLETED", price_krw=5000, base_credits=500, product_bonus_credits=0, first_purchase_bonus_credits=0, granted_credits=0, chargeback_credits=0, failure_reason="", provider_checked_at=None, granted_at=None, refunded_at=None, created_at=generated_at)
+        account = CreditAccountAuditItem(purchase.user_id, 100, 10, 50, 40, 10, ("purchased_balance_mismatch",))
+        return CreditPurchaseAuditReport(generated_at, [CreditPurchaseAuditItem(purchase, ("stale_processing",))], [account], False)
+    monkeypatch.setattr(CreditPurchaseRepository, "audit", audit)
+    with make_test_client() as client:
+        response = client.get("/api/moderation/credit-purchases/audit?limit=20", headers={"X-Moderation-Key": "moderation-secret"})
+    assert response.status_code == 200
+    assert response.json()["purchases"][0]["reasons"] == ["stale_processing"]
+    assert response.json()["accounts"][0]["purchased_ledger_total"] == 40
+    assert response.json()["accounts"][0]["reasons"] == ["purchased_balance_mismatch"]
 
 
 def make_test_client() -> TestClient:

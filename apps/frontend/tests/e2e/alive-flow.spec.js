@@ -62,7 +62,7 @@ async function mockCreditsApi(page, rewards) {
     ["direct_dm_basic", "기본 대화", 1, 8], ["direct_dm_context", "기억 반영", 2, 15], ["direct_dm_pro", "중요한 답장", 5, 25],
     ["feed_post", "피드 글 생성", 3, 20], ["character_interaction", "캐릭터 상호작용", 5, 25],
   ].map(([code, label, credits, energy_percent]) => ({ code, label, credits, energy_percent, energy_eligible: !String(code).startsWith("direct_dm_pro"), bonus_eligible: !String(code).startsWith("direct_dm_pro") }));
-  const offers = [{ id: "credit-5000", price_krw: 5000, base_credits: 500, product_bonus_credits: 0, first_purchase_bonus_percent: 10, total_credits: 500, first_purchase_total_credits: 550, label: "가볍게 이어가기", payment_available: false }];
+  const offers = [{ id: "credit-5000", price_krw: 4950, base_credits: 500, product_bonus_credits: 0, first_purchase_bonus_percent: 10, total_credits: 500, first_purchase_total_credits: 550, label: "가볍게 이어가기", payment_available: false }];
   await page.route("**/api/credits/catalog", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ credit_policy_version: "v1", energy_policy_version: "v1", offers, flows }) }));
   await page.route("**/api/credits/usage", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ items: [] }) }));
   await page.route("**/api/credits", (route) => {

@@ -14,16 +14,16 @@
 .al-visibility-option:hover{ border-color:var(--alive-line-strong); background:var(--alive-surface-raised); }
 .al-visibility-option.selected{ border-color:var(--alive-accent); background:var(--alive-accent-soft); }
 .al-visibility-option > span{ display:grid; grid-row:span 2; width:32px; height:32px; place-items:center; border-radius:10px; background:var(--alive-surface-muted); color:var(--alive-soft); }
-.al-visibility-option.selected > span{ background:var(--alive-accent); color:#fff; }
+.al-visibility-option.selected > span{ background:var(--alive-accent); color:var(--alive-on-accent); }
 .al-visibility-option b{ align-self:end; font-size:13px; font-weight:800; }
 .al-visibility-option p{ grid-column:2; margin:0; color:var(--alive-soft); font-size:11px; line-height:1.45; }
-.al-visibility-option i{ position:absolute; top:50%; right:13px; display:grid; width:20px; height:20px; place-items:center; border-radius:50%; background:var(--alive-accent); color:#fff; transform:translateY(-50%); }
+.al-visibility-option i{ position:absolute; top:50%; right:13px; display:grid; width:20px; height:20px; place-items:center; border-radius:50%; background:var(--alive-accent); color:var(--alive-on-accent); transform:translateY(-50%); }
 .al-visibility-error{ margin:0 20px 14px; color:var(--alive-danger); font-size:12px; }
 .al-visibility-actions{ display:flex; justify-content:flex-end; gap:8px; padding:14px 20px 20px; border-top:1px solid var(--alive-line); }
 .al-visibility-actions button{ min-height:40px; border-radius:12px; padding:0 14px; font-size:12.5px; font-weight:800; cursor:pointer; }
 .al-visibility-cancel{ border:1px solid var(--alive-line-strong); background:var(--alive-surface-raised); color:var(--alive-soft); }
-.al-visibility-save{ border:1px solid var(--alive-accent); background:var(--alive-accent); color:#fff; }
-.al-visibility-save.private{ border-color:var(--alive-line-strong); background:var(--alive-ink); }
-.al-visibility-actions button:disabled{ cursor:default; opacity:.52; }
+.al-visibility-save{ border:1px solid var(--alive-accent); background:var(--alive-accent); color:var(--alive-on-accent); }
+.al-visibility-save.private{ border-color:var(--alive-line-strong); background:var(--alive-ink); color:var(--alive-on-ink); }
+.al-visibility-actions button:disabled{ border-color:var(--alive-line); background:var(--alive-surface-muted); color:var(--alive-soft); cursor:default; opacity:1; }
 .al-visibility-option:focus-visible,.al-visibility-actions button:focus-visible,.al-visibility-head > button:focus-visible{ outline:2px solid var(--alive-accent); outline-offset:2px; }
 @media (max-width:360px){ .al-visibility-head,.al-visibility-intro,.al-visibility-options{ padding-right:16px; padding-left:16px; }.al-visibility-actions{ padding-right:16px; padding-left:16px; }.al-visibility-actions button{ padding:0 11px; } }

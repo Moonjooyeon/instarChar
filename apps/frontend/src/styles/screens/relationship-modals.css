@@ -6,7 +6,7 @@
 .al-relationship-modal-theme-ready .al-prop-who{ color:var(--alive-accent-ink); }
 .al-relationship-modal-theme-ready .al-prop-line{ color:var(--alive-ink); }
 .al-relationship-modal-theme-ready .al-prop-sub{ color:var(--alive-soft); }
-.al-relationship-modal-theme-ready .al-prop-yes{ border-color:var(--alive-accent); background:var(--alive-accent); color:white; }
+.al-relationship-modal-theme-ready .al-prop-yes{ border-color:var(--alive-accent); background:var(--alive-accent); color:var(--alive-on-accent); }
 .al-relationship-modal-theme-ready .al-prop-yes:hover{ background:var(--alive-accent-strong); filter:none; }
 .al-relationship-modal-theme-ready .al-prop-no{ border-color:var(--alive-line-strong); background:var(--alive-surface-raised); color:var(--alive-soft); }
 .al-relationship-modal-theme-ready .al-prop-no:hover{ border-color:var(--alive-line-strong); background:var(--alive-surface-muted); color:var(--alive-ink); }

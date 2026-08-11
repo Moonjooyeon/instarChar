@@ -8,11 +8,13 @@ from app.core.config import Settings
 from app.core.identity import account_identity_fingerprint
 from app.models import User, UserAccountStatus, UserProvider
 from app.repositories.account_deletion import AccountDeletionIdentityRepository
+from app.repositories.credit_purchases import CreditPurchaseRepository
 from app.repositories.media_assets import MediaAssetRepository
 from app.repositories.apple_credentials import AppleCredentialsRepository
 from app.repositories.users import UserRepository
 from app.services.apple_token_revocation import AppleTokenRevoker
 from app.services.media_storage import MediaStorage
+from app.services.toss_login import TossLoginService
 
 
 logger = logging.getLogger(__name__)
@@ -26,6 +28,8 @@ class AccountDeletionService:
         self.session = session
         self.users = UserRepository(session)
         self.identities = AccountDeletionIdentityRepository(session)
+        self.purchases = CreditPurchaseRepository(session)
+        self.toss = TossLoginService(settings, session)
 
     async def delete(self, user: User, now: datetime | None = None) -> datetime:
         if getattr(user, "account_status", UserAccountStatus.active) == UserAccountStatus.pending_deletion and user.purge_at:
@@ -51,7 +55,7 @@ class AccountDeletionService:
                 break
             user_id = user.id
             try:
-                await self._purge(user)
+                await self._purge(user, current_time)
                 purged += 1
             except Exception:
                 await self.session.rollback()
@@ -65,9 +69,15 @@ class AccountDeletionService:
         await self.session.commit()
         return deleted
 
-    async def _purge(self, user: User) -> None:
+    async def purge_expired_detached_purchases(self, now: datetime | None = None) -> int:
+        deleted = await self.purchases.delete_expired_detached_purchases(now or datetime.now(timezone.utc))
+        await self.session.commit()
+        return deleted
+
+    async def _purge(self, user: User, now: datetime) -> None:
         await self._delete_media(user)
         await self._revoke_provider(user)
+        await self.purchases.retain_subject_link_for_deletion(user.id, now)
         await self.users.delete_account(user)
         await self.session.commit()
 
@@ -77,6 +87,9 @@ class AccountDeletionService:
             await self.storage.delete(asset.storage_key)
 
     async def _revoke_provider(self, user: User) -> None:
+        if user.provider == UserProvider.toss:
+            await self.toss.disconnect(user.provider_subject)
+            return
         if user.provider != UserProvider.apple:
             return
         revoked = await self.revoker.revoke_all(user.id)

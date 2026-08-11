@@ -191,7 +191,8 @@ class CreditRepository:
         return [{"code": code, "credits": credits, "completed": code in completed} for code, credits in REWARD_MISSIONS]
 
     def _snapshot(self, account: CreditAccount, energy: EnergyAccount, missions: list[dict[str, object]]) -> dict[str, object]:
-        return {"purchased_credits": account.purchased_credits, "bonus_credits": account.bonus_credits, "total_credits": account.purchased_credits + account.bonus_credits, "energy_percent": energy.energy_percent, "energy_max_percent": 100, "next_energy_recovery_at": next_energy_recovery_at(energy.energy_percent, energy.last_recovered_at), "credit_policy_version": CREDIT_POLICY_VERSION, "energy_policy_version": ENERGY_POLICY_VERSION, "reward_missions": missions}
+        debt = int(getattr(account, "debt_credits", 0) or 0)
+        return {"purchased_credits": account.purchased_credits, "bonus_credits": account.bonus_credits, "debt_credits": debt, "total_credits": account.purchased_credits + account.bonus_credits, "energy_percent": energy.energy_percent, "energy_max_percent": 100, "next_energy_recovery_at": next_energy_recovery_at(energy.energy_percent, energy.last_recovered_at), "credit_policy_version": CREDIT_POLICY_VERSION, "energy_policy_version": ENERGY_POLICY_VERSION, "reward_missions": missions}
 
     async def _free_flow_limit_reached(self, user_id: UUID, policy: FlowPolicy, now: datetime) -> bool:
         if not policy.energy_allowed and not policy.bonus_allowed:

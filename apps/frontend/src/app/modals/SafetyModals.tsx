@@ -18,7 +18,7 @@ const REASONS: Array<{ value: ReportReason; label: string }> = [
 
 const REPORT_INPUT_CLASS = "border-line bg-surface-raised text-ink placeholder:text-faint focus:border-accent";
 const REPORT_CANCEL_CLASS = "al-modal-cancel border-line bg-surface-raised text-soft hover:bg-surface-muted hover:text-ink";
-const REPORT_DANGER_CLASS = "al-modal-danger bg-danger-soft text-danger hover:bg-danger hover:text-white";
+const REPORT_DANGER_CLASS = "al-modal-danger bg-danger-soft text-danger hover:bg-danger hover:text-on-danger";
 
 export function SafetyModals({ ctx }) {
   return (
@@ -43,7 +43,7 @@ function ConsentModal({ ctx }) {
           <li>위반 콘텐츠와 계정은 운영 정책에 따라 제한될 수 있습니다.</li>
         </ul>
         <p className="al-consent-links"><a href={TERMS_URL} target="_blank" rel="noreferrer">이용약관</a><a href={PRIVACY_POLICY_URL} target="_blank" rel="noreferrer">개인정보처리방침</a></p>
-        <button className="al-modal-save al-consent-accept bg-accent text-white hover:bg-accent-strong" onClick={acceptTerms}>동의하고 계속</button>
+        <button className="al-modal-save al-consent-accept bg-accent text-on-accent hover:bg-accent-strong" onClick={acceptTerms}>동의하고 계속</button>
         <small>약관 버전 {termsVersion || "확인 중"}</small>
       </div>
     </div>

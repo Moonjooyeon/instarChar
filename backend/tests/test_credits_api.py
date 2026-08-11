@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import AsyncIterator
 from datetime import datetime, timezone
 from uuid import uuid4
@@ -6,15 +7,21 @@ from fastapi.testclient import TestClient
 import pytest
 
 from app.api.deps import get_current_user
+from app.api.v1.credits import _offers, get_credit_catalog
+from app.core.config import Settings
 from app.db.session import get_db_session
 from app.main import app
-from app.models import CreditUsage
+from app.models import CreditPurchase, CreditUsage, UserProvider
+from app.repositories.credit_purchases import CreditPurchaseRepository, CreditPurchaseResult
 from app.repositories.credits import CreditRepository
+from app.services.credit_purchases import CreditPurchaseService
 
 
 class StubUser:
     def __init__(self) -> None:
         self.id = uuid4()
+        self.provider = UserProvider.toss
+        self.provider_subject = "toss-user"
 
 
 class StubSession:
@@ -47,6 +54,7 @@ def test_credit_catalog_is_visible_but_payment_is_disabled() -> None:
         response = client.get("/api/credits/catalog")
     assert response.status_code == 200
     assert len(response.json()["offers"]) == 5
+    assert [offer["price_krw"] for offer in response.json()["offers"]] == [4950, 9900, 29700, 49500, 99000]
     assert all(offer["payment_available"] is False for offer in response.json()["offers"])
     assert response.json()["offers"][2]["first_purchase_total_credits"] == 3465
     assert response.json()["flows"][0]["code"] == "direct_dm_basic"
@@ -56,6 +64,61 @@ def test_credit_catalog_is_visible_but_payment_is_disabled() -> None:
     assert pro["energy_eligible"] is False
     assert pro["bonus_eligible"] is False
     assert [flow["code"] for flow in response.json()["flows"] if flow["code"].startswith("direct_dm")] == ["direct_dm_basic", "direct_dm_context", "direct_dm_pro"]
+
+
+def test_credit_catalog_enables_only_configured_products() -> None:
+    settings = Settings(_env_file=None, toss_iap_enabled=True, toss_iap_purchase_enabled=True, toss_iap_credit_5000_sku="sku-500")
+    offers = _offers(settings, True)
+    assert (offers[0].sku, offers[0].payment_available) == ("sku-500", True)
+    assert all(offer.payment_available is False for offer in offers[1:])
+
+
+def test_credit_catalog_applies_user_rollout_eligibility() -> None:
+    settings = Settings(_env_file=None, toss_iap_enabled=True, toss_iap_purchase_enabled=True, toss_iap_purchase_rollout_percent=100, toss_iap_credit_5000_sku="sku-500")
+    user = StubUser()
+    enabled = asyncio.run(get_credit_catalog(user, settings))  # type: ignore[arg-type]
+    user.provider = UserProvider.google
+    disabled = asyncio.run(get_credit_catalog(user, settings))  # type: ignore[arg-type]
+    assert enabled.offers[0].payment_available is True
+    assert disabled.offers[0].payment_available is False
+    assert disabled.offers[0].sku == "sku-500"
+
+
+def test_credit_catalog_can_stop_new_orders_without_disabling_recovery() -> None:
+    settings = Settings(_env_file=None, toss_iap_enabled=True, toss_iap_purchase_enabled=False, toss_iap_credit_5000_sku="sku-500")
+    offer = _offers(settings, False)[0]
+    assert (offer.sku, offer.payment_available) == ("sku-500", False)
+
+
+def test_credit_catalog_hides_provider_skus_when_integration_is_disabled() -> None:
+    settings = Settings(_env_file=None, toss_iap_enabled=False, toss_iap_purchase_enabled=True, toss_iap_credit_5000_sku="sku-500")
+    offer = _offers(settings, True)[0]
+    assert (offer.sku, offer.payment_available) == ("", False)
+
+
+def test_credit_purchase_grant_returns_server_balance(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def grant(self: object, user: object, order_id: str) -> CreditPurchaseResult:
+        return CreditPurchaseResult(order_id, "granted", 550, 500, 50, 0)
+    monkeypatch.setattr(CreditPurchaseService, "grant", grant)
+    with make_test_client() as client:
+        response = client.post("/api/credits/purchases/grant", json={"order_id": "order-1"})
+    assert response.status_code == 200
+    assert response.json() == {"order_id": "order-1", "status": "granted", "granted_credits": 550, "purchased_credits": 500, "bonus_credits": 50, "debt_credits": 0, "total_credits": 550}
+
+
+def test_credit_purchase_history_is_scoped_to_current_user(monkeypatch: pytest.MonkeyPatch) -> None:
+    requested_users: list[object] = []
+    created_at = datetime(2026, 8, 11, tzinfo=timezone.utc)
+    async def history(self: object, user_id: object, limit: int = 30) -> list[CreditPurchase]:
+        requested_users.append(user_id)
+        return [CreditPurchase(provider_order_id="order-1", provider_subject_hash="hash", sku="sku-500", status="granted", provider_status="PURCHASED", price_krw=5000, base_credits=500, product_bonus_credits=0, first_purchase_bonus_credits=50, granted_credits=550, chargeback_credits=0, failure_reason="", created_at=created_at)]
+    monkeypatch.setattr(CreditPurchaseRepository, "history", history)
+    with make_test_client() as client:
+        response = client.get("/api/credits/purchases")
+    assert response.status_code == 200
+    assert len(requested_users) == 1
+    assert response.json()["items"][0]["granted_credits"] == 550
+    assert "failure_reason" not in response.json()["items"][0]
 
 
 def test_credit_usage_returns_separate_balance_sources(monkeypatch: pytest.MonkeyPatch) -> None:

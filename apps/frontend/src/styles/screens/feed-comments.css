@@ -1,6 +1,6 @@
 /* Phase 3C-2 covers comment reading, editing, identity, and sending states. */
 .al-feed-theme-ready .al-comments{ border-top-color:var(--alive-line); }
-.al-feed-theme-ready .al-comment-av{ background:linear-gradient(135deg,var(--alive-accent-strong),var(--alive-accent)); color:white; }
+.al-feed-theme-ready .al-comment-av{ background:linear-gradient(135deg,var(--alive-accent-strong),var(--alive-accent)); color:var(--alive-on-accent); }
 .al-feed-theme-ready .al-comment-name{ color:var(--alive-ink); }
 .al-feed-theme-ready .al-replyto{ color:var(--alive-faint); }
 .al-feed-theme-ready .al-comment-text{ color:var(--alive-soft); }
@@ -27,5 +27,5 @@
 .al-feed-theme-ready .al-cmtbox-input{ border-color:var(--alive-line); background:var(--alive-surface-raised); color:var(--alive-ink); }
 .al-feed-theme-ready .al-cmtbox-input::placeholder{ color:var(--alive-faint); }
 .al-feed-theme-ready .al-cmtbox-input:focus{ border-color:var(--alive-accent); box-shadow:0 0 0 3px var(--alive-accent-soft); }
-.al-feed-theme-ready .al-cmtbox-send{ background:var(--alive-accent); color:white; box-shadow:var(--alive-shadow-control); }
+.al-feed-theme-ready .al-cmtbox-send{ background:var(--alive-accent); color:var(--alive-on-accent); box-shadow:var(--alive-shadow-control); }
 .al-feed-theme-ready .al-cmtbox-send:disabled{ background:var(--alive-surface-muted); color:var(--alive-faint); box-shadow:none; }

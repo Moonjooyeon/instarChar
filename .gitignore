@@ -12,7 +12,9 @@ dist
 .gradle/
 .pytest_cache/
 apps/frontend/.tmp/
+apps/frontend/.granite/
 apps/frontend/test-results/
+*.ait
 .gstack/
 
 documents/qa-reports

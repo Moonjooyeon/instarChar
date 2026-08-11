@@ -4,7 +4,7 @@ import { CharacterAvatarImage } from "@/components/ui/CharacterAvatarImage";
 
 const RETRY_ACTION_CLASS = "al-retry border-accent bg-accent-soft text-accent-ink hover:bg-surface-raised";
 const BACK_ACTION_CLASS = "al-reparse border-line bg-surface text-soft hover:border-accent hover:bg-accent-soft hover:text-ink";
-const SAVE_ACTION_CLASS = "al-start al-confirm-go bg-accent text-white hover:bg-accent-strong disabled:bg-surface-muted disabled:text-faint";
+const SAVE_ACTION_CLASS = "al-start al-confirm-go bg-accent text-on-accent hover:bg-accent-strong disabled:bg-surface-muted disabled:text-soft";
 
 export function ConfirmScreen({
   activeId,

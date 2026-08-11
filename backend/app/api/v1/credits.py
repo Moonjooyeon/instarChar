@@ -2,11 +2,15 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
+from app.core.config import Settings, get_settings
 from app.core.credit_policy import CREDIT_POLICY_VERSION, ENERGY_POLICY_VERSION, FLOW_POLICIES, FlowPolicy
+from app.core.credit_products import CREDIT_PRODUCTS, FIRST_PURCHASE_BONUS_PERCENT, CreditProduct, credit_product_skus, toss_iap_purchase_available
 from app.db.session import get_db_session
 from app.models import User
+from app.repositories.credit_purchases import CreditPurchaseRepository
 from app.repositories.credits import CreditRepository
-from app.schemas.credits import CreditBalanceResponse, CreditCatalogResponse, CreditFlowResponse, CreditOfferResponse, CreditUsageListResponse, CreditUsageResponse
+from app.schemas.credits import CreditBalanceResponse, CreditCatalogResponse, CreditFlowResponse, CreditOfferResponse, CreditPurchaseGrantRequest, CreditPurchaseGrantResponse, CreditPurchaseHistoryItemResponse, CreditPurchaseHistoryResponse, CreditUsageListResponse, CreditUsageResponse
+from app.services.credit_purchases import CreditPurchaseService
 
 
 router = APIRouter(prefix="/credits", tags=["credits"])
@@ -18,8 +22,9 @@ async def get_credits(user: User = Depends(get_current_user), session: AsyncSess
 
 
 @router.get("/catalog", response_model=CreditCatalogResponse)
-async def get_credit_catalog(user: User = Depends(get_current_user)) -> CreditCatalogResponse:
-    return CreditCatalogResponse(credit_policy_version=CREDIT_POLICY_VERSION, energy_policy_version=ENERGY_POLICY_VERSION, offers=_offers(), flows=_flows())
+async def get_credit_catalog(user: User = Depends(get_current_user), settings: Settings = Depends(get_settings)) -> CreditCatalogResponse:
+    available = toss_iap_purchase_available(settings, user.provider, user.provider_subject)
+    return CreditCatalogResponse(credit_policy_version=CREDIT_POLICY_VERSION, energy_policy_version=ENERGY_POLICY_VERSION, offers=_offers(settings, available), flows=_flows())
 
 
 @router.get("/usage", response_model=CreditUsageListResponse)
@@ -28,13 +33,27 @@ async def get_credit_usage(user: User = Depends(get_current_user), session: Asyn
     return CreditUsageListResponse(items=[CreditUsageResponse(id=str(item.id), flow=item.flow, credits=item.credits, energy_percent=item.energy_percent, bonus_credits=item.bonus_credits, purchased_credits=item.purchased_credits, status=item.status, created_at=item.created_at) for item in items])
 
 
-def _offers() -> list[CreditOfferResponse]:
-    return [_offer("credit-5000", 5000, 500, 0, "가볍게 이어가기"), _offer("credit-10000", 10000, 1000, 0, "꾸준히 이어가기"), _offer("credit-30000", 30000, 3000, 150, "가장 많이 선택해요"), _offer("credit-50000", 50000, 5000, 500, "오래 즐기기"), _offer("credit-100000", 100000, 10000, 1500, "깊게 이어가기")]
+@router.post("/purchases/grant", response_model=CreditPurchaseGrantResponse)
+async def grant_credit_purchase(payload: CreditPurchaseGrantRequest, user: User = Depends(get_current_user), session: AsyncSession = Depends(get_db_session), settings: Settings = Depends(get_settings)) -> CreditPurchaseGrantResponse:
+    result = await CreditPurchaseService(settings, CreditPurchaseRepository(session)).grant(user, payload.order_id)
+    return CreditPurchaseGrantResponse(order_id=result.order_id, status=result.status, granted_credits=result.granted_credits, purchased_credits=result.purchased_credits, bonus_credits=result.bonus_credits, debt_credits=result.debt_credits, total_credits=result.purchased_credits + result.bonus_credits)
 
 
-def _offer(offer_id: str, price: int, base: int, bonus: int, label: str) -> CreditOfferResponse:
-    total = base + bonus
-    return CreditOfferResponse(id=offer_id, price_krw=price, base_credits=base, product_bonus_credits=bonus, first_purchase_bonus_percent=10, total_credits=total, first_purchase_total_credits=total + total // 10, label=label)
+@router.get("/purchases", response_model=CreditPurchaseHistoryResponse)
+async def get_credit_purchase_history(user: User = Depends(get_current_user), session: AsyncSession = Depends(get_db_session)) -> CreditPurchaseHistoryResponse:
+    items = await CreditPurchaseRepository(session).history(user.id)
+    return CreditPurchaseHistoryResponse(items=[CreditPurchaseHistoryItemResponse.model_validate(item) for item in items])
+
+
+def _offers(settings: Settings, purchase_available: bool = False) -> list[CreditOfferResponse]:
+    skus = credit_product_skus(settings)
+    integrated = settings.toss_iap_enabled
+    return [_offer(product, skus[product.offer_id] if integrated else "", purchase_available) for product in CREDIT_PRODUCTS]
+
+
+def _offer(product: CreditProduct, sku: str, enabled: bool) -> CreditOfferResponse:
+    total = product.total_credits
+    return CreditOfferResponse(id=product.offer_id, sku=sku, price_krw=product.price_krw, base_credits=product.base_credits, product_bonus_credits=product.product_bonus_credits, first_purchase_bonus_percent=FIRST_PURCHASE_BONUS_PERCENT, total_credits=total, first_purchase_total_credits=total + product.first_purchase_bonus_credits, label=product.label, payment_available=enabled and bool(sku))
 
 
 def _flows() -> list[CreditFlowResponse]:

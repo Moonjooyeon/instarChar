@@ -2,8 +2,8 @@
 title: ALIVE QA 인덱스
 author: black (black@ashwoodfriends.com)
 created: 2026-08-06
-updated: 2026-08-06
-version: 1.0.0
+updated: 2026-08-11
+version: 1.1.0
 status: approved
 ---
 
@@ -27,5 +27,6 @@ QA 문서는 실제 확인 절차, 실행 결과, 원본 증거를 분리한다.
 ## 현재 문서
 
 - [Entry Flow 시각 검토 가이드](guides/guide_entry-flow-visual-review_2026-08-05.md)
+- [앱인토스 인앱결제 샌드박스 검증 가이드](guides/guide_apps-in-toss-iap-sandbox_2026-08-11.md)
 - [QA 보고서 폴더](reports/)
 - [QA 증거 폴더](evidence/)

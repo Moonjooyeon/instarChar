@@ -3,7 +3,7 @@ import React from "react";
 const WORLD_OPTION_CLASS = "border-line bg-surface-sunken text-ink hover:border-accent hover:bg-accent-soft";
 const WORLD_NOTE_CLASS = "al-world-note border-line bg-surface-raised text-ink placeholder:text-faint focus:border-accent";
 const SECONDARY_ACTION_CLASS = "border-line-strong bg-surface-raised text-soft hover:bg-surface-muted hover:text-ink";
-const PRIMARY_ACTION_CLASS = "primary border-accent bg-accent text-white hover:bg-accent-strong";
+const PRIMARY_ACTION_CLASS = "primary border-accent bg-accent text-on-accent hover:bg-accent-strong";
 
 function worldOptionClass(active: boolean): string {
   return active ? `${WORLD_OPTION_CLASS} on border-accent bg-accent-soft` : WORLD_OPTION_CLASS;

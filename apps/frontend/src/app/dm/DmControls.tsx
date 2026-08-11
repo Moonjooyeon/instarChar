@@ -56,7 +56,7 @@ export function DmControls({ ctx }) {
               {!autoChatting ? (
                 <button className="al-autochat-go border-line-strong bg-surface-raised text-accent-ink hover:border-accent hover:bg-accent-soft" onClick={startAutoChat} disabled={dmSending}><AliveIcon name="refresh" size={15} /> {speakerName} <AliveIcon name="swap" size={14} /> {peer.name} 자동 대화</button>
               ) : (
-                <button className="al-autochat-stop border-danger bg-danger-soft text-danger hover:bg-danger hover:text-white" onClick={stopAutoChat}><AliveIcon name="stop" size={13} /> 멈추기 <span className="al-autochat-live"><i /> LIVE — 입력하면 {speakerName}로 끼어들기</span></button>
+                <button className="al-autochat-stop border-danger bg-danger-soft text-danger hover:bg-danger hover:text-on-danger" onClick={stopAutoChat}><AliveIcon name="stop" size={13} /> 멈추기 <span className="al-autochat-live"><i /> LIVE — 입력하면 {speakerName}로 끼어들기</span></button>
               )}
               <CreditUsageHint busy={autoChatting} className="auto" flowCode="direct_dm_basic" label="자동 대화 예상 사용량" maxUses={6} />
             </div>
@@ -89,7 +89,7 @@ export function DmControls({ ctx }) {
       <DmCreditStatus busy={dmSending && !autoChatting} flowCode={responseMode.code} onOpenCredits={openCredits} />
       <div className="al-dminput">
         <input value={dmInput} onChange={(event) => setDmInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) sendDM(); }} placeholder={autoChatting ? `끼어들기: ${meName}(으)로 입력…` : `${meName}(으)로 메시지…`} />
-        <button className="bg-accent text-white hover:bg-accent-strong disabled:bg-surface-muted disabled:text-faint" aria-label="메시지 보내기" onClick={sendDM} disabled={!dmInput.trim() || dmSending}><AliveIcon name="send" size={19} /></button>
+        <button className="bg-accent text-on-accent hover:bg-accent-strong disabled:bg-surface-muted disabled:text-soft" aria-label="메시지 보내기" onClick={sendDM} disabled={!dmInput.trim() || dmSending}><AliveIcon name="send" size={19} /></button>
       </div>
     </div>
   );

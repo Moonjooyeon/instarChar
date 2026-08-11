@@ -4,9 +4,9 @@ import { USER_PERSONA_FEATURE_ENABLED } from "@/domain/app/featureFlags";
 
 const PERSONA_INPUT_CLASS = "al-pd-input border-line bg-surface-raised text-ink placeholder:text-faint focus:border-accent";
 const MODAL_CANCEL_CLASS = "al-modal-cancel border-line bg-surface-raised text-soft hover:border-line-strong hover:bg-surface-muted hover:text-ink";
-const MODAL_SAVE_CLASS = "al-modal-save bg-accent text-white hover:bg-accent-strong disabled:bg-surface-muted disabled:text-faint";
-const PERSONA_SAVE_CLASS = "al-pd-save bg-accent text-white hover:bg-accent-strong disabled:bg-surface-muted disabled:text-faint";
-const PERSONA_DELETE_CLASS = "al-pd-del bg-danger-soft text-danger hover:bg-danger hover:text-white";
+const MODAL_SAVE_CLASS = "al-modal-save bg-accent text-on-accent hover:bg-accent-strong disabled:bg-surface-muted disabled:text-soft";
+const PERSONA_SAVE_CLASS = "al-pd-save bg-accent text-on-accent hover:bg-accent-strong disabled:bg-surface-muted disabled:text-soft";
+const PERSONA_DELETE_CLASS = "al-pd-del bg-danger-soft text-danger hover:bg-danger hover:text-on-danger";
 
 export function PersonaFixModals({ ctx }) {
   const {

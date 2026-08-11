@@ -2,8 +2,8 @@
 title: Backend Structure
 author: black (black@ashwoodfriends.com)
 created: 2026-05-07
-updated: 2026-08-06
-version: 3.7.0
+updated: 2026-08-11
+version: 3.8.0
 status: approved
 ---
 
@@ -36,6 +36,7 @@ backend/
 │       └── 20260806_0011_media_assets.py
 ├── app/
 │   ├── main.py
+│   ├── iap_release_check.py
 │   ├── legal/
 │   ├── public/
 │   ├── api/
@@ -120,6 +121,7 @@ backend/
     ├── test_dm_threads_api.py
     ├── test_feed_generation.py
     ├── test_legal_pages.py
+    ├── test_iap_release_check.py
     ├── test_media_storage.py
     ├── test_migrations.py
     ├── test_moderation_api.py
@@ -135,6 +137,7 @@ backend/
 | Layer                    | Path                                        | Responsibility                                                                                                                                |
 | ------------------------ | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | App entry                | `backend/app/main.py`                       | FastAPI app creation, CORS, router mounting, scheduler lifespan, global `AppError` handler, `/health`                                         |
+| IAP release preflight    | `backend/app/iap_release_check.py`          | Validate console bundle, SKU, price, copy, asset, exposure, and minimum-version evidence against server policy                                |
 | API dependencies         | `backend/app/api/deps.py`                   | Current user loading from signed session cookie                                                                                               |
 | API routers              | `backend/app/api/v1/`                       | HTTP routing and response shaping                                                                                                             |
 | Settings                 | `backend/app/core/config.py`                | Environment-backed settings via `pydantic-settings`                                                                                           |

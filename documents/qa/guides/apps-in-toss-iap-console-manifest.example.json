@@ -1,0 +1,87 @@
+{
+  "app_name": "ashwoodfriends-alive",
+  "bundle": {
+    "artifact_path": "documents/qa/evidence/ashwoodfriends-alive-iap-8c45566.ait",
+    "artifact_sha256": "b1b6733a674431e5b9fb0f45ca3b8b9621c41aab62b41249d793beb791ed6702",
+    "deployment_id": "019fef70-0349-7199-9458-ca7ec28e1899",
+    "console_version": "<업로드 후 콘솔 표시 버전 입력>",
+    "minimum_support_version": "<상품에서 선택한 최소 지원 버전 입력>"
+  },
+  "products": [
+    {
+      "offer_id": "credit-5000",
+      "sku": "ait.0000058377.f2966bb1.6eb92fa59d.6425847961",
+      "product_type": "CONSUMABLE",
+      "display_name": "크레딧 500C",
+      "description": "얼라이브 AI 기능에 사용하는 500C",
+      "image_path": "documents/qa/evidence/apps-in-toss-iap-products/credit-500.png",
+      "image_sha256": "4b5738d0794a1c4594504ca3d32fd4894cd668e005fb45107a0d0bc21c324967",
+      "supply_price_krw": 4500,
+      "sale_price_krw": 4950,
+      "display_amount": "4,950원",
+      "base_credits": 500,
+      "product_bonus_credits": 0,
+      "exposed": false
+    },
+    {
+      "offer_id": "credit-10000",
+      "sku": "ait.0000058377.9fbcbbf7.59cb266761.6425919018",
+      "product_type": "CONSUMABLE",
+      "display_name": "크레딧 1,000C",
+      "description": "얼라이브 AI 기능에 사용하는 1,000C",
+      "image_path": "documents/qa/evidence/apps-in-toss-iap-products/credit-1000.png",
+      "image_sha256": "2a76f3283d05a0c90004344b3980421b87436736a8585bafb74d29c60d425a91",
+      "supply_price_krw": 9000,
+      "sale_price_krw": 9900,
+      "display_amount": "9,900원",
+      "base_credits": 1000,
+      "product_bonus_credits": 0,
+      "exposed": false
+    },
+    {
+      "offer_id": "credit-30000",
+      "sku": "ait.0000058377.f4432be6.c84ad9f6e6.6425951838",
+      "product_type": "CONSUMABLE",
+      "display_name": "크레딧 3,150C",
+      "description": "기본 3,000C와 추가 150C를 지급해요",
+      "image_path": "documents/qa/evidence/apps-in-toss-iap-products/credit-3150.png",
+      "image_sha256": "43dd4f763359e61017ed1a428cec91a36d57206f77f7f7a20ded3dcf7cb5a2b1",
+      "supply_price_krw": 27000,
+      "sale_price_krw": 29700,
+      "display_amount": "29,700원",
+      "base_credits": 3000,
+      "product_bonus_credits": 150,
+      "exposed": false
+    },
+    {
+      "offer_id": "credit-50000",
+      "sku": "ait.0000058377.0d512108.d6b6db0cd2.6425984642",
+      "product_type": "CONSUMABLE",
+      "display_name": "크레딧 5,500C",
+      "description": "기본 5,000C와 추가 500C를 지급해요",
+      "image_path": "documents/qa/evidence/apps-in-toss-iap-products/credit-5500.png",
+      "image_sha256": "edab8057e9af98016ca1bb33de39b2fe5f9b40c6c5d7d6d398c824bad5c3000c",
+      "supply_price_krw": 45000,
+      "sale_price_krw": 49500,
+      "display_amount": "49,500원",
+      "base_credits": 5000,
+      "product_bonus_credits": 500,
+      "exposed": false
+    },
+    {
+      "offer_id": "credit-100000",
+      "sku": "ait.0000058377.d51a71a8.20549ee68e.6426015918",
+      "product_type": "CONSUMABLE",
+      "display_name": "크레딧 11,500C",
+      "description": "기본 10,000C와 추가 1,500C를 지급해요",
+      "image_path": "documents/qa/evidence/apps-in-toss-iap-products/credit-11500.png",
+      "image_sha256": "83d2e3c4df0fe08d935722a06a9a6c74f3231d9e0887206337190c810e24d83c",
+      "supply_price_krw": 90000,
+      "sale_price_krw": 99000,
+      "display_amount": "99,000원",
+      "base_credits": 10000,
+      "product_bonus_credits": 1500,
+      "exposed": false
+    }
+  ]
+}

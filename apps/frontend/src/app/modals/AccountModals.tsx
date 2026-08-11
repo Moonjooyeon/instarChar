@@ -2,8 +2,8 @@ import React from "react";
 
 const MODAL_INPUT_CLASS = "al-pd-input border-line bg-surface-raised text-ink placeholder:text-faint focus:border-accent";
 const MODAL_CANCEL_CLASS = "al-modal-cancel border-line bg-surface-raised text-soft hover:border-line-strong hover:bg-surface-muted hover:text-ink";
-const MODAL_SAVE_CLASS = "al-modal-save bg-accent text-white hover:bg-accent-strong";
-const MODAL_DANGER_CLASS = "al-modal-danger bg-danger-soft text-danger hover:bg-danger hover:text-white";
+const MODAL_SAVE_CLASS = "al-modal-save bg-accent text-on-accent hover:bg-accent-strong";
+const MODAL_DANGER_CLASS = "al-modal-danger bg-danger-soft text-danger hover:bg-danger hover:text-on-danger";
 
 export function AccountModals({ ctx }) {
   const {
@@ -48,7 +48,7 @@ export function AccountModals({ ctx }) {
             <h3 className="al-modal-title">처음 왔구나</h3>
             <p className="al-modal-sub">저장에 쓸 이름만 정하면 바로 캐릭터를 만들 수 있어.</p>
             <input className={MODAL_INPUT_CLASS} value={profileName} onChange={(event) => setProfileName(event.target.value)} placeholder="내 이름 또는 닉네임" autoFocus />
-            <div className="al-pd-btns"><button className="al-pd-save bg-accent text-white hover:bg-accent-strong" onClick={completeOnboarding}>시작하기</button></div>
+            <div className="al-pd-btns"><button className="al-pd-save bg-accent text-on-accent hover:bg-accent-strong" onClick={completeOnboarding}>시작하기</button></div>
           </div>
         </div>
       )}

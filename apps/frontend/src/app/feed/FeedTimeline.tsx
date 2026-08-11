@@ -139,7 +139,7 @@ function GeneratingPost({ char }) {
 }
 
 function GenerationFailure({ message, onRetry }: GenerationFailureProps): React.ReactElement {
-  return <div className="al-generation-failure" role="alert"><div><b>글을 완성하지 못했어요.</b><p>{message.replace(/^글 생성 실패:\s*/, "")}</p></div><button className="border-danger bg-danger-soft text-danger hover:bg-danger hover:text-white" type="button" onClick={onRetry}>다시 장면 고르기</button></div>;
+  return <div className="al-generation-failure" role="alert"><div><b>글을 완성하지 못했어요.</b><p>{message.replace(/^글 생성 실패:\s*/, "")}</p></div><button className="border-danger bg-danger-soft text-danger hover:bg-danger hover:text-on-danger" type="button" onClick={onRetry}>다시 장면 고르기</button></div>;
 }
 
 function FeedLoadFailure({ message, onRetry }: GenerationFailureProps): React.ReactElement {
@@ -289,7 +289,7 @@ function FeedComments({ post, ctx }) {
           {USER_PERSONA_FEATURE_ENABLED && <div className="al-cmtbox-who"><button className={`al-spk-chip ${commentAs === "char" ? "on" : ""}`} onClick={() => setCommentAs("char")}>{char.name}</button>{personas.map((persona) => <button key={persona.id} className={`al-spk-chip persona ${commentAs === `p:${persona.id}` ? "on" : ""}`} onClick={() => setCommentAs(`p:${persona.id}`)}><AliveIcon name="masks" size={14} /> {persona.name}</button>)}<button className="al-spk-chip add" onClick={() => setPersonaDraft({ name: "", age: "", persona: "", speech: "" })}><AliveIcon name="plus" size={14} /> 페르소나</button></div>}
           <div className="al-cmtbox-row">
             <input className="al-cmtbox-input" value={commentText} autoFocus enterKeyHint="send" aria-label={`${commentSpeakerName} 계정으로 댓글 입력`} onChange={(event) => setCommentText(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) void submitUserComment(post); }} placeholder="댓글을 입력하세요" />
-            <button className="al-cmtbox-send bg-accent text-white hover:bg-accent-strong disabled:bg-surface-muted disabled:text-faint" type="button" disabled={!commentText.trim()} aria-label="댓글 보내기" onClick={() => void submitUserComment(post)}><AliveIcon name="send" size={18} /></button>
+            <button className="al-cmtbox-send bg-accent text-on-accent hover:bg-accent-strong disabled:bg-surface-muted disabled:text-soft" type="button" disabled={!commentText.trim()} aria-label="댓글 보내기" onClick={() => void submitUserComment(post)}><AliveIcon name="send" size={18} /></button>
           </div>
         </div>
       )}

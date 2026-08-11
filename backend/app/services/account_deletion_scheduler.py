@@ -31,4 +31,5 @@ class AccountDeletionScheduler:
             service = AccountDeletionService(self.settings, session)
             purged_accounts = await service.purge_due_accounts(self.settings.account_deletion_batch_size)
             await service.purge_expired_identities()
+            await service.purge_expired_detached_purchases()
             return purged_accounts

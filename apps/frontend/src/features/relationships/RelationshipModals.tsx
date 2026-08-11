@@ -1,7 +1,7 @@
 import React from "react";
 import { AliveIcon } from "@/components/ui/AliveIcon";
 
-const PRIMARY_ACTION_CLASS = "al-prop-yes border-accent bg-accent text-white hover:bg-accent-strong";
+const PRIMARY_ACTION_CLASS = "al-prop-yes border-accent bg-accent text-on-accent hover:bg-accent-strong";
 const SECONDARY_ACTION_CLASS = "al-prop-no border-line-strong bg-surface-raised text-soft hover:bg-surface-muted hover:text-ink";
 
 export function ProposalModal({ proposal, onResolve }) {

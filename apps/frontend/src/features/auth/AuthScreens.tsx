@@ -4,7 +4,7 @@ import { isAppsInTossRuntime, shouldShowAppleLogin } from "@/api/auth";
 import { AliveIcon } from "@/components/ui/AliveIcon";
 import { ServiceTour } from "@/features/onboarding/ServiceTour";
 
-const PRIMARY_AUTH_ACTION_CLASS = "al-auth-btn bg-accent text-white hover:bg-accent-strong disabled:bg-surface-muted disabled:text-faint";
+const PRIMARY_AUTH_ACTION_CLASS = "al-auth-btn bg-accent text-on-accent hover:bg-accent-strong disabled:bg-surface-muted disabled:text-soft";
 const SECONDARY_AUTH_ACTION_CLASS = "al-auth-linkbtn border-line bg-accent-soft text-accent-ink hover:border-accent hover:bg-surface-raised hover:text-accent-strong";
 
 export function AuthLoadingScreen({ authMessage, onRetryCharacters }) {

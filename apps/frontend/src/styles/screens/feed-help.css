@@ -1,6 +1,6 @@
 /* Portal content receives its own theme-ready scope because it renders under document.body. */
 .al-feed-theme-ready .al-feed-help{ border-color:var(--alive-line-strong); background:color-mix(in srgb,var(--alive-surface-raised) 82%,transparent); color:var(--alive-ink); }
-.al-feed-theme-ready .al-feed-help > span{ background:var(--alive-accent); color:white; }
+.al-feed-theme-ready .al-feed-help > span{ background:var(--alive-accent); color:var(--alive-on-accent); }
 .al-feed-theme-ready .al-feed-help:hover{ border-color:var(--alive-accent); background:var(--alive-surface-raised); }
 .al-feed-theme-ready .al-feed-help:focus-visible{ outline-color:var(--alive-accent); }
 .al-feed-help-theme-ready .al-help-highlight{ border-color:var(--alive-accent-strong); box-shadow:0 0 0 9999px var(--alive-scrim),0 0 0 5px var(--alive-accent-soft),var(--alive-shadow-control); transition:top .38s cubic-bezier(.22,.75,.2,1),left .38s cubic-bezier(.22,.75,.2,1),width .38s cubic-bezier(.22,.75,.2,1),height .38s cubic-bezier(.22,.75,.2,1); }
@@ -19,8 +19,8 @@
 .al-feed-help-theme-ready .al-help-progress i.done{ background:var(--alive-accent-strong); }
 .al-feed-help-theme-ready .al-help-progress i.on{ background:var(--alive-accent); }
 .al-feed-help-theme-ready .al-help-prev{ border-color:var(--alive-line); background:var(--alive-surface-raised); color:var(--alive-soft); }
-.al-feed-help-theme-ready .al-help-next{ border-color:var(--alive-accent); background:var(--alive-accent); color:white; }
-.al-feed-help-theme-ready .al-help-next > span{ color:white; }
+.al-feed-help-theme-ready .al-help-next{ border-color:var(--alive-accent); background:var(--alive-accent); color:var(--alive-on-accent); }
+.al-feed-help-theme-ready .al-help-next > span{ color:var(--alive-on-accent); }
 .al-feed-help-theme-ready .al-help-coach button:focus-visible{ outline-color:var(--alive-accent); }
 
 @keyframes aliveHelpTap{ 0%{ box-shadow:0 0 0 0 var(--alive-accent); transform:scale(.88); } 58%{ box-shadow:0 0 0 13px transparent; transform:scale(1); } 100%{ box-shadow:0 0 0 13px transparent; transform:scale(.88); } }

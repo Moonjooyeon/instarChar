@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import secrets
-from typing import Annotated, Optional
+from typing import Annotated, Literal, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Query, Response, status
@@ -9,10 +9,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.core.config import Settings, get_settings
-from app.core.errors import ForbiddenError
+from app.core.errors import ForbiddenError, NotFoundError
 from app.db.session import get_db_session
 from app.models import ContentReport, ReportStatus, User
+from app.repositories.credit_purchases import CreditPurchaseRepository
 from app.repositories.moderation import ModerationRepository
+from app.schemas.credits import CreditAccountAuditItemResponse, CreditPurchaseAuditItemResponse, CreditPurchaseAuditResponse, CreditPurchaseOperationsAccount, CreditPurchaseOperationsDetail, CreditPurchaseOperationsLedger, CreditPurchaseOperationsQueueResponse, CreditPurchaseOperationsResponse
 from app.schemas.moderation import BlockedUserResponse, ConsentResponse, ContentReportCreate, ContentReportResponse, ModerationDecision, ModerationQueueResponse, ModerationReportResponse
 
 
@@ -67,6 +69,32 @@ async def moderate_report(report_id: UUID, payload: ModerationDecision, key: Mod
     _require_moderator(key, settings)
     row = await ModerationRepository(session).decide(report_id, payload, settings.moderation_actor)
     return _report_response(row)
+
+
+@router.get("/moderation/credit-purchases/audit", response_model=CreditPurchaseAuditResponse)
+async def credit_purchase_audit(key: ModerationKey, limit: int = Query(100, ge=1, le=200), settings: Settings = Depends(get_settings), session: AsyncSession = Depends(get_db_session)) -> CreditPurchaseAuditResponse:
+    _require_moderator(key, settings)
+    report = await CreditPurchaseRepository(session).audit(limit)
+    purchases = [CreditPurchaseAuditItemResponse(purchase=CreditPurchaseOperationsDetail.model_validate(item.purchase), reasons=list(item.reasons)) for item in report.purchases]
+    accounts = [CreditAccountAuditItemResponse.model_validate(item, from_attributes=True) for item in report.accounts]
+    return CreditPurchaseAuditResponse(generated_at=report.generated_at, purchases=purchases, accounts=accounts, truncated=report.truncated)
+
+
+@router.get("/moderation/credit-purchases/{order_id}", response_model=CreditPurchaseOperationsResponse)
+async def credit_purchase_operations(order_id: str, key: ModerationKey, settings: Settings = Depends(get_settings), session: AsyncSession = Depends(get_db_session)) -> CreditPurchaseOperationsResponse:
+    _require_moderator(key, settings)
+    result = await CreditPurchaseRepository(session).operations(order_id)
+    if not result:
+        raise NotFoundError("Credit purchase not found")
+    purchase, account, ledger = result
+    return CreditPurchaseOperationsResponse(purchase=CreditPurchaseOperationsDetail.model_validate(purchase), account=CreditPurchaseOperationsAccount.model_validate(account) if account else None, ledger=[CreditPurchaseOperationsLedger.model_validate(item) for item in ledger])
+
+
+@router.get("/moderation/credit-purchases", response_model=CreditPurchaseOperationsQueueResponse)
+async def credit_purchase_operations_queue(key: ModerationKey, purchase_status: Optional[Literal["processing", "granted", "refunded", "failed", "review"]] = Query(None, alias="status"), limit: int = Query(100, ge=1, le=200), settings: Settings = Depends(get_settings), session: AsyncSession = Depends(get_db_session)) -> CreditPurchaseOperationsQueueResponse:
+    _require_moderator(key, settings)
+    purchases = await CreditPurchaseRepository(session).operations_queue(purchase_status, limit)
+    return CreditPurchaseOperationsQueueResponse(purchases=[CreditPurchaseOperationsDetail.model_validate(item) for item in purchases])
 
 
 def _require_moderator(key: str, settings: Settings) -> None:

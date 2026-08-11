@@ -23,7 +23,7 @@ FRONTEND_WEB_ENV = $(if $(WEB_API_URL),VITE_API_BASE_URL=$(WEB_API_URL) )
 FRONTEND_BUILD_ENV = $(if $(CAP_API_URL),VITE_API_BASE_URL=$(CAP_API_URL) )
 FRONTEND_LOCAL_BUILD_ENV = VITE_API_BASE_URL=$(LOCAL_CAP_BASE_URL) VITE_LEGAL_BASE_URL=$(LOCAL_CAP_BASE_URL)
 
-.PHONY: help local-up local-down local-logs local-ps backend-dev backend-run backend-test backend-compile web-dev web-build web-preview android-java-home android-local-properties cap-doctor cap-build cap-build-local cap-sync cap-sync-local cap-open-ios cap-open-android cap-run-ios cap-run-android cap-checklist android-bundle-release ios-archive-release
+.PHONY: help local-up local-down local-logs local-ps backend-dev backend-run backend-test backend-compile iap-release-check web-dev web-build web-preview android-java-home android-local-properties cap-doctor cap-build cap-build-local cap-sync cap-sync-local cap-open-ios cap-open-android cap-run-ios cap-run-android cap-checklist android-bundle-release ios-archive-release
 
 help:
 	@printf '%s\n' \
@@ -36,6 +36,7 @@ help:
 		'  make backend-run                        Run FastAPI without reload.' \
 		'  make backend-test                       Run backend pytest suite.' \
 		'  make backend-compile                    Compile backend Python files.' \
+		'  make iap-release-check IAP_RELEASE_MANIFEST=path.json' \
 		'' \
 		'Web helper targets:' \
 		'  make web-dev                            Run Vite on 0.0.0.0.' \
@@ -90,6 +91,10 @@ backend-test:
 
 backend-compile:
 	PYTHONPYCACHEPREFIX=/private/tmp/instarChar-pycache $(BACKEND_PYTHON) -m compileall -q $(BACKEND_DIR)/app $(BACKEND_DIR)/tests $(BACKEND_DIR)/migrations
+
+iap-release-check:
+	@test -n "$(IAP_RELEASE_MANIFEST)" || (printf 'Set IAP_RELEASE_MANIFEST to the completed console manifest.\n' && exit 1)
+	PYTHONPATH=$(BACKEND_DIR) $(BACKEND_PYTHON) -m app.iap_release_check $(IAP_RELEASE_MANIFEST)
 
 web-dev:
 	$(FRONTEND_WEB_ENV)$(NPM) --workspace $(FRONTEND_WORKSPACE) run dev -- --host $(WEB_HOST) --port $(WEB_PORT)

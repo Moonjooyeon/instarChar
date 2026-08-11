@@ -10,7 +10,7 @@ const TOUR_STEPS = [
 
 const TOUR_BACK_CLASS = "border-line bg-surface-raised text-accent-ink hover:border-accent hover:bg-accent-soft";
 const TOUR_PREVIOUS_CLASS = "al-tour-prev border-line bg-surface-raised text-soft hover:border-accent hover:bg-accent-soft hover:text-ink";
-const TOUR_NEXT_CLASS = "al-tour-next bg-accent text-white hover:bg-accent-strong";
+const TOUR_NEXT_CLASS = "al-tour-next bg-accent text-on-accent hover:bg-accent-strong";
 
 export function ServiceTour({ completeLabel, onBack, onComplete }) {
   const [stepIndex, setStepIndex] = React.useState(0);

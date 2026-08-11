@@ -107,7 +107,7 @@ export function DiscoverScreen({
                 </div>
               </div>
               <div className="al-disc-actions">
-                <button className="al-disc-dm bg-accent text-white hover:bg-accent-strong" onClick={() => requestDmEntry(c, "char")}><AliveIcon name="mail" size={15} /> DM</button>
+                <button className="al-disc-dm bg-accent text-on-accent hover:bg-accent-strong" onClick={() => requestDmEntry(c, "char")}><AliveIcon name="mail" size={15} /> DM</button>
                 <button className={`al-disc-follow ${followed ? "on border-accent bg-accent-soft text-accent-ink" : "border-line-strong bg-surface-raised text-soft hover:border-accent hover:bg-accent-soft hover:text-accent-ink"}`} onClick={() => toggleFollow(c)}>
                   {followed ? <><AliveIcon name="check" size={14} /> 추가됨</> : <><AliveIcon name="plus" size={14} /> 타임라인에 추가</>}
                 </button>
