@@ -214,8 +214,20 @@ def test_sandbox_grant_uses_allowlisted_subject_and_synthetic_order() -> None:
     assert iap.calls == []
 
 
+def test_sandbox_grant_creates_distinct_idempotent_orders_for_provider_uuids() -> None:
+    settings = Settings(_env_file=None, toss_iap_enabled=True, toss_iap_credit_5000_sku="sku-500", toss_iap_subject_hmac_key="purchase-secret-at-least-32-bytes", toss_iap_sandbox_enabled=True, toss_iap_sandbox_product_sku="sku-500")
+    service = CreditPurchaseService(settings, StubPurchases(CreditPurchaseResult("", "", 0, 0, 0, 0)), StubIap(toss_order("", "", "FAILED")))  # type: ignore[arg-type]
+    subject_hash = service._subject_hash("123", "sandbox")
+    settings.toss_iap_sandbox_subject_hashes = subject_hash
+    first = service._sandbox_order("550e8400-e29b-41d4-a716-446655440000", "sku_106", subject_hash)
+    replay = service._sandbox_order("550E8400-E29B-41D4-A716-446655440000", "sku-500", subject_hash)
+    second = service._sandbox_order("550e8400-e29b-41d4-a716-446655440001", "sku_106", subject_hash)
+    assert first.order_id == replay.order_id
+    assert first.order_id != second.order_id
+
+
 @pytest.mark.parametrize("order_id,sku", [("other-order", "sku_106"), ("550e8400-e29b-41d4-a716-446655440000", "other-sku")])
-def test_sandbox_grant_rejects_unknown_fixture(order_id: str, sku: str) -> None:
+def test_sandbox_grant_rejects_invalid_order_or_product(order_id: str, sku: str) -> None:
     settings = Settings(_env_file=None, toss_iap_enabled=True, toss_iap_credit_5000_sku="sku-500", toss_iap_subject_hmac_key="purchase-secret-at-least-32-bytes", toss_iap_sandbox_enabled=True, toss_iap_sandbox_product_sku="sku-500")
     service = CreditPurchaseService(settings, StubPurchases(CreditPurchaseResult("", "", 0, 0, 0, 0)), StubIap(toss_order("", "", "FAILED")))  # type: ignore[arg-type]
     settings.toss_iap_sandbox_subject_hashes = service._subject_hash("123", "sandbox")

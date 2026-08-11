@@ -3,7 +3,7 @@ title: 앱인토스 인앱결제 샌드박스 검증 가이드
 author: black (black@ashwoodfriends.com)
 created: 2026-08-11
 updated: 2026-08-11
-version: 1.9.0
+version: 1.9.1
 status: ready
 ---
 
@@ -40,10 +40,10 @@ Apps in Toss 일회성 인앱결제를 실제 판매 전에 샌드박스 앱에�
 
 ## ALIVE 샌드박스 어댑터 설정
 
-앱인토스 샌드박스의 성공·서버 인증 실패 시나리오는 운영 Toss 주문 상태 API에서 조회할 수 없는 고정 fixture 주문을 반환한다. ALIVE는 운영 검증을 끄지 않고, 아래 조건을 모두 만족하는 경우에만 이 fixture를 별도 테스트 구매로 기록한다.
+앱인토스 샌드박스의 성공·서버 인증 실패 시나리오는 운영 Toss 주문 상태 API에서 조회할 수 없는 fixture 주문을 반환한다. ALIVE는 운영 검증을 끄지 않고, 아래 조건을 모두 만족하는 경우에만 이 fixture를 별도 테스트 구매로 기록한다.
 
 - 공식 `getOperationalEnvironment()` 결과가 `sandbox`
-- 주문 ID가 `550e8400-e29b-41d4-a716-446655440000`
+- 주문 ID가 하이픈을 포함한 표준 UUID 형식
 - pending 복구 SKU가 `sku_106`이거나 요청 SKU가 지정한 테스트 상품 SKU와 동일
 - 로그인한 Toss 사용자의 샌드박스 전용 HMAC 해시가 서버 허용목록에 존재
 - `TOSS_IAP_SANDBOX_ENABLED=true`
@@ -65,7 +65,7 @@ TOSS_IAP_SANDBOX_SUBJECT_HASHES=<위 명령의 64자리 출력값>
 TOSS_IAP_SANDBOX_PRODUCT_SKU=ait.0000058377.f2966bb1.6eb92fa59d.6425847961
 ```
 
-샌드박스 구매를 실행하는 동안에는 기존 신규 구매 게이트도 `TOSS_IAP_PURCHASE_ENABLED=true`, `TOSS_IAP_PURCHASE_ROLLOUT_PERCENT=100`이어야 한다. 설정 변경 후 백엔드를 다시 빌드·기동하고 설정값을 확인한다. 테스트 구매는 `apps_in_toss_sandbox`로 저장되며 운영 Toss 주문 대사에서 제외되고, 같은 계정·상품 fixture의 반복 호출은 같은 내부 주문으로 처리되어 중복 지급되지 않는다.
+샌드박스 구매를 실행하는 동안에는 기존 신규 구매 게이트도 `TOSS_IAP_PURCHASE_ENABLED=true`, `TOSS_IAP_PURCHASE_ROLLOUT_PERCENT=100`이어야 한다. 설정 변경 후 백엔드를 다시 빌드·기동하고 설정값을 확인한다. 테스트 구매는 `apps_in_toss_sandbox`로 저장되며 운영 Toss 주문 대사에서 제외된다. 같은 계정·상품·UUID 주문의 반복 호출은 같은 내부 주문으로 처리되고, 새 UUID 주문은 별도 구매로 처리된다.
 
 테스트를 마치면 즉시 아래 값으로 복구하고 백엔드를 다시 기동한다. 운영 결제를 시작할 때도 샌드박스 설정은 비활성 상태여야 한다.
 

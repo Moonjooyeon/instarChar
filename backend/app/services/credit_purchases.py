@@ -14,7 +14,6 @@ from app.services.toss_api import TossApiClient
 from app.services.toss_iap import TossIapOrder, TossIapService
 
 
-TOSS_IAP_SANDBOX_ORDER_ID = "550e8400-e29b-41d4-a716-446655440000"
 TOSS_IAP_SANDBOX_FIXTURE_SKU = "sku_106"
 TossIapEnvironment = Literal["toss", "sandbox"]
 
@@ -64,11 +63,19 @@ class CreditPurchaseService:
 
     def _sandbox_order(self, order_id: str, sku: str, subject_hash: str) -> TossIapOrder:
         self._ensure_sandbox_subject(subject_hash)
-        if order_id != TOSS_IAP_SANDBOX_ORDER_ID:
-            raise BadRequestError("Sandbox purchase order is not recognized")
+        normalized_order_id = self._sandbox_order_uuid(order_id)
         product_sku = self._sandbox_product_sku(sku)
-        internal_id = self._sandbox_order_id(subject_hash, product_sku, order_id)
+        internal_id = self._sandbox_order_id(subject_hash, product_sku, normalized_order_id)
         return TossIapOrder(internal_id, product_sku, "PAYMENT_COMPLETED", "", "Apps in Toss sandbox fixture", "apps_in_toss_sandbox")
+
+    def _sandbox_order_uuid(self, order_id: str) -> str:
+        try:
+            normalized = str(UUID(order_id))
+        except ValueError as exc:
+            raise BadRequestError("Sandbox purchase order is not recognized") from exc
+        if len(order_id) != 36 or order_id.lower() != normalized:
+            raise BadRequestError("Sandbox purchase order is not recognized")
+        return normalized
 
     def _ensure_sandbox_subject(self, subject_hash: str) -> None:
         if not self.settings.toss_iap_sandbox_enabled:
