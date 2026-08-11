@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from hashlib import sha256
+from hmac import new as new_hmac
 from pathlib import Path
 
 from app.core.config import Settings
+from app.models import UserProvider
 
 
 FIRST_PURCHASE_BONUS_PERCENT = 10
@@ -58,6 +61,22 @@ def validate_toss_iap_configuration(settings: Settings) -> None:
         raise ValueError("TOSS_IAP_ENABLED must be true before enabling purchase or reconciliation")
     _validate_iap_credentials(settings)
     _validate_iap_skus(settings)
+    _validate_iap_rollout(settings)
+
+
+def toss_iap_purchase_available(settings: Settings, provider: UserProvider, subject: str) -> bool:
+    if not settings.toss_iap_enabled or not settings.toss_iap_purchase_enabled:
+        return False
+    if provider != UserProvider.toss or not subject:
+        return False
+    percent = settings.toss_iap_purchase_rollout_percent
+    if percent <= 0:
+        return False
+    if percent >= 100:
+        return True
+    message = f"purchase-rollout:toss:{subject}".encode()
+    digest = new_hmac(settings.toss_iap_subject_hmac_key.encode(), message, sha256).digest()
+    return int.from_bytes(digest[:8], "big") % 100 < percent
 
 
 def _validate_iap_credentials(settings: Settings) -> None:
@@ -78,3 +97,9 @@ def _validate_iap_skus(settings: Settings) -> None:
         raise ValueError("All Toss IAP credit SKUs must be present without surrounding whitespace")
     if len(set(skus)) != len(skus):
         raise ValueError("Toss IAP credit SKUs must be unique")
+
+
+def _validate_iap_rollout(settings: Settings) -> None:
+    percent = settings.toss_iap_purchase_rollout_percent
+    if percent < 0 or percent > 100:
+        raise ValueError("TOSS_IAP_PURCHASE_ROLLOUT_PERCENT must be between 0 and 100")

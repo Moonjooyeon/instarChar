@@ -3,7 +3,8 @@ from pathlib import Path
 import pytest
 
 from app.core.config import Settings
-from app.core.credit_products import validate_toss_iap_configuration
+from app.core.credit_products import toss_iap_purchase_available, validate_toss_iap_configuration
+from app.models import UserProvider
 
 
 def test_complete_toss_iap_configuration_is_valid(tmp_path: Path) -> None:
@@ -49,6 +50,33 @@ def test_toss_iap_configuration_requires_mtls_files(tmp_path: Path) -> None:
     settings.toss_mtls_cert_path = str(tmp_path / "missing.pem")
     with pytest.raises(ValueError, match="TOSS_MTLS_CERT_PATH"):
         validate_toss_iap_configuration(settings)
+
+
+def test_toss_iap_configuration_rejects_invalid_rollout(tmp_path: Path) -> None:
+    settings = _configured_settings(tmp_path)
+    settings.toss_iap_purchase_rollout_percent = 101
+    with pytest.raises(ValueError, match="ROLLOUT_PERCENT"):
+        validate_toss_iap_configuration(settings)
+
+
+def test_purchase_rollout_requires_toss_user_and_flags(tmp_path: Path) -> None:
+    settings = _configured_settings(tmp_path)
+    settings.toss_iap_purchase_enabled = True
+    settings.toss_iap_purchase_rollout_percent = 100
+    assert toss_iap_purchase_available(settings, UserProvider.toss, "toss-user") is True
+    assert toss_iap_purchase_available(settings, UserProvider.google, "google-user") is False
+    settings.toss_iap_purchase_enabled = False
+    assert toss_iap_purchase_available(settings, UserProvider.toss, "toss-user") is False
+
+
+def test_purchase_rollout_is_stable_and_zero_is_closed(tmp_path: Path) -> None:
+    settings = _configured_settings(tmp_path)
+    settings.toss_iap_purchase_enabled = True
+    settings.toss_iap_purchase_rollout_percent = 50
+    first = toss_iap_purchase_available(settings, UserProvider.toss, "stable-user")
+    assert toss_iap_purchase_available(settings, UserProvider.toss, "stable-user") is first
+    settings.toss_iap_purchase_rollout_percent = 0
+    assert toss_iap_purchase_available(settings, UserProvider.toss, "stable-user") is False
 
 
 def _configured_settings(tmp_path: Path) -> Settings:

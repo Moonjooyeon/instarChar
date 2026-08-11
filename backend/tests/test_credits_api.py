@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import AsyncIterator
 from datetime import datetime, timezone
 from uuid import uuid4
@@ -6,11 +7,11 @@ from fastapi.testclient import TestClient
 import pytest
 
 from app.api.deps import get_current_user
-from app.api.v1.credits import _offers
+from app.api.v1.credits import _offers, get_credit_catalog
 from app.core.config import Settings
 from app.db.session import get_db_session
 from app.main import app
-from app.models import CreditUsage
+from app.models import CreditUsage, UserProvider
 from app.repositories.credit_purchases import CreditPurchaseResult
 from app.repositories.credits import CreditRepository
 from app.services.credit_purchases import CreditPurchaseService
@@ -19,6 +20,8 @@ from app.services.credit_purchases import CreditPurchaseService
 class StubUser:
     def __init__(self) -> None:
         self.id = uuid4()
+        self.provider = UserProvider.toss
+        self.provider_subject = "toss-user"
 
 
 class StubSession:
@@ -64,20 +67,31 @@ def test_credit_catalog_is_visible_but_payment_is_disabled() -> None:
 
 def test_credit_catalog_enables_only_configured_products() -> None:
     settings = Settings(_env_file=None, toss_iap_enabled=True, toss_iap_purchase_enabled=True, toss_iap_credit_5000_sku="sku-500")
-    offers = _offers(settings)
+    offers = _offers(settings, True)
     assert (offers[0].sku, offers[0].payment_available) == ("sku-500", True)
     assert all(offer.payment_available is False for offer in offers[1:])
 
 
+def test_credit_catalog_applies_user_rollout_eligibility() -> None:
+    settings = Settings(_env_file=None, toss_iap_enabled=True, toss_iap_purchase_enabled=True, toss_iap_purchase_rollout_percent=100, toss_iap_credit_5000_sku="sku-500")
+    user = StubUser()
+    enabled = asyncio.run(get_credit_catalog(user, settings))  # type: ignore[arg-type]
+    user.provider = UserProvider.google
+    disabled = asyncio.run(get_credit_catalog(user, settings))  # type: ignore[arg-type]
+    assert enabled.offers[0].payment_available is True
+    assert disabled.offers[0].payment_available is False
+    assert disabled.offers[0].sku == "sku-500"
+
+
 def test_credit_catalog_can_stop_new_orders_without_disabling_recovery() -> None:
     settings = Settings(_env_file=None, toss_iap_enabled=True, toss_iap_purchase_enabled=False, toss_iap_credit_5000_sku="sku-500")
-    offer = _offers(settings)[0]
+    offer = _offers(settings, False)[0]
     assert (offer.sku, offer.payment_available) == ("sku-500", False)
 
 
 def test_credit_catalog_hides_provider_skus_when_integration_is_disabled() -> None:
     settings = Settings(_env_file=None, toss_iap_enabled=False, toss_iap_purchase_enabled=True, toss_iap_credit_5000_sku="sku-500")
-    offer = _offers(settings)[0]
+    offer = _offers(settings, True)[0]
     assert (offer.sku, offer.payment_available) == ("", False)
 
 

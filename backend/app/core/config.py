@@ -44,6 +44,7 @@ class Settings(BaseSettings):
     toss_mtls_key_path: str = "/run/secrets/toss/toss-mtls-key.pem"
     toss_iap_enabled: bool = False
     toss_iap_purchase_enabled: bool = False
+    toss_iap_purchase_rollout_percent: int = 0
     toss_iap_credit_5000_sku: str = ""
     toss_iap_credit_10000_sku: str = ""
     toss_iap_credit_30000_sku: str = ""

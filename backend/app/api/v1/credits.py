@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user
 from app.core.config import Settings, get_settings
 from app.core.credit_policy import CREDIT_POLICY_VERSION, ENERGY_POLICY_VERSION, FLOW_POLICIES, FlowPolicy
-from app.core.credit_products import CREDIT_PRODUCTS, FIRST_PURCHASE_BONUS_PERCENT, CreditProduct, credit_product_skus
+from app.core.credit_products import CREDIT_PRODUCTS, FIRST_PURCHASE_BONUS_PERCENT, CreditProduct, credit_product_skus, toss_iap_purchase_available
 from app.db.session import get_db_session
 from app.models import User
 from app.repositories.credit_purchases import CreditPurchaseRepository
@@ -23,7 +23,8 @@ async def get_credits(user: User = Depends(get_current_user), session: AsyncSess
 
 @router.get("/catalog", response_model=CreditCatalogResponse)
 async def get_credit_catalog(user: User = Depends(get_current_user), settings: Settings = Depends(get_settings)) -> CreditCatalogResponse:
-    return CreditCatalogResponse(credit_policy_version=CREDIT_POLICY_VERSION, energy_policy_version=ENERGY_POLICY_VERSION, offers=_offers(settings), flows=_flows())
+    available = toss_iap_purchase_available(settings, user.provider, user.provider_subject)
+    return CreditCatalogResponse(credit_policy_version=CREDIT_POLICY_VERSION, energy_policy_version=ENERGY_POLICY_VERSION, offers=_offers(settings, available), flows=_flows())
 
 
 @router.get("/usage", response_model=CreditUsageListResponse)
@@ -38,11 +39,10 @@ async def grant_credit_purchase(payload: CreditPurchaseGrantRequest, user: User 
     return CreditPurchaseGrantResponse(order_id=result.order_id, status=result.status, granted_credits=result.granted_credits, purchased_credits=result.purchased_credits, bonus_credits=result.bonus_credits, debt_credits=result.debt_credits, total_credits=result.purchased_credits + result.bonus_credits)
 
 
-def _offers(settings: Settings) -> list[CreditOfferResponse]:
+def _offers(settings: Settings, purchase_available: bool = False) -> list[CreditOfferResponse]:
     skus = credit_product_skus(settings)
     integrated = settings.toss_iap_enabled
-    purchasable = integrated and settings.toss_iap_purchase_enabled
-    return [_offer(product, skus[product.offer_id] if integrated else "", purchasable) for product in CREDIT_PRODUCTS]
+    return [_offer(product, skus[product.offer_id] if integrated else "", purchase_available) for product in CREDIT_PRODUCTS]
 
 
 def _offer(product: CreditProduct, sku: str, enabled: bool) -> CreditOfferResponse:
