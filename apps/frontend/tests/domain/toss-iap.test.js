@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { collectRefundedTossIapOrders, isAppsInTossIapRuntime, tossIapErrorMessage } from "../../src/api/tossIap.js";
+import { TOSS_IAP_FULL_FLOW_MIN_VERSIONS, collectRefundedTossIapOrders, hasTossIapFullFlowSupport, isAppsInTossIapRuntime, tossIapErrorMessage } from "../../src/api/tossIap.js";
 import { shouldRecoverTossPurchases } from "../../src/domain/credits/tossPurchaseRecovery.js";
 
 
@@ -9,6 +9,18 @@ test("IAP is exposed only in the Apps in Toss runtime", () => {
   assert.equal(isAppsInTossIapRuntime("apps-in-toss"), true);
   assert.equal(isAppsInTossIapRuntime("capacitor"), false);
   assert.equal(isAppsInTossIapRuntime("web"), false);
+});
+
+
+test("purchase availability requires every recovery API version", () => {
+  let requestedVersions;
+  const supported = hasTossIapFullFlowSupport((versions) => {
+    requestedVersions = versions;
+    return false;
+  });
+  assert.equal(supported, false);
+  assert.deepEqual(requestedVersions, TOSS_IAP_FULL_FLOW_MIN_VERSIONS);
+  assert.deepEqual(TOSS_IAP_FULL_FLOW_MIN_VERSIONS, { android: "5.234.0", ios: "5.233.0" });
 });
 
 

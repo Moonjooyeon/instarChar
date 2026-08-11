@@ -30,6 +30,9 @@ type TossIapHistoryPage = {
 };
 
 type TossIapHistoryFetcher = (params?: { key?: string | null }) => Promise<TossIapHistoryPage | undefined>;
+type TossIapVersionChecker = (versions: { android: `${number}.${number}.${number}`; ios: `${number}.${number}.${number}` }) => boolean;
+
+export const TOSS_IAP_FULL_FLOW_MIN_VERSIONS = { android: "5.234.0", ios: "5.233.0" } as const;
 
 type PurchaseCallbacks = {
   grant: (orderId: string) => Promise<CreditPurchaseGrant>;
@@ -43,10 +46,15 @@ export function isAppsInTossIapRuntime(runtime: string = import.meta.env?.VITE_A
 
 export async function getTossIapProducts(): Promise<TossIapProduct[] | null> {
   if (!isAppsInTossIapRuntime()) return [];
-  const { IAP } = await import("@apps-in-toss/web-framework");
+  const { IAP, isMinVersionSupported } = await import("@apps-in-toss/web-framework");
+  if (!hasTossIapFullFlowSupport(isMinVersionSupported)) return null;
   const result = await IAP.getProductItemList();
   if (!result) return null;
   return result.products.filter((product): product is TossIapProduct => product.type === "CONSUMABLE");
+}
+
+export function hasTossIapFullFlowSupport(checker: TossIapVersionChecker): boolean {
+  return checker(TOSS_IAP_FULL_FLOW_MIN_VERSIONS);
 }
 
 export async function startTossIapPurchase(sku: string, callbacks: PurchaseCallbacks): Promise<() => void> {
