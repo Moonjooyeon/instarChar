@@ -54,6 +54,7 @@ def test_credit_catalog_is_visible_but_payment_is_disabled() -> None:
         response = client.get("/api/credits/catalog")
     assert response.status_code == 200
     assert len(response.json()["offers"]) == 5
+    assert [offer["price_krw"] for offer in response.json()["offers"]] == [4950, 9900, 29700, 49500, 99000]
     assert all(offer["payment_available"] is False for offer in response.json()["offers"])
     assert response.json()["offers"][2]["first_purchase_total_credits"] == 3465
     assert response.json()["flows"][0]["code"] == "direct_dm_basic"

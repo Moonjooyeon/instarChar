@@ -4,12 +4,18 @@ from hashlib import sha256
 from pathlib import Path
 from shutil import copyfile
 
-import pytest
-from pydantic import ValidationError
-
 from app.core.config import Settings
 from app.core.credit_products import CREDIT_PRODUCTS
 from app.iap_release_check import IapReleaseManifest, load_manifest, validate_manifest
+
+
+SKU_ENV_BY_OFFER = {
+    "credit-5000": "TOSS_IAP_CREDIT_5000_SKU",
+    "credit-10000": "TOSS_IAP_CREDIT_10000_SKU",
+    "credit-30000": "TOSS_IAP_CREDIT_30000_SKU",
+    "credit-50000": "TOSS_IAP_CREDIT_50000_SKU",
+    "credit-100000": "TOSS_IAP_CREDIT_100000_SKU",
+}
 
 
 def test_release_manifest_matches_bundle_assets_and_server_policy(tmp_path: Path) -> None:
@@ -41,10 +47,18 @@ def test_release_manifest_rejects_placeholder_bundle_version(tmp_path: Path) -> 
     assert any("must equal" in error for error in errors)
 
 
-def test_committed_manifest_is_a_non_runnable_template() -> None:
-    path = Path(__file__).parents[2] / "documents/qa/guides/apps-in-toss-iap-console-manifest.example.json"
-    with pytest.raises(ValidationError):
-        load_manifest(path)
+def test_committed_manifest_has_products_but_blocks_unrecorded_bundle_versions() -> None:
+    root = Path(__file__).parents[2]
+    manifest = load_manifest(root / "documents/qa/guides/apps-in-toss-iap-console-manifest.example.json")
+    environment_example = (root / ".env.example").read_text(encoding="utf-8")
+    for product in manifest.products:
+        assert f"{SKU_ENV_BY_OFFER[product.offer_id]}={product.sku}" in environment_example
+    settings = _manifest_settings(manifest)
+    errors = validate_manifest(manifest, settings, root)
+    assert errors == (
+        "console and minimum support versions must be recorded after upload",
+        "minimum support version must equal the uploaded console bundle version",
+    )
 
 
 def _manifest_data(root: Path) -> dict[str, object]:
@@ -71,6 +85,18 @@ def _product_asset(offer_id: str) -> Path:
 
 def _settings() -> Settings:
     values = {"toss_iap_credit_5000_sku": "sku-0", "toss_iap_credit_10000_sku": "sku-1", "toss_iap_credit_30000_sku": "sku-2", "toss_iap_credit_50000_sku": "sku-3", "toss_iap_credit_100000_sku": "sku-4"}
+    return Settings(_env_file=None, **values)
+
+
+def _manifest_settings(manifest: IapReleaseManifest) -> Settings:
+    skus = {product.offer_id: product.sku for product in manifest.products}
+    values = {
+        "toss_iap_credit_5000_sku": skus["credit-5000"],
+        "toss_iap_credit_10000_sku": skus["credit-10000"],
+        "toss_iap_credit_30000_sku": skus["credit-30000"],
+        "toss_iap_credit_50000_sku": skus["credit-50000"],
+        "toss_iap_credit_100000_sku": skus["credit-100000"],
+    }
     return Settings(_env_file=None, **values)
 
 
