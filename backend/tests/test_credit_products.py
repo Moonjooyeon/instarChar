@@ -3,12 +3,17 @@ from pathlib import Path
 import pytest
 
 from app.core.config import Settings
-from app.core.credit_products import toss_iap_purchase_available, validate_toss_iap_configuration
+from app.core.credit_products import CREDIT_PRODUCTS, toss_iap_purchase_available, validate_toss_iap_configuration
 from app.models import UserProvider
 
 
 def test_complete_toss_iap_configuration_is_valid(tmp_path: Path) -> None:
     validate_toss_iap_configuration(_configured_settings(tmp_path))
+
+
+def test_credit_products_match_registered_console_prices() -> None:
+    prices = [(product.supply_price_krw, product.price_krw) for product in CREDIT_PRODUCTS]
+    assert prices == [(4500, 4950), (9000, 9900), (27000, 29700), (45000, 49500), (90000, 99000)]
 
 
 def test_purchase_flag_requires_main_integration_flag() -> None:

@@ -67,8 +67,11 @@ def validate_manifest(manifest: IapReleaseManifest, settings: Settings, root: Pa
         errors.append(f"app_name must equal TOSS_APP_NAME ({settings.toss_app_name})")
     configured = credit_product_skus(settings)
     products = {item.offer_id: item for item in manifest.products}
+    skus = [item.sku for item in manifest.products]
     if len(products) != len(manifest.products):
         errors.append("offer_id values must be unique")
+    if len(set(skus)) != len(skus):
+        errors.append("console SKU values must be unique")
     if set(products) != set(configured):
         errors.append("products must contain every server offer_id exactly once")
     for policy in CREDIT_PRODUCTS:
@@ -117,14 +120,14 @@ def _product_policy_errors(item: ConsoleProduct, policy: CreditProduct, configur
         errors.append(f"{item.offer_id}: console SKU must match the configured server SKU")
     if item.sale_price_krw != policy.price_krw or _display_amount_value(item.display_amount) != item.sale_price_krw:
         errors.append(f"{item.offer_id}: console sale price, display amount, and server price must match")
+    if item.supply_price_krw != policy.supply_price_krw:
+        errors.append(f"{item.offer_id}: console supply price must match the server policy")
     if (item.base_credits, item.product_bonus_credits) != (policy.base_credits, policy.product_bonus_credits):
         errors.append(f"{item.offer_id}: granted credits must match the server policy")
     if (item.display_name, item.description) != (expected_name, expected_description):
         errors.append(f"{item.offer_id}: product name and description must match the approved copy")
     if item.image_sha256 != expected_image_hash:
         errors.append(f"{item.offer_id}: image must match the approved product asset")
-    if item.supply_price_krw > item.sale_price_krw:
-        errors.append(f"{item.offer_id}: supply price cannot exceed the VAT-inclusive sale price")
     if item.exposed:
         errors.append(f"{item.offer_id}: product exposure must remain OFF before release approval")
     return errors

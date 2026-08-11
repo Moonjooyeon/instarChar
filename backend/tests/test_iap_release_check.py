@@ -27,14 +27,25 @@ def test_release_manifest_rejects_sku_price_exposure_and_image_drift(tmp_path: P
     data = _manifest_data(tmp_path)
     first = data["products"][0]
     assert isinstance(first, dict)
-    first.update({"sku": "wrong", "sale_price_krw": 6000, "exposed": True, "display_name": "wrong", "image_sha256": "0" * 64})
+    first.update({"sku": "wrong", "supply_price_krw": 4600, "sale_price_krw": 6000, "exposed": True, "display_name": "wrong", "image_sha256": "0" * 64})
     errors = validate_manifest(IapReleaseManifest.model_validate(data), _settings(), tmp_path)
     assert any("console SKU" in error for error in errors)
     assert any("sale price" in error for error in errors)
+    assert any("supply price" in error for error in errors)
     assert any("exposure" in error for error in errors)
     assert any("image SHA-256" in error for error in errors)
     assert any("approved copy" in error for error in errors)
     assert any("approved product asset" in error for error in errors)
+
+
+def test_release_manifest_rejects_duplicate_console_skus(tmp_path: Path) -> None:
+    data = _manifest_data(tmp_path)
+    products = data["products"]
+    assert isinstance(products, list)
+    assert isinstance(products[1], dict)
+    products[1]["sku"] = "sku-0"
+    errors = validate_manifest(IapReleaseManifest.model_validate(data), _settings(), tmp_path)
+    assert "console SKU values must be unique" in errors
 
 
 def test_release_manifest_rejects_placeholder_bundle_version(tmp_path: Path) -> None:
@@ -75,7 +86,7 @@ def _product_data(root: Path, index: int) -> dict[str, object]:
     source = _product_asset(policy.offer_id)
     copyfile(source, image)
     names = {"credit-5000": ("크레딧 500C", "얼라이브 AI 기능에 사용하는 500C"), "credit-10000": ("크레딧 1,000C", "얼라이브 AI 기능에 사용하는 1,000C"), "credit-30000": ("크레딧 3,150C", "기본 3,000C와 추가 150C를 지급해요"), "credit-50000": ("크레딧 5,500C", "기본 5,000C와 추가 500C를 지급해요"), "credit-100000": ("크레딧 11,500C", "기본 10,000C와 추가 1,500C를 지급해요")}
-    return {"offer_id": policy.offer_id, "sku": f"sku-{index}", "product_type": "CONSUMABLE", "display_name": names[policy.offer_id][0], "description": names[policy.offer_id][1], "image_path": image.name, "image_sha256": _hash(image), "supply_price_krw": max(1, policy.price_krw - 1), "sale_price_krw": policy.price_krw, "display_amount": f"{policy.price_krw:,}원", "base_credits": policy.base_credits, "product_bonus_credits": policy.product_bonus_credits, "exposed": False}
+    return {"offer_id": policy.offer_id, "sku": f"sku-{index}", "product_type": "CONSUMABLE", "display_name": names[policy.offer_id][0], "description": names[policy.offer_id][1], "image_path": image.name, "image_sha256": _hash(image), "supply_price_krw": policy.supply_price_krw, "sale_price_krw": policy.price_krw, "display_amount": f"{policy.price_krw:,}원", "base_credits": policy.base_credits, "product_bonus_credits": policy.product_bonus_credits, "exposed": False}
 
 
 def _product_asset(offer_id: str) -> Path:
