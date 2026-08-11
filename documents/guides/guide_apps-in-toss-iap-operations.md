@@ -3,7 +3,7 @@ title: 앱인토스 인앱결제 배포 및 운영 가이드
 author: black (black@ashwoodfriends.com)
 created: 2026-08-11
 updated: 2026-08-11
-version: 1.3.0
+version: 1.3.1
 status: ready
 ---
 
@@ -97,11 +97,11 @@ make iap-release-check IAP_RELEASE_MANIFEST=documents/qa/evidence/apps-in-toss-i
 | 로그 패턴 | 심각도 | 의미 | 1차 행동 |
 | --- | --- | --- | --- |
 | `iap_integrity_alert` | critical | 장기 미지급, 검토·실패, 구매·환불 원장 또는 계정 잔액 불일치 | 신규 구매 차단 후 감사 API 조회 |
-| `Credit purchase reconciliation failed for` | critical | 특정 주문의 서버 재조회·지급·환불 처리 실패 | 주문 상세 보존 후 제공자 상태 재확인 |
+| `Credit purchase reconciliation failed` | critical | 특정 주문의 서버 재조회·지급·환불 처리 실패. 원본 주문 ID는 로그에 포함되지 않음 | 처리 큐·감사 API에서 후보를 찾고 보호된 주문 상세로 제공자 상태 재확인 |
 | `Credit purchase reconciliation poll failed` | critical | 재조정 배치 자체 실패 | DB·mTLS·토스 API 상태 확인 |
 | IAP 시작 설정 `ValueError` | critical | SKU, HMAC, mTLS 또는 플래그 조합 오류 | 서버를 억지로 기동하지 말고 설정 복구 |
 
-`iap_integrity_alert`에는 주문 ID나 사용자 ID 대신 구매·계정 후보 수, `truncated`와 사유별 건수만 들어간다. 상세 정보는 `X-Moderation-Key`를 로그에 남기지 않고 보호된 API로 조회한다.
+`iap_integrity_alert`와 주문별 재조정 예외에는 원본 주문 ID나 사용자 ID를 넣지 않는다. 무결성 경보에는 구매·계정 후보 수, `truncated`와 사유별 건수만 들어간다. 상세 정보는 `X-Moderation-Key`를 로그에 남기지 않고 보호된 처리 큐·감사·주문 상세 API로 조회한다.
 
 경보 시스템에는 담당 채널, 주·부 담당자, 10분 이내 확인 기준과 에스컬레이션 대상을 등록한다. 애플리케이션 코드가 오류 로그를 내보내는 것만으로 외부 알림 설정이 완료된 것으로 판정하지 않는다.
 

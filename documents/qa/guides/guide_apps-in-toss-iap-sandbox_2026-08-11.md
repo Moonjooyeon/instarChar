@@ -3,7 +3,7 @@ title: 앱인토스 인앱결제 샌드박스 검증 가이드
 author: black (black@ashwoodfriends.com)
 created: 2026-08-11
 updated: 2026-08-11
-version: 1.6.0
+version: 1.7.0
 status: ready
 ---
 
@@ -19,11 +19,12 @@ Apps in Toss 일회성 인앱결제를 실제 판매 전에 샌드박스 앱에�
 
 | 항목 | 값 |
 | --- | --- |
-| 파일 | `documents/qa/evidence/ashwoodfriends-alive-iap-415f3a2.ait` |
-| 앱 코드 커밋 | `415f3a2` |
-| 백엔드 IAP·탈퇴 수명주기 커밋 | `f2592e5` |
-| 빌드 생성 배포 ID | `019fef17-2f19-71bf-9f2c-a405896b0e3f` |
-| SHA-256 | `9ac56dcb6ac9d88bb5e92d72acc4660fef1050cd52ef75fec38bfb5094353e56` |
+| 파일 | `documents/qa/evidence/ashwoodfriends-alive-iap-2471416.ait` |
+| 앱 코드 커밋 | `2471416` |
+| 산출물 고정 커밋 | `4142a1a` |
+| 백엔드 IAP·탈퇴·로그 보안 커밋 | `f2592e5`, `8871cb8` |
+| 빌드 생성 배포 ID | `019fef5f-aa96-7f25-81fc-450ce522b0f2` |
+| SHA-256 | `58bd2e1868bce606d24d9de82e2e56bdef1567144d440b5c18c6e5b873e56d6f` |
 | 크기 | 약 6.9MB |
 | 상태 | `npm run build:toss` 통과, 콘솔 업로드 전 |
 
@@ -127,6 +128,16 @@ make iap-release-check IAP_RELEASE_MANIFEST=documents/qa/evidence/apps-in-toss-i
 
 통과 조건: 실패 주문이 유실되지 않고 한 번만 복원되며 최종 잔액·원장·주문 상태가 일치한다.
 
+### SB-03A 서버 지급 성공·지급 완료 통지 실패
+
+1. 서버 지급 API는 성공시키고 `completeProductGrant`만 `false` 또는 오류가 되도록 승인된 장애 주입을 적용한다.
+2. 앱 잔액이 즉시 갱신되고 “크레딧은 복원했어요”와 다음 진입 재시도 안내가 표시되는지 확인한다.
+3. 구매 원장과 잔액은 한 번만 증가하지만 해당 주문이 아직 pending으로 남는지 확인한다.
+4. 장애를 해제하고 재진입해 `completeProductGrant`가 다시 호출되는지 확인한다.
+5. 재시도 뒤 주문이 pending 목록에서 사라지고 크레딧이 중복 지급되지 않는지 확인한다.
+
+통과 조건: 제공자 지급 완료 통지 실패가 서버 지급 성공을 사용자 실패로 되돌리지 않으며, 잔액은 갱신되고 다음 진입에서 통지만 안전하게 재시도된다.
+
 ### SB-04 오류 처리
 
 공식 샌드박스가 제공하는 방법으로 사용자 취소, 네트워크 오류, 내부 오류와 파트너 상품 지급 실패를 각각 실행한다.
@@ -210,6 +221,7 @@ GET /api/moderation/credit-purchases/{order_id}
 | 콘솔 매니페스트 사전 검증 | not run |  | `passed for 5 products` 필요 |
 | 정상 결제·멱등성 | not run |  |  |
 | 서버 실패·재진입 복원 | not run |  |  |
+| 서버 지급 성공·완료 통지 재시도 | not run |  |  |
 | 오류 처리 | not run |  |  |
 | 환불·부채 재조정 | not run |  |  |
 | 사용자 결제 내역·기기 변경 | not run |  |  |

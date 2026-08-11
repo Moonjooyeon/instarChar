@@ -3,7 +3,7 @@ title: 앱인토스 인앱결제 승인 후 적용 및 출시 검토 계획
 author: black (black@ashwoodfriends.com)
 created: 2026-08-11
 updated: 2026-08-11
-version: 2.3.1
+version: 2.4.0
 status: implemented-local
 ---
 
@@ -189,7 +189,7 @@ status: implemented-local
 | 구매 제한 활성화 | 구현 | 토스 provider만 허용하고 HMAC 기반 사용자 코호트를 0~100%로 결정하는 카탈로그 게이트 |
 | 운영 무결성 신호 | 구현 | 재조정 주기마다 감사하고 이상 시 식별자 없는 `iap_integrity_alert` 오류 로그 발행 |
 | 콘솔 매니페스트 사전 검증 | 구현 | `.ait`·배포 ID·앱 이름·5개 상품의 고유 SKU·공급가·판매가·문구·이미지·노출·최소 지원 버전 대조 CLI |
-| 자동 검증 | 통과 | backend 331 passed, 1 skipped(별도 PostgreSQL 통합 테스트), frontend domain 155 passed, typecheck, web build, Toss AIT build |
+| 자동 검증 | 통과 | backend 332 passed, 1 skipped(별도 PostgreSQL 통합 테스트), frontend domain 156 passed, typecheck, web build, Toss AIT build |
 | 콘솔·mTLS·샌드박스·정산 | 미검증 | 저장소 밖의 운영 정보와 실제 Apps in Toss 앱 필요 |
 
 ## 결정이 필요한 상품 정책
@@ -246,7 +246,7 @@ status: implemented-local
 → IAP 지급 완료 / 잔액 재조회 / 성공 UI
 ```
 
-복원 경로는 `토스 로그인 세션 복구 또는 크레딧 상점 진입 → getPendingOrders → 각 orderId를 같은 지급 API로 재처리 → completeProductGrant`로 구성한다. 두 진입점이 겹치면 같은 in-flight 복원 작업을 공유하고, 상점 진입은 결과 안내와 재시도 경로를 담당한다. 환불 경로는 `완료·환불 이력 또는 서버 재조정 → REFUNDED 확인 → chargeback 원장 → 잔액/부채 정책 반영 → 운영 조회`로 분리한다.
+복원 경로는 `토스 로그인 세션 복구 또는 크레딧 상점 진입 → getPendingOrders → 각 orderId를 같은 지급 API로 재처리 → completeProductGrant`로 구성한다. 두 진입점이 겹치면 같은 in-flight 복원 작업을 공유하고, 상점 진입은 결과 안내와 재시도 경로를 담당한다. 서버 지급 성공과 `completeProductGrant` 통지 성공은 별도 상태로 취급한다. 통지만 실패하면 지급된 잔액을 즉시 갱신하고 pending 안내를 표시한 뒤 다음 진입에서 통지를 재시도하며, 서버의 주문 멱등성이 중복 지급을 막는다. 환불 경로는 `완료·환불 이력 또는 서버 재조정 → REFUNDED 확인 → chargeback 원장 → 잔액/부채 정책 반영 → 운영 조회`로 분리한다.
 
 ## 환경 플래그와 활성화 순서
 
@@ -336,6 +336,7 @@ status: implemented-local
 - [x] 토스 로그인 세션 복구 직후와 크레딧 상점 진입 시 `getPendingOrders()`를 호출하고, 동시에 시작되면 같은 복원 작업을 공유한다.
 - [x] 복원 주문은 일반 결제와 동일한 지급 API를 사용한다.
 - [x] 서버 지급 성공 뒤 `completeProductGrant()`를 호출한다.
+- [x] 서버 지급 성공과 `completeProductGrant()` 통지 성공을 분리해, 통지 실패 시 잔액은 갱신하고 다음 진입에서 통지만 재시도한다.
 - [x] 페이지네이션을 포함해 완료·환불 주문을 조회하고 환불 주문을 서버 상태로 재조정한다.
 - [x] 1차 출시는 결제 알림 URL을 사용하지 않고 SDK 이력과 서버 재조정 작업을 사용한다. 이후 알림 URL을 도입하면 인증, 서명 또는 Basic Auth, 재시도와 중복 이벤트 테스트를 별도 태스크로 추가한다.
 - [x] 알려진 미완료·지급 완료 구매를 서버가 주기적으로 재조회하는 기본 비활성 운영 작업을 추가한다.
@@ -347,7 +348,7 @@ status: implemented-local
 ### 7. 운영, 정산과 출시 활성화
 
 - [ ] 콘솔의 결제 완료·지급 완료 건과 내부 구매 원장을 일 단위로 대조한다.
-- [x] 재조정 감사에서 장기 `PAYMENT_COMPLETED`, 검토·실패 상태와 구매·환불·계정 원장 불일치를 발견하면 주문·사용자 식별자 없이 `iap_integrity_alert`와 사유별 건수를 오류 로그로 발행한다.
+- [x] 재조정 감사에서 장기 `PAYMENT_COMPLETED`, 검토·실패 상태와 구매·환불·계정 원장 불일치를 발견하면 주문·사용자 식별자 없이 `iap_integrity_alert`와 사유별 건수를 오류 로그로 발행한다. 주문별 재조정 예외 로그도 원본 주문 ID를 포함하지 않는다.
 - [ ] 로그 수집 시스템에서 `iap_integrity_alert`, 주문 재조정 실패와 poll 실패를 critical 알림으로 연결하고 담당자·10분 응답 기준을 지정한다.
 - [x] 보호된 감사 API로 6시간 이상 `processing`, `review`·`failed`, 잘못된 지급량, 구매·환불 원장 불일치와 계정 잔액·부채·원장 불일치를 탐지한다.
 - [x] 이 계획서에 Android·iOS 환불 경로와 지급 지연 대응 초안을 추가한다. 고객 노출 문구와 담당자 승인은 별도 게이트다.
@@ -423,7 +424,7 @@ status: implemented-local
 
 - [x] Android 콘솔 처리와 iOS Apple 결정 경로를 분리한 고객지원 초안이 준비돼 있다.
 - [x] 운영 상태 큐·재무 감사·주문 상세 API로 장기 `processing`, `review`, `failed`, 구매·환불 원장과 계정 잔액 불일치를 조회할 수 있다.
-- [x] 감사 이상을 `iap_integrity_alert` 오류 로그로 내보내며 주문 ID·사용자 ID는 포함하지 않는다.
+- [x] 감사 이상과 주문별 재조정 예외를 오류 로그로 내보내되 원본 주문 ID·사용자 ID는 포함하지 않는다.
 - [ ] 콘솔 결제 상태와 내부 원장 차이에 대한 담당자와 조치 시간이 정해져 있다.
 - [ ] 인증서 만료 전 이중 인증서 교체 절차를 검증한다.
 
@@ -431,11 +432,11 @@ status: implemented-local
 
 | 게이트 | 검증 | 현재 상태 |
 | --- | --- | --- |
-| 도메인 | SKU 매핑, 상태 전이, 첫 구매, 재가입, 환불 회수, 재무 감사, 사용자 롤아웃·경보·구매 내역·탈퇴 보존·콘솔 사전 검증 | backend 331 passed, 1 skipped; PostgreSQL 통합 테스트는 별도 1 passed |
+| 도메인 | SKU 매핑, 상태 전이, 첫 구매, 재가입, 환불 회수, 재무 감사, 사용자 롤아웃·경보·구매 내역·탈퇴 보존·콘솔 사전 검증 | backend 332 passed, 1 skipped; PostgreSQL 통합 테스트는 별도 1 passed |
 | 백엔드 | `compileall`, repository/service/API pytest | 통과 |
 | 데이터베이스 | migration head/current, upgrade·downgrade SQL, 동시 지급 | PostgreSQL current/head `0023`; `0022 → 0023 → 0022 → 0023`, 독립 세션 동시 지급·재가입 보너스 방지·탈퇴 원장 만료 삭제 통과 |
-| 프런트엔드 | typecheck, domain test, production build | 155건·typecheck·Vite build 통과 |
-| 앱인토스 빌드 | `npm run build:toss` | 최신 AIT artifact 생성 통과, 앱 코드 `415f3a2` |
+| 프런트엔드 | typecheck, domain test, production build | 156건·typecheck·Vite build 통과 |
+| 앱인토스 빌드 | `npm run build:toss` | 최신 AIT artifact 생성 통과, 앱 코드 `2471416`, 산출물 `4142a1a` |
 | 상품 이미지 | 5개 SKU별 1024×1024 PNG, SVG 원본, 해시와 직접 시각 검수 | 로컬 준비 통과; 콘솔 업로드 미실행 |
 | 콘솔 매니페스트 | `.ait` SHA·배포 ID·앱 이름, 상품 고유 SKU·공급가·판매가·문구·이미지·노출·최소 지원 버전 | 실제 상품 정책 대조 통과; 새 번들의 콘솔 표시 버전·최소 지원 버전 오류 2건만 남아 전체 검증은 의도적으로 실패 |
 | 앱인토스 번들 업로드 | 콘솔 `앱 출시` 업로드, 배포 ID·QR 생성, 최소 지원 버전 후보 확인 | 미실행 |
@@ -499,13 +500,16 @@ status: implemented-local
 | IAP-20 콘솔 출시 사전 검증 | 콘솔 매니페스트 모델·CLI·Make target·실패형 템플릿 | backend 330건·preflight 4건 | `5b6d5e6` |
 | IAP-21 실제 콘솔 상품 매핑 | SKU 5개, 공급가·판매가, 서버 정책, 환경 예시, 상품 증거 | backend 329 passed, 1 skipped·frontend domain 155 passed·preflight 상품 정책 통과 | `41aa53a` |
 | IAP-22 콘솔 상품 불변식 강화 | 공급가 서버 정책 고정, 매니페스트 중복 SKU·공급가 드리프트 차단 | backend 331 passed, 1 skipped·preflight 5 passed | `ff735eb` |
+| IAP-23 복원 지급·통지 분리 | 서버 지급 성공 후 완료 통지 실패를 pending으로 분류하고 잔액 갱신·재진입 재시도 | frontend domain 156건·typecheck·web·AIT build | `2471416` |
+| IAP-24 재조정 로그 식별자 제거 | 주문별 재조정 예외 로그에서 원본 주문 ID 제거 | scheduler 5건·backend 332 passed, 1 skipped·compile | `8871cb8` |
+| IAP-25 최신 출시 후보 고정 | IAP-23 포함 `.ait`, SHA-256, 배포 ID와 예시 매니페스트를 Git에 고정 | preflight 5 passed·번들 문자열·해시 대조 | `4142a1a` |
 
 로컬 구현 커밋과 외부 출시 승인 커밋을 분리하여 코드 완료와 실제 판매 가능 상태를 혼동하지 않는다.
 
 ## 남은 행동 순서
 
 1. 콘솔 승인 종류와 정산 정보 완료 상태를 캡처한다.
-2. 준비된 `ashwoodfriends-alive-iap-415f3a2.ait`를 콘솔 `앱 출시`에 업로드한다.
+2. 준비된 `ashwoodfriends-alive-iap-2471416.ait`를 콘솔 `앱 출시`에 업로드한다. 이전 `ashwoodfriends-alive-iap-415f3a2.ait`는 기록 보존용이며 업로드하지 않는다.
 3. 배포 ID·콘솔 표시 버전·테스트 QR을 기록하고 QR 테스트를 최소 1회 완료한다.
 4. 인앱 상품 등록 화면에서 업로드한 번들을 `최소 지원 버전`으로 선택한다.
 5. 등록된 상품 5개의 최소 지원 버전을 IAP 포함 승인 번들로 변경하고, 상품 수정 검토가 요구되면 제출한다.
