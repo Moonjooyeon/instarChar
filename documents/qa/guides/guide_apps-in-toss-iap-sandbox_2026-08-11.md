@@ -116,9 +116,12 @@ Apps in Toss 일회성 인앱결제를 실제 판매 전에 샌드박스 앱에�
 운영 키를 로그나 문서에 남기지 않고 아래 보호된 API로 결과를 대조한다.
 
 ```http
+GET /api/moderation/credit-purchases/audit
 GET /api/moderation/credit-purchases?status=review
 GET /api/moderation/credit-purchases/{order_id}
 ```
+
+감사 응답의 `purchases`와 `accounts` 배열이 모두 비어 있어야 정상이다. 항목이 반환되면 각 `reasons`를 기준으로 주문 상세와 원장을 대조한다. `truncated=true`이면 `limit` 범위 밖에도 후보가 있으므로 신규 결제를 활성화하지 않고 운영 담당자가 전체 대조한다. 계정 구매 잔액은 `purchased_credits - debt_credits = purchased_ledger_total`, 보너스 잔액은 `bonus_credits = bonus_ledger_total`이어야 한다.
 
 다음 값만 비식별 증거에 기록한다.
 

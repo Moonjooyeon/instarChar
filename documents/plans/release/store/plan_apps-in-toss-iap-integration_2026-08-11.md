@@ -3,7 +3,7 @@ title: 앱인토스 인앱결제 승인 후 적용 및 출시 검토 계획
 author: black (black@ashwoodfriends.com)
 created: 2026-08-11
 updated: 2026-08-11
-version: 1.4.0
+version: 1.5.0
 status: implemented-local
 ---
 
@@ -145,7 +145,8 @@ status: implemented-local
 | 환불 회수·서버 재조정 | 구현 | chargeback, 부족분 debt, 기본 비활성 주기 작업 |
 | 결제 UI·미지급 복원 | 구현 | 토스 runtime IAP, SDK 가격, 로그인 직후·상점 진입 pending restore, cleanup |
 | 환불 이력·운영 조회 | 구현 | SDK history pagination, 서버 reconciliation, 보호된 주문 조회 API |
-| 자동 검증 | 통과 | backend 303건(실제 PostgreSQL 동시 지급·재가입 보너스 방지 포함), frontend domain 151건, typecheck, web build, Toss AIT build |
+| 재무 정합성 감사 | 구현 | 장기 미지급, 상태 검토, 구매·환불 원장과 계정 잔액 불일치 감사 API |
+| 자동 검증 | 통과 | backend 305건(실제 PostgreSQL 동시 지급·재가입·원장 변조 탐지 포함), frontend domain 151건, typecheck, web build, Toss AIT build |
 | 콘솔·mTLS·샌드박스·정산 | 미검증 | 저장소 밖의 운영 정보와 실제 Apps in Toss 앱 필요 |
 
 ## 결정이 필요한 상품 정책
@@ -276,8 +277,9 @@ status: implemented-local
 
 - [ ] 콘솔의 결제 완료·지급 완료 건과 내부 구매 원장을 일 단위로 대조한다.
 - [ ] `PAYMENT_COMPLETED` 장기 체류, 주문 불일치, 중복 지급 시도, 환불 회수 실패에 알림을 설정한다.
+- [x] 보호된 감사 API로 6시간 이상 `processing`, `review`·`failed`, 잘못된 지급량, 구매·환불 원장 불일치와 계정 잔액·부채·원장 불일치를 탐지한다.
 - [x] 이 계획서에 Android·iOS 환불 경로와 지급 지연 대응 초안을 추가한다. 고객 노출 문구와 담당자 승인은 별도 게이트다.
-- [x] 운영자가 `GET /api/moderation/credit-purchases?status=...`로 처리 큐를 찾고, `GET /api/moderation/credit-purchases/{order_id}`와 `X-Moderation-Key`로 내부 상태, 원장과 잔액을 조회할 수 있게 한다. 제공자 상태는 저장된 최근 재조회 결과다.
+- [x] 운영자가 `GET /api/moderation/credit-purchases?status=...`로 처리 큐를 찾고, `GET /api/moderation/credit-purchases/audit`로 이상 후보를 탐지하며, `GET /api/moderation/credit-purchases/{order_id}`와 `X-Moderation-Key`로 내부 상태, 원장과 잔액을 조회할 수 있게 한다. 제공자 상태는 저장된 최근 재조회 결과다.
 - [ ] 샌드박스와 출시 검수 완료 후 제한된 사용자에게만 `payment_available=true`를 적용한다.
 - [ ] 안정화 뒤 콘솔 상품 노출과 전체 결제 플래그를 순서대로 활성화한다.
 
@@ -337,7 +339,7 @@ status: implemented-local
 ### 운영·고객지원
 
 - [x] Android 콘솔 처리와 iOS Apple 결정 경로를 분리한 고객지원 초안이 준비돼 있다.
-- [x] 운영 상태 큐와 주문 상세 API로 장기 `processing`, `review`, `failed`와 환불 회수 결과를 조회할 수 있다.
+- [x] 운영 상태 큐·재무 감사·주문 상세 API로 장기 `processing`, `review`, `failed`, 구매·환불 원장과 계정 잔액 불일치를 조회할 수 있다.
 - [ ] 콘솔 결제 상태와 내부 원장 차이에 대한 담당자와 조치 시간이 정해져 있다.
 - [ ] 인증서 만료 전 이중 인증서 교체 절차를 검증한다.
 
@@ -345,7 +347,7 @@ status: implemented-local
 
 | 게이트 | 검증 | 현재 상태 |
 | --- | --- | --- |
-| 도메인 | SKU 매핑, 상태 전이, 첫 구매, 재가입, 환불 회수 | backend 전체 303건 통과 |
+| 도메인 | SKU 매핑, 상태 전이, 첫 구매, 재가입, 환불 회수, 재무 감사 | backend 전체 305건 통과 |
 | 백엔드 | `compileall`, repository/service/API pytest | 통과 |
 | 데이터베이스 | migration head/current, upgrade·downgrade SQL, 동시 지급 | PostgreSQL current/head `0022`; `0022` 양방향 SQL, 독립 세션 2개 동시 지급과 재가입 보너스 방지 통과 |
 | 프런트엔드 | typecheck, domain test, production build | 151건·typecheck·Vite build 통과 |
@@ -354,7 +356,7 @@ status: implemented-local
 | 앱인토스 샌드박스 | 상품 노출, 결제 성공, 서버 지급 실패 복원, 에러 | 미실행 |
 | 환불 | 완료 주문 환불 후 원장·잔액 재조정 | 로컬 단위 테스트 통과; 콘솔 환불 미실행 |
 | 회귀 | 웹·Capacitor runtime IAP guard | domain test와 web build 통과 |
-| 운영 | 콘솔 주문과 내부 구매 원장 대조 | 조회 API 구현; 실제 대조 대기 |
+| 운영 | 콘솔 주문과 내부 구매 원장 대조 | 처리 큐·감사·상세 API 구현 및 PostgreSQL 원장 변조 탐지 통과; 실제 콘솔 대조 대기 |
 
 샌드박스에서는 실제 과금이 발생하지 않으며 현재 공식 문서상 일회성 결제를 지원한다. 다음 시나리오를 각각 증빙한다.
 
@@ -395,7 +397,8 @@ status: implemented-local
 | IAP-06 계획·증빙 | 공식 가이드 매핑, 검증 결과, 출시 게이트 | 문서 링크·체크리스트 | `f41f24c` 및 후속 증빙 커밋 |
 | IAP-07 사용자 이력·설정 안전성 | 재가입 보너스 방지, 전용 HMAC 키, 시작 설정 검증, `0022` 인덱스 | backend 303건·PostgreSQL integration·alembic | `5cc2d47` |
 | IAP-08 앱 재실행 복원 | 로그인 직후 복원, 상점 재시도, 동시 호출 공유 | frontend 151건·typecheck·web·AIT build | `2b60179` |
-| IAP-09 외부 출시 승인 | 콘솔 매핑, 샌드박스 증빙, 운영 승인 | 수동 게이트 서명 | 운영 정보 준비 후 별도 커밋 |
+| IAP-09 재무 정합성 감사 | 장기 미지급·상태·구매/환불 원장·계정 잔액 감사 API | backend 305건·PostgreSQL 변조 탐지 | `4f83a4d` |
+| IAP-10 외부 출시 승인 | 콘솔 매핑, 샌드박스 증빙, 알림 연결, 운영 승인 | 수동 게이트 서명 | 운영 정보 준비 후 별도 커밋 |
 
 로컬 구현 커밋과 외부 출시 승인 커밋을 분리하여 코드 완료와 실제 판매 가능 상태를 혼동하지 않는다.
 
