@@ -3,7 +3,7 @@ title: 앱인토스 인앱결제 승인 후 적용 및 출시 검토 계획
 author: black (black@ashwoodfriends.com)
 created: 2026-08-11
 updated: 2026-08-11
-version: 1.3.0
+version: 1.4.0
 status: implemented-local
 ---
 
@@ -143,9 +143,9 @@ status: implemented-local
 | 멱등 지급·첫 구매 보너스 | 구현 | 주문 unique, 계정 row lock, 원장 idempotency key, 안정적 사용자 해시 이력, `first_purchase` unique grant |
 | 운영 설정 사전 검증 | 구현 | 활성화 시 5개 SKU 누락·중복, 32-byte HMAC 키, mTLS 파일을 시작 단계에서 차단 |
 | 환불 회수·서버 재조정 | 구현 | chargeback, 부족분 debt, 기본 비활성 주기 작업 |
-| 결제 UI·미지급 복원 | 구현 | 토스 runtime IAP, SDK 가격, pending restore, cleanup |
+| 결제 UI·미지급 복원 | 구현 | 토스 runtime IAP, SDK 가격, 로그인 직후·상점 진입 pending restore, cleanup |
 | 환불 이력·운영 조회 | 구현 | SDK history pagination, 서버 reconciliation, 보호된 주문 조회 API |
-| 자동 검증 | 통과 | backend 303건(실제 PostgreSQL 동시 지급·재가입 보너스 방지 포함), frontend domain 150건, typecheck, web build, Toss AIT build |
+| 자동 검증 | 통과 | backend 303건(실제 PostgreSQL 동시 지급·재가입 보너스 방지 포함), frontend domain 151건, typecheck, web build, Toss AIT build |
 | 콘솔·mTLS·샌드박스·정산 | 미검증 | 저장소 밖의 운영 정보와 실제 Apps in Toss 앱 필요 |
 
 ## 결정이 필요한 상품 정책
@@ -187,7 +187,7 @@ status: implemented-local
 → IAP 지급 완료 / 잔액 재조회 / 성공 UI
 ```
 
-복원 경로는 `크레딧 상점 진입 → getPendingOrders → 각 orderId를 같은 지급 API로 재처리 → completeProductGrant`로 구성한다. 환불 경로는 `완료·환불 이력 또는 서버 재조정 → REFUNDED 확인 → chargeback 원장 → 잔액/부채 정책 반영 → 운영 조회`로 분리한다.
+복원 경로는 `토스 로그인 세션 복구 또는 크레딧 상점 진입 → getPendingOrders → 각 orderId를 같은 지급 API로 재처리 → completeProductGrant`로 구성한다. 두 진입점이 겹치면 같은 in-flight 복원 작업을 공유하고, 상점 진입은 결과 안내와 재시도 경로를 담당한다. 환불 경로는 `완료·환불 이력 또는 서버 재조정 → REFUNDED 확인 → chargeback 원장 → 잔액/부채 정책 반영 → 운영 조회`로 분리한다.
 
 ## 환경 플래그와 활성화 순서
 
@@ -262,7 +262,7 @@ status: implemented-local
 
 ### 6. 미결 주문 복원과 환불 재조정
 
-- [x] 크레딧 상점 진입 시 `getPendingOrders()`를 호출한다. 로그인 완료 직후 전역 호출은 상점 진입 경로와 중복되므로 추가하지 않는다.
+- [x] 토스 로그인 세션 복구 직후와 크레딧 상점 진입 시 `getPendingOrders()`를 호출하고, 동시에 시작되면 같은 복원 작업을 공유한다.
 - [x] 복원 주문은 일반 결제와 동일한 지급 API를 사용한다.
 - [x] 서버 지급 성공 뒤 `completeProductGrant()`를 호출한다.
 - [x] 페이지네이션을 포함해 완료·환불 주문을 조회하고 환불 주문을 서버 상태로 재조정한다.
@@ -348,7 +348,7 @@ status: implemented-local
 | 도메인 | SKU 매핑, 상태 전이, 첫 구매, 재가입, 환불 회수 | backend 전체 303건 통과 |
 | 백엔드 | `compileall`, repository/service/API pytest | 통과 |
 | 데이터베이스 | migration head/current, upgrade·downgrade SQL, 동시 지급 | PostgreSQL current/head `0022`; `0022` 양방향 SQL, 독립 세션 2개 동시 지급과 재가입 보너스 방지 통과 |
-| 프런트엔드 | typecheck, domain test, production build | 150건·typecheck·Vite build 통과 |
+| 프런트엔드 | typecheck, domain test, production build | 151건·typecheck·Vite build 통과 |
 | 앱인토스 빌드 | `npm run build:toss` | AIT artifact 생성 통과 |
 | 크로스 레이어 | 지급 API timeout 뒤 재시도, 잔액 갱신 | 로컬 멱등·PostgreSQL 동시성 테스트 통과; 실제 앱 검증 대기 |
 | 앱인토스 샌드박스 | 상품 노출, 결제 성공, 서버 지급 실패 복원, 에러 | 미실행 |
@@ -365,7 +365,7 @@ status: implemented-local
 3. 결제 성공·서버 지급 실패: 실패 안내 후 앱 재실행에서 미결 주문을 복원한다.
 4. 에러: 사용자 취소, 네트워크 오류, 내부 오류, 지급 실패를 구분한다.
 5. 반복 호출: 같은 `orderId`를 동시에 여러 번 호출해도 한 번만 지급한다.
-6. 재진입: 결제 도중 앱 종료 후 로그인·상점 진입에서 복원한다.
+6. 재진입: 결제 도중 앱 종료 후 로그인 직후 복원을 시작하고, 상점 진입에서도 결과 안내 또는 재시도가 가능한지 확인한다.
 7. 환불: `REFUNDED` 상태가 원장과 잔액에 반영된다.
 
 ## 위험과 롤백
@@ -394,7 +394,8 @@ status: implemented-local
 | IAP-05 DB 동시성 | 독립 세션 동시 지급 통합 테스트 | PostgreSQL integration pytest | `9307c43` |
 | IAP-06 계획·증빙 | 공식 가이드 매핑, 검증 결과, 출시 게이트 | 문서 링크·체크리스트 | `f41f24c` 및 후속 증빙 커밋 |
 | IAP-07 사용자 이력·설정 안전성 | 재가입 보너스 방지, 전용 HMAC 키, 시작 설정 검증, `0022` 인덱스 | backend 303건·PostgreSQL integration·alembic | `5cc2d47` |
-| IAP-08 외부 출시 승인 | 콘솔 매핑, 샌드박스 증빙, 운영 승인 | 수동 게이트 서명 | 운영 정보 준비 후 별도 커밋 |
+| IAP-08 앱 재실행 복원 | 로그인 직후 복원, 상점 재시도, 동시 호출 공유 | frontend 151건·typecheck·web·AIT build | `2b60179` |
+| IAP-09 외부 출시 승인 | 콘솔 매핑, 샌드박스 증빙, 운영 승인 | 수동 게이트 서명 | 운영 정보 준비 후 별도 커밋 |
 
 로컬 구현 커밋과 외부 출시 승인 커밋을 분리하여 코드 완료와 실제 판매 가능 상태를 혼동하지 않는다.
 
