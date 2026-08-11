@@ -1,0 +1,440 @@
+---
+title: 앱인토스 인앱결제 승인 후 적용 및 출시 검토 계획
+author: black (black@ashwoodfriends.com)
+created: 2026-08-11
+updated: 2026-08-11
+version: 1.2.0
+status: implemented-local
+---
+
+# 앱인토스 인앱결제 승인 후 적용 및 출시 검토 계획
+
+## 목표
+
+앱인토스 인앱결제 승인 이후 `alive`의 크레딧 상품을 안전하게 판매할 수 있도록 콘솔 설정, 프런트엔드 결제 흐름, FastAPI 주문 검증, PostgreSQL 구매 원장, 구매 복원, 환불 정합성, 샌드박스 QA와 운영 절차를 하나의 실행 계획으로 확정한다.
+
+승인 완료는 결제 기능을 사용할 자격이 준비됐다는 뜻으로 본다. 실제 판매 시작은 이 문서의 구현·검토·샌드박스·운영 게이트를 모두 통과한 뒤 `payment_available`과 콘솔 상품 노출을 단계적으로 활성화하는 시점이다.
+
+## 가정
+
+- 2026-08-11 완료된 승인은 앱인토스의 인앱결제 기능 또는 정산 사용 승인이다.
+- 1차 결제 플랫폼은 Apps in Toss이며, App Store·Google Play 독립 앱 결제는 이번 범위에서 구현하지 않는다.
+- 현재 크레딧 팩은 반복 구매할 수 있는 디지털 내부 재화이므로 앱인토스의 **소모품**으로 등록한다.
+- 자동 갱신 구독과 비소모품은 이번 범위에서 제외한다.
+- 토스 로그인 사용자는 `users.provider = toss`, `users.provider_subject = userKey`로 식별한다.
+- 클라이언트의 결제 성공 콜백만으로 크레딧을 지급하지 않는다. 서버가 mTLS 주문 상태 조회로 `orderId`, `sku`, 상태와 사용자를 검증한 뒤 지급한다.
+- 결제 사고 방지를 위해 모든 필수 게이트가 끝날 때까지 `payment_available=false`와 비활성 결제 버튼을 유지한다.
+
+## 범위
+
+- 앱인토스 콘솔의 사업자·정산 정보, 소모품 SKU, 상품 이미지, 판매가와 노출 상태 확정
+- 토스 IAP 상품 목록 조회와 일회성 결제 요청 UI
+- 서버의 주문 상태 검증과 멱등한 크레딧 지급
+- `CreditPurchase` 구매 원장과 전역 `orderId` 중복 방지
+- 결제 완료 후 지급 실패 주문의 복원
+- 완료·환불 주문 재조정과 운영 대응
+- 첫 구매 보너스의 1회 지급 및 환불 회수 정책
+- 샌드박스 필수 시나리오와 출시 전 승인 게이트
+- 결제 중단, 롤백, 고객 문의와 정산 확인 절차
+
+## 제외 범위
+
+- 자동 갱신 구독, 무료 체험, 구독 할인과 해지 처리
+- 독립 iOS·Android 앱의 StoreKit·Google Play Billing 구현
+- 앱인토스 외부 PG 또는 토스페이 연결
+- 크레딧 가격·AI 기능별 차감량 자체를 다시 설계하는 작업
+- 프로모션, 광고, 토스 포인트와 크레딧의 결합
+- 실제 운영 인증서·키·Basic Auth 값을 문서나 저장소에 기록하는 작업
+
+## 공식 가이드 적용 기준
+
+### 콘솔 및 상품
+
+공식 [인앱 결제 가이드](https://developers-apps-in-toss.toss.im/guide/monetization/in-app-payment)는 사업자 정보 등록, 약관 동의, 정산 정보 검토, 상품 등록 순서를 안내한다. `alive`에는 다음과 같이 적용한다.
+
+- 크레딧은 사용 후 소진되고 다시 구매할 수 있으므로 상품 유형을 `소모품`으로 설정한다.
+- 현금성·환가성 재화로 설명하거나 토스 포인트와 결합하지 않는다.
+- 상품명은 지급량을 그대로 드러내고, 상품 이미지는 1024 × 1024px로 준비한다.
+- 콘솔에는 VAT 제외 공급가를 입력하며 VAT 포함 판매가는 자동 계산된다. 앱의 하드코딩 가격이 아니라 콘솔의 최종 `displayAmount`를 사용자에게 표시한다.
+- 콘솔 할인은 등록 후 수정할 수 없으므로 초기 출시에서는 사용하지 않는다. 현재 앱의 “첫 구매 10% 추가”는 가격 할인이 아니라 서버가 지급하는 크레딧 보너스로 별도 처리한다.
+- 실제 판매 전까지 상품 노출을 OFF로 유지하고, 샌드박스 확인 단계에서 필요한 상품만 ON으로 전환한다.
+- 결제 알림 URL을 사용하려면 이벤트 계약, 인증, 재시도 정책을 먼저 확인한다. Basic Auth 값은 비밀 저장소에 보관하고 알림 처리는 멱등하게 구현한다.
+
+### 결제 및 지급
+
+공식 [일회성 IAP 연동 가이드](https://developers-apps-in-toss.toss.im/documentation/common/monetization/iap/in-app-purchase)는 다음 흐름을 요구한다.
+
+1. `IAP.getProductItemList()`로 노출 ON인 상품을 조회한다.
+2. `IAP.createOneTimePurchaseOrder()`에 콘솔 SKU를 전달한다.
+3. `processProductGrant({ orderId })`에서 파트너 서버의 지급 API를 호출한다.
+4. 서버 지급 성공일 때만 `true`를 반환하고 잔액을 갱신한다.
+5. 앱 재진입 시 `IAP.getPendingOrders()`로 결제 완료·미지급 주문을 복원한다.
+6. 복원 지급이 성공하면 `IAP.completeProductGrant()`로 지급 완료를 알린다.
+7. `IAP.getCompletedOrRefundedOrders()`와 서버 주문 상태 조회로 완료·환불 상태를 재조정한다.
+
+`IAP.createOneTimePurchaseOrder()`는 cleanup 함수를 반환하므로 화면 이탈 또는 결제 흐름 종료 시 호출한다. 현재 설치된 SDK 2.10.8에는 IAP별 `isSupported()`가 없으므로 `getProductItemList()`·`getPendingOrders()`가 `undefined`를 반환하는 경우를 미지원 토스 앱 버전으로 처리한다. 향후 SDK를 올릴 때 공식 타입에 지원 판별 API가 추가됐는지 다시 확인한다. `USER_CANCELED`, `PAYMENT_PENDING`, 네트워크 오류, 상품 불일치, 서버 지급 실패와 미지원 버전은 서로 다른 사용자 상태로 처리한다.
+
+### 서버 검증과 상태 의미
+
+주문 상태 조회는 `POST /api-partner/v1/apps-in-toss/order/get-order-status`를 mTLS로 호출한다. 요청 가능한 상태를 내부 상태와 다음처럼 매핑한다.
+
+| 토스 상태 | 의미 | `alive` 행동 |
+| --- | --- | --- |
+| `ORDER_IN_PROGRESS` | 주문 처리 중 | 지급하지 않고 재조회 가능 상태로 저장 |
+| `PAYMENT_COMPLETED` | 결제 완료, 상품 미지급 | 사용자·SKU·상태 검증 후 한 번만 지급 |
+| `PURCHASED` | 결제와 상품 지급 완료 | 기존 지급 결과를 재생하고 중복 지급 금지 |
+| `REFUNDED` | 환불 완료 | 신규 지급 금지, 기존 지급분과 보너스 회수 |
+| `FAILED` | 주문 실패 | 지급하지 않고 실패 기록 |
+| `NOT_FOUND` | 주문 없음 | 지급하지 않고 보안 로그 기록 |
+| `MINIAPP_MISMATCH` | 다른 미니앱 주문 | 지급하지 않고 보안 경보 대상 처리 |
+| `ERROR` | 제공자 내부 오류 | 지급하지 않고 제한된 재시도 수행 |
+
+`PAYMENT_COMPLETED` 지급과 `CreditPurchase` 상태 변경, `CreditAccount.purchased_credits` 증가, `CreditLedgerEntry` 추가는 하나의 데이터베이스 트랜잭션으로 처리한다. 이후 같은 `orderId`가 다시 들어오면 저장된 지급 결과를 반환한다.
+
+주문 상태 조회 응답에는 결제 금액이 포함되지 않는다. 따라서 서버는 응답의 `orderId`, `sku`, 상태와 요청 헤더에 사용한 `userKey`를 검증하고, 지급량은 서버의 SKU 정책표에서 결정한다. `price_krw`는 정책 변경 추적용 내부 스냅샷이며 결제 성공의 검증 근거로 사용하지 않는다. 사용자에게 표시하는 실제 판매가는 SDK의 `displayAmount`만 사용한다.
+
+### 환불과 정산
+
+- Android 환불 요청은 앱인토스 콘솔에서 확인하고 파트너가 승인 또는 반려할 수 있으나 최종 결정은 Google Play가 한다.
+- iOS 환불은 Apple이 결정하므로 파트너는 주문 상태만 조회한다.
+- 환불·취소 이벤트는 클라이언트 재진입에 의존하지 않고 결제 알림 또는 서버 재조정 작업으로 확인한다.
+- 정산 정보의 사업자 유형, 계좌 사본, 세금계산서 이메일을 실제 운영 정보와 대조한다.
+- 수수료와 정산 일정은 출시 직전 [공식 정산 안내](https://developers-apps-in-toss.toss.im/guide/settlement)를 다시 확인한다.
+
+## 현재 프로젝트 분석
+
+### 준비된 기반
+
+| 영역 | 현재 상태 | 근거 | 적용 판단 |
+| --- | --- | --- | --- |
+| 앱인토스 SDK | `@apps-in-toss/web-framework` 2.10.8 사용 | [`apps/frontend/package.json`](../../../../apps/frontend/package.json) | IAP API를 같은 SDK에서 추가 가능 |
+| 토스 빌드 | `ait build`, 전용 runtime과 API URL 존재 | [`apps/frontend/package.json`](../../../../apps/frontend/package.json) | 결제 기능을 토스 runtime에만 노출 가능 |
+| 미니앱 설정 | `appName=ashwoodfriends-alive` 설정 | [`apps/frontend/granite.config.ts`](../../../../apps/frontend/granite.config.ts) | 콘솔 앱 이름과 SKU 소속을 대조해야 함 |
+| 토스 로그인 | `userKey`를 `provider_subject`로 저장 | [`backend/app/services/toss_login.py`](../../../../backend/app/services/toss_login.py) | 주문 조회의 `x-toss-user-key` 결합에 재사용 가능 |
+| mTLS 설정 | API base URL과 인증서·키 경로 존재 | [`backend/app/core/config.py`](../../../../backend/app/core/config.py) | 로그인 전용 구현을 공통 토스 API 클라이언트로 분리 가능 |
+| 크레딧 계정 | 구매·보너스 잔액 분리, row lock과 사용 원장 존재 | [`backend/app/models/entities.py`](../../../../backend/app/models/entities.py) | 검증된 구매 지급 대상 기반은 준비됨 |
+| 지급 원장 유형 | `purchase`, `chargeback` entry type 허용 | [`backend/app/models/entities.py`](../../../../backend/app/models/entities.py) | 실제 구매 원장 생성 로직은 추가 필요 |
+
+### 최초 분석 시 미구현 또는 차단 상태
+
+| 영역 | 현재 상태 | 필요한 조치 |
+| --- | --- | --- |
+| 결제 UI | 버튼이 disabled이고 “결제 준비 중” 표시 | IAP 상태 훅, 중복 탭 방지, 오류·복원 UI 구현 |
+| 상품 카탈로그 | 서버에 가격과 지급량을 하드코딩 | 콘솔 SKU와 서버 지급 정책을 매핑하고 가격 표시는 SDK 응답 사용 |
+| 결제 활성화 | 모든 상품의 `payment_available` 기본값이 `false` | 출시 게이트 통과 후 서버 플래그로 단계적 활성화 |
+| 구매 모델 | `CreditPurchase`가 없음 | 주문 ID unique, SKU, 상태, 금액, 지급량 스냅샷과 시각 저장 |
+| 지급 API | `/credits` 아래 조회 API만 존재 | 인증된 `POST /credits/purchases/grant` 추가 |
+| 주문 검증 | 토스 IAP 서버 호출이 없음 | mTLS 주문 상태 조회 서비스와 오류 매핑 추가 |
+| 구매 복원 | `getPendingOrders` 사용이 없음 | 로그인 후·상점 진입 시 멱등 복원 추가 |
+| 환불 재조정 | 완료·환불 조회 및 회수 로직 없음 | 알림/주기 조회, chargeback 원장과 운영 상태 추가 |
+| 첫 구매 보너스 | UI·카탈로그 계산만 있고 구매 지급과 연결되지 않음 | 사용자별 1회 unique와 환불 회수 정책 구현 |
+| 운영 조회 | 잔액과 원장 합계 점검 명령이 없음 | 주문·구매 원장·잔액 불일치 조회 도구 추가 |
+
+현재 미구현 판단은 [크레딧 출시 계획](../../product/credit/plan_credit-bm-and-ai-release-readiness_2026-08-09.md)과 [비용·보안 마진 검토](../../../reports/product/bm/report_credit-ai-cost-security-margin-review_2026-08-09.md)의 결제 차단 조건과도 일치한다.
+
+### 2026-08-11 로컬 구현 상태
+
+| 영역 | 상태 | 근거 |
+| --- | --- | --- |
+| 상품 정책·환경 플래그 | 구현 | `credit_products.py`, `TOSS_IAP_*` 환경 설정 |
+| 구매 원장·부채 | 구현 | `CreditPurchase`, `CreditAccount.debt_credits`, migration `0021` |
+| 서버 주문 검증 | 구현 | 공통 mTLS client와 Toss IAP order service |
+| 멱등 지급·첫 구매 보너스 | 구현 | 주문 unique, 계정 row lock, 원장 idempotency key, `first_purchase` unique grant |
+| 환불 회수·서버 재조정 | 구현 | chargeback, 부족분 debt, 기본 비활성 주기 작업 |
+| 결제 UI·미지급 복원 | 구현 | 토스 runtime IAP, SDK 가격, pending restore, cleanup |
+| 환불 이력·운영 조회 | 구현 | SDK history pagination, 서버 reconciliation, 보호된 주문 조회 API |
+| 자동 검증 | 통과 | backend 293건, frontend domain 150건, typecheck, web build, Toss AIT build |
+| 콘솔·mTLS·샌드박스·정산 | 미검증 | 저장소 밖의 운영 정보와 실제 Apps in Toss 앱 필요 |
+
+## 결정이 필요한 상품 정책
+
+현재 카탈로그는 아래 지급량을 제시한다. 콘솔 SKU와 VAT 포함 실제 판매가가 확정되면 이 표를 SKU 기준 정책으로 고정한다.
+
+| 현재 상품 ID | 앱 표시 가격 | 기본 C | 상품 보너스 C | 일반 지급 C | 첫 구매 예상 C |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `credit-5000` | 5,000원 | 500 | 0 | 500 | 550 |
+| `credit-10000` | 10,000원 | 1,000 | 0 | 1,000 | 1,100 |
+| `credit-30000` | 30,000원 | 3,000 | 150 | 3,150 | 3,465 |
+| `credit-50000` | 50,000원 | 5,000 | 500 | 5,500 | 6,050 |
+| `credit-100000` | 100,000원 | 10,000 | 1,500 | 11,500 | 12,650 |
+
+출시 전에 다음을 확정한다.
+
+- [ ] 콘솔이 계산한 VAT 포함 판매가를 기준으로 앱 가격 문구를 변경한다.
+- [x] 서버가 신뢰할 `sku → 기본 C·상품 보너스 C` 매핑을 코드로 고정하고 실제 콘솔 SKU는 환경 변수로 주입한다.
+- [x] 첫 구매 10% 보너스의 대상은 토스 사용자 기준 최초 **지급 완료 구매 1회**로 정한다.
+- [x] 환불 이력이 있는 구매도 첫 구매 이력으로 유지하고, 해당 구매의 첫 구매 보너스도 회수한다.
+- [x] 환불 회수 시 잔액이 부족하면 음수 잔액을 허용하지 않고 `debt_credits`로 기록하며 다음 구매 지급분으로 우선 상환한다.
+- [ ] 계정 삭제 뒤에도 결제·환불 처리에 필요한 최소 구매 기록의 법적 보존 기간과 비식별화 방법을 확정한다.
+
+## 영향 경로
+
+```text
+사용자 결제 탭
+→ CreditStoreScreen
+→ Apps in Toss IAP.getProductItemList / createOneTimePurchaseOrder
+→ processProductGrant(orderId)
+→ frontend credits API client
+→ POST /api/credits/purchases/grant
+→ 현재 로그인 사용자와 Toss provider_subject(userKey) 확인
+→ Toss IAP order status API(mTLS)
+→ CreditPurchase unique 확인
+→ CreditAccount row lock
+→ CreditPurchase + CreditLedgerEntry + 잔액을 한 트랜잭션으로 반영
+→ 지급 결과 반환
+→ IAP 지급 완료 / 잔액 재조회 / 성공 UI
+```
+
+복원 경로는 `크레딧 상점 진입 → getPendingOrders → 각 orderId를 같은 지급 API로 재처리 → completeProductGrant`로 구성한다. 환불 경로는 `완료·환불 이력 또는 서버 재조정 → REFUNDED 확인 → chargeback 원장 → 잔액/부채 정책 반영 → 운영 조회`로 분리한다.
+
+## 환경 플래그와 활성화 순서
+
+| 설정 | 기본값 | 역할 |
+| --- | --- | --- |
+| `TOSS_IAP_ENABLED` | `false` | 주문 검증·지급·복구 통합 전체 허용 |
+| `TOSS_IAP_PURCHASE_ENABLED` | `false` | 신규 결제 버튼과 상품 구매 가능 상태만 허용 |
+| `TOSS_IAP_CREDIT_*_SKU` | 빈 값 | 콘솔 SKU와 서버 지급 정책 연결 |
+| `TOSS_IAP_RECONCILIATION_ENABLED` | `false` | 알려진 주문의 서버 주기 재조회 실행 |
+
+스테이징에서는 SKU와 mTLS를 먼저 주입한 뒤 `TOSS_IAP_ENABLED=true`로 복구·검증 경로를 활성화한다. 샌드박스 게이트를 통과하기 전까지 `TOSS_IAP_PURCHASE_ENABLED=false`를 유지한다. 출시·롤백은 신규 결제 플래그만 변경하여 이미 결제된 주문의 지급과 환불 처리가 중단되지 않게 한다.
+
+## 구현 단계
+
+### 1. 승인과 콘솔 상태 고정
+
+- [ ] 승인 화면에서 승인 종류, 승인 일시, 앱 이름과 워크스페이스를 캡처해 `documents/qa/evidence/`에 보관한다.
+- [ ] 사업자 정보, 약관 동의, 정산 계좌와 세금계산서 이메일의 검토 완료 상태를 확인한다.
+- [ ] mTLS 인증서 만료일과 교체 담당자를 기록하고 운영 비밀 저장소에 인증서·키를 등록한다.
+- [ ] 크레딧 상품을 소모품으로 등록하되 실제 판매 전 노출은 OFF로 둔다.
+- [ ] 각 SKU, 공급가, VAT 포함 판매가, 상품명, 이미지와 지급량을 상품 매핑표에 기록한다.
+
+완료 조건: 콘솔의 앱·SKU·판매가와 서버에서 사용할 정책표가 1:1로 대조된다.
+
+### 2. 구매 데이터 모델과 정책 추가
+
+- [x] `credit_purchases` 테이블과 `CreditPurchase` 모델을 추가한다.
+- [x] `provider_order_id`에 전역 unique 제약을 둔다.
+- [x] provider, nullable user_id, 서버 비밀키 기반 HMAC-SHA-256 userKey 식별 스냅샷, sku, provider 상태, 내부 상태, 내부 가격 정책 스냅샷, 기본·보너스 지급량, 최초 지급·환불 시각을 저장한다.
+- [x] 제공자 원문 응답과 원문 userKey는 저장하지 않는다.
+- [x] 구매 지급, 첫 구매 보너스, 환불 회수를 각각 하나의 트랜잭션과 멱등 키로 처리한다.
+- [x] 계정 삭제 시 구매 기록은 `ON DELETE SET NULL`로 유지하고 userKey는 해시만 보관한다.
+
+완료 조건: 동일 `orderId` 동시 요청과 반복 요청이 모두 한 번만 잔액을 증가시킨다.
+
+### 3. 공통 토스 API 클라이언트와 주문 검증
+
+- [x] 로그인 서비스에 들어 있는 mTLS 생성·응답 처리를 공통 Toss API client로 분리한다.
+- [x] 주문 상태 조회 서비스에 timeout과 제공자 오류 매핑을 추가한다. 자동 재시도는 중복 트래픽을 피하기 위해 서버 재조정 주기로 제한한다.
+- [x] 로그인 사용자가 `toss` provider인지 확인하고 `provider_subject`를 `x-toss-user-key`로 사용한다.
+- [x] 응답의 `orderId`, `sku`, 상태가 요청과 정책표에 일치하는지 검증한다.
+- [x] 다른 사용자 주문은 기존 주문 소유권 검사로 거절하고, 다른 미니앱 주문 상태는 지급 불가로 처리한다.
+
+완료 조건: 클라이언트가 SKU·상태를 조작해도 서버가 토스 응답과 정책표만 신뢰한다. 금액은 주문 조회 응답에 없으므로 검증 대상으로 표현하지 않는다.
+
+### 4. 지급 API와 구매 원장 구현
+
+- [x] `POST /api/credits/purchases/grant` 요청·응답 스키마를 추가한다.
+- [x] 요청 본문은 `order_id`만 받고 사용자·SKU·상태는 서버 조회 결과에서 결정한다.
+- [x] `PAYMENT_COMPLETED`는 검증 후 지급하고, 로컬 지급 기록이 있는 반복 요청은 기존 결과를 재생한다. 로컬 기록 없이 `PURCHASED`면 운영 검토 상태로 둔다.
+- [x] 진행 중·실패·환불·불일치 상태에는 신규 지급하지 않는다.
+- [x] 계정 row lock, 구매 row unique, 원장 unique를 함께 사용한다.
+- [x] 응답에는 내부 구매 상태, 지급량, 현재 잔액과 환불 부채를 반환한다.
+
+완료 조건: 지급 API timeout 뒤 같은 요청을 반복해도 손실과 중복 지급이 없다.
+
+### 5. 프런트엔드 IAP 연결
+
+- [x] 앱인토스 runtime에서만 IAP 모듈을 동적 import한다.
+- [x] `getProductItemList()` 결과의 SKU와 `displayAmount`를 서버 정책과 결합한다.
+- [x] SDK 2.10.8의 상품·미결 주문 API가 `undefined`를 반환하면 토스 앱 업데이트 안내를 표시한다.
+- [x] 결제 중 버튼을 잠그고 중복 탭과 화면 이탈을 처리한다.
+- [x] `processProductGrant`에서 지급 API 성공 여부를 반환한다.
+- [x] 성공 시 잔액을 재조회하고 접근 가능한 상태 메시지를 제공한다.
+- [x] cleanup 함수를 컴포넌트 unmount 또는 결제 흐름 종료 시 호출한다.
+- [x] 웹·Capacitor runtime에서는 결제 가능 SKU가 내려오지 않으며 IAP module을 호출하지 않도록 runtime guard를 둔다.
+
+완료 조건: 콘솔 가격과 화면 가격이 같고, 성공·대기·취소·오류·지급 실패가 구분된다.
+
+### 6. 미결 주문 복원과 환불 재조정
+
+- [x] 크레딧 상점 진입 시 `getPendingOrders()`를 호출한다. 로그인 완료 직후 전역 호출은 상점 진입 경로와 중복되므로 추가하지 않는다.
+- [x] 복원 주문은 일반 결제와 동일한 지급 API를 사용한다.
+- [x] 서버 지급 성공 뒤 `completeProductGrant()`를 호출한다.
+- [x] 페이지네이션을 포함해 완료·환불 주문을 조회하고 환불 주문을 서버 상태로 재조정한다.
+- [ ] 결제 알림 URL을 사용하면 인증, 서명 또는 Basic Auth, 재시도와 중복 이벤트 테스트를 추가한다.
+- [x] 알려진 미완료·지급 완료 구매를 서버가 주기적으로 재조회하는 기본 비활성 운영 작업을 추가한다.
+- [x] 환불 시 구매 크레딧·상품 보너스·첫 구매 보너스를 정책대로 회수하고 부족분을 `debt_credits`로 기록한다.
+
+완료 조건: 결제 직후 앱·서버가 중단되어도 다음 진입 또는 서버 재조정에서 정확히 한 번 지급되며, 환불이 잔액과 권한에 반영된다.
+
+### 7. 운영, 정산과 출시 활성화
+
+- [ ] 콘솔의 결제 완료·지급 완료 건과 내부 구매 원장을 일 단위로 대조한다.
+- [ ] `PAYMENT_COMPLETED` 장기 체류, 주문 불일치, 중복 지급 시도, 환불 회수 실패에 알림을 설정한다.
+- [x] 이 계획서에 Android·iOS 환불 경로와 지급 지연 대응 초안을 추가한다. 고객 노출 문구와 담당자 승인은 별도 게이트다.
+- [x] 운영자가 `GET /api/moderation/credit-purchases?status=...`로 처리 큐를 찾고, `GET /api/moderation/credit-purchases/{order_id}`와 `X-Moderation-Key`로 내부 상태, 원장과 잔액을 조회할 수 있게 한다. 제공자 상태는 저장된 최근 재조회 결과다.
+- [ ] 샌드박스와 출시 검수 완료 후 제한된 사용자에게만 `payment_available=true`를 적용한다.
+- [ ] 안정화 뒤 콘솔 상품 노출과 전체 결제 플래그를 순서대로 활성화한다.
+
+완료 조건: 결제를 중단하지 않고도 주문 상태와 정산 차이를 탐지하고 조치할 수 있다.
+
+### 운영자·고객지원 행동 초안
+
+- 지급 지연 문의: 사용자에게 재구매를 먼저 권하지 않는다. 주문 ID를 확인하고 운영 조회 API로 내부 상태·최근 제공자 상태·원장·잔액을 조회한다. `PAYMENT_COMPLETED/processing`이면 재조정 대상, `granted`면 잔액 새로고침 안내, `review`면 수동 잔액 조정 없이 결제 담당자에게 이관한다.
+- 중복 지급 의심: `purchase:{orderId}` 원장 수와 `provider_order_id` unique를 확인한다. 제공자 주문 하나에 구매 원장이 하나보다 많으면 신규 결제를 차단하고 데이터 수정 전에 증빙을 보존한다.
+- Android 환불: 앱인토스 콘솔의 환불 요청을 담당자가 확인해 승인·반려하되 최종 처리는 Google Play 정책을 따른다고 안내한다.
+- iOS 환불: Apple이 환불 여부를 결정하므로 Apple 환불 신청 경로를 안내하고 파트너가 즉시 환불을 확정한다고 약속하지 않는다.
+- 환불 완료: `REFUNDED` 재조정 후 구매분·상품 보너스·첫 구매 보너스를 회수한다. 부족분은 `debt_credits`로 표시되며 수동 탕감은 별도 재무 승인과 `adjustment` 원장이 없으면 수행하지 않는다.
+- 제공자 장애·mTLS 만료: `TOSS_IAP_PURCHASE_ENABLED=false`와 콘솔 상품 노출 OFF로 신규 구매만 중단한다. `TOSS_IAP_ENABLED`와 구매 원장·복구 API는 유지한다.
+
+위 문구는 코드 동작 기준 초안이다. 실제 고객 노출 문구, 응답 시간, 환불 담당자와 법무·재무 승인은 출시 게이트에서 확정한다.
+
+## 성공 조건
+
+- [ ] 콘솔 상품과 서버 SKU 정책이 자동 또는 테스트로 대조된다.
+- [x] 클라이언트 요청은 `order_id`만 받으며 성공 여부, 가격, SKU를 신뢰하지 않는다.
+- [x] `orderId` 중복 지급을 데이터베이스 unique, row lock, 원장 idempotency와 반복 요청 테스트로 차단한다. 실제 다중 프로세스 동시성은 샌드박스에서 추가 검증한다.
+- [ ] 결제 성공 후 서버 실패 시 앱 재진입으로 구매가 복원된다.
+- [ ] 환불이 구매 원장, 크레딧 원장과 사용자 이용 가능 상태에 반영된다.
+- [x] 첫 구매 보너스는 unique grant로 한 번만 지급되고 환불 회수 대상에 포함된다.
+- [x] 토스 미지원 runtime과 독립 앱에서 IAP module을 호출하지 않는 runtime guard가 테스트됐다.
+- [ ] 샌드박스 필수 시나리오와 자동 테스트가 모두 통과한다.
+- [ ] 정산 정보, 환불 담당자, 인증서 만료일과 결제 사고 대응 책임자가 기록된다.
+- [x] 신규 결제와 IAP 복구 플래그를 분리해 롤백 시 미지급 주문 복원을 유지한다.
+
+## 검토 체크리스트
+
+### 제품·재무
+
+- [ ] VAT 포함 실제 판매가와 화면 표시가 일치한다.
+- [ ] 크레딧 지급량, 상품 보너스, 첫 구매 보너스가 수익성 기준을 통과한다.
+- [x] 환불된 첫 구매도 구매 이력으로 유지되어 첫 구매 보너스를 재지급하지 않는다고 명시돼 있다.
+- [ ] 사업자 유형, 계좌, 세금계산서 이메일과 정산 담당자가 정확하다.
+
+### 백엔드·보안
+
+- [x] 인증된 토스 사용자의 `provider_subject`만 `x-toss-user-key`로 보내며 API 계약 테스트가 통과했다.
+- [ ] mTLS 인증서와 키가 서버 비밀 저장소에만 있다.
+- [x] 주문 상태 조회 timeout이나 5xx에서 크레딧을 지급하지 않는다.
+- [x] `provider_order_id` unique와 원장 멱등 키를 데이터베이스가 강제한다.
+- [x] 구매 지급과 잔액 증가가 같은 트랜잭션이다.
+- [x] 계정 삭제 시 구매자는 nullable FK와 해시 식별자로 비식별화되고 구매 원장은 보존된다.
+
+### 프런트엔드
+
+- [x] SDK 상품 가격을 표시하고 서버 내부 가격 스냅샷을 결제 성공 근거로 사용하지 않는다.
+- [x] 중복 탭, 취소, 대기, 일반 오류, 토스 앱 업데이트 필요 상태가 분리된다.
+- [x] cleanup과 화면 재진입 복원 경로가 구현되고 정적·도메인 테스트를 통과했다.
+- [x] 결제 처리 중에는 진행 상태만 표시하고 서버 지급 성공 뒤 성공 문구를 표시한다.
+
+### 운영·고객지원
+
+- [x] Android 콘솔 처리와 iOS Apple 결정 경로를 분리한 고객지원 초안이 준비돼 있다.
+- [x] 운영 상태 큐와 주문 상세 API로 장기 `processing`, `review`, `failed`와 환불 회수 결과를 조회할 수 있다.
+- [ ] 콘솔 결제 상태와 내부 원장 차이에 대한 담당자와 조치 시간이 정해져 있다.
+- [ ] 인증서 만료 전 이중 인증서 교체 절차를 검증한다.
+
+## 검증 계획
+
+| 게이트 | 검증 | 현재 상태 |
+| --- | --- | --- |
+| 도메인 | SKU 매핑, 상태 전이, 첫 구매, 환불 회수 | backend 전체 293건 통과 |
+| 백엔드 | `compileall`, repository/service/API pytest | 통과 |
+| 데이터베이스 | migration head/current, upgrade·downgrade SQL | PostgreSQL current `0021`; 양방향 SQL 생성 통과 |
+| 프런트엔드 | typecheck, domain test, production build | 150건·typecheck·Vite build 통과 |
+| 앱인토스 빌드 | `npm run build:toss` | AIT artifact 생성 통과 |
+| 크로스 레이어 | 지급 API timeout 뒤 재시도, 잔액 갱신 | 로컬 멱등 단위 테스트 통과; 실제 앱 검증 대기 |
+| 앱인토스 샌드박스 | 상품 노출, 결제 성공, 서버 지급 실패 복원, 에러 | 미실행 |
+| 환불 | 완료 주문 환불 후 원장·잔액 재조정 | 로컬 단위 테스트 통과; 콘솔 환불 미실행 |
+| 회귀 | 웹·Capacitor runtime IAP guard | domain test와 web build 통과 |
+| 운영 | 콘솔 주문과 내부 구매 원장 대조 | 조회 API 구현; 실제 대조 대기 |
+
+샌드박스에서는 실제 과금이 발생하지 않으며 현재 공식 문서상 일회성 결제를 지원한다. 다음 시나리오를 각각 증빙한다.
+
+1. 상품 목록: 콘솔 노출 ON 상품만 표시되고 SKU·표시 가격이 일치한다.
+2. 결제 성공: `orderId` 수신, 서버 검증, 1회 지급, 잔액 UI 갱신을 확인한다.
+3. 결제 성공·서버 지급 실패: 실패 안내 후 앱 재실행에서 미결 주문을 복원한다.
+4. 에러: 사용자 취소, 네트워크 오류, 내부 오류, 지급 실패를 구분한다.
+5. 반복 호출: 같은 `orderId`를 동시에 여러 번 호출해도 한 번만 지급한다.
+6. 재진입: 결제 도중 앱 종료 후 로그인·상점 진입에서 복원한다.
+7. 환불: `REFUNDED` 상태가 원장과 잔액에 반영된다.
+
+## 위험과 롤백
+
+| 위험 | 예방 | 롤백·완화 |
+| --- | --- | --- |
+| 중복 지급 | 주문 ID unique, 트랜잭션, 멱등 응답 | 신규 결제 차단 후 중복 원장 조회·조정 |
+| 결제 완료·미지급 | pending 복원, 서버 재조회, 운영 알림 | 지급 API와 복원 경로는 유지하고 결제 시작만 차단 |
+| 잘못된 가격·SKU | SDK 표시 가격과 서버 정책 대조 | 해당 콘솔 상품 노출 OFF |
+| 환불 후 잔액 사용 | 환불 재조정과 debt/review 상태 | 유료 기능 제한 후 운영 검토 |
+| mTLS 만료 | 만료 모니터링, 다중 인증서 교체 | 신규 결제 차단, 기존 주문 기록 보존, 인증서 교체 |
+| 제공자 장애 | timeout, 제한 재시도, 지급 보류 | 결제 버튼 비활성화, 미완료 주문 재조정 |
+| 마이그레이션 문제 | staging upgrade와 롤백 검증 | 데이터 보존 후 이전 코드로 복귀; 구매 기록 삭제 금지 |
+
+롤백의 기본 단위는 신규 결제 시작 기능이다. 콘솔 상품 노출 OFF와 서버 `TOSS_IAP_PURCHASE_ENABLED=false`로 신규 구매를 막되, `TOSS_IAP_ENABLED=true`를 유지하여 이미 결제된 주문의 검증·복원·환불 처리 API와 운영 작업은 중단하지 않는다.
+
+## 형상관리 가능한 태스크 분할
+
+| 태스크 | 변경 경계 | 독립 검증 | 커밋 |
+| --- | --- | --- | --- |
+| IAP-01 서버 기반 | migration, model, SKU 정책, 공통 Toss API, order service | alembic·provider tests | `82e45c6` |
+| IAP-02 지급·환불 | grant API, repository, scheduler | backend pytest | `9fa8c45` |
+| IAP-03 앱 결제 | IAP adapter, hook, credit store UI | typecheck·domain·build:toss | `2ff43ea` |
+| IAP-04 운영 조회 | 상태 큐와 주문 상세 조회 | backend API pytest | `1742fb2` |
+| IAP-05 계획·증빙 | 공식 가이드 매핑, 검증 결과, 출시 게이트 | 문서 링크·체크리스트 | 현재 문서 커밋 |
+| IAP-06 외부 출시 승인 | 콘솔 매핑, 샌드박스 증빙, 운영 승인 | 수동 게이트 서명 | 운영 정보 준비 후 별도 커밋 |
+
+로컬 구현 커밋과 외부 출시 승인 커밋을 분리하여 코드 완료와 실제 판매 가능 상태를 혼동하지 않는다.
+
+## 남은 행동 순서
+
+1. 콘솔 승인 종류와 정산 정보 완료 상태를 캡처한다.
+2. 다섯 크레딧 상품의 소모품 SKU를 만들고 실제 판매가는 콘솔 계산 결과로 기록한다.
+3. 상품은 노출 OFF로 유지한 채 SKU·지급량·첫 구매·환불 정책을 승인한다.
+4. mTLS 인증서의 운영 배포 상태와 만료일을 확인한다.
+5. 스테이징에 migration `0021`과 코드 배포 후 `TOSS_IAP_ENABLED=true`, 신규 구매 플래그는 `false`로 둔다.
+6. 실제 발급 SKU를 환경 변수에 연결하고 SDK `displayAmount`와 콘솔 VAT 포함 판매가를 대조한다.
+7. 공식 샌드박스 필수 시나리오를 `documents/qa/evidence/`에 증빙한다.
+8. 운영·정산·환불 체크리스트 승인 후 `TOSS_IAP_PURCHASE_ENABLED=true`로 제한 활성화한다.
+
+## 검증하지 못한 것
+
+### 2026-08-11 로컬 환경 준비 점검
+
+- 프로젝트 `.env`에는 `TOSS_IAP_ENABLED`, 신규 구매 플래그, 다섯 SKU와 재조정 플래그가 아직 선언되지 않았다.
+- 로컬 `secrets/toss/toss-mtls-cert.pem`과 `toss-mtls-key.pem` 파일은 존재하지 않는다.
+- 따라서 실제 토스 주문 상태 API 호출과 샌드박스 결제는 아직 실행할 수 없다. 이 값들이 준비되기 전에는 신규 구매 플래그를 활성화하지 않는다.
+
+### 외부 확인 대기
+
+- 실제 앱인토스 콘솔의 승인 종류, 정산 검토 상태와 발급 SKU
+- 운영 mTLS 인증서의 배포 여부, 만료일과 실제 연결
+- 샌드박스 앱에서의 결제·복원·환불 동작
+- 운영 정산 계좌와 세금계산서 정보
+- 실제 다중 프로세스 환경의 동시 지급 충돌과 timeout 후 재시도
+- 실제 데이터가 있는 스테이징 DB의 downgrade 복구 훈련
+- 실행 중인 프런트엔드가 없어 Playwright 브라우저 회귀는 미실행
+
+## 남은 위험
+
+- 콘솔이 계산한 VAT 포함 가격이 현재 앱의 5,000원 단위 가격과 다를 수 있다.
+- 계정 삭제 후 구매 기록은 비식별 상태로 유지하도록 구현했지만 법적 보존 기간은 확정되지 않았다.
+- `debt_credits`가 있는 사용자의 유료 기능 제한 범위와 고객지원 해제 절차는 운영 정책 승인이 필요하다.
+- 결제 알림 URL의 이벤트 계약과 운영 인증 방식은 콘솔·공식 세부 문서에서 최종 확인해야 한다.
+- SDK 2.10.8의 `getCompletedOrRefundedOrders` 공개 타입은 페이지 키 인자를 누락하지만 실제 native bridge와 공식 문서는 이를 지원하므로, SDK 업그레이드 때 임시 타입 보정을 제거할 수 있는지 확인해야 한다.
+
+## 공식 참고 자료
+
+- [인앱 결제 콘솔·상품·환불 가이드](https://developers-apps-in-toss.toss.im/guide/monetization/in-app-payment)
+- [일회성 인앱결제 연동 및 샌드박스](https://developers-apps-in-toss.toss.im/documentation/common/monetization/iap/in-app-purchase)
+- [IAP SDK API 목록](https://developers-apps-in-toss.toss.im/documentation/sdk/domains-api/iap)
+- [일회성 결제 요청 API](https://developers-apps-in-toss.toss.im/documentation/sdk/domains-api/iap/iap.createonetimepurchaseorder)
+- [mTLS와 API 인증](https://developers-apps-in-toss.toss.im/documentation/api/auth)
+- [정산 안내](https://developers-apps-in-toss.toss.im/guide/settlement)
+
+## 관련 프로젝트 문서
+
+- [앱인토스 출시 백로그](plan_apps-in-toss-launch-backlog_2026-07-31.md)
+- [크레딧 BM 및 AI 출시 준비 계획](../../product/credit/plan_credit-bm-and-ai-release-readiness_2026-08-09.md)
+- [크레딧 AI 비용·보안 마진 검토](../../../reports/product/bm/report_credit-ai-cost-security-margin-review_2026-08-09.md)
+- [앱인토스 출시 가드레일](../../../reports/apps-in-toss/report_apps-in-toss-launch-guardrails_2026-07-29.md)
