@@ -1,19 +1,15 @@
 import React from "react";
 import { mediaUrl } from "@/api/media";
 import { CharacterAvatarImage } from "@/components/ui/CharacterAvatarImage";
-import { dmSuggestionPrompts } from "@/domain/dm/dmSuggestions";
 
 export function DmMessages({ ctx }) {
-  const { autoChatting, char, currentWorldPref, dm, dmEndRef, dmInput, dmKey, dmSending, josa, openCredits, peer, peerAvatar, peerName, restoreFailedDmDraft, setDmInput, setFixTarget, setFixText, setReportTarget, speakerName } = ctx;
-  const lastMessage = dm[dm.length - 1];
-  const showSuggestions = !autoChatting && !dmSending && !dmInput.trim() && lastMessage?.from === peerName;
+  const { char, currentWorldPref, dm, dmEndRef, dmKey, dmSending, josa, openCredits, peer, peerAvatar, peerName, restoreFailedDmDraft, setFixTarget, setFixText, setReportTarget, speakerName } = ctx;
   return (
     <div className="al-dmscroll">
       {dm.length === 0 && (
         <div className="al-dm-empty">
           <p>{peer.asOwner ? `${josa(peerName, "에게/에게")} 편하게 첫 말을 건네보세요.` : `${speakerName}와 ${peerName}의 첫 장면을 시작해보세요.`}</p>
           {currentWorldPref?.note && <span className="al-dm-scene-cue">지금의 장면 · {currentWorldPref.note}</span>}
-          <DmStarters peer={peer} peerName={peerName} setDmInput={setDmInput} />
         </div>
       )}
       {dm.map((message, index) => {
@@ -47,16 +43,9 @@ export function DmMessages({ ctx }) {
           <div className="al-bubble char typing"><span className="al-typing"><i/><i/><i/></span><span className="al-typing-label">{peerName}가 답장을 쓰고 있어요</span></div>
         </div>
       )}
-      {showSuggestions && <DmStarters lastText={lastMessage.text} messageCount={dm.length} peer={peer} peerName={peerName} setDmInput={setDmInput} />}
       <div ref={dmEndRef} />
     </div>
   );
-}
-
-function DmStarters({ lastText = "", messageCount = 0, peer, peerName, setDmInput }) {
-  const prompts = dmSuggestionPrompts({ asOwner: Boolean(peer.asOwner), lastText, messageCount, peerName });
-  const label = lastText ? "다음 이야기" : "첫 장면의 단서";
-  return <div className="al-dm-starters"><span>{label}</span><div>{prompts.map((prompt) => <button key={prompt} type="button" onClick={() => setDmInput(prompt)}>{prompt}</button>)}</div></div>;
 }
 
 function DmDeliveryFailure({ message, onOpenCredits, onRestore }) {

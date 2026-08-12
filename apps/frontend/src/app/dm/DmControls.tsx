@@ -2,6 +2,7 @@ import React from "react";
 import { AliveIcon } from "@/components/ui/AliveIcon";
 import { USER_PERSONA_FEATURE_ENABLED } from "@/domain/app/featureFlags";
 import { DM_RESPONSE_MODES, dmResponseMode } from "@/domain/dm/dmResponseMode";
+import { dmSuggestionPrompts } from "@/domain/dm/dmSuggestions";
 import { DmCreditStatus } from "@/features/credits/DmCreditStatus";
 import { CreditUsageHint } from "@/features/credits/CreditUsageHint";
 
@@ -12,6 +13,7 @@ export function DmControls({ ctx }) {
     char,
     chatMode,
     dmInput,
+    dm,
     dmResponseFlow,
     dmSending,
     josa,
@@ -19,6 +21,7 @@ export function DmControls({ ctx }) {
     openCredits,
     ownerPersona,
     peer,
+    peerName,
     personas,
     sendDM,
     setChatMode,
@@ -33,14 +36,26 @@ export function DmControls({ ctx }) {
     stopAutoChat,
   } = ctx;
   const responseMode = dmResponseMode(dmResponseFlow);
+  const inputRef = React.useRef<HTMLInputElement>(null);
+  const lastMessage = dm[dm.length - 1];
+  const showPromptRail = !autoChatting && !dmSending && !dmInput.trim() && (!lastMessage || lastMessage.from === peerName);
+  const selectPrompt = (prompt: string): void => { setDmInput(prompt); inputRef.current?.focus(); };
   if (peer.readOnly) {
     return <div className="al-dm-composer al-dmctrl">과거 페르소나 대화는 읽기 전용으로 보관됩니다.</div>;
   }
   return (
     <div className="al-dm-composer">
-      <details className="al-dm-options">
-        <summary><span><AliveIcon name="settings" size={15} /> 대화 설정</span><small>{autoChatting ? "자동 대화 진행 중" : (peer.asOwner ? "호칭 설정" : `${speakerName}(으)로 대화 중`)}</small><AliveIcon name="chevron-down" size={16} /></summary>
-        <div className="al-dm-options-content">
+      {showPromptRail && <DmPromptRail lastText={lastMessage?.text} messageCount={dm.length} peer={peer} peerName={peerName} onSelectPrompt={selectPrompt} />}
+      <div className="al-dm-compose-meta">
+        <details className="al-dm-options">
+          <summary><span><AliveIcon name="settings" size={15} /> 대화 설정</span><small>{autoChatting ? "자동 대화 진행 중" : `${responseMode.name} · ${responseMode.credits}C`}</small><AliveIcon name="chevron-down" size={16} /></summary>
+          <div className="al-dm-options-content">
+            <div className="al-dm-response-list" role="radiogroup" aria-label="DM 응답 모드">
+              <span>답장 방식</span>
+              {DM_RESPONSE_MODES.map((mode) => <button key={mode.code} type="button" role="radio" aria-checked={dmResponseFlow === mode.code} className={dmResponseFlow === mode.code ? "on" : ""} onClick={() => setDmResponseFlow(mode.code)}>
+                <span><b>{mode.name}</b><small>{mode.description}</small></span><strong>{mode.credits}C</strong>
+              </button>)}
+            </div>
           {peer.asOwner && (
             <div className="al-dmctrl">
               <input className="al-owner-persona" value={ownerPersona} onChange={(event) => setOwnerPersona(event.target.value)} placeholder="캐릭터가 나를 어떻게 알면 좋을까요? (선택)" />
@@ -76,21 +91,20 @@ export function DmControls({ ctx }) {
               {USER_PERSONA_FEATURE_ENABLED && activePersona && <div className="al-persona-active"><AliveIcon name="masks" size={14} /> {activePersona.name}(으)로 대화 중 · {activePersona.persona?.slice(0, 30)}</div>}
             </div>
           )}
-        </div>
-      </details>
-      <details className="al-dm-response-mode">
-        <summary><span>응답 모드</span><b>{responseMode.name}</b><small>{responseMode.credits}C</small><AliveIcon name="chevron-down" size={16} /></summary>
-        <div className="al-dm-response-list" role="radiogroup" aria-label="DM 응답 모드">
-          {DM_RESPONSE_MODES.map((mode) => <button key={mode.code} type="button" role="radio" aria-checked={dmResponseFlow === mode.code} className={dmResponseFlow === mode.code ? "on" : ""} onClick={() => setDmResponseFlow(mode.code)}>
-            <span><b>{mode.name}</b><small>{mode.description}</small></span><strong>{mode.credits}C</strong>
-          </button>)}
-        </div>
-      </details>
-      <DmCreditStatus busy={dmSending && !autoChatting} flowCode={responseMode.code} onOpenCredits={openCredits} />
+          </div>
+        </details>
+        <DmCreditStatus busy={dmSending && !autoChatting} flowCode={responseMode.code} onOpenCredits={openCredits} />
+      </div>
       <div className="al-dminput">
-        <input value={dmInput} onChange={(event) => setDmInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) sendDM(); }} placeholder={autoChatting ? `끼어들기: ${meName}(으)로 입력…` : `${meName}(으)로 메시지…`} />
+        <input ref={inputRef} value={dmInput} onChange={(event) => setDmInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) sendDM(); }} aria-label="메시지 입력" autoComplete="off" enterKeyHint="send" placeholder={autoChatting ? `끼어들기: ${meName}(으)로 입력…` : `${meName}(으)로 메시지…`} />
         <button className="bg-accent text-on-accent hover:bg-accent-strong disabled:bg-surface-muted disabled:text-soft" aria-label="메시지 보내기" onClick={sendDM} disabled={!dmInput.trim() || dmSending}><AliveIcon name="send" size={19} /></button>
       </div>
     </div>
   );
+}
+
+function DmPromptRail({ lastText = "", messageCount, onSelectPrompt, peer, peerName }) {
+  const prompts = dmSuggestionPrompts({ asOwner: Boolean(peer.asOwner), lastText, messageCount, peerName });
+  const label = lastText ? "바로 이어가기" : "대화 시작하기";
+  return <div className="al-dm-prompt-rail" aria-label={label}><span>{label}</span><div>{prompts.map((prompt) => <button key={prompt} type="button" onClick={() => onSelectPrompt(prompt)}>{prompt}</button>)}</div></div>;
 }
