@@ -85,6 +85,7 @@ async function createFirstPost(page) {
   await expect(page.locator(".al-post")).toHaveCount(1);
   await expect(page.getByRole("dialog", { name: "테스트린 피드 도움말" })).toBeVisible();
   await page.getByRole("button", { name: "도움말 닫기" }).click();
+  await expect(page.getByRole("dialog", { name: "테스트린 피드 도움말" })).toBeHidden();
 }
 
 async function reachCharacterConfirmation(page) {

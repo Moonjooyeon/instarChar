@@ -285,7 +285,7 @@ body{ overflow-x:hidden; }
 .al-help-tap > i{ width:5px; height:5px; border-radius:50%; background:#fff; }
 @keyframes alHelpTap{ 0%{ box-shadow:0 0 0 0 rgba(169,140,255,.55); transform:scale(.88); } 58%{ box-shadow:0 0 0 13px rgba(169,140,255,0); transform:scale(1); } 100%{ box-shadow:0 0 0 13px rgba(169,140,255,0); transform:scale(.88); } }
 .al-help-coach{ position:fixed; z-index:93; overflow:hidden; border:1px solid #594a6e; border-radius:14px; outline:none; background:rgba(31,27,38,.96); color:#f2edf6; box-shadow:0 18px 46px rgba(0,0,0,.52),inset 0 1px rgba(255,255,255,.04); backdrop-filter:blur(14px); font-family:'Pretendard Variable','Apple Color Emoji','Apple Symbols',-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo',sans-serif; }
-.al-help-close{ position:absolute; top:2px; right:2px; display:grid; place-items:center; width:44px; height:44px; padding:0; border:0; border-radius:50%; background:transparent; color:#817987; cursor:pointer; font-family:inherit; font-size:17px; }
+.al-help-close{ position:absolute; z-index:1; top:2px; right:2px; display:grid; place-items:center; width:44px; height:44px; padding:0; border:0; border-radius:50%; background:transparent; color:#817987; cursor:pointer; font-family:inherit; font-size:17px; }
 .al-help-close:hover{ background:#2d2733; color:#fff; }
 .al-help-coach-copy{ display:grid; grid-template-columns:39px 1fr; gap:11px; padding:14px 48px 11px 14px; }
 .al-help-coach-copy > span{ display:grid; place-items:center; width:39px; height:39px; border:1px solid #725d92; border-radius:11px; background:#2b2336; color:#cbb5f6; font-size:17px; font-weight:850; }
