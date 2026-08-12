@@ -76,7 +76,6 @@ export function FeedTimeline({ ctx }) {
     setStep,
     submitUserComment,
     timeAgo,
-    timelinePosts,
     toggleFollow,
     toggleLike,
     visiblePosts,
@@ -97,10 +96,10 @@ export function FeedTimeline({ ctx }) {
           내 글 <b>{myPosts.length}</b>
         </button>
         <button aria-selected={feedView === "timeline"} className={feedTabClass(feedView === "timeline")} role="tab" onClick={() => setFeedView("timeline")}>
-          팔로잉 <b>{timelinePosts.length}</b>
+          팔로잉
         </button>
         <button aria-selected={feedView === "recommendations"} className={feedTabClass(feedView === "recommendations")} role="tab" onClick={() => setFeedView("recommendations")}>
-          추천 <b>{recommendationPosts.length}</b>
+          추천
         </button>
       </div>
       <div className="al-feed" ref={feedTopRef}>

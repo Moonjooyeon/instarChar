@@ -16,6 +16,8 @@ ANDROID_SDK_ROOT ?= $(HOME)/Library/Android/sdk
 ANDROID_ADB ?= $(ANDROID_SDK_ROOT)/platform-tools/adb
 ANDROID_JAVA_HOME ?= $(shell /usr/libexec/java_home -v 21 2>/dev/null)
 ANDROID_GRADLE_USER_HOME ?= $(ANDROID_PROJECT_DIR)/.gradle-user-home
+IOS_ARCHIVE_PATH ?= ios/build/ALIVE.xcarchive
+IOS_LOCAL_EXPORT_PATH ?= dist/store/ios/export
 WEB_API_URL ?=
 CAP_API_URL ?= https://alive.imagebgremover.net
 LOCAL_CAP_BASE_URL ?= http://localhost:8000
@@ -23,7 +25,7 @@ FRONTEND_WEB_ENV = $(if $(WEB_API_URL),VITE_API_BASE_URL=$(WEB_API_URL) )
 FRONTEND_BUILD_ENV = $(if $(CAP_API_URL),VITE_API_BASE_URL=$(CAP_API_URL) )
 FRONTEND_LOCAL_BUILD_ENV = VITE_API_BASE_URL=$(LOCAL_CAP_BASE_URL) VITE_LEGAL_BASE_URL=$(LOCAL_CAP_BASE_URL)
 
-.PHONY: help local-up local-down local-logs local-ps backend-dev backend-run backend-test backend-compile iap-release-check web-dev web-build web-preview android-java-home android-local-properties cap-doctor cap-build cap-build-local cap-sync cap-sync-local cap-open-ios cap-open-android cap-run-ios cap-run-android cap-checklist android-bundle-release ios-archive-release
+.PHONY: help local-up local-down local-logs local-ps backend-dev backend-run backend-test backend-compile iap-release-check web-dev web-build web-preview android-java-home android-local-properties cap-doctor cap-build cap-build-local cap-sync cap-sync-local cap-open-ios cap-open-android cap-run-ios cap-run-android cap-checklist android-bundle-release ios-archive-release ios-export-release-local
 
 help:
 	@printf '%s\n' \
@@ -56,6 +58,7 @@ help:
 		'  make cap-run-android                    Run the Android Capacitor app manually.' \
 		'  make android-bundle-release             Build a signed Android App Bundle.' \
 		'  make ios-archive-release                Archive iOS for App Store upload.' \
+		'  make ios-export-release-local           Export a signed iOS IPA without uploading.' \
 		'  make cap-checklist                      Print manual cookie-session checks.' \
 		'' \
 		'Optional:' \
@@ -151,7 +154,10 @@ android-bundle-release: cap-sync android-java-home android-local-properties
 	JAVA_HOME=$(ANDROID_JAVA_HOME) ANDROID_HOME=$(ANDROID_SDK_ROOT) ANDROID_SDK_ROOT=$(ANDROID_SDK_ROOT) GRADLE_USER_HOME=$(ANDROID_GRADLE_USER_HOME) $(ANDROID_PROJECT_DIR)/gradlew -p $(ANDROID_PROJECT_DIR) bundleRelease
 
 ios-archive-release: cap-sync
-	xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release -destination 'generic/platform=iOS' -archivePath ios/build/ALIVE.xcarchive archive -allowProvisioningUpdates
+	xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release -destination 'generic/platform=iOS' -archivePath $(IOS_ARCHIVE_PATH) archive -allowProvisioningUpdates
+
+ios-export-release-local:
+	xcodebuild -exportArchive -archivePath $(IOS_ARCHIVE_PATH) -exportPath $(IOS_LOCAL_EXPORT_PATH) -exportOptionsPlist ios/AppStoreLocalExportOptions.plist -allowProvisioningUpdates
 
 cap-checklist:
 	@printf '%s\n' \

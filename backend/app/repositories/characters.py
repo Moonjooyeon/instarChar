@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import BadRequestError, CharacterHandleTakenError
+from app.core.recommendations import character_recommendation_terms
 from app.models import Character, CharacterFollow, SharedCharacter, User
 from app.repositories.media_assets import MediaAssetRepository
 from app.schemas.characters import CharacterHandleAvailabilityResponse, CharacterVisibilityResponse, CharacterWrite, CharacterWriteResponse
@@ -93,7 +94,7 @@ class CharacterRepository:
         shared.handle = row.handle
         shared.owner_name = str(row.character.get("ownerName") or "user")
         shared.persona = str(row.character.get("persona") or "")
-        shared.tags = self._tags(row)
+        shared.tags = character_recommendation_terms(row.character)
         shared.character = self._public_character(row)
 
     async def _shared(self, owner_id: UUID, source_account_id: str) -> SharedCharacter | None:
@@ -108,9 +109,6 @@ class CharacterRepository:
 
     def _public_character(self, row: Character) -> dict[str, object]:
         return {**dict(row.character or {}), "following": list(row.following or []), "gallery": list(row.gallery or []), "handle": row.handle, "posts": list(row.posts or [])}
-
-    def _tags(self, row: Character) -> list[str]:
-        return [str(value) for value in (row.character.get("age"), row.character.get("surface"), row.character.get("interests")) if value]
 
     def _raise_integrity_error(self, error: IntegrityError) -> None:
         if self._constraint_name(error) == "uq_characters_handle":

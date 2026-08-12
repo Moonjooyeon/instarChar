@@ -9,6 +9,28 @@ test("native builds route fetch through Capacitor HTTP", () => {
   assert.equal(config.plugins?.CapacitorHttp?.enabled, true);
 });
 
+test("mobile release build numbers stay aligned above uploaded build 6", () => {
+  const android = readFileSync(path.resolve(process.cwd(), "../../android/app/build.gradle"), "utf8");
+  const ios = readFileSync(path.resolve(process.cwd(), "../../ios/App/App.xcodeproj/project.pbxproj"), "utf8");
+  const androidBuild = Number(android.match(/versionCode (\d+)/)?.[1]);
+  const iosBuilds = [...ios.matchAll(/CURRENT_PROJECT_VERSION = (\d+);/g)].map((match) => Number(match[1]));
+  assert.ok(androidBuild > 6);
+  assert.deepEqual(new Set(iosBuilds), new Set([androidBuild]));
+});
+
+test("iOS local export cannot upload to App Store Connect", () => {
+  const localOptions = readFileSync(path.resolve(process.cwd(), "../../ios/AppStoreLocalExportOptions.plist"), "utf8");
+  const uploadOptions = readFileSync(path.resolve(process.cwd(), "../../ios/AppStoreExportOptions.plist"), "utf8");
+  assert.match(localOptions, /<key>destination<\/key>\s*<string>export<\/string>/);
+  assert.match(uploadOptions, /<key>destination<\/key>\s*<string>upload<\/string>/);
+});
+
+test("deployment environment example has no duplicate keys", () => {
+  const content = readFileSync(path.resolve(process.cwd(), "../../.env.example"), "utf8");
+  const keys = content.split("\n").map((line) => line.match(/^([A-Z][A-Z0-9_]*)=/)?.[1]).filter(Boolean);
+  assert.equal(new Set(keys).size, keys.length);
+});
+
 test("Android exposes system bar insets to the app shell", () => {
   const configPath = path.resolve(process.cwd(), "../../capacitor.config.json");
   const config = JSON.parse(readFileSync(configPath, "utf8"));

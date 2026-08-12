@@ -42,6 +42,34 @@ test("getFeedPage maps a cursor page into feed card posts", async () => {
   }
 });
 
+test("getFeedPage keeps posts with the same source id from different authors", async () => {
+  const item = {
+    author_character_id: "character-1",
+    author_handle: "sein",
+    author_name: "세인",
+    author_owner_id: "owner-1",
+    author_shared_id: "shared-1",
+    post_id: "same-post",
+    post: { text: "첫 번째 글" },
+  };
+  const restoreFetch = stubFetch(jsonResponse({ has_more: false, next_cursor: null, items: [item, {
+    ...item,
+    author_character_id: "character-2",
+    author_owner_id: "owner-2",
+    author_shared_id: "shared-2",
+    post: { text: "두 번째 글" },
+  }] }));
+  try {
+    const page = await getFeedPage("char-1", "recommendations");
+    assert.deepEqual(page.posts.map((post) => post.id), [
+      "recommendations:shared-1:same-post",
+      "recommendations:shared-2:same-post",
+    ]);
+  } finally {
+    restoreFetch();
+  }
+});
+
 function jsonResponse(body) {
   return new Response(JSON.stringify(body), { headers: { "Content-Type": "application/json" } });
 }

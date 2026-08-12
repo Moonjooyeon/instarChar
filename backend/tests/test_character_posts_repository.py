@@ -46,11 +46,13 @@ class StubSession:
 def test_save_posts_checks_revision_and_syncs_shared_snapshot() -> None:
     owner_id = uuid4()
     character = character_row(owner_id)
+    character.character = {"interests": "마법, 홍차", "persona": "조용한 관찰자"}
     shared = SharedCharacter(owner_id=owner_id, source_account_id="char-1", name="세인", character={"persona": "차분함"})
     session = StubSession([character, shared])
     response = asyncio.run(CharacterPostsRepository(session).save(StubUser(owner_id), "char-1", CharacterPostsUpdate(posts=[{"text": "새 글"}], revision=2)))
     assert response.revision == 3
     assert shared.character["posts"] == [{"text": "새 글"}]
+    assert shared.tags == ["마법", "홍차", "조용한", "관찰자"]
     assert session.commits == 1
 
 

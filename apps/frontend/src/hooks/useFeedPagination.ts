@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getFeedPage, type FeedKind } from "@/api/feed";
-import type { FeedPost } from "@/domain/feed/feedUtils";
+import { mergeFeedPagePosts, type FeedPost } from "@/domain/feed/feedUtils";
 
 type FeedPageState = {
   error: string;
@@ -27,7 +27,6 @@ type UseFeedPaginationOptions = {
 };
 
 const INITIAL_PAGE: FeedPageState = { error: "", hasMore: true, isLoading: false, nextCursor: "", posts: [] };
-const MAX_CACHED_POSTS = 120;
 
 export function useFeedPagination({ activeId, feedView, revision }: UseFeedPaginationOptions): FeedPaginationReturn {
   const [pages, setPages] = useState<Record<FeedKind, FeedPageState>>({ timeline: INITIAL_PAGE, recommendations: INITIAL_PAGE });
@@ -62,8 +61,7 @@ export function useFeedPagination({ activeId, feedView, revision }: UseFeedPagin
 }
 
 function nextPageState(current: FeedPageState, incoming: FeedPost[], nextCursor: string, hasMore: boolean): FeedPageState {
-  const seen = new Set(current.posts.map((post) => String(post.id)));
-  const posts = [...current.posts, ...incoming.filter((post) => !seen.has(String(post.id)))].slice(-MAX_CACHED_POSTS);
+  const posts = mergeFeedPagePosts(current.posts, incoming);
   return { error: "", hasMore, isLoading: false, nextCursor, posts };
 }
 

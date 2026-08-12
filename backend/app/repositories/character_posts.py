@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import BadRequestError, ConflictError
+from app.core.recommendations import character_recommendation_terms
 from app.models import Character, SharedCharacter, User
 from app.repositories.media_assets import MediaAssetRepository
 from app.schemas.character_posts import AutoPostUpdate, CharacterPostCommentCreate, CharacterPostCommentsResponse, CharacterPostsResponse, CharacterPostsUpdate
@@ -120,7 +121,7 @@ class CharacterPostsRepository:
             self.session.add(shared)
         shared.owner_name = str(row.character.get("ownerName") or "user")
         shared.persona = str(row.character.get("persona") or "")
-        shared.tags = self._tags(row)
+        shared.tags = character_recommendation_terms(row.character)
         shared.character = self._public_character(row)
 
     async def _is_shared(self, row: Character) -> bool:
@@ -132,9 +133,6 @@ class CharacterPostsRepository:
 
     def _public_character(self, row: Character) -> dict[str, object]:
         return {**dict(row.character or {}), "following": list(row.following or []), "gallery": list(row.gallery or []), "handle": row.handle, "posts": list(row.posts or [])}
-
-    def _tags(self, row: Character) -> list[str]:
-        return [str(value) for value in (row.character.get("age"), row.character.get("surface"), row.character.get("interests")) if value]
 
     def _append_comment(self, row: Character, post_id: str, payload: CharacterPostCommentCreate) -> list[object]:
         posts = [dict(post) for post in row.posts if isinstance(post, dict)]

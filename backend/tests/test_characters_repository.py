@@ -89,7 +89,7 @@ async def test_availability_excludes_only_owned_source() -> None:
 @pytest.mark.anyio
 async def test_save_is_idempotent_and_syncs_handle_snapshots() -> None:
     owner_id = uuid4()
-    row = Character(owner_id=owner_id, source_account_id="draft-1", name="Hero", handle="hero", character={"handle": "hero"})
+    row = Character(owner_id=owner_id, source_account_id="draft-1", name="Hero", handle="hero", character={"handle": "hero", "interests": "마법, 홍차", "world": "달의 왕국"})
     shared = SharedCharacter(owner_id=owner_id, source_account_id="draft-1", name="Hero", handle="old", character={"handle": "old"})
     follower = CharacterFollow(follower_id=owner_id, follower_account_id="draft-1", target_shared_character_id=uuid4(), follower_character={"handle": "old"})
     session = StubSession([StubResult(row), StubResult(shared), StubResult(rows=[follower])])
@@ -97,6 +97,7 @@ async def test_save_is_idempotent_and_syncs_handle_snapshots() -> None:
     response = await repository.save(StubUser(owner_id), "draft-1", CharacterWrite(name="Hero", handle="Hero"))  # type: ignore[arg-type]
     assert response.handle == "hero"
     assert shared.handle == "hero"
+    assert shared.tags == ["마법", "홍차", "달의", "왕국"]
     assert follower.follower_character["handle"] == "hero"
     assert session.committed is True
 

@@ -6,6 +6,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import BadRequestError
+from app.core.recommendations import character_recommendation_terms
 from app.models import Character, CharacterFollow, SharedCharacter, User, UserBlock, UserModerationStatus
 from app.schemas.shared_characters import DiscoverCharacter, FollowRequest, FollowSnapshotRequest, FollowerRow, SharedCharacterUpdate
 from app.services.content_safety import require_safe_content
@@ -164,6 +165,7 @@ class SharedCharacterRepository:
         row["owner_id"] = user.id
         row["source_account_id"] = source_account_id
         row["handle"] = character.handle
+        row["tags"] = character_recommendation_terms(dict(character.character or {}))
         row["character"] = {**payload.character, "handle": character.handle}
         return row
 
@@ -181,8 +183,8 @@ class SharedCharacterRepository:
         return DiscoverCharacter(id=f"shared_{row.id}", characterId=str(character_id or ""), sharedId=str(row.id), ownerId=row.owner_id, sourceAccountId=row.source_account_id, owner=f"@{row.owner_name or 'user'}", ownerName=row.owner_name or "user", shared=True, name=row.name, handle=row.handle, persona=row.persona, tags=row.tags, posts=list(row.character.get("posts", [])), character=row.character)
 
     def _character_dto(self, row: Character) -> DiscoverCharacter:
-        tags = [row.character.get("age"), row.character.get("surface"), row.character.get("interests")]
-        return DiscoverCharacter(id=f"char_{row.owner_id}_{row.source_account_id}", characterId=str(row.id), ownerId=row.owner_id, sourceAccountId=row.source_account_id, owner=f"@{row.character.get('ownerName', 'user')}", ownerName=str(row.character.get("ownerName", "user")), autoSynced=True, name=row.name, handle=row.handle, persona=str(row.character.get("persona", "")), tags=[item for item in tags if item], posts=row.posts, gallery=row.gallery, following=row.following, character=row.character)
+        tags = character_recommendation_terms(row.character)
+        return DiscoverCharacter(id=f"char_{row.owner_id}_{row.source_account_id}", characterId=str(row.id), ownerId=row.owner_id, sourceAccountId=row.source_account_id, owner=f"@{row.character.get('ownerName', 'user')}", ownerName=str(row.character.get("ownerName", "user")), autoSynced=True, name=row.name, handle=row.handle, persona=str(row.character.get("persona", "")), tags=tags, posts=row.posts, gallery=row.gallery, following=row.following, character=row.character)
 
     def _source_key(self, row: object) -> str:
         return f"{row.owner_id}:{row.source_account_id}"

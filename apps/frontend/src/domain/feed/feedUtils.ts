@@ -214,6 +214,17 @@ export function mergeTimelinePosts(current: FeedPost[], incoming: FeedPost[]): F
   })].sort((a, b) => postTimeMs(b) - postTimeMs(a));
 }
 
+export function mergeFeedPagePosts(current: FeedPost[], incoming: FeedPost[]): FeedPost[] {
+  const seen = new Set(current.map((post) => String(post.id)));
+  const newPosts = incoming.filter((post) => {
+    const id = String(post.id);
+    if (seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+  return [...current, ...newPosts];
+}
+
 function characterIdentity(character: FollowedCharacter): string {
   return character.sharedId || character.characterId || character.id || "";
 }

@@ -49,7 +49,7 @@ const FEED_STEPS: readonly HelpStep[] = [
   { selector: ".al-profile-top", glyph: "user", focusX: .84, focusY: .5, title: "캐릭터의 홈", description: "프로필을 보고 바로 대화를 시작해요." },
   { selector: ".al-profile-network", glyph: "sparkle", focusX: .72, focusY: .5, title: "이어지는 관계", description: "추천 캐릭터, 팔로잉, 기억을 여기서 바로 확인해요." },
   { selector: ".al-composer", glyph: "pen", focusX: .34, focusY: .5, title: "부탁하거나, 직접 쓰거나", description: "캐릭터에게 맡기거나 내가 직접 작성해요." },
-  { selector: ".al-feed-tabs", glyph: "swap", focusX: .73, focusY: .5, title: "둘로 나뉜 피드", description: "내 기록과 함께 보는 글을 나눠 봐요." },
+  { selector: ".al-feed-tabs", glyph: "swap", focusX: .73, focusY: .5, title: "세 가지 피드", description: "내 글, 팔로잉, 취향 추천을 나눠 봐요." },
   { selector: ".al-post-actions", glyph: "heart", focusX: .25, focusY: .5, title: "반응하고 다듬기", description: "하트·댓글로 반응하고 어색한 말투를 고쳐요." },
 ] as const;
 

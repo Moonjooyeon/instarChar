@@ -9,6 +9,7 @@ import {
   followedPostId,
   followedPostTarget,
   followedPostTargets,
+  mergeFeedPagePosts,
   mergeTimelinePosts,
   optimisticFollowedLike,
   postTimeMs,
@@ -106,6 +107,15 @@ test("mergeTimelinePosts deduplicates and sorts newest first", () => {
   assert.deepEqual(merged.map((post) => post.id), ["b", "a"]);
   assert.equal(merged[1].text, "old");
   assert.equal(merged[1].authorHandle, "sein");
+});
+
+test("mergeFeedPagePosts preserves loaded pages beyond 120 posts without duplicates", () => {
+  const current = Array.from({ length: 120 }, (_, index) => ({ id: `post-${index}` }));
+  const incoming = [{ id: "post-119" }, ...Array.from({ length: 20 }, (_, index) => ({ id: `post-${120 + index}` })), { id: "post-120" }];
+  const merged = mergeFeedPagePosts(current, incoming);
+  assert.equal(merged.length, 140);
+  assert.equal(merged[0].id, "post-0");
+  assert.equal(merged.at(-1).id, "post-139");
 });
 
 test("postTimeMs accepts dates, timestamps and parseable strings", () => {

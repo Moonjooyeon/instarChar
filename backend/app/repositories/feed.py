@@ -6,17 +6,25 @@ import json
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
-from sqlalchemy import and_, case, exists, literal, or_, select
+from sqlalchemy import and_, case, exists, func, literal, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import ColumnElement
+from sqlalchemy.sql.selectable import Subquery
 
 from app.core.errors import BadRequestError, TooManyRequestsError
 from app.core.config import get_settings
-from app.models import Character, CharacterFollow, FeedRequestLimit, PublicFeedPost, SharedCharacter, User, UserBlock
+from app.core.recommendations import RECOMMENDATION_FIELDS, character_recommendation_terms, normalize_recommendation_terms
+from app.models import Character, CharacterFollow, CharacterPostLike, FeedRequestLimit, PublicFeedPost, SharedCharacter, User, UserBlock, UserModerationStatus
 from app.schemas.feed import FeedKind, FeedPage, FeedPageItem
 
 
 FeedCursor = tuple[datetime, str, UUID, int]
+_PROFILE_WEIGHTS = (("interests", 6), ("world", 4), ("persona", 2), ("surface", 2))
+_MAX_RECOMMENDATION_TERMS = 24
+_RECOMMENDATION_SCAN_MULTIPLIER = 6
+_RECOMMENDATION_CANDIDATE_LIMIT = 2400
+_MAX_POSTS_PER_AUTHOR = 2
 
 
 class FeedRepository:
@@ -52,42 +60,105 @@ class FeedRepository:
         return self._page_from_rows(rows, "timeline", limit)
 
     async def _recommendation_page(self, user_id: UUID, active: Character, cursor: FeedCursor | None, limit: int) -> FeedPage:
-        terms = self._recommendation_terms(active)
+        excluded = await self._excluded_owner_ids(user_id)
+        weights = await self._recommendation_weights(user_id, active, excluded)
+        score = self._recommendation_score(weights)
+        candidate_statement = self._recommendation_base(user_id, active, excluded)
+        candidates = self._recent_recommendation_posts(candidate_statement)
+        candidate_match = and_(candidates.c.author_character_id == PublicFeedPost.author_character_id, candidates.c.post_id == PublicFeedPost.post_id)
+        statement = self._base_statement().join(candidates, candidate_match)
+        statement = statement.with_only_columns(PublicFeedPost, Character, SharedCharacter, score.label("score"))
+        statement = self._apply_ranked_cursor(statement, cursor, score).order_by(score.desc(), PublicFeedPost.created_at.desc(), PublicFeedPost.post_id.desc(), PublicFeedPost.author_character_id.desc())
+        scan_limit = limit * _RECOMMENDATION_SCAN_MULTIPLIER
+        rows = list((await self.session.execute(statement.limit(scan_limit + 1))).all())
+        return self._recommendation_page_from_rows(rows, limit, scan_limit)
+
+    def _recommendation_base(self, user_id: UUID, active: Character, excluded: set[UUID]) -> object:
         followed = select(CharacterFollow.id).where(CharacterFollow.follower_id == user_id, CharacterFollow.follower_account_id == active.source_account_id, CharacterFollow.target_shared_character_id == SharedCharacter.id)
         statement = self._base_statement().where(PublicFeedPost.author_character_id != active.id, ~exists(followed))
-        statement = self._apply_exclusions(statement, await self._excluded_owner_ids(user_id))
-        if cursor and cursor[3] == 0:
-            return await self._recommendation_segment(statement, terms, False, cursor, limit)
-        if not terms:
-            return await self._recommendation_segment(statement, terms, False, cursor, limit)
-        interests = await self._recommendation_segment(statement, terms, True, cursor, limit, keep_cursor=True)
-        if interests.has_more:
-            return interests
-        return await self._append_recent_recommendations(statement, terms, interests, limit)
+        return self._apply_exclusions(statement, excluded)
 
-    async def _recommendation_segment(self, statement: object, terms: list[str], interested: bool, cursor: FeedCursor | None, limit: int, keep_cursor: bool = False) -> FeedPage:
-        if limit < 1:
-            return FeedPage(has_more=False)
-        score = 1 if interested else 0
-        if terms:
-            tag_match = SharedCharacter.tags.overlap(terms)
-            statement = statement.where(tag_match if interested else ~tag_match)
-        statement = statement.with_only_columns(PublicFeedPost, Character, SharedCharacter, literal(score).label("score"))
-        statement = self._apply_cursor(statement, cursor).order_by(PublicFeedPost.created_at.desc(), PublicFeedPost.post_id.desc(), PublicFeedPost.author_character_id.desc()).limit(limit + 1)
-        rows = list((await self.session.execute(statement)).all())
-        return self._page_from_rows(rows, "recommendations", limit, keep_cursor)
+    def _recent_recommendation_posts(self, statement: object) -> Subquery:
+        statement = statement.with_only_columns(PublicFeedPost.author_character_id, PublicFeedPost.post_id)
+        statement = statement.order_by(PublicFeedPost.created_at.desc(), PublicFeedPost.post_id.desc(), PublicFeedPost.author_character_id.desc())
+        return statement.limit(_RECOMMENDATION_CANDIDATE_LIMIT).subquery("recent_recommendation_posts")
 
-    async def _append_recent_recommendations(self, statement: object, terms: list[str], interests: FeedPage, limit: int) -> FeedPage:
-        remaining = limit - len(interests.items)
-        recents = await self._recommendation_segment(statement, terms, False, None, max(remaining, 1))
-        if not recents.items:
-            return FeedPage(items=interests.items, has_more=False)
-        if remaining < 1:
-            return FeedPage(items=interests.items, has_more=True, next_cursor=interests.next_cursor)
-        return FeedPage(items=[*interests.items, *recents.items], has_more=recents.has_more, next_cursor=recents.next_cursor)
+    async def _recommendation_weights(self, user_id: UUID, active: Character, excluded: set[UUID]) -> dict[str, int]:
+        weights = self._profile_weights(active)
+        followed = await self._followed_signals(user_id, active.source_account_id, excluded)
+        liked = await self._liked_signals(user_id, active.source_account_id, excluded)
+        for shared in followed:
+            self._add_signal(weights, shared, 3)
+        for shared in liked:
+            self._add_signal(weights, shared, 1)
+        ranked = sorted(weights.items(), key=lambda item: (-item[1], item[0]))
+        return dict(ranked[:_MAX_RECOMMENDATION_TERMS])
+
+    async def _followed_signals(self, user_id: UUID, source_account_id: str, excluded: set[UUID]) -> list[SharedCharacter]:
+        statement = select(SharedCharacter).join(CharacterFollow, CharacterFollow.target_shared_character_id == SharedCharacter.id)
+        statement = statement.where(CharacterFollow.follower_id == user_id, CharacterFollow.follower_account_id == source_account_id)
+        statement = self._apply_exclusions(statement, excluded)
+        result = await self.session.execute(statement.order_by(CharacterFollow.created_at.desc()).limit(80))
+        return list(result.scalars().all())
+
+    async def _liked_signals(self, user_id: UUID, source_account_id: str, excluded: set[UUID]) -> list[SharedCharacter]:
+        linked = and_(SharedCharacter.owner_id == Character.owner_id, SharedCharacter.source_account_id == Character.source_account_id)
+        statement = select(SharedCharacter).join(Character, linked).join(CharacterPostLike, CharacterPostLike.target_character_id == Character.id)
+        statement = statement.where(CharacterPostLike.liker_owner_id == user_id, CharacterPostLike.liker_account_id == source_account_id)
+        statement = self._apply_exclusions(statement, excluded)
+        result = await self.session.execute(statement.order_by(CharacterPostLike.created_at.desc()).limit(80))
+        return list(result.scalars().all())
+
+    def _profile_weights(self, active: Character) -> dict[str, int]:
+        weights: dict[str, int] = {}
+        for field, weight in _PROFILE_WEIGHTS:
+            terms = normalize_recommendation_terms([active.character.get(field)], 10)
+            for term in terms:
+                weights[term] = max(weights.get(term, 0), weight)
+        return weights
+
+    def _add_signal(self, weights: dict[str, int], shared: SharedCharacter, boost: int) -> None:
+        profile_terms = character_recommendation_terms(dict(shared.character or {}))
+        terms = normalize_recommendation_terms([*profile_terms, *list(shared.tags or [])])
+        for term in terms:
+            weights[term] = min(12, weights.get(term, 0) + boost)
+
+    def _recommendation_score(self, weights: dict[str, int]) -> ColumnElement[int]:
+        score = literal(0)
+        if not weights:
+            return score
+        document = self._recommendation_document()
+        for term, weight in weights.items():
+            matches = or_(SharedCharacter.tags.overlap([term]), func.strpos(document, term) > 0)
+            score += case((matches, weight), else_=0)
+        return score
+
+    def _recommendation_document(self) -> ColumnElement[str]:
+        fields = [SharedCharacter.character[field].astext for field in RECOMMENDATION_FIELDS]
+        tags = func.array_to_string(SharedCharacter.tags, " ")
+        return func.lower(func.concat_ws(" ", tags, SharedCharacter.persona, *fields))
+
+    def _recommendation_page_from_rows(self, rows: list[object], limit: int, scan_limit: int) -> FeedPage:
+        visible: list[object] = []
+        scanned: list[object] = []
+        author_counts: dict[str, int] = {}
+        for row in rows[:scan_limit]:
+            scanned.append(row)
+            author_id = str(row[1].id)
+            if author_counts.get(author_id, 0) >= _MAX_POSTS_PER_AUTHOR:
+                continue
+            author_counts[author_id] = author_counts.get(author_id, 0) + 1
+            visible.append(row)
+            if len(visible) == limit:
+                break
+        has_more = len(rows) > len(scanned)
+        cursor = self._cursor_from_row(scanned[-1], "recommendations") if has_more and scanned else ""
+        return FeedPage(items=[self._item_from_row(row, "recommendations") for row in visible], has_more=has_more, next_cursor=cursor)
 
     def _base_statement(self, *extra: object) -> object:
-        return select(PublicFeedPost, Character, SharedCharacter, *extra).join(Character, Character.id == PublicFeedPost.author_character_id).join(SharedCharacter, and_(SharedCharacter.owner_id == Character.owner_id, SharedCharacter.source_account_id == Character.source_account_id)).where(Character.is_public.is_(True))
+        statement = select(PublicFeedPost, Character, SharedCharacter, *extra).join(Character, Character.id == PublicFeedPost.author_character_id)
+        statement = statement.join(SharedCharacter, and_(SharedCharacter.owner_id == Character.owner_id, SharedCharacter.source_account_id == Character.source_account_id)).join(User, User.id == SharedCharacter.owner_id)
+        return statement.where(Character.is_public.is_(True), User.moderation_status == UserModerationStatus.active)
 
     async def _active_character(self, owner_id: UUID, source_account_id: str) -> Character:
         statement = select(Character).where(Character.owner_id == owner_id, Character.source_account_id == source_account_id)
@@ -107,8 +178,20 @@ class FeedRepository:
     def _apply_cursor(self, statement: object, cursor: FeedCursor | None) -> object:
         if not cursor:
             return statement
+        return statement.where(self._cursor_time_condition(cursor))
+
+    def _apply_ranked_cursor(self, statement: object, cursor: FeedCursor | None, score: ColumnElement[int]) -> object:
+        if not cursor:
+            return statement
+        cursor_score = cursor[3]
+        return statement.where(or_(score < cursor_score, and_(score == cursor_score, self._cursor_time_condition(cursor))))
+
+    def _cursor_time_condition(self, cursor: FeedCursor) -> ColumnElement[bool]:
         created_at, post_id, author_id, _ = cursor
-        return statement.where(or_(PublicFeedPost.created_at < created_at, and_(PublicFeedPost.created_at == created_at, PublicFeedPost.post_id < post_id), and_(PublicFeedPost.created_at == created_at, PublicFeedPost.post_id == post_id, PublicFeedPost.author_character_id < author_id)))
+        older_time = PublicFeedPost.created_at < created_at
+        older_post = and_(PublicFeedPost.created_at == created_at, PublicFeedPost.post_id < post_id)
+        older_author = and_(PublicFeedPost.created_at == created_at, PublicFeedPost.post_id == post_id, PublicFeedPost.author_character_id < author_id)
+        return or_(older_time, older_post, older_author)
 
     def _page_from_rows(self, rows: list[object], kind: FeedKind, limit: int, keep_cursor: bool = False) -> FeedPage:
         has_more = len(rows) > limit
@@ -146,9 +229,3 @@ class FeedRepository:
             return datetime.fromisoformat(str(payload["createdAt"])), str(payload["postId"]), UUID(str(payload["authorCharacterId"])), int(payload.get("score") or 0)
         except (binascii.Error, KeyError, TypeError, ValueError, json.JSONDecodeError):
             raise BadRequestError("Invalid feed cursor") from None
-
-    def _recommendation_terms(self, character: Character) -> list[str]:
-        fields = ("interests", "world", "persona", "surface")
-        values = [str(character.character.get(field) or "") for field in fields]
-        terms = [term.strip() for value in values for term in value.lower().replace("·", " ").replace("/", " ").split()]
-        return [term for term in terms if len(term) >= 2][:18]

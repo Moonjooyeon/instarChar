@@ -108,6 +108,7 @@ def test_shared_payload_uses_authoritative_character_handle() -> None:
     row = SharedCharacterRepository(StubSession())._payload_row(user, "char-1", payload, character)
     assert row["handle"] == "database-handle"
     assert row["character"]["handle"] == "database-handle"
+    assert row["tags"] == []
 
 
 def test_sharing_requires_owned_character(monkeypatch) -> None:

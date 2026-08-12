@@ -6,13 +6,13 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
-from sqlalchemy import select
+from sqlalchemy import Integer, column, select
 from sqlalchemy.dialects import postgresql
 
 from app.api.deps import get_current_user
 from app.db.session import get_db_session
 from app.main import app
-from app.models import PublicFeedPost
+from app.models import Character, PublicFeedPost, SharedCharacter
 from app.core.errors import TooManyRequestsError
 from app.repositories.feed import FeedRepository
 from app.schemas.feed import FeedPage, FeedPageItem
@@ -92,6 +92,77 @@ def test_feed_cursor_uses_author_as_tie_breaker() -> None:
     assert "public_feed_posts.author_character_id <" in compiled
 
 
+def test_ranked_feed_cursor_applies_score_before_time() -> None:
+    repository = FeedRepository(SimpleNamespace(), cursor_secret="test-secret")
+    cursor = (datetime(2026, 8, 10, tzinfo=timezone.utc), "post-1", uuid4(), 7)
+    statement = repository._apply_ranked_cursor(select(PublicFeedPost), cursor, column("rank_score", Integer))
+    compiled = str(statement.compile(dialect=postgresql.dialect()))
+    assert "rank_score <" in compiled
+    assert "rank_score =" in compiled
+    assert "public_feed_posts.created_at <" in compiled
+
+
+def test_recommendation_score_supports_normalized_and_legacy_tags() -> None:
+    repository = FeedRepository(SimpleNamespace(), cursor_secret="test-secret")
+    statement = select(repository._recommendation_score({"마법": 6}).label("score"))
+    compiled = str(statement.compile(dialect=postgresql.dialect()))
+    assert "shared_characters.tags &&" in compiled
+    assert "strpos" in compiled
+
+
+def test_recommendation_candidates_are_bounded_before_scoring() -> None:
+    repository = FeedRepository(SimpleNamespace(), cursor_secret="test-secret")
+    compiled = str(repository._recent_recommendation_posts(repository._base_statement()).compile(dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}))
+    assert "LIMIT 2400" in compiled
+    assert "ORDER BY public_feed_posts.created_at DESC" in compiled
+
+
+def test_recommendation_candidates_apply_exclusions_before_limit() -> None:
+    repository = FeedRepository(SimpleNamespace(), cursor_secret="test-secret")
+    active = SimpleNamespace(id=uuid4(), source_account_id="char-1")
+    statement = repository._recommendation_base(uuid4(), active, {uuid4()})
+    compiled = str(repository._recent_recommendation_posts(statement).compile(dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}))
+    assert "character_follows" in compiled
+    assert "shared_characters.owner_id NOT IN" in compiled
+    assert compiled.index("shared_characters.owner_id NOT IN") < compiled.index("LIMIT 2400")
+
+
+def test_feed_candidates_require_active_moderation_status() -> None:
+    repository = FeedRepository(SimpleNamespace(), cursor_secret="test-secret")
+    compiled = str(repository._base_statement().compile(dialect=postgresql.dialect()))
+    assert "users.moderation_status" in compiled
+
+
+def test_recommendation_page_limits_repeated_authors_and_advances_cursor() -> None:
+    repository = FeedRepository(SimpleNamespace(), cursor_secret="test-secret")
+    first_id = uuid4()
+    rows = [feed_row(first_id, f"post-{index}", 8) for index in range(4)]
+    rows.extend([feed_row(uuid4(), "post-4", 7), feed_row(uuid4(), "post-5", 6)])
+    page = repository._recommendation_page_from_rows(rows, 3, 6)
+    assert [item.author_character_id for item in page.items].count(str(first_id)) == 2
+    assert len(page.items) == 3
+    assert page.has_more is True
+    assert repository._decode_cursor(page.next_cursor, "recommendations")[3] == 7
+
+
+def test_recommendation_weights_combine_profile_follow_and_like_signals() -> None:
+    followed = SharedCharacter(owner_id=uuid4(), source_account_id="followed", name="극장", tags=["마법"], character={"world": "마법 극장"})
+    liked = SharedCharacter(owner_id=uuid4(), source_account_id="liked", name="탐정", tags=["추리"], character={"interests": "추리 소설"})
+    session = SignalSession([[followed], [liked]])
+    active = Character(owner_id=uuid4(), source_account_id="char-1", name="세인", handle="sein", character={"interests": "마법, 홍차"})
+    weights = asyncio.run(FeedRepository(session, cursor_secret="test-secret")._recommendation_weights(active.owner_id, active, set()))
+    assert weights["마법"] == 9
+    assert weights["홍차"] == 6
+    assert weights["추리"] == 1
+
+
+def test_behavior_signals_exclude_blocked_owners() -> None:
+    session = SignalSession([[]])
+    asyncio.run(FeedRepository(session, cursor_secret="test-secret")._followed_signals(uuid4(), "char-1", {uuid4()}))
+    compiled = str(session.statements[0].compile(dialect=postgresql.dialect()))
+    assert "shared_characters.owner_id NOT IN" in compiled
+
+
 def test_feed_rate_limit_rejects_excess_requests() -> None:
     repository = FeedRepository(RateLimitSession(61), cursor_secret="test-secret")
     try:
@@ -118,6 +189,35 @@ class RateLimitSession:
     async def execute(self, statement: object) -> RateLimitResult:
         self.statement = statement
         return RateLimitResult(self.count)
+
+
+class SignalResult:
+    def __init__(self, rows: list[object]) -> None:
+        self.rows = rows
+
+    def scalars(self) -> "SignalResult":
+        return self
+
+    def all(self) -> list[object]:
+        return self.rows
+
+
+class SignalSession:
+    def __init__(self, results: list[list[object]]) -> None:
+        self.results = list(results)
+        self.statements: list[object] = []
+
+    async def execute(self, statement: object) -> SignalResult:
+        self.statements.append(statement)
+        return SignalResult(self.results.pop(0))
+
+
+def feed_row(author_id: object, post_id: str, score: int) -> tuple[object, object, object, int]:
+    created_at = datetime(2026, 8, 10, tzinfo=timezone.utc)
+    post = SimpleNamespace(created_at=created_at, payload={"id": post_id, "text": post_id}, post_id=post_id)
+    character = SimpleNamespace(id=author_id)
+    shared = SimpleNamespace(handle="author", id=uuid4(), name="작성자", owner_id=uuid4())
+    return post, character, shared, score
 
 
 def make_test_client() -> TestClient:
