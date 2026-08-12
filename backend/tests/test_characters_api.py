@@ -151,9 +151,23 @@ def test_auto_post_accepts_only_supported_intervals(monkeypatch: MonkeyPatch) ->
     monkeypatch.setattr(CharacterPostsRepository, "update_auto_post", update_auto_post)
     with make_test_client() as client:
         accepted = client.patch("/api/characters/char-1/auto-post", json={"enabled": True, "interval_seconds": 21600})
-        rejected = client.patch("/api/characters/char-1/auto-post", json={"enabled": True, "interval_seconds": 30})
+        accepted_hourly = client.patch("/api/characters/char-1/auto-post", json={"enabled": True, "interval_seconds": 3600})
+        rejected = client.patch("/api/characters/char-1/auto-post", json={"enabled": True, "interval_seconds": 900})
     assert accepted.status_code == 200
+    assert accepted_hourly.status_code == 200
     assert rejected.status_code == 422
+
+
+def test_auto_post_uses_the_six_hour_default_when_interval_is_omitted(monkeypatch: MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+    async def update_auto_post(self: object, user: StubUser, source_account_id: str, payload: object) -> CharacterPostsResponse:
+        captured["interval"] = getattr(payload, "interval_seconds")
+        return posts_response()
+    monkeypatch.setattr(CharacterPostsRepository, "update_auto_post", update_auto_post)
+    with make_test_client() as client:
+        response = client.patch("/api/characters/char-1/auto-post", json={"enabled": True})
+    assert response.status_code == 200
+    assert captured["interval"] == 21600
 
 
 def test_generate_character_post_uses_backend_service(monkeypatch: MonkeyPatch) -> None:

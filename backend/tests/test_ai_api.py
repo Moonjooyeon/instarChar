@@ -142,6 +142,14 @@ def test_generation_config_uses_policy_thinking_budget() -> None:
         assert service._generation_config(payload, flow == "character_analysis")["thinkingConfig"] == {"thinkingBudget": resolve_flow(flow).thinking_budget}
 
 
+def test_feed_generation_uses_a_higher_temperature_without_losing_json_mode() -> None:
+    service = MonoGptGeminiGenerateService(make_settings(), StubCancellationUsage())  # type: ignore[arg-type]
+    payload = GenerateRequest(**{**generate_body(), "flow": "feed_post"})
+    config = service._generation_config(payload, True)
+    assert config["temperature"] == 0.75
+    assert config["responseMimeType"] == "application/json"
+
+
 @pytest.mark.parametrize(("flow", "credits", "model", "max_input_chars", "max_output_tokens", "thinking_budget"), [
     ("direct_dm_basic", 1, "flash-tier", 12000, 512, 0),
     ("direct_dm_context", 2, "flash-tier", 24000, 768, 256),

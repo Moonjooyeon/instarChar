@@ -63,6 +63,8 @@ def test_credit_catalog_is_visible_but_payment_is_disabled() -> None:
     assert pro["credits"] == 5
     assert pro["energy_eligible"] is False
     assert pro["bonus_eligible"] is False
+    auto = next(flow for flow in response.json()["flows"] if flow["code"] == "auto_feed_post")
+    assert (auto["label"], auto["credits"], auto["bonus_eligible"]) == ("혼자 남기는 근황", 2, False)
     assert [flow["code"] for flow in response.json()["flows"] if flow["code"].startswith("direct_dm")] == ["direct_dm_basic", "direct_dm_context", "direct_dm_pro"]
 
 

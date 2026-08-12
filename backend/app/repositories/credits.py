@@ -50,15 +50,16 @@ class CreditRepository:
         if existing:
             return await self._duplicate(existing, policy)
         await self._grant_if_missing(user_id, "signup", SIGNUP_BONUS_CREDITS, account)
+        intro_free = await self._intro_free_available(user_id, policy)
         if await self._hard_flow_limit_reached(user_id, policy, current):
             return await self._hard_flow_limited(policy)
         free_limit_reached = await self._free_flow_limit_reached(user_id, policy, current)
         purchased_only = free_limit_reached and policy.credits > 0 and account.purchased_credits >= policy.credits
-        if free_limit_reached and not purchased_only:
+        if free_limit_reached and not purchased_only and not intro_free:
             return await self._flow_limited(policy)
-        if not self._can_use(account, energy, policy):
+        if not intro_free and not self._can_use(account, energy, policy):
             return await self._insufficient(policy)
-        usage = self._reserve_balance(user_id, key, account, energy, policy, purchased_only)
+        usage = self._reserve_balance(user_id, key, account, energy, policy, purchased_only, intro_free)
         self.session.add(usage)
         self._usage_debits(usage)
         await self._commit()
@@ -84,18 +85,25 @@ class CreditRepository:
         await self._commit()
         return CreditReservation(False, policy=policy, error_code="FLOW_DAILY_LIMIT_EXCEEDED", message="이 AI 기능의 오늘 사용 한도에 도달했어.")
 
-    def _reserve_balance(self, user_id: UUID, key: str, account: CreditAccount, energy: EnergyAccount, policy: FlowPolicy, purchased_only: bool = False) -> CreditUsage:
+    def _reserve_balance(self, user_id: UUID, key: str, account: CreditAccount, energy: EnergyAccount, policy: FlowPolicy, purchased_only: bool = False, waive_charge: bool = False) -> CreditUsage:
         energy_amount = policy.energy_percent if not purchased_only and policy.energy_allowed and energy.energy_percent >= policy.energy_percent else 0
         bonus_allowed = policy.bonus_allowed and not purchased_only
-        bonus, purchased = self._deduct_credits(account, policy.credits if not energy_amount else 0, bonus_allowed)
+        credits = 0 if waive_charge else policy.credits if not energy_amount else 0
+        bonus, purchased = self._deduct_credits(account, credits, bonus_allowed)
         energy.energy_percent -= energy_amount
-        return CreditUsage(id=uuid4(), user_id=user_id, flow=policy.code, policy_version=CREDIT_POLICY_VERSION, model=policy.model, status="reserved", credits=policy.credits if not energy_amount else 0, energy_percent=energy_amount, bonus_credits=bonus, purchased_credits=purchased, idempotency_key=key, provider_status="credit_reserved")
+        return CreditUsage(id=uuid4(), user_id=user_id, flow=policy.code, policy_version=CREDIT_POLICY_VERSION, model=policy.model, status="reserved", credits=credits, energy_percent=energy_amount, bonus_credits=bonus, purchased_credits=purchased, idempotency_key=key, provider_status="credit_reserved")
 
     def _usage_debits(self, usage: CreditUsage) -> None:
         if usage.bonus_credits:
             self._add_ledger(usage.user_id, "debit", "bonus", -usage.bonus_credits, f"usage:{usage.id}:bonus", usage.flow)
         if usage.purchased_credits:
             self._add_ledger(usage.user_id, "debit", "purchased", -usage.purchased_credits, f"usage:{usage.id}:purchased", usage.flow)
+
+    async def _intro_free_available(self, user_id: UUID, policy: FlowPolicy) -> bool:
+        if policy.intro_free_uses <= 0:
+            return False
+        stmt = select(func.count()).select_from(CreditUsage).where(CreditUsage.user_id == user_id, CreditUsage.flow == policy.code, CreditUsage.status.in_(("reserved", "committed")))
+        return int((await self.session.execute(stmt)).scalar_one()) < policy.intro_free_uses
 
     async def commit_usage(self, usage_id: UUID, user_id: UUID, provider: ProviderUsage | None = None, response_body: dict[str, object] | None = None) -> None:
         account, _ = await self._locked_accounts(user_id, datetime.now(timezone.utc))

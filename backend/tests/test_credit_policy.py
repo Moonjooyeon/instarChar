@@ -49,7 +49,7 @@ def test_monthly_usage_resets_at_first_day_korean_midnight() -> None:
 
 def test_onboarding_bonus_policy_totals_150_credits() -> None:
     assert SIGNUP_BONUS_CREDITS + FIRST_CHARACTER_BONUS_CREDITS + FIRST_DM_BONUS_CREDITS == 150
-    assert CREDIT_POLICY_VERSION == "credit-2026-08-v4"
+    assert CREDIT_POLICY_VERSION == "credit-2026-08-v7"
     assert ENERGY_POLICY_VERSION == "energy-2026-08-v2"
 
 
@@ -57,8 +57,9 @@ def test_server_flow_catalog_owns_cost_and_model() -> None:
     assert resolve_flow("direct_dm_basic").credits == 1
     assert resolve_flow("direct_dm_basic").model == "flash"
     assert resolve_flow("direct_dm_basic").max_input_chars == 12000
-    assert resolve_flow("character-analysis-v2").credits == 0
-    assert resolve_flow("character-analysis-v2").model == "pro"
+    assert resolve_flow("character_analysis").credits == 5
+    assert resolve_flow("character_analysis").model == "pro"
+    assert resolve_flow("character_analysis").intro_free_uses == 1
     assert resolve_flow("character-feed-post-v1").credits == 3
 
 
@@ -72,11 +73,19 @@ def test_internal_flows_are_not_public() -> None:
         resolve_public_flow("internal")
 
 
-def test_auto_feed_flow_is_server_only_and_free() -> None:
+def test_auto_feed_flow_uses_discounted_purchased_credits() -> None:
     policy = resolve_flow("auto_feed_post")
-    assert (policy.credits, policy.energy_percent, policy.free_daily_limit) == (0, 0, 24)
+    assert (policy.credits, policy.energy_percent, policy.free_daily_limit, policy.hard_daily_limit) == (2, 0, 24, 24)
+    assert policy.energy_allowed is False
+    assert policy.bonus_allowed is False
     with pytest.raises(ValueError, match="공개 API"):
         resolve_public_flow("auto_feed_post")
+
+
+def test_free_assist_flows_have_conservative_daily_limits() -> None:
+    assert resolve_flow("assist_social").hard_daily_limit == 12
+    assert resolve_flow("assist_relationship").hard_daily_limit == 6
+    assert resolve_flow("assist_session").hard_daily_limit == 4
 
 
 def test_pro_flows_disable_energy_and_bonus() -> None:

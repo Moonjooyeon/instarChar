@@ -42,11 +42,13 @@ class CharacterPostsUpdate(BaseModel):
 
 class AutoPostUpdate(BaseModel):
     enabled: bool
-    interval_seconds: int = 3600
+    interval_seconds: int | None = None
 
     @field_validator("interval_seconds")
     @classmethod
-    def validate_interval(cls, value: int) -> int:
+    def validate_interval(cls, value: int | None) -> int | None:
+        if value is None:
+            return None
         if value not in ALLOWED_AUTO_POST_INTERVALS:
             raise ValueError("interval_seconds must be 3600, 21600, or 43200")
         return value

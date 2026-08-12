@@ -39,6 +39,7 @@ const FLOW_META: Record<string, CreditFlowMeta> = {
   direct_dm_context: { available: true, category: "conversation", description: "장기기억과 유저 노트를 조금 더 반영", tier: "기억 반영" },
   direct_dm_pro: { available: true, category: "conversation", description: "중요한 장면을 위한 고품질 응답", tier: "중요한 답장" },
   feed_post: { available: true, category: "content", description: "캐릭터의 말투로 피드 글 한 편 생성", tier: "피드" },
+  auto_feed_post: { available: true, category: "content", description: "캐릭터가 스스로 남기는 근황 한 편", tier: "혼자 남기는 근황" },
   character_interaction: { available: false, category: "content", description: "캐릭터 사이의 관계 장면과 상호작용", tier: "관계" },
 };
 

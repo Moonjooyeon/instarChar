@@ -7,13 +7,13 @@ import { dmResponseFlowLabel } from "@/domain/dm/dmResponseMode";
 export function CreditChargeOrder(): React.ReactElement {
   return (
     <section className="al-credit-order" aria-labelledby="credit-order-title">
-      <header><small>사용 순서</small><h2 id="credit-order-title">무료부터 차례대로 사용해요</h2></header>
+      <header><small>일반 기능의 사용 순서</small><h2 id="credit-order-title">무료부터 차례대로 사용해요</h2></header>
       <ol>
         <ChargeStep index="1" label="무료 회복 에너지" detail="100%에서 사용 후 6시간마다 25%" />
         <ChargeStep index="2" label="무료 보너스" detail="가입·첫 활동 보상" />
         <ChargeStep index="3" label="구매 크레딧" detail="에너지와 보너스 소진 후" />
       </ol>
-      <p>어떤 잔액을 사용해도 AI 답변 품질은 같아요. 단, Pro 기능은 구매 크레딧만 사용해요.</p>
+      <p>일반 기능만 이 순서를 따라요. <strong>Pro와 혼자 남기는 근황은 구매 크레딧만 사용해요.</strong></p>
     </section>
   );
 }
@@ -23,9 +23,10 @@ export function CreditFlowCatalog({ flows }: { flows: CreditFlow[] }): React.Rea
   const content = flows.filter((flow) => creditFlowMeta(flow.code).category === "content");
   return (
     <section className="al-credit-flow-catalog" aria-labelledby="credit-flow-title">
-      <header><small>기능별 사용량</small><h2 id="credit-flow-title">무엇에 얼마나 쓰이나요?</h2><p>한 번의 AI 응답 기준이에요. 대부분은 에너지를 먼저 쓰고, Pro는 구매 크레딧만 사용해요.</p></header>
+      <header><small>기능별 사용량</small><h2 id="credit-flow-title">무엇에 얼마나 쓰이나요?</h2><p>한 번의 요청 기준이에요. 일반 기능은 에너지부터, Pro와 혼자 남기는 근황은 구매 크레딧만 사용해요.</p></header>
       <FlowGroup label="대화" flows={conversation} />
       <FlowGroup label="콘텐츠와 관계" flows={content} />
+      <aside className="al-credit-included-ai"><b>예외 규칙만 기억하세요</b><ul><li><strong>혼자 남기는 근황</strong>은 한 편당 구매 크레딧 2C예요. 잔액이 2C보다 적으면 잠시 쉬어요.</li><li><strong>댓글·관계·기억 정리</strong>는 별도 C 차감 없는 포함 혜택이에요. 안정적인 이용을 위해 하루 기준으로 잠시 쉬게 될 수 있어요.</li></ul></aside>
     </section>
   );
 }
@@ -51,6 +52,7 @@ function FlowCard({ flow }: { flow: CreditFlow }): React.ReactElement {
 
 function FlowIcon({ code }: { code: string }): React.ReactElement {
   if (code === "feed_post") return <AliveIcon name="pen" size={16} />;
+  if (code === "auto_feed_post") return <AliveIcon name="sparkle" size={16} />;
   if (code === "character_interaction") return <AliveIcon name="relationship" size={16} />;
   return <AliveIcon name="message" size={16} />;
 }

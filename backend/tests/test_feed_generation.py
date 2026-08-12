@@ -24,13 +24,15 @@ class StubCharacter:
 
 
 class StubPosts:
-    def __init__(self) -> None:
+    def __init__(self, posts: list[object] | None = None) -> None:
         self.saved: dict[str, object] | None = None
         self.error: str = ""
+        self.auto_stopped = False
         self.committed = True
+        self.posts = posts or []
 
     async def owned_character(self, owner_id: object, source_account_id: str) -> StubCharacter:
-        return StubCharacter(character={"persona": "차분함"}, posts=[])
+        return StubCharacter(character={"persona": "차분함"}, posts=self.posts)
 
     async def append_generated_post(self, owner_id: object, source_account_id: str, post: dict[str, object], is_auto: bool = False, commit: bool = True) -> CharacterPostsResponse:
         self.saved = post
@@ -39,6 +41,9 @@ class StubPosts:
 
     async def record_auto_failure(self, owner_id: object, source_account_id: str, error: str, retry_at: object) -> None:
         self.error = error
+
+    async def stop_auto_post_for_credit(self, owner_id: object, source_account_id: str) -> None:
+        self.auto_stopped = True
 
 
 class StubUsage:
@@ -59,6 +64,9 @@ def test_feed_generation_excludes_profile_images_from_prompt() -> None:
     assert isinstance(content, str)
     prompt = json.loads(content)
     assert prompt["character"] == {"persona": "차분함"}
+    assert prompt["variation_seed"] == "feed-post:test-key"
+    assert prompt["generated_at"]
+    assert "반복하지 말고" in request.system
 
 
 def test_feed_generation_parses_and_saves_provider_result(monkeypatch: MonkeyPatch) -> None:
@@ -134,7 +142,7 @@ def test_feed_generation_does_not_save_when_usage_is_blocked(monkeypatch: Monkey
     assert posts.error.startswith("DAILY_LIMIT_EXCEEDED")
 
 
-def test_free_auto_feed_commits_post_without_credit_usage(monkeypatch: MonkeyPatch) -> None:
+def test_auto_feed_commits_post_after_discounted_credit_reservation(monkeypatch: MonkeyPatch) -> None:
     async def generate(self: object, payload: object, owner_id: object, finalize_credit: bool = True) -> GenerateApiResult:
         assert getattr(payload, "flow") == "auto_feed_post"
         return GenerateApiResult(200, {"content": [{"type": "text", "text": '{"text":"자동 글"}'}]})
@@ -143,6 +151,33 @@ def test_free_auto_feed_commits_post_without_credit_usage(monkeypatch: MonkeyPat
     result = run(FeedGenerationService(posts, StubUsage(), Settings(monogpt_gemini_api_key="test")).generate(uuid4(), "char-1", feed_request(), is_auto=True))
     assert result.status_code == 200
     assert posts.committed is True
+
+
+def test_auto_feed_stops_when_purchased_credits_are_insufficient(monkeypatch: MonkeyPatch) -> None:
+    async def generate(self: object, payload: object, owner_id: object, finalize_credit: bool = True) -> GenerateApiResult:
+        return GenerateApiResult(402, {"error": "CREDIT_INSUFFICIENT"})
+    monkeypatch.setattr(MonoGptGeminiGenerateService, "generate", generate)
+    posts = StubPosts()
+    result = run(FeedGenerationService(posts, StubUsage(), Settings(monogpt_gemini_api_key="test")).generate(uuid4(), "char-1", feed_request(), is_auto=True))
+    assert result.status_code == 402
+    assert posts.auto_stopped is True
+    assert posts.error == ""
+
+
+def test_auto_feed_refunds_a_post_that_repeats_recent_copy(monkeypatch: MonkeyPatch) -> None:
+    events: list[str] = []
+    async def generate(self: object, payload: object, owner_id: object, finalize_credit: bool = True) -> GenerateApiResult:
+        return GenerateApiResult(200, {"content": [{"type": "text", "text": '{"text":"비 오는 저녁, 작은 서점 창가에서 따뜻한 차를 마셨다."}'}]}, uuid4())
+    async def refund(self: object, result: GenerateApiResult, owner_id: object, status: str) -> None:
+        events.append(status)
+    monkeypatch.setattr(MonoGptGeminiGenerateService, "generate", generate)
+    monkeypatch.setattr(MonoGptGeminiGenerateService, "refund_result", refund)
+    posts = StubPosts([{"text": "비 오는 저녁, 작은 서점 창가에서 따뜻한 차를 마셨다."}])
+    result = run(FeedGenerationService(posts, StubUsage(), Settings(monogpt_gemini_api_key="test")).generate(uuid4(), "char-1", feed_request(), is_auto=True))
+    assert (result.status_code, result.body["error"]) == (422, "POST_TOO_SIMILAR")
+    assert posts.saved is None
+    assert posts.error.startswith("POST_TOO_SIMILAR")
+    assert events == ["POST_TOO_SIMILAR"]
 
 
 def test_feed_generation_refunds_when_persistence_fails(monkeypatch: MonkeyPatch) -> None:

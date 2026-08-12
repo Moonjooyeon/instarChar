@@ -172,8 +172,16 @@ test("the staged feed composer uses semantic controls and its own style bridge",
   assert.match(indexStyles, /screens\/feed-composer\.css" layer\(components\)/);
   assert.match(composer, /al-wake border-line-strong bg-accent-soft text-accent-ink/);
   assert.match(composer, /al-write-post bg-accent text-on-accent/);
-  assert.match(composer, /캐릭터 글 설정/);
-  assert.match(composer, /자동 게시와 지금 상황을 정해요/);
+  assert.match(composer, /혼자 남기는 근황/);
+  assert.match(composer, /근황 루틴/);
+  assert.match(composer, /al-auto-post-notice/);
+  assert.match(composer, /AUTO_POST_PACES/);
+  assert.match(composer, /maximumCost: 48/);
+  assert.match(composer, /role="group"/);
+  assert.match(composer, /사용과 환급 기준/);
+  assert.match(composer, /routineScheduleCopy/);
+  assert.match(composer, /다음 근황은 약/);
+  assert.match(readFileSync(path.resolve(process.cwd(), "src/hooks/useAliveFeed.ts"), "utf8"), /setAutoIntervalSeconds\(state\.auto_post_interval_seconds\)/);
   assert.match(composer, /function MoodButton/);
   assert.match(composerStyles, /\.al-feed-theme-ready \.al-composer/);
   assert.match(composerStyles, /\.al-feed-theme-ready \.al-moods-head/);

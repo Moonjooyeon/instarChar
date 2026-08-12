@@ -6,7 +6,7 @@ from decimal import Decimal
 from zoneinfo import ZoneInfo
 
 
-CREDIT_POLICY_VERSION = "credit-2026-08-v4"
+CREDIT_POLICY_VERSION = "credit-2026-08-v7"
 ENERGY_POLICY_VERSION = "energy-2026-08-v2"
 ENERGY_MAX_PERCENT = 100
 ENERGY_RECOVERY_PERCENT = 25
@@ -33,6 +33,7 @@ class FlowPolicy:
     energy_allowed: bool = True
     bonus_allowed: bool = True
     hard_daily_limit: int = 0
+    intro_free_uses: int = 0
 
 
 FLOW_POLICIES: dict[str, FlowPolicy] = {
@@ -41,11 +42,11 @@ FLOW_POLICIES: dict[str, FlowPolicy] = {
     "direct_dm_pro": FlowPolicy("direct_dm_pro", 5, 25, "pro", "중요한 답장", 24000, 1536, 256, 20, energy_allowed=False, bonus_allowed=False, hard_daily_limit=20),
     "feed_post": FlowPolicy("feed_post", 3, 20, "flash", "피드 글 생성", 20000, 1200, 256, 30),
     "character_interaction": FlowPolicy("character_interaction", 5, 25, "flash", "캐릭터 상호작용", 30000, 2048, 512, 20),
-    "assist_social": FlowPolicy("assist_social", 0, 0, "flash", "SNS 보조 생성", 6000, 256, 0, 20),
-    "assist_relationship": FlowPolicy("assist_relationship", 0, 0, "flash", "관계 보조 처리", 8000, 256, 0, 10),
-    "assist_session": FlowPolicy("assist_session", 0, 0, "flash", "대화 정리", 20000, 2048, 256, 12),
-    "character_analysis": FlowPolicy("character_analysis", 0, 0, "pro", "캐릭터 분석", 50000, 4096, 1024, 3),
-    "auto_feed_post": FlowPolicy("auto_feed_post", 0, 0, "flash", "무료 자동 게시", 20000, 1200, 256, 24, public=False),
+    "assist_social": FlowPolicy("assist_social", 0, 0, "flash", "SNS 보조 생성", 6000, 256, 0, 12, hard_daily_limit=12),
+    "assist_relationship": FlowPolicy("assist_relationship", 0, 0, "flash", "관계 보조 처리", 8000, 256, 0, 6, hard_daily_limit=6),
+    "assist_session": FlowPolicy("assist_session", 0, 0, "flash", "대화 정리", 20000, 2048, 256, 4, hard_daily_limit=4),
+    "character_analysis": FlowPolicy("character_analysis", 5, 0, "pro", "캐릭터 분석", 50000, 4096, 1024, 3, energy_allowed=False, bonus_allowed=False, hard_daily_limit=3, intro_free_uses=1),
+    "auto_feed_post": FlowPolicy("auto_feed_post", 2, 0, "flash", "혼자 남기는 근황", 20000, 1200, 256, 24, public=False, energy_allowed=False, bonus_allowed=False, hard_daily_limit=24),
     "internal": FlowPolicy("internal", 0, 0, "flash", "내부 처리", 40000, 2048, 0, 0, public=False),
     "internal_pro": FlowPolicy("internal_pro", 0, 0, "pro", "내부 고품질 처리", 50000, 4096, 1024, 0, public=False),
 }
@@ -81,8 +82,8 @@ def maximum_provider_cost_usd(policy: FlowPolicy, attempts: int = 2) -> Decimal:
 
 def _model_rates(model: str) -> tuple[Decimal, Decimal]:
     if model == "pro":
-        return Decimal("1.25"), Decimal("10.00")
-    return Decimal("0.30"), Decimal("2.50")
+        return Decimal("2.00"), Decimal("12.00")
+    return Decimal("1.50"), Decimal("7.50")
 
 
 def recover_energy(percent: int, last_recovered_at: datetime, now: datetime) -> tuple[int, datetime]:

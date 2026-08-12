@@ -132,6 +132,36 @@ def test_free_limit_blocks_without_enough_purchased_credits(monkeypatch: pytest.
     assert (energy.energy_percent, account.bonus_credits, account.purchased_credits) == (100, 10, 2)
 
 
+def test_character_analysis_waives_only_the_first_pro_charge(monkeypatch: pytest.MonkeyPatch) -> None:
+    session = StubSession()
+    repository = CreditRepository(session)  # type: ignore[arg-type]
+    account = CreditAccount(user_id=uuid4(), purchased_credits=5, bonus_credits=0)
+    energy = EnergyAccount(user_id=account.user_id, energy_percent=100, last_recovered_at=datetime.now(timezone.utc))
+    stub_repository(monkeypatch, repository, account, energy)
+    async def intro_free(user_id: object, policy: object) -> bool:
+        return True
+    monkeypatch.setattr(repository, "_intro_free_available", intro_free)
+    result = asyncio.run(repository.reserve(account.user_id, "character_analysis", "analysis-first"))
+    usage = next(item for item in session.added if isinstance(item, CreditUsage))
+    assert result.allowed is True
+    assert (usage.model, usage.purchased_credits, account.purchased_credits) == ("pro", 0, 5)
+
+
+def test_character_analysis_charges_after_intro_use(monkeypatch: pytest.MonkeyPatch) -> None:
+    session = StubSession()
+    repository = CreditRepository(session)  # type: ignore[arg-type]
+    account = CreditAccount(user_id=uuid4(), purchased_credits=5, bonus_credits=0)
+    energy = EnergyAccount(user_id=account.user_id, energy_percent=100, last_recovered_at=datetime.now(timezone.utc))
+    stub_repository(monkeypatch, repository, account, energy)
+    async def intro_free(user_id: object, policy: object) -> bool:
+        return False
+    monkeypatch.setattr(repository, "_intro_free_available", intro_free)
+    result = asyncio.run(repository.reserve(account.user_id, "character_analysis", "analysis-second"))
+    usage = next(item for item in session.added if isinstance(item, CreditUsage))
+    assert result.allowed is True
+    assert (usage.purchased_credits, account.purchased_credits) == (5, 0)
+
+
 def test_free_limit_counts_only_active_free_usage() -> None:
     session = CountSession()
     repository = CreditRepository(session)  # type: ignore[arg-type]
@@ -209,6 +239,18 @@ def test_pro_flow_requires_purchased_credits(monkeypatch: pytest.MonkeyPatch) ->
     assert result.error_code == "CREDIT_INSUFFICIENT"
     assert account.bonus_credits == 100
     assert energy.energy_percent == 100
+
+
+def test_auto_feed_uses_discounted_purchased_credits_only(monkeypatch: pytest.MonkeyPatch) -> None:
+    session = StubSession()
+    repository = CreditRepository(session)  # type: ignore[arg-type]
+    account = CreditAccount(user_id=uuid4(), purchased_credits=2, bonus_credits=100)
+    energy = EnergyAccount(user_id=account.user_id, energy_percent=100, last_recovered_at=datetime.now(timezone.utc))
+    stub_repository(monkeypatch, repository, account, energy)
+    result = asyncio.run(repository.reserve(account.user_id, "auto_feed_post", "auto-post:1"))
+    usage = next(item for item in session.added if isinstance(item, CreditUsage))
+    assert result.allowed is True
+    assert (usage.bonus_credits, usage.purchased_credits, account.purchased_credits) == (0, 2, 0)
 
 
 def test_refund_restores_original_balance_sources(monkeypatch: pytest.MonkeyPatch) -> None:

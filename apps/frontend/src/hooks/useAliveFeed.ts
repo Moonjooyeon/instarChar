@@ -51,6 +51,7 @@ type PostMutation = (posts: FeedPost[]) => FeedPost[];
 
 type AliveFeedReturn = {
   auto: boolean;
+  autoPostNotice: string;
   commentAs: string;
   commentOn: FeedPost["id"] | null;
   commentText: string;
@@ -82,7 +83,7 @@ type AliveFeedReturn = {
   publicPostSnapshot: (sourcePosts?: FeedPost[]) => FeedPost[];
   saveCommentEdit: () => void;
   savePostEdit: () => void;
-  setAuto: (enabled: boolean) => void;
+  setAuto: (enabled: boolean, intervalSeconds?: number) => Promise<boolean>;
   setAutoInterval: (intervalSeconds: number) => void;
   setCommentAs: Dispatch<SetStateAction<string>>;
   setCommentOn: Dispatch<SetStateAction<FeedPost["id"] | null>>;
@@ -120,7 +121,8 @@ export function useAliveFeed({ activeId, activeSharedId, following, personas, re
   const [fixTarget, setFixTarget] = useState<unknown>(null);
   const [fixText, setFixText] = useState("");
   const [auto, setAutoState] = useState(false);
-  const [autoIntervalSeconds, setAutoIntervalSeconds] = useState(3600);
+  const [autoPostNotice, setAutoPostNotice] = useState("");
+  const [autoIntervalSeconds, setAutoIntervalSeconds] = useState(21600);
   const [nextIn, setNextIn] = useState(0);
   const revisionRef = useRef(0);
   const postsRef = useRef<FeedPost[]>([]);
@@ -152,6 +154,7 @@ export function useAliveFeed({ activeId, activeSharedId, following, personas, re
     postsRef.current = nextPosts;
     setPosts(nextPosts);
     setAutoState(state.auto_post_enabled);
+    setAutoPostNotice(autoPostNoticeFor(state.last_auto_post_error));
     setAutoIntervalSeconds(state.auto_post_interval_seconds);
     setNextIn(secondsUntil(state.next_auto_post_at));
   }, []);
@@ -192,9 +195,15 @@ export function useAliveFeed({ activeId, activeSharedId, following, personas, re
     postsRef.current = nextPosts;
     setPosts(nextPosts);
   }
-  function setAuto(enabled: boolean): void {
-    if (!activeId) return;
-    void updateCharacterAutoPost(activeId, enabled, autoIntervalSeconds).then(applyServerState).catch((error) => setSaveStatus(postsErrorMessage(error)));
+  async function setAuto(enabled: boolean, intervalSeconds: number = autoIntervalSeconds): Promise<boolean> {
+    if (!activeId) return false;
+    try {
+      applyServerState(await updateCharacterAutoPost(activeId, enabled, intervalSeconds));
+      return true;
+    } catch (error) {
+      setSaveStatus(postsErrorMessage(error));
+      return false;
+    }
   }
   function setAutoInterval(intervalSeconds: number): void {
     if (!activeId) return;
@@ -271,7 +280,7 @@ export function useAliveFeed({ activeId, activeSharedId, following, personas, re
     setCommentOn(null);
     setCommentText("");
   }
-  return { auto, autoIntervalSeconds, canLikePost, commentAs, commentOn, commentText, defaultCommentAs, deleteComment, deletePost, editingComment, editingPost, feedError: pagedFeed.error, feedView, fixTarget, fixText, followedTimelinePosts, generateServerPost, hasMoreFeedPosts: pagedFeed.hasMore, isLikePending, loading, loadingFeedPosts: pagedFeed.isLoading, loadMoreFeedPosts: pagedFeed.loadMore, manualPost, moodOpen, mutatePosts, myPosts, nextIn, openCommentBox, posts, publicPostSnapshot, recommendationPosts, recommendationUsesInterests, retryFeedPosts: pagedFeed.retry, saveCommentEdit, savePostEdit, setAuto, setAutoInterval, setCommentAs, setCommentOn, setCommentText, setEditingComment, setEditingPost, setFeedView, setFixTarget, setFixText, setLoading, setMoodOpen, setPosts, setWriteOpen, setWriteText, sortedPosts, submitExternalComment, timeAgo: formatPostTime, timelinePosts, toggleLike, visiblePosts, writeOpen, writeText };
+  return { auto, autoIntervalSeconds, autoPostNotice, canLikePost, commentAs, commentOn, commentText, defaultCommentAs, deleteComment, deletePost, editingComment, editingPost, feedError: pagedFeed.error, feedView, fixTarget, fixText, followedTimelinePosts, generateServerPost, hasMoreFeedPosts: pagedFeed.hasMore, isLikePending, loading, loadingFeedPosts: pagedFeed.isLoading, loadMoreFeedPosts: pagedFeed.loadMore, manualPost, moodOpen, mutatePosts, myPosts, nextIn, openCommentBox, posts, publicPostSnapshot, recommendationPosts, recommendationUsesInterests, retryFeedPosts: pagedFeed.retry, saveCommentEdit, savePostEdit, setAuto, setAutoInterval, setCommentAs, setCommentOn, setCommentText, setEditingComment, setEditingPost, setFeedView, setFixTarget, setFixText, setLoading, setMoodOpen, setPosts, setWriteOpen, setWriteText, sortedPosts, submitExternalComment, timeAgo: formatPostTime, timelinePosts, toggleLike, visiblePosts, writeOpen, writeText };
 }
 
 type FollowedLikesOptions = {
@@ -414,6 +423,12 @@ function useCountdown({ activeId, setNextIn, step }: { activeId: string | null; 
 function secondsUntil(value: string | null): number {
   if (!value) return 0;
   return Math.max(0, Math.ceil((Date.parse(value) - Date.now()) / 1000));
+}
+
+function autoPostNoticeFor(error: string): string {
+  if (error.startsWith("POST_TOO_SIMILAR")) return "최근 글과 너무 비슷해 새 장면으로 다시 작성 중이에요."
+  if (error === "AUTO_POST_CREDIT_INSUFFICIENT") return "구매 크레딧이 모자라서 혼자 남기는 근황은 잠시 쉬고 있어요."
+  return error ? "근황을 남기려다 잠시 쉬고 있어요. 다음 시도 때 다시 이어갈게요." : "";
 }
 
 function isRevisionConflict(error: unknown): boolean {

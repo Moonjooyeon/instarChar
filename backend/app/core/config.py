@@ -74,7 +74,7 @@ class Settings(BaseSettings):
     auto_post_scheduler_enabled: bool = True
     auto_post_poll_seconds: int = 30
     auto_post_batch_size: int = 10
-    auto_post_default_interval_seconds: int = 3600
+    auto_post_default_interval_seconds: int = 21600
     s3_bucket: str = ""
     s3_region: str = ""
     s3_access_key_id: str = ""

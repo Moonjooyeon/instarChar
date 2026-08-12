@@ -55,8 +55,9 @@ async def save_character_posts(source_account_id: str, payload: CharacterPostsUp
 
 
 @router.patch("/{source_account_id}/auto-post", response_model=CharacterPostsResponse)
-async def update_auto_post(source_account_id: str, payload: AutoPostUpdate, user: User = Depends(get_current_user), session: AsyncSession = Depends(get_db_session)) -> CharacterPostsResponse:
-    return await CharacterPostsRepository(session).update_auto_post(user, source_account_id, payload)
+async def update_auto_post(source_account_id: str, payload: AutoPostUpdate, user: User = Depends(get_current_user), session: AsyncSession = Depends(get_db_session), settings: Settings = Depends(get_settings)) -> CharacterPostsResponse:
+    resolved = payload if payload.interval_seconds is not None else payload.model_copy(update={"interval_seconds": settings.auto_post_default_interval_seconds})
+    return await CharacterPostsRepository(session).update_auto_post(user, source_account_id, resolved)
 
 
 @router.post("/{source_account_id}/posts/generate")

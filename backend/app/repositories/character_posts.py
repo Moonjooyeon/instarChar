@@ -35,9 +35,10 @@ class CharacterPostsRepository:
 
     async def update_auto_post(self, user: User, source_account_id: str, payload: AutoPostUpdate) -> CharacterPostsResponse:
         row = await self.owned_character(user.id, source_account_id, lock=True)
+        now = datetime.now(timezone.utc)
+        row.next_auto_post_at = next_auto_post_schedule(payload.enabled, payload.interval_seconds or 21600, row.auto_post_enabled, row.next_auto_post_at, now)
         row.auto_post_enabled = payload.enabled
         row.auto_post_interval_seconds = payload.interval_seconds
-        row.next_auto_post_at = self._next_run(payload) if payload.enabled else None
         row.last_auto_post_error = ""
         row.auto_post_failure_count = 0
         await self.session.commit()
@@ -71,6 +72,13 @@ class CharacterPostsRepository:
         row.last_auto_post_error = error[:500]
         row.auto_post_failure_count += 1
         row.next_auto_post_at = retry_at
+        await self.session.commit()
+
+    async def stop_auto_post_for_credit(self, owner_id: UUID, source_account_id: str) -> None:
+        row = await self.owned_character(owner_id, source_account_id, lock=True)
+        row.auto_post_enabled = False
+        row.next_auto_post_at = None
+        row.last_auto_post_error = "AUTO_POST_CREDIT_INSUFFICIENT"
         await self.session.commit()
 
     async def owned_character(self, owner_id: UUID, source_account_id: str, lock: bool = False) -> Character:
@@ -143,5 +151,11 @@ class CharacterPostsRepository:
     def _comment_value(self, payload: CharacterPostCommentCreate) -> dict[str, object]:
         return {"byUser": True, "handle": payload.handle, "name": payload.name, "replyTo": payload.reply_to, "text": payload.text}
 
-    def _next_run(self, payload: AutoPostUpdate) -> datetime:
-        return datetime.now(timezone.utc) + timedelta(seconds=payload.interval_seconds)
+
+def next_auto_post_schedule(enabled: bool, interval_seconds: int, was_enabled: bool, current_next_at: datetime | None, now: datetime) -> datetime | None:
+    if not enabled:
+        return None
+    next_from_now = now + timedelta(seconds=interval_seconds)
+    if not was_enabled or current_next_at is None or current_next_at <= now:
+        return next_from_now
+    return min(current_next_at, next_from_now)

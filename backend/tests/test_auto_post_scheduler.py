@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 from pytest import MonkeyPatch
@@ -9,6 +9,7 @@ from sqlalchemy.dialects import postgresql
 
 from app.core.config import Settings
 from app.models import Character
+from app.repositories.character_posts import next_auto_post_schedule
 from app.repositories.auto_posts import AutoPostRepository, ClaimedAutoPost
 from app.services.auto_post_scheduler import AutoPostScheduler, auto_post_request_key
 from app.services.feed_generation import retry_delay_seconds
@@ -60,6 +61,29 @@ def test_claim_due_advances_next_run_before_generation() -> None:
     assert session.commits == 1
 
 
+def test_claim_due_preserves_hourly_interval() -> None:
+    now = datetime.now(timezone.utc)
+    row = Character(owner_id=uuid4(), source_account_id="char-1", auto_post_interval_seconds=3600)
+    asyncio.run(AutoPostRepository(StubSession([row])).claim_due(now, 10))
+    assert row.auto_post_interval_seconds == 3600
+    assert int((row.next_auto_post_at - now).total_seconds()) == 3600
+
+
+def test_interval_change_keeps_the_already_scheduled_next_post() -> None:
+    now = datetime(2026, 8, 12, 3, tzinfo=timezone.utc)
+    scheduled = now + timedelta(minutes=50)
+    assert next_auto_post_schedule(True, 3600, True, scheduled, now) == scheduled
+    assert next_auto_post_schedule(True, 43200, True, scheduled, now) == scheduled
+    assert next_auto_post_schedule(True, 3600, True, now + timedelta(hours=5), now) == now + timedelta(hours=1)
+
+
+def test_interval_change_resets_an_overdue_schedule_from_now() -> None:
+    now = datetime(2026, 8, 12, 3, tzinfo=timezone.utc)
+    scheduled = now - timedelta(minutes=1)
+    assert next_auto_post_schedule(True, 3600, True, scheduled, now) == now + timedelta(hours=1)
+    assert next_auto_post_schedule(False, 3600, True, scheduled, now) is None
+
+
 def test_scheduler_processes_each_claim(monkeypatch: MonkeyPatch) -> None:
     scheduler = AutoPostScheduler(Settings(), object())
     now = datetime.now(timezone.utc)
@@ -94,7 +118,7 @@ def test_scheduler_settings_enable_background_generation_by_default() -> None:
     assert settings.auto_post_scheduler_enabled is True
     assert settings.auto_post_poll_seconds == 30
     assert settings.auto_post_batch_size == 10
-    assert settings.auto_post_default_interval_seconds == 3600
+    assert settings.auto_post_default_interval_seconds == 21600
 
 
 def test_scheduler_can_be_disabled_for_local_tests(monkeypatch: MonkeyPatch) -> None:

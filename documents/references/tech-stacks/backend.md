@@ -85,7 +85,7 @@ Defined in `.env.example`.
 | `AUTO_POST_SCHEDULER_ENABLED` | Enables the backend lifespan scheduler; defaults to `false` |
 | `AUTO_POST_POLL_SECONDS` | Due-post polling interval; defaults to `30` seconds |
 | `AUTO_POST_BATCH_SIZE` | Maximum due characters claimed per poll; defaults to `10` |
-| `AUTO_POST_DEFAULT_INTERVAL_SECONDS` | Default autonomous posting interval; `900` seconds |
+| `AUTO_POST_DEFAULT_INTERVAL_SECONDS` | Default autonomous posting interval; `21600` seconds (6 hours) |
 
 ## Implemented Backend Domains
 

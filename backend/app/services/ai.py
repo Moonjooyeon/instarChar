@@ -172,10 +172,15 @@ class MonoGptGeminiGenerateService:
         return body
 
     def _generation_config(self, payload: GenerateRequest, wants_json: bool) -> dict[str, object]:
-        config: dict[str, object] = {"maxOutputTokens": self._max_tokens(payload.max_tokens, wants_json, payload.flow), "temperature": 0.3 if wants_json else 0.9, "thinkingConfig": {"thinkingBudget": resolve_flow(payload.flow).thinking_budget}}
+        config: dict[str, object] = {"maxOutputTokens": self._max_tokens(payload.max_tokens, wants_json, payload.flow), "temperature": self._temperature(payload, wants_json), "thinkingConfig": {"thinkingBudget": resolve_flow(payload.flow).thinking_budget}}
         if wants_json:
             config["responseMimeType"] = "application/json"
         return config
+
+    def _temperature(self, payload: GenerateRequest, wants_json: bool) -> float:
+        if resolve_flow(payload.flow).code in {"feed_post", "auto_feed_post"}:
+            return 0.75
+        return 0.3 if wants_json else 0.9
 
     def _system_instruction(self, payload: GenerateRequest) -> str:
         if payload.flow == "character_analysis":

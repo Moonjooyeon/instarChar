@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from difflib import SequenceMatcher
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 from uuid import uuid4
@@ -17,6 +18,8 @@ from app.services.ai import GenerateApiResult, MonoGptGeminiGenerateService
 
 
 FAILED_POST_PATTERN = re.compile(r"게시글\s*생성\s*실패|API\s*응답이\s*끊|AI\s*응답이\s*잠깐\s*비")
+POST_NORMALIZE_PATTERN = re.compile(r"[^가-힣a-z0-9]+", re.IGNORECASE)
+POST_SIMILARITY_THRESHOLD = 0.78
 
 
 class FeedGenerationService:
@@ -33,7 +36,10 @@ class FeedGenerationService:
             return await self._failed_result(owner_id, source_account_id, result, character.auto_post_failure_count, is_auto)
         if result.replayed:
             return self._replayed_result(result)
-        return await self._persist_result(owner_id, source_account_id, payload.mood, result, is_auto)
+        persisted = await self._persist_result(owner_id, source_account_id, payload.mood, result, is_auto, character.posts)
+        if persisted.status_code != 200 and is_auto:
+            return await self._failed_result(owner_id, source_account_id, persisted, character.auto_post_failure_count, True)
+        return persisted
 
     def _replayed_result(self, result: GenerateApiResult) -> GenerateApiResult:
         if isinstance(result.body.get("post"), dict) and isinstance(result.body.get("state"), dict):
@@ -42,15 +48,21 @@ class FeedGenerationService:
         return GenerateApiResult(409, body, result.credit_usage_id, result.provider_usage, replayed=True)
 
     async def _failed_result(self, owner_id: UUID, source_account_id: str, result: GenerateApiResult, failure_count: int, is_auto: bool) -> GenerateApiResult:
+        if is_auto and result.body.get("error") == "CREDIT_INSUFFICIENT":
+            await self.posts.stop_auto_post_for_credit(owner_id, source_account_id)
+            return result
         if is_auto:
             await self._record_auto_failure(owner_id, source_account_id, result, failure_count)
         return result
 
-    async def _persist_result(self, owner_id: UUID, source_account_id: str, mood: str, result: GenerateApiResult, is_auto: bool) -> GenerateApiResult:
+    async def _persist_result(self, owner_id: UUID, source_account_id: str, mood: str, result: GenerateApiResult, is_auto: bool, existing_posts: list[object]) -> GenerateApiResult:
         post = self._post_from_result(result, mood)
         if not post:
             await self.ai.refund_result(result, owner_id, "INVALID_POST")
             return GenerateApiResult(500, {"error": "INVALID_POST", "message": "생성된 게시글을 해석할 수 없습니다."})
+        if is_auto and self._is_too_similar(str(post["text"]), existing_posts):
+            await self.ai.refund_result(result, owner_id, "POST_TOO_SIMILAR")
+            return GenerateApiResult(422, {"error": "POST_TOO_SIMILAR", "message": "최근 근황과 너무 비슷해 잠시 뒤 다른 장면으로 다시 작성합니다."})
         try:
             defer_commit = result.credit_usage_id is not None
             state = await self.posts.append_generated_post(owner_id, source_account_id, post, is_auto=is_auto, commit=not defer_commit)
@@ -75,7 +87,7 @@ class FeedGenerationService:
 
     def _retry_at(self, code: str, failure_count: int) -> datetime:
         now = datetime.now(timezone.utc)
-        if code in {"DAILY_LIMIT_EXCEEDED", "FREE_FLOW_DAILY_LIMIT_EXCEEDED"}:
+        if code in {"DAILY_LIMIT_EXCEEDED", "FREE_FLOW_DAILY_LIMIT_EXCEEDED", "FLOW_DAILY_LIMIT_EXCEEDED"}:
             return next_daily_reset_at(now)
         if code == "MONTHLY_COST_LIMIT_EXCEEDED":
             return next_monthly_reset_at(now)
@@ -83,10 +95,24 @@ class FeedGenerationService:
 
     def _request(self, name: str, character: dict[str, object], posts: list[object], mood: str, idempotency_key: str, flow: str = "character-feed-post-v1") -> GenerateRequest:
         recent = [self._post_text(item) for item in list(posts or [])[:8]]
-        system = "character-feed-post-v1\n캐릭터 설정에 맞는 SNS 글 하나를 JSON 객체로 작성하라. text는 필수이며 photoDesc와 moodDesc는 선택이다. 설명이나 코드펜스 없이 JSON만 출력하라."
+        system = "character-feed-post-v2\n캐릭터 설정에 맞는 SNS 글 하나를 JSON 객체로 작성하라. text는 필수이며 photoDesc와 moodDesc는 선택이다. 최근 글의 장면·시간대·감정·핵심 명사·첫 문장·마무리 구조를 반복하지 말고, variation_seed에 맞춰 새로운 일상 장면 하나를 고르라. 설명이나 코드펜스 없이 JSON만 출력하라."
         prompt_character = {key: value for key, value in character.items() if key not in {"avatarImg", "headerImg"}}
-        prompt = {"name": name, "character": prompt_character, "mood": mood, "recent_posts": [item for item in recent if item]}
+        prompt = {"name": name, "character": prompt_character, "mood": mood, "recent_posts": [item for item in recent if item], "generated_at": datetime.now(timezone.utc).isoformat(), "variation_seed": idempotency_key}
         return GenerateRequest(flow=flow, idempotency_key=idempotency_key, model="fast", max_tokens=1200, system=system, messages=[GenerateMessage(role="user", content=json.dumps(prompt, ensure_ascii=False))])
+
+    def _is_too_similar(self, text: str, posts: list[object]) -> bool:
+        normalized = self._normalize_post(text)
+        if len(normalized) < 12:
+            return False
+        return any(self._post_similarity(normalized, self._normalize_post(self._post_text(post))) >= POST_SIMILARITY_THRESHOLD for post in posts)
+
+    def _normalize_post(self, text: str) -> str:
+        return POST_NORMALIZE_PATTERN.sub("", text.lower())
+
+    def _post_similarity(self, left: str, right: str) -> float:
+        if not right:
+            return 0
+        return SequenceMatcher(None, left, right).ratio()
 
     def _post_from_result(self, result: GenerateApiResult, mood: str) -> dict[str, object] | None:
         text = self._result_text(result.body)
