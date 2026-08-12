@@ -304,7 +304,9 @@ export function catchphraseGuideLine(value: unknown): string {
 
 export function selfSettingPriorityBlock(c: CharacterLike | null | undefined, label = "자기 설정"): string {
   if (!c) return "";
+  const age = String(c.age || "").trim();
   const lines = [
+    age ? `나이: ${age}` : "",
     c.persona ? `성격/핵심 설정: ${c.persona}` : "",
     c.world ? `세계관/출신: ${c.world}` : "",
     c.surface ? `겉으로 보이는 모습: ${c.surface}` : "",

@@ -2,8 +2,8 @@
 title: Frontend Tech Stack
 author: black (black@ashwoodfriends.com)
 created: 2026-05-07
-updated: 2026-08-05
-version: 2.2.0
+updated: 2026-08-12
+version: 2.3.0
 status: approved
 ---
 
@@ -15,15 +15,18 @@ alive's frontend is currently a TypeScript React app built with Vite and wrapped
 
 | Package | Version | Purpose |
 |---------|---------|---------|
-| `react` | `^18.3.1` | UI runtime |
-| `react-dom` | `^18.3.1` | Browser DOM renderer |
+| `react` | `18.3.1` | UI runtime |
+| `react-dom` | `18.3.1` | Browser DOM renderer |
+| `@apps-in-toss/web-framework` | `3.0.3` | Apps in Toss bridge, login, environment, and IAP APIs; upgraded 2026-08-12 |
 
 ## Dev Dependencies
 
 | Package | Version | Purpose |
 |---------|---------|---------|
-| `@vitejs/plugin-react` | `^4.3.1` | React support for Vite |
-| `vite` | `^5.4.0` | Frontend dev server and build tool |
+| `@vitejs/plugin-react` | `6.0.5` | React support for Vite |
+| `vite` | `8.2.1` | Frontend dev server and build tool |
+| `@types/react` | `18.3.28` | React TypeScript declarations; added 2026-08-12 |
+| `@types/react-dom` | `18.3.7` | React DOM TypeScript declarations; added 2026-08-12 |
 | `@capacitor/cli` | `^8.4.0` | Capacitor project sync and native app commands |
 | `@capacitor/core` | `^8.4.0` | Capacitor runtime bridge |
 | `@capacitor/ios` | `^8.4.0` | iOS native shell integration |

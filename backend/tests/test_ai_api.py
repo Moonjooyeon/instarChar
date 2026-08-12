@@ -20,7 +20,7 @@ from app.main import app
 from app.repositories.ai_usage import AiUsageRepository, UsageReservation
 from app.repositories.credits import CreditRepository, CreditReservation
 from app.schemas.ai import GenerateRequest
-from app.services.ai import MonoGptGeminiGenerateService, MonoGptGeminiResponse
+from app.services.ai import GEMINI_SAFETY_SETTINGS, MonoGptGeminiGenerateService, MonoGptGeminiResponse
 
 
 @dataclass
@@ -101,6 +101,7 @@ def test_generate_uses_gemini_native_contract(monkeypatch: pytest.MonkeyPatch) -
         assert model_name == "gemini-fast-test"
         assert body["contents"] == [{"role": "user", "parts": [{"text": "안녕"}]}]
         assert body["generationConfig"] == {"maxOutputTokens": 128, "temperature": 0.9, "thinkingConfig": {"thinkingBudget": 0}}
+        assert body["safetySettings"] == list(GEMINI_SAFETY_SETTINGS)
         assert AI_PROMPT_VERSION in body["systemInstruction"]["parts"][0]["text"]
         return MonoGptGeminiResponse(200, gemini_response("안녕"))
     monkeypatch.setattr(MonoGptGeminiGenerateService, "_call_gemini_once", call_gemini_once)
@@ -203,7 +204,7 @@ def test_empty_dm_retry_keeps_the_selected_tier_output_limit() -> None:
     assert service._retry_max_tokens(1536, "direct_dm_pro") == 1280
 
 
-def test_generate_returns_empty_response_error_without_safety_retry(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_generate_returns_safety_error_without_retry(monkeypatch: pytest.MonkeyPatch) -> None:
     calls = 0
     async def call_gemini_once(self: object, model_name: str, body: dict[str, object]) -> MonoGptGeminiResponse:
         nonlocal calls
@@ -212,9 +213,32 @@ def test_generate_returns_empty_response_error_without_safety_retry(monkeypatch:
     monkeypatch.setattr(MonoGptGeminiGenerateService, "_call_gemini_once", call_gemini_once)
     with make_test_client(monkeypatch) as client:
         response = client.post("/api/ai/generate", json=generate_body())
-    assert response.status_code == 500
-    assert response.json()["error"] == "EMPTY_RESPONSE"
+    assert response.status_code == 400
+    assert response.json()["error"] == "AI_UNSAFE_OUTPUT"
     assert calls == 1
+
+
+def test_generate_rejects_unsafe_input_before_provider_call(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def call_gemini_once(self: object, model_name: str, body: dict[str, object]) -> MonoGptGeminiResponse:
+        raise AssertionError("unsafe input reached the provider")
+    monkeypatch.setattr(MonoGptGeminiGenerateService, "_call_gemini_once", call_gemini_once)
+    unsafe = {**generate_body(), "messages": [{"role": "user", "content": "kill yourself"}]}
+    with make_test_client(monkeypatch) as client:
+        response = client.post("/api/ai/generate", json=unsafe)
+    assert response.status_code == 400
+    assert response.json()["error"] == "CONTENT_POLICY_VIOLATION"
+
+
+def test_generate_refunds_unsafe_provider_output(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def call_gemini_once(self: object, model_name: str, body: dict[str, object]) -> MonoGptGeminiResponse:
+        return MonoGptGeminiResponse(200, gemini_response("kill yourself"))
+    credits = StubCancellationCredits()
+    service = MonoGptGeminiGenerateService(make_settings(), StubCancellationUsage(), credits)  # type: ignore[arg-type]
+    monkeypatch.setattr(MonoGptGeminiGenerateService, "_call_gemini_once", call_gemini_once)
+    result = asyncio.run(service.generate(GenerateRequest(**generate_body()), uuid4()))
+    assert result.status_code == 400
+    assert result.body["error"] == "AI_UNSAFE_OUTPUT"
+    assert credits.events == ["AI_UNSAFE_OUTPUT"]
 
 
 def test_generate_retries_empty_json_with_fast_model(monkeypatch: pytest.MonkeyPatch) -> None:

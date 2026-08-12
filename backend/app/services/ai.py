@@ -17,12 +17,20 @@ from app.core.credit_policy import FlowPolicy, maximum_provider_cost_usd, resolv
 from app.repositories.ai_usage import AiUsageRepository, UsageReservation
 from app.repositories.credits import CreditRepository, CreditReservation
 from app.schemas.ai import GenerateMessage, GenerateRequest
+from app.services.content_safety import is_safe_ai_content
 
 
 RETRYABLE_STATUS_CODES = {408, 500, 502, 503, 504, 599}
 NON_RETRYABLE_EMPTY_REASONS = {"CONTENT_FILTER", "ERROR", "SAFETY"}
+UNSAFE_EMPTY_REASONS = {"CONTENT_FILTER", "SAFETY"}
 JSON_SYSTEM_PATTERN = re.compile(r"JSON|json|json 객체|json으로|반드시 JSON")
 DATA_URL_PATTERN = re.compile(r"^data:([^;,]+);base64,(.+)$")
+GEMINI_SAFETY_SETTINGS = (
+    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+)
 @dataclass(frozen=True)
 class GenerateApiResult:
     status_code: int
@@ -78,6 +86,8 @@ class MonoGptGeminiGenerateService:
             return GenerateApiResult(500, {"error": "API_KEY_MISSING", "message": "서버에 MonoGPT Gemini API 키가 설정되지 않았습니다."})
         if not payload.messages:
             return GenerateApiResult(400, {"error": "BAD_REQUEST", "message": "messages 배열이 필요합니다."})
+        if not is_safe_ai_content([payload.system, [message.content for message in payload.messages]]):
+            return GenerateApiResult(400, {"error": "CONTENT_POLICY_VIOLATION", "message": "안전 정책상 처리할 수 없는 내용이 포함되어 있어."})
         if self._payload_parts(payload) > 200:
             return GenerateApiResult(413, {"error": "PAYLOAD_TOO_LARGE", "message": "한 번에 보낼 수 있는 메시지 조각이 너무 많아."})
         if self._payload_chars(payload) > resolve_flow(payload.flow).max_input_chars:
@@ -170,7 +180,7 @@ class MonoGptGeminiGenerateService:
     def _gemini_body(self, payload: GenerateRequest) -> dict[str, object]:
         system = self._system_instruction(payload)
         wants_json = self._wants_json(system)
-        body: dict[str, object] = {"contents": self._contents(payload.messages), "generationConfig": self._generation_config(payload, wants_json)}
+        body: dict[str, object] = {"contents": self._contents(payload.messages), "generationConfig": self._generation_config(payload, wants_json), "safetySettings": [dict(item) for item in GEMINI_SAFETY_SETTINGS]}
         if system:
             body["systemInstruction"] = {"parts": [{"text": system}]}
         return body
@@ -244,11 +254,16 @@ class MonoGptGeminiGenerateService:
 
     def _final_result(self, payload: GenerateRequest, text_result: dict[str, object], usage: ProviderUsage) -> GenerateApiResult:
         text = str(text_result.get("text") or "")
+        finish_reason = str(text_result.get("finishReason") or "unknown")
+        if text and not is_safe_ai_content(text):
+            return GenerateApiResult(400, {"error": "AI_UNSAFE_OUTPUT", "message": "안전 정책에 따라 AI 응답을 표시하지 않았고 사용량을 환급했어."}, provider_usage=usage)
         if text and resolve_flow(payload.flow).code == "character_analysis" and not valid_character_analysis(text):
             return GenerateApiResult(500, {"error": "INVALID_STRUCTURED_OUTPUT", "message": "캐릭터 분석 결과 형식이 올바르지 않아 사용량을 환급했습니다."}, provider_usage=usage)
         if text:
             return GenerateApiResult(200, {"content": [{"type": "text", "text": text}]}, provider_usage=usage)
-        return GenerateApiResult(500, self._empty_response_body(str(text_result.get("finishReason") or "unknown")), provider_usage=usage)
+        if finish_reason.upper() in UNSAFE_EMPTY_REASONS:
+            return GenerateApiResult(400, {"error": "AI_UNSAFE_OUTPUT", "message": "안전 정책에 따라 AI 응답을 표시하지 않았고 사용량을 환급했어."}, provider_usage=usage)
+        return GenerateApiResult(500, self._empty_response_body(finish_reason), provider_usage=usage)
 
     def _empty_response_body(self, finish_reason: str) -> dict[str, object]:
         return {"error": "EMPTY_RESPONSE", "message": "AI 응답이 비어 있어 사용량을 환급했습니다.", "finishReason": finish_reason}

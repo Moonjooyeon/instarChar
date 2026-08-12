@@ -10,12 +10,23 @@ BLOCKED_PATTERNS = (
     re.compile(r"(child\s*(porn|sexual|nude)|minor\s*(porn|sexual|nude))", re.IGNORECASE),
     re.compile(r"(rape|revenge\s*porn|kill\s+yourself)", re.IGNORECASE),
 )
+AI_CREDENTIAL_PATTERNS = (
+    re.compile(r"AIza[0-9A-Za-z_-]{20,}"),
+    re.compile(r"(?:sk|rk|pk)_(?:live|test)_[0-9A-Za-z]{16,}", re.IGNORECASE),
+    re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----", re.IGNORECASE),
+    re.compile(r"(?:api|secret)[_ -]?key\s*[:=]\s*[0-9A-Za-z_-]{20,}", re.IGNORECASE),
+)
 
 
 def require_safe_content(value: object) -> None:
     text = _searchable_text(value)
     if any(pattern.search(text) for pattern in BLOCKED_PATTERNS):
         raise BadRequestError("Content violates the community safety policy")
+
+
+def is_safe_ai_content(value: object) -> bool:
+    text = _searchable_text(value)
+    return not any(pattern.search(text) for pattern in BLOCKED_PATTERNS + AI_CREDENTIAL_PATTERNS)
 
 
 def _searchable_text(value: object) -> str:

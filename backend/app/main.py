@@ -4,9 +4,10 @@ from contextlib import asynccontextmanager, suppress
 from collections.abc import AsyncIterator
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
+from starlette.middleware.base import RequestResponseEndpoint
 
 from app.api.v1 import api_router
 from app.core.config import get_settings
@@ -22,6 +23,14 @@ settings = get_settings()
 logger = logging.getLogger(__name__)
 legal_directory = Path(__file__).resolve().parent / "legal"
 public_directory = Path(__file__).resolve().parent / "public"
+SECURITY_HEADERS = {
+    "Content-Security-Policy": "default-src 'self'; script-src 'none'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+    "Referrer-Policy": "no-referrer",
+    "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+}
 
 
 @asynccontextmanager
@@ -50,7 +59,7 @@ async def _cancel_tasks(tasks: list[asyncio.Task[None]]) -> None:
             await task
 
 
-app = FastAPI(title=settings.app_name, lifespan=lifespan)
+app = FastAPI(title=settings.app_name, lifespan=lifespan, docs_url="/docs" if settings.api_docs_enabled else None, redoc_url="/redoc" if settings.api_docs_enabled else None, openapi_url="/openapi.json" if settings.api_docs_enabled else None)
 app.include_router(api_router)
 app.add_middleware(
     CORSMiddleware,
@@ -60,6 +69,14 @@ app.add_middleware(
     allow_headers=["*"],
     allow_origin_regex=settings.toss_origin_regex,
 )
+
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next: RequestResponseEndpoint) -> Response:
+    response = await call_next(request)
+    for name, value in SECURITY_HEADERS.items():
+        response.headers.setdefault(name, value)
+    return response
 
 
 @app.get("/health", tags=["system"], summary="Health check")

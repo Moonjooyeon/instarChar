@@ -16,7 +16,8 @@ class Settings(BaseSettings):
     auth_cookie_secure: bool = False
     auth_cookie_samesite: Literal["lax", "none", "strict"] = "lax"
     auth_secret_key: str = "change-me-in-env"
-    auth_session_ttl_seconds: int = 60 * 60 * 24 * 30
+    auth_session_ttl_seconds: int = 60 * 60 * 24 * 7
+    api_docs_enabled: bool = False
     account_deletion_grace_days: int = 7
     account_deletion_identity_retention_days: int = 365
     account_deletion_scheduler_enabled: bool = True

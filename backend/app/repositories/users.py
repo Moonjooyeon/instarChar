@@ -66,6 +66,10 @@ class UserRepository:
         await self._remove_user_from_shared_threads(user.id)
         await self.session.delete(user)
 
+    async def revoke_sessions(self, user: User) -> None:
+        user.session_version += 1
+        await self.session.commit()
+
     async def _remove_user_from_shared_threads(self, user_id: UUID) -> None:
         statement = select(SharedDmThread).where(SharedDmThread.participant_user_ids.contains([user_id]))
         result = await self.session.execute(statement)

@@ -2,8 +2,8 @@
 title: ALIVE QA 인덱스
 author: black (black@ashwoodfriends.com)
 created: 2026-08-06
-updated: 2026-08-11
-version: 1.1.0
+updated: 2026-08-12
+version: 1.2.0
 status: approved
 ---
 
@@ -31,5 +31,6 @@ QA 문서는 실제 확인 절차, 실행 결과, 원본 증거를 분리한다.
 - [추천 피드 개인화 수동 검토 가이드](guides/guide_feed-personalization-review_2026-08-12.md)
 - [추천 피드 개인화 로컬 QA](reports/report_feed-personalization-local-qa_2026-08-12.md)
 - [앱인토스 최종 출시 감사](reports/report_apps-in-toss-final-release-audit_2026-08-12.md)
+- [앱인토스 최종 하드닝 및 재검증](reports/report_apps-in-toss-final-hardening_2026-08-12.md)
 - [QA 보고서 폴더](reports/)
 - [QA 증거 폴더](evidence/)

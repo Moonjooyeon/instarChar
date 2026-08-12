@@ -6,3 +6,4 @@
 - [앱인토스 인앱결제 구매기록 보존 및 탈퇴 처리 결정](decision_apps-in-toss-iap-purchase-retention_2026-08-11.md)
 - [앱인토스 인앱결제 고객 노출 법률 문구 초안](proposal_apps-in-toss-iap-legal-copy_2026-08-11.md)
 - [앱인토스 인앱결제 샌드박스 어댑터 구현 계획](plan_apps-in-toss-iap-sandbox-adapter_2026-08-11.md)
+- [앱인토스 최종 출시 하드닝](plan_apps-in-toss-final-hardening_2026-08-12.md)

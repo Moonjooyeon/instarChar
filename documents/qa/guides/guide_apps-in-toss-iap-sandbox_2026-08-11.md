@@ -84,14 +84,14 @@ TOSS_IAP_PURCHASE_ROLLOUT_PERCENT=0
 | 실행 일시·담당자 |  |
 | 브랜치·커밋 | `codex/apps-in-toss-iap` /  |
 | 앱 이름 | `ashwoodfriends-alive` |
-| SDK | `@apps-in-toss/web-framework` 2.10.8 |
+| SDK | `@apps-in-toss/web-framework` 3.0.3 |
 | 전체 결제 흐름 최소 토스 앱 | Android `5.234.0`, iOS `5.233.0` |
 | `.ait` 파일·커밋 |  |
 | 배포 ID·콘솔 표시 버전 |  |
 | 상품 최소 지원 버전 |  |
 | 샌드박스 앱·OS·버전 |  |
 | 스테이징 API URL |  |
-| DB migration current/head | `20260811_0023` / `20260811_0023` |
+| DB migration current/head | `20260812_0025` / `20260812_0025` |
 | 콘솔 승인·정산 상태 |  |
 | mTLS 인증서 만료일 |  |
 | 신규 결제 플래그 | 테스트 시작 전 `false`, 실행 승인 후에만 `true` |

@@ -1,7 +1,7 @@
 import pytest
 
 from app.core.errors import BadRequestError
-from app.services.content_safety import require_safe_content
+from app.services.content_safety import is_safe_ai_content, require_safe_content
 
 
 def test_content_safety_accepts_normal_character_content() -> None:
@@ -16,3 +16,8 @@ def test_content_safety_rejects_child_exploitation_content() -> None:
 def test_content_safety_checks_nested_comments() -> None:
     with pytest.raises(BadRequestError):
         require_safe_content({"posts": [{"comments": [{"text": "kill yourself"}]}]})
+
+
+def test_ai_content_safety_rejects_exposed_credentials() -> None:
+    assert is_safe_ai_content({"text": "API key: AIza1234567890abcdefghijklmnop"}) is False
+    assert is_safe_ai_content({"text": "API 키는 서버에서만 관리한다."}) is True

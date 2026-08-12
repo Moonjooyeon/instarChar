@@ -164,11 +164,17 @@ def test_revoked_apple_authorization_invalidates_existing_session(monkeypatch: M
         asyncio.run(_load_user(user.id, StubSession()))
 
 
-def test_logout_clears_session_cookie() -> None:
+def test_logout_revokes_server_sessions_and_clears_cookie(monkeypatch: MonkeyPatch) -> None:
+    revoked: list[object] = []
+    async def revoke_sessions(self: object, user: StubUser) -> None:
+        user.session_version += 1
+        revoked.append(user.id)
+    monkeypatch.setattr("app.api.v1.auth.UserRepository.revoke_sessions", revoke_sessions)
     with make_test_client() as client:
         response = client.post("/api/auth/logout")
     assert response.status_code == 204
     assert "alive_session" in response.headers.get("set-cookie", "")
+    assert len(revoked) == 1
 
 
 def test_delete_account_schedules_deletion_and_clears_cookie(monkeypatch: MonkeyPatch) -> None:

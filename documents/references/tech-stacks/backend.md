@@ -2,8 +2,8 @@
 title: Backend Tech Stack
 author: black (black@ashwoodfriends.com)
 created: 2026-05-07
-updated: 2026-07-23
-version: 2.3.0
+updated: 2026-08-12
+version: 2.4.0
 status: approved
 ---
 
@@ -36,7 +36,7 @@ The backend is being introduced to replace Supabase Auth/DB usage with server-ow
 
 | Package | Version | Purpose |
 |---------|---------|---------|
-| `fastapi` | `0.115.5` | API framework |
+| `fastapi` | `0.141.1` | API framework |
 | `uvicorn[standard]` | `0.32.1` | ASGI server |
 | `sqlalchemy` | `2.0.36` | Async ORM and database access |
 | `asyncpg` | `0.30.0` | Async PostgreSQL driver |
@@ -44,11 +44,12 @@ The backend is being introduced to replace Supabase Auth/DB usage with server-ow
 | `pydantic` | `2.10.3` | Request and response validation |
 | `email-validator` | `2.2.0` | Email validation for Pydantic schemas |
 | `pydantic-settings` | `2.6.1` | Environment-backed settings |
-| `python-dotenv` | `1.0.1` | Local environment loading |
+| `python-dotenv` | `1.2.2` | Local environment loading |
 | `httpx` | `0.28.1` | OAuth token/profile HTTP requests |
-| `PyJWT[crypto]` | `2.10.1` | Session signing and ID token verification support |
-| `python-multipart` | `0.0.19` | Apple OAuth form callback parsing |
-| `pytest` | `8.3.4` | Backend tests |
+| `PyJWT[crypto]` | `2.13.0` | Session signing and ID token verification support |
+| `cryptography` | `50.0.0` | JWT and OAuth cryptographic primitives |
+| `python-multipart` | `0.0.32` | Apple OAuth form callback parsing |
+| `pytest` | `9.1.1` | Backend tests |
 
 ## Infrastructure
 
@@ -75,6 +76,7 @@ Defined in `.env.example`.
 | `AUTH_COOKIE_NAME` | Session cookie name |
 | `AUTH_COOKIE_SECURE` | Secure cookie flag |
 | `AUTH_SESSION_TTL_SECONDS` | Session lifetime |
+| `API_DOCS_ENABLED` | Explicitly enables OpenAPI and interactive docs; defaults to `false` |
 | `GOOGLE_CLIENT_ID` | Google OAuth client ID |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
 | `APPLE_CLIENT_ID` | Apple OAuth client ID |
@@ -111,5 +113,5 @@ PYTHONPATH=backend backend/.venv/bin/pytest backend/tests
 Current expected pytest result:
 
 ```text
-72 passed
+397 passed, 1 skipped
 ```

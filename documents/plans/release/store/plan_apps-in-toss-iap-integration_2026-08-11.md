@@ -146,9 +146,9 @@ status: implemented-local
 
 | 영역 | 현재 상태 | 근거 | 적용 판단 |
 | --- | --- | --- | --- |
-| 앱인토스 SDK | `@apps-in-toss/web-framework` 2.10.8 사용 | [`apps/frontend/package.json`](../../../../apps/frontend/package.json) | IAP API를 같은 SDK에서 추가 가능 |
+| 앱인토스 SDK | `@apps-in-toss/web-framework` 3.0.3 사용 | [`apps/frontend/package.json`](../../../../apps/frontend/package.json) | IAP API와 전용 브리지 계약을 같은 SDK에서 사용 |
 | 토스 빌드 | `ait build`, 전용 runtime과 API URL 존재 | [`apps/frontend/package.json`](../../../../apps/frontend/package.json) | 결제 기능을 토스 runtime에만 노출 가능 |
-| 미니앱 설정 | `appName=ashwoodfriends-alive` 설정 | [`apps/frontend/granite.config.ts`](../../../../apps/frontend/granite.config.ts) | 콘솔 앱 이름과 SKU 소속을 대조해야 함 |
+| 미니앱 설정 | `appName=ashwoodfriends-alive` 설정 | [`apps/frontend/apps-in-toss.config.ts`](../../../../apps/frontend/apps-in-toss.config.ts) | 콘솔 앱 이름과 SKU 소속을 대조해야 함 |
 | 콘솔 미니앱 버전 | 로컬 `.ait` 빌드는 통과했으나 업로드된 번들은 확인되지 않음 | 콘솔 `최소 지원 버전` 드롭다운이 비어 있는 사용자 캡처 | 상품보다 먼저 `.ait`를 `앱 출시`에 업로드해야 함 |
 | 토스 로그인 | `userKey`를 `provider_subject`로 저장 | [`backend/app/services/toss_login.py`](../../../../backend/app/services/toss_login.py) | 주문 조회의 `x-toss-user-key` 결합에 재사용 가능 |
 | mTLS 설정 | API base URL과 인증서·키 경로 존재 | [`backend/app/core/config.py`](../../../../backend/app/core/config.py) | 로그인 전용 구현을 공통 토스 API 클라이언트로 분리 가능 |
@@ -321,7 +321,7 @@ status: implemented-local
 
 - [x] 앱인토스 runtime에서만 IAP 모듈을 동적 import한다.
 - [x] `getProductItemList()` 결과의 SKU와 `displayAmount`를 서버 정책과 결합한다.
-- [x] SDK 2.10.8의 상품·미결 주문 API가 `undefined`를 반환하면 토스 앱 업데이트 안내를 표시한다.
+- [x] 상품·미결 주문 API가 지원되지 않으면 토스 앱 업데이트 안내를 표시한다.
 - [x] 미지급 복원과 지급 완료 확인을 모두 보장하도록 Android 5.234.0·iOS 5.233.0 미만에서는 신규 구매를 비활성화한다.
 - [x] 결제 중 버튼을 잠그고 중복 탭과 화면 이탈을 처리한다.
 - [x] `processProductGrant`에서 지급 API 성공 여부를 반환한다.
@@ -554,7 +554,7 @@ status: implemented-local
 - 전용 HMAC 키를 분실하거나 임의 교체하면 탈퇴 사용자의 과거 구매 이력을 연결할 수 없으므로 운영 비밀 백업·복구 절차가 필요하다.
 - `debt_credits`가 있는 사용자의 유료 기능 제한 범위와 고객지원 해제 절차는 운영 정책 승인이 필요하다.
 - 결제 알림 URL의 이벤트 계약과 운영 인증 방식은 콘솔·공식 세부 문서에서 최종 확인해야 한다.
-- SDK 2.10.8의 `getCompletedOrRefundedOrders` 공개 타입은 페이지 키 인자를 누락하지만 실제 native bridge와 공식 문서는 이를 지원하므로, SDK 업그레이드 때 임시 타입 보정을 제거할 수 있는지 확인해야 한다.
+- SDK 3.0.3의 `IAP.getCompletedOrRefundedOrders` 공개 래퍼는 공식 문서와 달리 페이지 키를 전달하지 않으므로, SDK가 제공하는 `createAsyncBridge`로 공식 `{ key }` 계약을 직접 호출한다. 공급사 래퍼가 수정되면 공개 API로 복귀한다.
 - 기본 IAP 지원 버전 5.219.0과 달리 `alive`는 전체 복원 계약 때문에 Android 5.234.0·iOS 5.233.0을 요구한다. SDK 업그레이드 때 각 IAP 함수의 최소 버전을 다시 대조해야 한다.
 - 퍼센트 롤아웃은 클라이언트 카탈로그 게이트이므로 제공자 측 신규 판매의 최종 차단 수단은 콘솔 상품 노출 OFF다.
 

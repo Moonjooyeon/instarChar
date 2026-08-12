@@ -124,9 +124,10 @@ async function grantProduct(orderId: string, sku: string, environment: TossIapEn
 }
 
 async function fetchTossIapHistoryPage(params?: { key?: string | null }): Promise<TossIapHistoryPage | undefined> {
-  const { IAP } = await import("@apps-in-toss/web-framework");
-  const fetchPage = IAP.getCompletedOrRefundedOrders as unknown as TossIapHistoryFetcher;
-  return fetchPage(params);
+  const { createAsyncBridge, isMinVersionSupported } = await import("@apps-in-toss/web-framework");
+  if (!hasTossIapFullFlowSupport(isMinVersionSupported)) return undefined;
+  const fetchPage = createAsyncBridge<[{ key?: string | null }], TossIapHistoryPage | undefined>("getCompletedOrRefundedOrders");
+  return fetchPage(params || {});
 }
 
 function tossIapErrorCode(error: unknown): string {

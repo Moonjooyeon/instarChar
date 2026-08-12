@@ -177,3 +177,15 @@ def test_ai_prompt_version_migration_follows_iap_retention(monkeypatch: pytest.M
     cast(Callable[[], None], migration.upgrade)()
     assert migration.down_revision == "20260811_0023"
     assert [(column.name, column.nullable, str(column.server_default.arg)) for column in columns] == [("prompt_version", False, "legacy")]
+
+
+def test_schema_alignment_migration_follows_ai_prompt_version(monkeypatch: pytest.MonkeyPatch) -> None:
+    migration = _load_migration("20260812_0025_schema_alignment.py")
+    statements: list[str] = []
+    alterations: list[tuple[str, str, bool]] = []
+    monkeypatch.setattr(migration.op, "execute", lambda statement: statements.append(str(statement)))
+    monkeypatch.setattr(migration.op, "alter_column", lambda table, column, **values: alterations.append((table, column, values["nullable"])))
+    cast(Callable[[], None], migration.upgrade)()
+    assert migration.down_revision == "20260812_0024"
+    assert "UPDATE credit_purchases" in statements[0]
+    assert alterations == [("credit_purchases", "created_at", False), ("credit_purchases", "updated_at", False)]

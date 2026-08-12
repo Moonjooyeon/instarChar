@@ -2,6 +2,7 @@ import React from "react";
 import { AliveIcon } from "@/components/ui/AliveIcon";
 import { CharacterAvatarImage } from "@/components/ui/CharacterAvatarImage";
 import { CreditShortcut } from "@/features/credits/CreditShortcut";
+import { josa } from "@/domain/app/aliveCore";
 import { USER_PERSONA_FEATURE_ENABLED, normalizeUserPersonaSpeaker } from "@/domain/app/featureFlags";
 
 interface AvatarCharacter {
@@ -120,10 +121,10 @@ export function DmListScreen({
                 requestDmEntry({ name: char.name, persona: char.persona, relation: "", asOwner: true }, "owner");
               }}
             >
-              <span>나</span><b>{char.name}와 바로 대화하기</b><small>가장 간단하게 시작해요.</small>
+              <span>나</span><b>{josa(char.name, "과/와")} 바로 대화하기</b><small>가장 간단하게 시작해요.</small>
             </button>
             <button className="al-newchat-btn border-line-strong bg-surface text-ink hover:border-accent hover:bg-accent-soft" onClick={() => { setNewChatSpeaker("char"); setNewChatMode("char"); }}>
-              <span>캐릭터</span><b>{char.name}와 다른 캐릭터 만나게 하기</b><small>캐릭터끼리 대화가 이어져요.</small>
+              <span>캐릭터</span><b>{josa(char.name, "과/와")} 다른 캐릭터 만나게 하기</b><small>캐릭터끼리 대화가 이어져요.</small>
             </button>
             {USER_PERSONA_FEATURE_ENABLED && <button
               className="al-persona-entry"

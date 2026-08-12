@@ -147,6 +147,7 @@ class UserBlock(Base):
 
 class ContentReport(TimestampMixin, Base):
     __tablename__ = "content_reports"
+    __table_args__ = (Index("ix_content_reports_status_created", "status", "created_at"),)
     id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid4)
     reporter_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     target_type: Mapped[str] = mapped_column(String(32), nullable=False)
@@ -245,7 +246,7 @@ class SharedCharacter(TimestampMixin, Base):
 
 class CharacterFollow(Base):
     __tablename__ = "character_follows"
-    __table_args__ = (UniqueConstraint("follower_id", "follower_account_id", "target_shared_character_id", name="uq_character_follows"),)
+    __table_args__ = (UniqueConstraint("follower_id", "follower_account_id", "target_shared_character_id", name="uq_character_follows"), Index("ix_character_follows_target_created", "target_shared_character_id", "created_at"))
     id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid4)
     follower_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     follower_name: Mapped[str] = mapped_column(String(120), nullable=False, default="")

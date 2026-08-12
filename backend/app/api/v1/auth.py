@@ -10,6 +10,7 @@ from app.core.config import Settings, get_settings
 from app.core.errors import AppError, BadRequestError
 from app.db.session import get_db_session
 from app.models import User, UserProvider
+from app.repositories.users import UserRepository
 from app.schemas.auth import AccountDeletionResponse, AppleNotificationRequest, MeResponse, NativeAppleLoginRequest, NativeOAuthExchangeRequest, TossLoginRequest, TossLoginResponse, UserResponse
 from app.services.account_deletion import AccountDeletionService
 from app.services.apple_notifications import AppleNotificationService
@@ -81,7 +82,8 @@ async def apple_notifications(payload: AppleNotificationRequest, settings: Setti
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
-async def logout(response: Response, settings: Settings = Depends(get_settings)) -> None:
+async def logout(response: Response, user: User = Depends(get_current_user), settings: Settings = Depends(get_settings), session: AsyncSession = Depends(get_db_session)) -> None:
+    await UserRepository(session).revoke_sessions(user)
     response.delete_cookie(settings.auth_cookie_name, path="/")
 
 
