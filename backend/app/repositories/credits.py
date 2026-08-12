@@ -10,6 +10,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.ai_cost import ProviderUsage
+from app.core.ai_prompt_policy import AI_PROMPT_VERSION
 from app.core.credit_policy import CREDIT_POLICY_VERSION, ENERGY_POLICY_VERSION, FIRST_DM_BONUS_CREDITS, REWARD_MISSIONS, SIGNUP_BONUS_CREDITS, FlowPolicy, daily_period_start, next_energy_recovery_at, recover_energy, resolve_flow, usage_period
 from app.models import AiDailyUsage, AiMonthlyUsage, CreditAccount, CreditLedgerEntry, CreditUsage, EnergyAccount, RewardGrant
 
@@ -91,7 +92,7 @@ class CreditRepository:
         credits = 0 if waive_charge else policy.credits if not energy_amount else 0
         bonus, purchased = self._deduct_credits(account, credits, bonus_allowed)
         energy.energy_percent -= energy_amount
-        return CreditUsage(id=uuid4(), user_id=user_id, flow=policy.code, policy_version=CREDIT_POLICY_VERSION, model=policy.model, status="reserved", credits=credits, energy_percent=energy_amount, bonus_credits=bonus, purchased_credits=purchased, idempotency_key=key, provider_status="credit_reserved")
+        return CreditUsage(id=uuid4(), user_id=user_id, flow=policy.code, policy_version=CREDIT_POLICY_VERSION, prompt_version=AI_PROMPT_VERSION, model=policy.model, status="reserved", credits=credits, energy_percent=energy_amount, bonus_credits=bonus, purchased_credits=purchased, idempotency_key=key, provider_status="credit_reserved")
 
     def _usage_debits(self, usage: CreditUsage) -> None:
         if usage.bonus_credits:
@@ -218,7 +219,7 @@ class CreditRepository:
         if policy.hard_daily_limit <= 0:
             return False
         start = daily_period_start(now)
-        stmt = select(func.count()).select_from(CreditUsage).where(CreditUsage.user_id == user_id, CreditUsage.flow == policy.code, CreditUsage.created_at >= start, CreditUsage.status.in_(("reserved", "committed")))
+        stmt = select(func.count()).select_from(CreditUsage).where(CreditUsage.user_id == user_id, CreditUsage.flow == policy.code, CreditUsage.created_at >= start)
         return int((await self.session.execute(stmt)).scalar_one()) >= policy.hard_daily_limit
 
     async def _reconcile_stale(self, user_id: UUID, account: CreditAccount, energy: EnergyAccount, now: datetime) -> None:
@@ -258,6 +259,8 @@ class CreditRepository:
             monthly.estimated_cost_usd = max(Decimal("0"), monthly.estimated_cost_usd - usage.reserved_cost_usd)
 
     def _apply_provider_usage(self, usage: CreditUsage, provider: ProviderUsage) -> None:
+        if provider.model:
+            usage.model = provider.model
         usage.provider_attempts = provider.attempts
         usage.input_tokens = provider.input_tokens
         usage.output_tokens = provider.output_tokens

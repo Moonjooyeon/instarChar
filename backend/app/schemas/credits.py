@@ -27,6 +27,8 @@ class CreditFlowResponse(BaseModel):
     energy_percent: int
     energy_eligible: bool
     bonus_eligible: bool
+    hard_daily_limit: int
+    intro_free_uses: int
 
 
 class CreditCatalogResponse(BaseModel):

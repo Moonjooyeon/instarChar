@@ -60,11 +60,13 @@ def test_credit_catalog_is_visible_but_payment_is_disabled() -> None:
     assert response.json()["flows"][0]["code"] == "direct_dm_basic"
     pro = next(flow for flow in response.json()["flows"] if flow["code"] == "direct_dm_pro")
     assert pro["label"] == "중요한 답장"
-    assert pro["credits"] == 5
+    assert pro["credits"] == 9
     assert pro["energy_eligible"] is False
     assert pro["bonus_eligible"] is False
     auto = next(flow for flow in response.json()["flows"] if flow["code"] == "auto_feed_post")
     assert (auto["label"], auto["credits"], auto["bonus_eligible"]) == ("혼자 남기는 근황", 2, False)
+    analysis = next(flow for flow in response.json()["flows"] if flow["code"] == "character_analysis")
+    assert (analysis["credits"], analysis["intro_free_uses"], analysis["hard_daily_limit"]) == (10, 1, 3)
     assert [flow["code"] for flow in response.json()["flows"] if flow["code"].startswith("direct_dm")] == ["direct_dm_basic", "direct_dm_context", "direct_dm_pro"]
 
 

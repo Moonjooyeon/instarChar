@@ -49,15 +49,15 @@ def test_monthly_usage_resets_at_first_day_korean_midnight() -> None:
 
 def test_onboarding_bonus_policy_totals_150_credits() -> None:
     assert SIGNUP_BONUS_CREDITS + FIRST_CHARACTER_BONUS_CREDITS + FIRST_DM_BONUS_CREDITS == 150
-    assert CREDIT_POLICY_VERSION == "credit-2026-08-v7"
+    assert CREDIT_POLICY_VERSION == "credit-2026-08-v8"
     assert ENERGY_POLICY_VERSION == "energy-2026-08-v2"
 
 
 def test_server_flow_catalog_owns_cost_and_model() -> None:
     assert resolve_flow("direct_dm_basic").credits == 1
     assert resolve_flow("direct_dm_basic").model == "flash"
-    assert resolve_flow("direct_dm_basic").max_input_chars == 12000
-    assert resolve_flow("character_analysis").credits == 5
+    assert resolve_flow("direct_dm_basic").max_input_chars == 10000
+    assert resolve_flow("character_analysis").credits == 10
     assert resolve_flow("character_analysis").model == "pro"
     assert resolve_flow("character_analysis").intro_free_uses == 1
     assert resolve_flow("character-feed-post-v1").credits == 3
@@ -86,22 +86,24 @@ def test_free_assist_flows_have_conservative_daily_limits() -> None:
     assert resolve_flow("assist_social").hard_daily_limit == 12
     assert resolve_flow("assist_relationship").hard_daily_limit == 6
     assert resolve_flow("assist_session").hard_daily_limit == 4
+    with pytest.raises(ValueError, match="공개 API"):
+        resolve_public_flow("assist_social")
 
 
 def test_pro_flows_disable_energy_and_bonus() -> None:
     policy = resolve_public_flow("direct_dm_pro")
-    assert policy.credits == 5
+    assert policy.credits == 9
     assert policy.energy_allowed is False
     assert policy.bonus_allowed is False
     assert policy.hard_daily_limit == 20
 
 
 def test_conversation_tiers_use_three_clear_prices() -> None:
-    assert resolve_public_flow("direct_dm_context").credits == 2
-    assert resolve_public_flow("direct_dm_pro").credits == 5
+    assert resolve_public_flow("direct_dm_context").credits == 3
+    assert resolve_public_flow("direct_dm_pro").credits == 9
 
 
 def test_conversation_tiers_limit_output_by_their_purchased_depth() -> None:
-    assert resolve_public_flow("direct_dm_basic").max_output_tokens == 512
-    assert resolve_public_flow("direct_dm_context").max_output_tokens == 768
-    assert resolve_public_flow("direct_dm_pro").max_output_tokens == 1536
+    assert resolve_public_flow("direct_dm_basic").max_output_tokens == 384
+    assert resolve_public_flow("direct_dm_context").max_output_tokens == 640
+    assert resolve_public_flow("direct_dm_pro").max_output_tokens == 1280

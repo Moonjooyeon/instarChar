@@ -1,8 +1,7 @@
-import { createGenerateRequestKey, postGenerateContent, type GenerateMessage } from "@/api/generate";
+import { createGenerateRequestKey, postAssistContent, type GenerateMessage } from "@/api/generate";
 import { ANTI_REPEAT_RULES, worldBridgeBlock } from "@/domain/app/textUtils";
 import {
   API_LIMIT_MESSAGE,
-  MODEL_AUTO,
   catchphraseGuideLine,
   relationshipBoundaryLine,
   relationshipMatchRuleLine,
@@ -62,7 +61,7 @@ export function useAliveFeedGeneration({
     const sys = commentSystemPrompt({ commenter, postAuthorChar, postAuthorName, postText, priorComments, relBlock, replyTo, targetImage });
     try {
       const idempotencyKey = createGenerateRequestKey("feed-comment");
-      const text = stripQuotes(await postGenerateContent({ flow: "assist_social", idempotency_key: idempotencyKey, model: MODEL_AUTO, max_tokens: 150, system: sys, messages: [{ role: "user", content: commentUserContent(commenter, targetImage) }] }, "댓글 생성 API"));
+      const text = stripQuotes(await postAssistContent({ kind: "social_comment", idempotency_key: idempotencyKey, context: sys, messages: [{ role: "user", content: commentUserContent(commenter, targetImage) }] }, "댓글 생성 API"));
       if (!text) return null;
       appendGeneratedComment(mutatePosts, postId, commenter, text, replyTo);
       return text;
@@ -114,7 +113,7 @@ export function useAliveFeedGeneration({
     let text = "";
     try {
       const idempotencyKey = createGenerateRequestKey("follower-post");
-      text = stripQuotes(await postGenerateContent({ flow: "assist_social", idempotency_key: idempotencyKey, model: MODEL_AUTO, max_tokens: 200, system: sys, messages: [{ role: "user", content: followerPostUserContent(char, posterImg, quoteTarget) }] }, "팔로잉 글 생성 API"));
+      text = stripQuotes(await postAssistContent({ kind: "social_post", idempotency_key: idempotencyKey, context: sys, messages: [{ role: "user", content: followerPostUserContent(char, posterImg, quoteTarget) }] }, "팔로잉 글 생성 API"));
     } catch (e) {
       text = "";
     }

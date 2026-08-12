@@ -20,6 +20,8 @@ export type CreditFlow = {
   energy_percent: number;
   energy_eligible: boolean;
   bonus_eligible: boolean;
+  hard_daily_limit: number;
+  intro_free_uses: number;
 };
 
 export type CreditCatalog = {

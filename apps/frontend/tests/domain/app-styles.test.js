@@ -90,6 +90,7 @@ test("theme-ready entry screens use layered legacy CSS and Tailwind utilities", 
   assert.match(tourScreen, /al-phone al-theme-ready/);
   assert.match(dumpScreen, /al-phone al-phone-wizard al-theme-ready/);
   assert.match(dumpScreen, /grid-cols-3 gap-2/);
+  assert.match(dumpScreen, /구매 크레딧 10C/);
   assert.match(confirmScreen, /al-phone al-theme-ready/);
 });
 

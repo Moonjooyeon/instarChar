@@ -108,6 +108,21 @@ def test_feed_generation_does_not_save_failure_placeholder(monkeypatch: MonkeyPa
     assert events == ["INVALID_POST"]
 
 
+def test_feed_generation_refunds_non_json_or_oversized_output(monkeypatch: MonkeyPatch) -> None:
+    outputs = iter(("plain text", json.dumps({"text": "가" * 281}, ensure_ascii=False)))
+    events: list[str] = []
+    async def generate(self: object, payload: object, owner_id: object, finalize_credit: bool = True) -> GenerateApiResult:
+        return GenerateApiResult(200, {"content": [{"type": "text", "text": next(outputs)}]}, uuid4())
+    async def refund(self: object, result: GenerateApiResult, owner_id: object, status: str) -> None:
+        events.append(status)
+    monkeypatch.setattr(MonoGptGeminiGenerateService, "generate", generate)
+    monkeypatch.setattr(MonoGptGeminiGenerateService, "refund_result", refund)
+    service = FeedGenerationService(StubPosts(), StubUsage(), Settings(monogpt_gemini_api_key="test"))
+    assert run(service.generate(uuid4(), "char-1", feed_request())).status_code == 500
+    assert run(service.generate(uuid4(), "char-1", feed_request())).status_code == 500
+    assert events == ["INVALID_POST", "INVALID_POST"]
+
+
 def test_feed_generation_replays_final_response_without_duplicate_save(monkeypatch: MonkeyPatch) -> None:
     body = {"post": {"id": "post-1", "text": "이미 저장됨"}, "state": {"posts": [], "revision": 1}}
     async def generate(self: object, payload: object, owner_id: object, finalize_credit: bool = True) -> GenerateApiResult:

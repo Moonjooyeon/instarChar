@@ -4,9 +4,9 @@ import { DM_RESPONSE_MODES, dmResponseFlowLabel, dmResponseMode } from "../../sr
 
 test("DM response modes preserve the intended credit and context ladder", () => {
   assert.deepEqual(DM_RESPONSE_MODES.map((mode) => [mode.code, mode.credits, mode.historyLimit, mode.memoryLimit, mode.outputTokens]), [
-    ["direct_dm_basic", 1, 10, 3, 512],
-    ["direct_dm_context", 2, 24, 6, 768],
-    ["direct_dm_pro", 5, 28, 12, 1536],
+    ["direct_dm_basic", 1, 10, 3, 384],
+    ["direct_dm_context", 3, 18, 6, 640],
+    ["direct_dm_pro", 9, 20, 8, 1280],
   ]);
   assert.equal(dmResponseMode("direct_dm_pro_story").code, "direct_dm_basic");
   assert.ok(dmResponseMode("direct_dm_pro").outputTokens > dmResponseMode("direct_dm_basic").outputTokens);

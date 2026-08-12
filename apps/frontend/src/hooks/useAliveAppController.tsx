@@ -46,10 +46,6 @@ import {
 import {
   DISCOVER_POOL,
   EXAMPLES,
-  MODEL_AUTO,
-  MODEL_CHAT,
-  MODEL_DIRECT,
-  MODEL_UTIL,
   POST_MOODS,
   QUICK_FIXES,
   RENDERABLE_STEPS,
@@ -103,13 +99,10 @@ import { useTossPurchaseRecovery } from "@/features/credits/useTossPurchaseRecov
 // ─────────────────────────────────────────────
 //  ALIVE — 내 캐릭터가 자기 SNS를 운영한다
 //  설정 입력 → 그 보이스로 피드에 글이 올라옴
-//  (Claude API로 실제 생성)
+//  (서버 소유 AI flow 정책으로 실제 생성)
 // ─────────────────────────────────────────────
 
-// 모델 선택 — 한 곳에서 관리. 실배포 시 백엔드에서 다른 제공자(Gemini Pro/Flash 등)로 교체 가능.
-//  DIRECT = 사용자가 직접 치는 DM (품질 최우선, 빈도 낮음 → Sonnet / 배포 시 Pro)
-//  AUTO   = 자동 생성: 자동대화·피드 글·댓글 (빈도 높아 비용 큼 → Haiku / 배포 시 Flash)
-//  UTIL   = 호감도 판정·기억 추출 같은 분류/요약 (저렴한 Haiku로 충분)
+// 모델·토큰·가격은 백엔드 flow 정책이 소유하며 클라이언트는 기능 코드만 전달한다.
 
 export function useAliveAppController() {
   const [session, setSession] = useState(null);

@@ -57,9 +57,9 @@ def _offer(product: CreditProduct, sku: str, enabled: bool) -> CreditOfferRespon
 
 
 def _flows() -> list[CreditFlowResponse]:
-    visible = ("direct_dm_basic", "direct_dm_context", "direct_dm_pro", "feed_post", "auto_feed_post")
+    visible = ("direct_dm_basic", "direct_dm_context", "direct_dm_pro", "feed_post", "auto_feed_post", "character_analysis")
     return [_flow(FLOW_POLICIES[code]) for code in visible]
 
 
 def _flow(policy: FlowPolicy) -> CreditFlowResponse:
-    return CreditFlowResponse(code=policy.code, label=policy.label, credits=policy.credits, energy_percent=policy.energy_percent, energy_eligible=policy.energy_allowed, bonus_eligible=policy.bonus_allowed)
+    return CreditFlowResponse(code=policy.code, label=policy.label, credits=policy.credits, energy_percent=policy.energy_percent, energy_eligible=policy.energy_allowed, bonus_eligible=policy.bonus_allowed, hard_daily_limit=policy.hard_daily_limit, intro_free_uses=policy.intro_free_uses)

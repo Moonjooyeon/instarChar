@@ -6,7 +6,7 @@ from decimal import Decimal
 from zoneinfo import ZoneInfo
 
 
-CREDIT_POLICY_VERSION = "credit-2026-08-v7"
+CREDIT_POLICY_VERSION = "credit-2026-08-v8"
 ENERGY_POLICY_VERSION = "energy-2026-08-v2"
 ENERGY_MAX_PERCENT = 100
 ENERGY_RECOVERY_PERCENT = 25
@@ -37,16 +37,16 @@ class FlowPolicy:
 
 
 FLOW_POLICIES: dict[str, FlowPolicy] = {
-    "direct_dm_basic": FlowPolicy("direct_dm_basic", 1, 8, "flash", "기본 대화", 12000, 512, 0, 50),
-    "direct_dm_context": FlowPolicy("direct_dm_context", 2, 15, "flash", "기억 반영", 24000, 768, 256, 50),
-    "direct_dm_pro": FlowPolicy("direct_dm_pro", 5, 25, "pro", "중요한 답장", 24000, 1536, 256, 20, energy_allowed=False, bonus_allowed=False, hard_daily_limit=20),
-    "feed_post": FlowPolicy("feed_post", 3, 20, "flash", "피드 글 생성", 20000, 1200, 256, 30),
-    "character_interaction": FlowPolicy("character_interaction", 5, 25, "flash", "캐릭터 상호작용", 30000, 2048, 512, 20),
-    "assist_social": FlowPolicy("assist_social", 0, 0, "flash", "SNS 보조 생성", 6000, 256, 0, 12, hard_daily_limit=12),
-    "assist_relationship": FlowPolicy("assist_relationship", 0, 0, "flash", "관계 보조 처리", 8000, 256, 0, 6, hard_daily_limit=6),
-    "assist_session": FlowPolicy("assist_session", 0, 0, "flash", "대화 정리", 20000, 2048, 256, 4, hard_daily_limit=4),
-    "character_analysis": FlowPolicy("character_analysis", 5, 0, "pro", "캐릭터 분석", 50000, 4096, 1024, 3, energy_allowed=False, bonus_allowed=False, hard_daily_limit=3, intro_free_uses=1),
-    "auto_feed_post": FlowPolicy("auto_feed_post", 2, 0, "flash", "혼자 남기는 근황", 20000, 1200, 256, 24, public=False, energy_allowed=False, bonus_allowed=False, hard_daily_limit=24),
+    "direct_dm_basic": FlowPolicy("direct_dm_basic", 1, 8, "flash", "기본 대화", 10000, 384, 0, 50),
+    "direct_dm_context": FlowPolicy("direct_dm_context", 3, 15, "flash", "기억 반영", 18000, 640, 128, 50),
+    "direct_dm_pro": FlowPolicy("direct_dm_pro", 9, 25, "pro", "중요한 답장", 18000, 1280, 256, 20, energy_allowed=False, bonus_allowed=False, hard_daily_limit=20),
+    "feed_post": FlowPolicy("feed_post", 3, 20, "flash", "피드 글 생성", 16000, 768, 128, 30),
+    "character_interaction": FlowPolicy("character_interaction", 5, 25, "flash", "캐릭터 상호작용", 20000, 1536, 256, 20, public=False),
+    "assist_social": FlowPolicy("assist_social", 0, 0, "flash", "SNS 보조 생성", 5000, 160, 0, 12, public=False, hard_daily_limit=12),
+    "assist_relationship": FlowPolicy("assist_relationship", 0, 0, "flash", "관계 보조 처리", 6000, 160, 0, 6, public=False, hard_daily_limit=6),
+    "assist_session": FlowPolicy("assist_session", 0, 0, "flash", "대화 정리", 14000, 1024, 128, 4, public=False, hard_daily_limit=4),
+    "character_analysis": FlowPolicy("character_analysis", 10, 0, "pro", "캐릭터 분석", 20000, 1536, 256, 3, energy_allowed=False, bonus_allowed=False, hard_daily_limit=3, intro_free_uses=1),
+    "auto_feed_post": FlowPolicy("auto_feed_post", 2, 0, "flash", "혼자 남기는 근황", 16000, 768, 128, 24, public=False, energy_allowed=False, bonus_allowed=False, hard_daily_limit=24),
     "internal": FlowPolicy("internal", 0, 0, "flash", "내부 처리", 40000, 2048, 0, 0, public=False),
     "internal_pro": FlowPolicy("internal_pro", 0, 0, "pro", "내부 고품질 처리", 50000, 4096, 1024, 0, public=False),
 }
@@ -72,15 +72,17 @@ def resolve_public_flow(flow: str) -> FlowPolicy:
     return policy
 
 
-def maximum_provider_cost_usd(policy: FlowPolicy, attempts: int = 2) -> Decimal:
-    input_rate, output_rate = _model_rates(policy.model)
+def maximum_provider_cost_usd(policy: FlowPolicy, attempts: int = 2, input_rate: Decimal | None = None, output_rate: Decimal | None = None) -> Decimal:
+    default_input, default_output = model_rates(policy.model)
+    resolved_input = input_rate if input_rate is not None else default_input
+    resolved_output = output_rate if output_rate is not None else default_output
     input_tokens = Decimal(policy.max_input_chars * 2)
-    output_tokens = Decimal(policy.max_output_tokens)
-    single = (input_tokens * input_rate + output_tokens * output_rate) / Decimal(1_000_000)
+    output_tokens = Decimal(policy.max_output_tokens + policy.thinking_budget)
+    single = (input_tokens * resolved_input + output_tokens * resolved_output) / Decimal(1_000_000)
     return single * attempts
 
 
-def _model_rates(model: str) -> tuple[Decimal, Decimal]:
+def model_rates(model: str) -> tuple[Decimal, Decimal]:
     if model == "pro":
         return Decimal("2.00"), Decimal("12.00")
     return Decimal("1.50"), Decimal("7.50")

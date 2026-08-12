@@ -64,7 +64,7 @@ function VoiceStep({ identity, onBack, onChange, onComplete, parsing, voice }) {
     <StepHeading id="voice-title" title="어떻게 말하나요?" description="대사 한마디면 충분해요." />
     <label className="al-step-field"><span>대사 한마디 <i>선택</i></span><textarea className="al-rp-box" value={voice} onChange={(event) => onChange(event.target.value)} placeholder={"“그건… 다음에 이야기하죠.”\n짧은 존댓말을 쓰고, 당황하면 말끝을 흐린다."} /></label>
     <aside className="al-step-guide"><p>떠오르지 않으면 건너뛰어도 괜찮아요.</p></aside>
-    <p className="text-[10px] leading-5 text-soft">프로필 정리는 처음 1회 무료예요. 다시 AI로 정리하면 구매 크레딧 5C가 사용돼요.</p>
+    <p className="text-[10px] leading-5 text-soft">프로필 정리는 처음 1회 무료예요. 다시 AI로 정리하면 구매 크레딧 10C가 사용돼요.</p>
     <div className="al-step-actions"><button className="al-step-back" type="button" onClick={onBack}>이전</button><button className="al-start" disabled={!identity.trim() || parsing} onClick={onComplete}>{parsing ? <span className="al-typing"><i/><i/><i/></span> : voice.trim() ? "이제 프로필로 정리하기" : "건너뛰고 프로필 보기"}</button></div>
   </section>;
 }

@@ -1,16 +1,27 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { apiErrorText, cleanApiFailureMessage, createGenerateRequestKey, postGenerate, readApiContent } from "../../src/api/generate.js";
+import { apiErrorText, cleanApiFailureMessage, createGenerateRequestKey, postAssist, postGenerate, readApiContent } from "../../src/api/generate.js";
 
 test("postGenerate sends requests to FastAPI AI endpoint", async () => {
   const restoreFetch = stubFetch(jsonResponse({ content: [{ type: "text", text: "ok" }] }));
   try {
-    const response = await postGenerate({ flow: "assist_social", idempotency_key: "test-request-key", model: "fast", max_tokens: 10, system: "", messages: [{ role: "user", content: "hi" }] });
+    const response = await postGenerate({ flow: "direct_dm_basic", idempotency_key: "test-request-key", max_tokens: 10, system: "", messages: [{ role: "user", content: "hi" }] });
     assert.equal(response.ok, true);
     assert.equal(globalThis.fetch.calls[0].input, "/api/ai/generate");
     assert.equal(globalThis.fetch.calls[0].init.credentials, "include");
     assert.equal(globalThis.fetch.calls[0].init.method, "POST");
     assert.equal(JSON.parse(globalThis.fetch.calls[0].init.body).idempotency_key, "test-request-key");
+  } finally {
+    restoreFetch();
+  }
+});
+
+test("postAssist uses the dedicated constrained endpoint", async () => {
+  const restoreFetch = stubFetch(jsonResponse({ content: [{ type: "text", text: "ok" }] }));
+  try {
+    await postAssist({ kind: "social_comment", idempotency_key: "assist-request-key", context: "character context", messages: [{ role: "user", content: "hi" }] });
+    assert.equal(globalThis.fetch.calls[0].input, "/api/ai/assist");
+    assert.equal(JSON.parse(globalThis.fetch.calls[0].init.body).kind, "social_comment");
   } finally {
     restoreFetch();
   }

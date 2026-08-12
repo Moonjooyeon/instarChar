@@ -1,5 +1,4 @@
-import { createGenerateRequestKey, postGenerateContent } from "@/api/generate";
-import { MODEL_UTIL } from "@/domain/app/aliveCore";
+import { createGenerateRequestKey, postAssistContent } from "@/api/generate";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -88,7 +87,7 @@ async function judgeAffinityDelta(from: string, to: string, transcript: string):
 - 숫자 하나만 출력. -30 ~ +8 범위 정수. 설명·기호 금지. 예: 5 또는 -20`;
   try {
     const idempotencyKey = createGenerateRequestKey("session-affinity");
-    const raw = (await postGenerateContent({ flow: "assist_session", idempotency_key: idempotencyKey, model: MODEL_UTIL, max_tokens: 10, system: sys, messages: [{ role: "user", content: transcript }] }, "호감도 판정 API")).trim();
+    const raw = (await postAssistContent({ kind: "session_affinity", idempotency_key: idempotencyKey, context: sys, messages: [{ role: "user", content: transcript }] }, "호감도 판정 API")).trim();
     const match = raw.match(/-?\d+/);
     return match ? Math.max(-30, Math.min(8, parseInt(match[0], 10))) : 0;
   } catch (e) {
@@ -123,7 +122,7 @@ async function analyzeSessionSummary(aName: string, bName: string, transcript: s
 {"aff_a_to_b": 0, "aff_b_to_a": 0, "mem_a": [{"content":"감정 변화와 원인 또는 기억할 사건","importance":3}], "mem_b": []}
 기억할 게 없으면 빈 배열.`;
   const idempotencyKey = createGenerateRequestKey("session-summary");
-  const raw = await postGenerateContent({ flow: "assist_session", idempotency_key: idempotencyKey, model: MODEL_UTIL, max_tokens: 2048, system: sys, messages: [{ role: "user", content: transcript }] }, "기억 통합 API");
+  const raw = await postAssistContent({ kind: "session_summary", idempotency_key: idempotencyKey, context: sys, messages: [{ role: "user", content: transcript }] }, "기억 통합 API");
   return parseJsonRecord(extractJsonObject(raw));
 }
 

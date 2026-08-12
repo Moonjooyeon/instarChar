@@ -1,7 +1,3 @@
-export const MODEL_DIRECT = "claude-sonnet-4-6";
-export const MODEL_AUTO = "claude-haiku-4-5-20251001";
-export const MODEL_CHAT = MODEL_DIRECT;
-export const MODEL_UTIL = "claude-haiku-4-5-20251001";
 export const LOCAL_STATE_KEY = "alive_app_state_v1";
 export const API_LIMIT_MESSAGE = "오늘 한정된 API는 다 사용했어요! 다음에 만나요.";
 

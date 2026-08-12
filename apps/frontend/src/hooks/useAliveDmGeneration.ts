@@ -1,8 +1,6 @@
 import { createGenerateRequestKey, postGenerateContent } from "@/api/generate";
 import { chatSafetyRules, worldBridgeBlock } from "@/domain/app/textUtils";
 import {
-  MODEL_AUTO,
-  MODEL_DIRECT,
   relationshipMatchRuleLine,
   selfSettingPriorityBlock,
   speechGuideLine,
@@ -72,7 +70,7 @@ export function useAliveDmGeneration({
     const timeout = window.setTimeout(() => controller.abort(), 55000);
     try {
       const idempotencyKey = createGenerateRequestKey("dm");
-      const text = await postGenerateContent({ flow: responseMode.code, idempotency_key: idempotencyKey, media_thread_key: requestKey, model: MODEL_DIRECT, max_tokens: responseMode.outputTokens, system: context.sys, messages: apiMsgs }, "DM 답장 API", { signal: controller.signal });
+      const text = await postGenerateContent({ flow: responseMode.code, idempotency_key: idempotencyKey, media_thread_key: requestKey, max_tokens: responseMode.outputTokens, system: context.sys, messages: apiMsgs }, "DM 답장 API", { signal: controller.signal });
       if (dmRequestSeqRef.current !== requestId || dmKeyRef.current !== requestKey) return;
       setDmThread((items) => [...items, { from: context.peerName, text }]);
       applyDmAffinity({ bumpAffinity, bumpMutual, bumpRoomAffinity, bumpRoomMutual, context, meName, newHist, ownerLabel, peer, relationHintFor, requestKey, text });
@@ -95,7 +93,7 @@ export function useAliveDmGeneration({
     const apiMsgs = autoLineMessages(history, speaker, listener);
     try {
       const idempotencyKey = createGenerateRequestKey("auto-dm");
-      return await postGenerateContent({ flow: "direct_dm_basic", idempotency_key: idempotencyKey, model: MODEL_AUTO, max_tokens: 2048, system: sys, messages: apiMsgs }, "자동대화 API");
+      return await postGenerateContent({ flow: "direct_dm_basic", idempotency_key: idempotencyKey, max_tokens: 384, system: sys, messages: apiMsgs }, "자동대화 API");
     } catch (e) {
       console.error("자동대화 생성 실패:", e);
       return null;

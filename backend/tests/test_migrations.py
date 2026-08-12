@@ -168,3 +168,12 @@ def test_iap_subject_retention_migration_follows_subject_history(monkeypatch: py
     cast(Callable[[], None], migration.upgrade)()
     assert migration.down_revision == "20260811_0022"
     assert "INTERVAL '5 years'" in statements[0]
+
+
+def test_ai_prompt_version_migration_follows_iap_retention(monkeypatch: pytest.MonkeyPatch) -> None:
+    migration = _load_migration("20260812_0024_ai_prompt_version.py")
+    columns: list[sa.Column[object]] = []
+    monkeypatch.setattr(migration.op, "add_column", lambda table, column: columns.append(column))
+    cast(Callable[[], None], migration.upgrade)()
+    assert migration.down_revision == "20260811_0023"
+    assert [(column.name, column.nullable, str(column.server_default.arg)) for column in columns] == [("prompt_version", False, "legacy")]

@@ -9,6 +9,8 @@ status: implemented-local
 
 # AI 운영 비용·품질·UX 개선 계획
 
+> 이 문서의 5C 재분석 가격은 후속 [AI 기능 운영 출시 기준선](plan_ai-production-release-baseline_2026-08-12.md)의 10C 정책으로 대체됐다.
+
 ## 목표
 
 - 사용자가 직접 요청한 생성은 명확한 크레딧 정책을 유지한다.

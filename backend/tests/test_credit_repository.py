@@ -135,7 +135,7 @@ def test_free_limit_blocks_without_enough_purchased_credits(monkeypatch: pytest.
 def test_character_analysis_waives_only_the_first_pro_charge(monkeypatch: pytest.MonkeyPatch) -> None:
     session = StubSession()
     repository = CreditRepository(session)  # type: ignore[arg-type]
-    account = CreditAccount(user_id=uuid4(), purchased_credits=5, bonus_credits=0)
+    account = CreditAccount(user_id=uuid4(), purchased_credits=10, bonus_credits=0)
     energy = EnergyAccount(user_id=account.user_id, energy_percent=100, last_recovered_at=datetime.now(timezone.utc))
     stub_repository(monkeypatch, repository, account, energy)
     async def intro_free(user_id: object, policy: object) -> bool:
@@ -144,13 +144,13 @@ def test_character_analysis_waives_only_the_first_pro_charge(monkeypatch: pytest
     result = asyncio.run(repository.reserve(account.user_id, "character_analysis", "analysis-first"))
     usage = next(item for item in session.added if isinstance(item, CreditUsage))
     assert result.allowed is True
-    assert (usage.model, usage.purchased_credits, account.purchased_credits) == ("pro", 0, 5)
+    assert (usage.model, usage.purchased_credits, account.purchased_credits) == ("pro", 0, 10)
 
 
 def test_character_analysis_charges_after_intro_use(monkeypatch: pytest.MonkeyPatch) -> None:
     session = StubSession()
     repository = CreditRepository(session)  # type: ignore[arg-type]
-    account = CreditAccount(user_id=uuid4(), purchased_credits=5, bonus_credits=0)
+    account = CreditAccount(user_id=uuid4(), purchased_credits=10, bonus_credits=0)
     energy = EnergyAccount(user_id=account.user_id, energy_percent=100, last_recovered_at=datetime.now(timezone.utc))
     stub_repository(monkeypatch, repository, account, energy)
     async def intro_free(user_id: object, policy: object) -> bool:
@@ -159,7 +159,7 @@ def test_character_analysis_charges_after_intro_use(monkeypatch: pytest.MonkeyPa
     result = asyncio.run(repository.reserve(account.user_id, "character_analysis", "analysis-second"))
     usage = next(item for item in session.added if isinstance(item, CreditUsage))
     assert result.allowed is True
-    assert (usage.purchased_credits, account.purchased_credits) == (5, 0)
+    assert (usage.purchased_credits, account.purchased_credits) == (10, 0)
 
 
 def test_free_limit_counts_only_active_free_usage() -> None:
@@ -182,14 +182,14 @@ def test_user_usage_history_excludes_zero_cost_service_calls() -> None:
     assert "credit_usages.credits > 0 OR credit_usages.energy_percent > 0" in sql
 
 
-def test_pro_hard_limit_counts_all_active_usage() -> None:
+def test_pro_hard_limit_counts_all_attempts() -> None:
     session = CountSession()
     repository = CreditRepository(session)  # type: ignore[arg-type]
     result = asyncio.run(repository._hard_flow_limit_reached(uuid4(), resolve_flow("direct_dm_pro"), datetime.now(timezone.utc)))
     assert result is False
     assert session.statement is not None
     sql = str(session.statement.compile(dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}))
-    assert "credit_usages.status IN ('reserved', 'committed')" in sql
+    assert "credit_usages.status" not in sql
     assert "credit_usages.flow = 'direct_dm_pro'" in sql
 
 

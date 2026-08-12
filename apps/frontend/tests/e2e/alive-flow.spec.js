@@ -59,9 +59,9 @@ async function mockAliveApi(page) {
 
 async function mockCreditsApi(page, rewards) {
   const flows = [
-    ["direct_dm_basic", "기본 대화", 1, 8], ["direct_dm_context", "기억 반영", 2, 15], ["direct_dm_pro", "중요한 답장", 5, 25],
-    ["feed_post", "피드 글 생성", 3, 20], ["character_interaction", "캐릭터 상호작용", 5, 25],
-  ].map(([code, label, credits, energy_percent]) => ({ code, label, credits, energy_percent, energy_eligible: !String(code).startsWith("direct_dm_pro"), bonus_eligible: !String(code).startsWith("direct_dm_pro") }));
+    ["direct_dm_basic", "기본 대화", 1, 8, 0, 0], ["direct_dm_context", "기억 반영", 3, 15, 0, 0], ["direct_dm_pro", "중요한 답장", 9, 25, 20, 0],
+    ["feed_post", "피드 글 생성", 3, 20, 0, 0], ["auto_feed_post", "혼자 남기는 근황", 2, 0, 24, 0], ["character_analysis", "캐릭터 분석", 10, 0, 3, 1],
+  ].map(([code, label, credits, energy_percent, hard_daily_limit, intro_free_uses]) => ({ code, label, credits, energy_percent, hard_daily_limit, intro_free_uses, energy_eligible: !["direct_dm_pro", "auto_feed_post", "character_analysis"].includes(String(code)), bonus_eligible: !["direct_dm_pro", "auto_feed_post", "character_analysis"].includes(String(code)) }));
   const offers = [{ id: "credit-5000", price_krw: 4950, base_credits: 500, product_bonus_credits: 0, first_purchase_bonus_percent: 10, total_credits: 500, first_purchase_total_credits: 550, label: "가볍게 이어가기", payment_available: false }];
   await page.route("**/api/credits/catalog", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ credit_policy_version: "v1", energy_policy_version: "v1", offers, flows }) }));
   await page.route("**/api/credits/usage", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ items: [] }) }));
@@ -385,20 +385,20 @@ test("DM response mode sends the selected quality flow", async ({ page }) => {
   await page.getByRole("button", { name: /테스트린과 바로 대화하기/ }).click();
   await page.locator(".al-dm-response-mode summary").click();
   await page.getByRole("radio", { name: /중요한 답장/ }).click();
-  await expect(page.locator(".al-dm-response-mode summary")).toContainText("5C");
+  await expect(page.locator(".al-dm-response-mode summary")).toContainText("9C");
   await page.getByRole("textbox", { name: /메시지/ }).fill("우리가 처음 만난 날을 천천히 떠올려줘");
   const request = page.waitForRequest((candidate) => candidate.url().includes("/api/ai/generate") && candidate.postDataJSON()?.flow === "direct_dm_pro");
   await page.getByRole("button", { name: "메시지 보내기" }).click();
   const selectedRequest = await request;
-  expect(selectedRequest.postDataJSON()).toMatchObject({ flow: "direct_dm_pro", max_tokens: 1536 });
+  expect(selectedRequest.postDataJSON()).toMatchObject({ flow: "direct_dm_pro", max_tokens: 1280 });
   expect(selectedRequest.postDataJSON()?.system).toContain("2~5문장");
   await page.getByRole("button", { name: "대화 목록으로" }).click();
   await page.getByRole("button", { name: /테스트린과 바로 대화하기/ }).click();
-  await expect(page.locator(".al-dm-response-mode summary")).toContainText("5C");
+  await expect(page.locator(".al-dm-response-mode summary")).toContainText("9C");
   await page.reload();
   await expect(page).toHaveURL(/\/app\/dm$/);
   await page.getByRole("button", { name: /테스트린과 바로 대화하기/ }).click();
-  await expect(page.locator(".al-dm-response-mode summary")).toContainText("5C");
+  await expect(page.locator(".al-dm-response-mode summary")).toContainText("9C");
 });
 
 test("an empty DM offers editable first-scene prompts", async ({ page }) => {

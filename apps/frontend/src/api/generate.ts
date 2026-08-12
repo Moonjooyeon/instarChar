@@ -27,8 +27,16 @@ export type GenerateRequest = {
   max_tokens: number;
   media_thread_key?: string;
   messages: GenerateMessage[];
-  model: string;
   system: string;
+};
+
+export type AssistKind = "social_comment" | "social_post" | "relationship_proposal" | "relationship_judge" | "session_affinity" | "session_summary";
+
+export type AssistGenerateRequest = {
+  kind: AssistKind;
+  idempotency_key: string;
+  context: string;
+  messages: GenerateMessage[];
 };
 
 type GenerateOptions = {
@@ -48,6 +56,17 @@ export async function postGenerate(body: GenerateRequest, options: GenerateOptio
   });
 }
 
+export async function postAssist(body: AssistGenerateRequest, options: GenerateOptions = {}): Promise<Response> {
+  return fetch(apiUrl("/ai/assist"), {
+    method: "POST",
+    credentials: "include",
+    cache: options.cache,
+    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+    signal: options.signal,
+    body: JSON.stringify(body),
+  });
+}
+
 export function createGenerateRequestKey(scope: string): string {
   return `${scope}:${crypto.randomUUID()}`;
 }
@@ -58,9 +77,15 @@ export async function postGenerateContent(body: GenerateRequest, label: string, 
   return content;
 }
 
+export async function postAssistContent(body: AssistGenerateRequest, label: string, options: GenerateOptions = {}): Promise<string> {
+  const content = await readApiContent(await postAssist(body, options), label);
+  notifyCreditBalanceUpdated();
+  return content;
+}
+
 export async function readApiJson(res: Response, label: string): Promise<unknown> {
   const text = await res.text();
-  if (!text.trim()) throw new Error(`${label} 응답이 비어 있습니다. HTTP ${res.status}. 로컬 개발 서버에서 /api/ai/generate 연결이 끊겼을 수 있습니다.`);
+  if (!text.trim()) throw new Error(`${label} 응답이 비어 있습니다. HTTP ${res.status}. 로컬 개발 서버에서 AI API 연결이 끊겼을 수 있습니다.`);
   try {
     return JSON.parse(text) as unknown;
   } catch (error) {

@@ -1,7 +1,7 @@
 import { createGenerateRequestKey, postGenerateContent } from "@/api/generate";
 import { analysisFallbackProfile } from "@/domain/app/analysisFallback";
 import { fieldText, normalizeHandle } from "@/domain/app/textUtils";
-import { MODEL_CHAT, type AppStep } from "@/domain/app/aliveCore";
+import { type AppStep } from "@/domain/app/aliveCore";
 
 type SetState<T> = (value: T | ((prev: T) => T)) => void;
 
@@ -51,9 +51,8 @@ export function useAliveCharacterAnalysis({
       const raw = await postGenerateContent({
         flow: "character_analysis",
         idempotency_key: createGenerateRequestKey("character-analysis"),
-        model: MODEL_CHAT,
         max_tokens: 2048,
-        system: characterAnalysisSystemPrompt(),
+        system: "",
         messages: [{ role: "user", content: textRaw }],
       }, "캐릭터 분석 API", {
         cache: "no-store",
@@ -82,30 +81,6 @@ function characterAnalysisInput(dump: string, rpLog: string): string {
     dump.trim() ? `[캐릭터 설명]\n${dump.trim()}` : "",
     rpLog.trim() ? `[역극/대사 로그]\n${rpLog.trim()}` : "",
   ].filter(Boolean).join("\n\n");
-}
-
-function characterAnalysisSystemPrompt(): string {
-  return `TASK_ID: character-analysis-v2
-다음 텍스트는 사용자의 "오너 페르소나"나 "내 페르소나"가 아니라, SNS 계정으로 깨울 "캐릭터" 설정이다.
-절대 사용자/오너/페르소나 생성용으로 해석하지 마라. 결과는 반드시 캐릭터 프로필 JSON 하나여야 한다.
-아래 항목을 갖춘 JSON 객체로만 답해. 절대 마크다운 백틱(\`\`\`)을 쓰지 마라.
-    {
-      "target_type": "character",
-      "name": "캐릭터 이름",
-      "handle": "아이디 1개만. @ 없이, 공백/쉼표/여러 후보 없이",
-      "age": "나이 또는 한 줄 설정. 알 수 없으면 빈 문자열",
-      "persona": "캐릭터의 성격/정체성 요약",
-      "world": "세계관/배경. 알 수 없으면 빈 문자열",
-      "speech": "말투, 어미, 자주 쓰는 표현",
-      "catchphrase": "캐치프레이즈나 명대사. 없으면 빈 문자열",
-      "surface": "겉모습/첫인상",
-      "inner": "겉과 다른 속마음/숨은 면",
-      "situational": "상황별 반응",
-      "triggers": "무너지거나 발끈하는 점",
-      "interests": "좋아하는 것/관심사",
-      "relations": "관계망. 예: 이름 — 관계, 이름 — 관계. 없으면 빈 문자열",
-      "warmth": "slow | normal | fast 중 하나"
-    }`;
 }
 
 function extractJsonObject(rawText: unknown): string {

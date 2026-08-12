@@ -98,7 +98,7 @@ class FeedGenerationService:
         system = "character-feed-post-v2\n캐릭터 설정에 맞는 SNS 글 하나를 JSON 객체로 작성하라. text는 필수이며 photoDesc와 moodDesc는 선택이다. 최근 글의 장면·시간대·감정·핵심 명사·첫 문장·마무리 구조를 반복하지 말고, variation_seed에 맞춰 새로운 일상 장면 하나를 고르라. 설명이나 코드펜스 없이 JSON만 출력하라."
         prompt_character = {key: value for key, value in character.items() if key not in {"avatarImg", "headerImg"}}
         prompt = {"name": name, "character": prompt_character, "mood": mood, "recent_posts": [item for item in recent if item], "generated_at": datetime.now(timezone.utc).isoformat(), "variation_seed": idempotency_key}
-        return GenerateRequest(flow=flow, idempotency_key=idempotency_key, model="fast", max_tokens=1200, system=system, messages=[GenerateMessage(role="user", content=json.dumps(prompt, ensure_ascii=False))])
+        return GenerateRequest(flow=flow, idempotency_key=idempotency_key, max_tokens=768, system=system, messages=[GenerateMessage(role="user", content=json.dumps(prompt, ensure_ascii=False))])
 
     def _is_too_similar(self, text: str, posts: list[object]) -> bool:
         normalized = self._normalize_post(text)
@@ -117,8 +117,8 @@ class FeedGenerationService:
     def _post_from_result(self, result: GenerateApiResult, mood: str) -> dict[str, object] | None:
         text = self._result_text(result.body)
         parsed = self._parse_json(text)
-        body = str(parsed.get("text") or text).strip()
-        if not body or FAILED_POST_PATTERN.search(body):
+        body = str(parsed.get("text") or "").strip()
+        if not body or len(body) > 280 or FAILED_POST_PATTERN.search(body):
             return None
         post = {"id": str(uuid4()), "text": body, "mood": mood, "time": datetime.now(timezone.utc).isoformat(), "likes": 0, "liked": False, "comments": []}
         return post | self._optional_fields(parsed)

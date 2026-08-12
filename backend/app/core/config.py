@@ -60,8 +60,12 @@ class Settings(BaseSettings):
     toss_iap_reconciliation_batch_size: int = 50
     monogpt_gemini_api_key: str = ""
     monogpt_gemini_base_url: str = "https://monogpt.kr/api/monorouter/v1/gemini"
-    monogpt_gemini_model_fast: str = "gemini-2.5-flash"
-    monogpt_gemini_model_good: str = "gemini-2.5-pro"
+    monogpt_gemini_model_fast: str = "gemini-3.6-flash"
+    monogpt_gemini_model_good: str = "gemini-3.1-pro-preview"
+    monogpt_gemini_fast_input_rate_usd: float = 1.5
+    monogpt_gemini_fast_output_rate_usd: float = 7.5
+    monogpt_gemini_good_input_rate_usd: float = 2.0
+    monogpt_gemini_good_output_rate_usd: float = 12.0
     moderation_api_key: str = ""
     moderation_actor: str = "operations"
     terms_version: str = "2026-07-24"
