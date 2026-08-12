@@ -8,6 +8,7 @@ import { CharacterAvatarImage } from "@/components/ui/CharacterAvatarImage";
 import { CreditShortcut } from "@/features/credits/CreditShortcut";
 import { StarterMissionPrompt } from "@/features/credits/StarterMissions";
 import { knownCharacterRelations } from "@/domain/app/aliveCore";
+import { normalizeCharacterName } from "@/domain/app/textUtils";
 import { useFeedHelpTour } from "@/hooks/useFeedHelpTour";
 import { useRewardMissions } from "@/hooks/useRewardMissions";
 
@@ -68,6 +69,7 @@ export function FeedProfilePanel({ ctx }) {
   const [isVisibilityModalOpen, setIsVisibilityModalOpen] = React.useState(false);
   const isFirstPost = myPosts.length === 0;
   const isPublic = char.isPublic !== false;
+  const displayName = normalizeCharacterName(char.name);
   const { closeHelp, isHelpOpen, openHelp } = useFeedHelpTour({ hasPosts: !isFirstPost, userId: session?.user?.id });
   const rewardMissions = useRewardMissions(Boolean(session?.user?.id));
   React.useEffect(() => {
@@ -80,7 +82,7 @@ export function FeedProfilePanel({ ctx }) {
       <button className="al-back" onClick={goHome} aria-label="내 캐릭터 목록으로"><AliveIcon name="chevron-left" size={21} /></button>
       <div className="al-banner">
         {char.headerImg && <img src={mediaUrl(char.headerImg)} alt="" />}
-        {isFirstPost && !char.headerImg && <FirstSceneBanner char={char} />}
+        {isFirstPost && !char.headerImg && <FirstSceneBanner char={char} displayName={displayName} />}
         <div className="al-feed-utilities"><CreditShortcut onOpen={openCredits} overlay /><button className="al-feed-help" type="button" disabled={loading} onClick={openHelp} aria-label="피드 도움말 열기"><span><AliveIcon name="help" size={15} /></span><b>도움말</b></button></div>
       </div>
       <div className="al-avatar-wrap">
@@ -90,7 +92,7 @@ export function FeedProfilePanel({ ctx }) {
         <div className="al-profile-top">
           <div className="al-profile-top-main">
             <div className="al-name-line">
-              <h2>{char.name}</h2>
+              <h2>{displayName}</h2>
             </div>
             <span className="al-handle">@{char.handle || char.name.replace(/\s/g, "").toLowerCase()}</span>
           </div>
@@ -125,7 +127,7 @@ export function FeedProfilePanel({ ctx }) {
         {!isFirstPost && <button className="al-profile-more border-line bg-surface text-ink hover:border-accent hover:bg-accent-soft" type="button" aria-controls="profile-media-tools" aria-expanded={isProfileToolsOpen} onClick={() => setIsProfileToolsOpen((open) => !open)}><span><b>사진 관리</b><small className="text-faint">인장, 헤더, 캐릭터 그림을 바꿔요.</small></span><i className={`text-accent-ink ${isProfileToolsOpen ? "open" : ""}`}><AliveIcon name="chevron-down" size={19} /></i></button>}
         {!isFirstPost && isProfileToolsOpen && <div className="al-profile-tools" id="profile-media-tools"><section className="al-profile-photos" aria-label="프로필 사진 관리"><div><b>프로필 사진</b><small>인장과 헤더를 직접 바꿔보세요.</small></div><div className="al-profile-photo-actions"><label><AliveIcon name="user" size={14} /> 인장 사진<input type="file" accept="image/*" onChange={(e) => handleProfileImage("avatar", e)} hidden /></label><label><AliveIcon name="image" size={14} /> 헤더 사진<input type="file" accept="image/*" onChange={(e) => handleProfileImage("header", e)} hidden /></label></div>{(char.avatarImg || char.headerImg) && <div className="al-profile-image-removals">{char.avatarImg && <button type="button" onClick={() => clearActiveProfileImage("avatar")}>인장 지우기</button>}{char.headerImg && <button type="button" onClick={() => clearActiveProfileImage("header")}>헤더 지우기</button>}</div>}</section><div className="al-gallery">
           <div className="al-gallery-head">
-            <span>{char.name}의 그림 {gallery.length > 0 && `(${gallery.length})`}</span>
+            <span>{displayName}의 그림 {gallery.length > 0 && `(${gallery.length})`}</span>
             <label className="al-upload">
               <AliveIcon name="plus" size={14} /> 그림 올리기
               <input type="file" accept="image/*" multiple onChange={handleUpload} hidden />
@@ -141,18 +143,18 @@ export function FeedProfilePanel({ ctx }) {
               ))}
             </div>
           ) : (
-            <p className="al-gallery-empty">캐릭터 그림을 올려두면, {char.name}가 셀카·일상·랜덤 글을 쓸 때 알아서 골라 붙여.</p>
+            <p className="al-gallery-empty">캐릭터 그림을 올려두면, {displayName}가 셀카·일상·랜덤 글을 쓸 때 알아서 골라 붙여.</p>
           )}
         </div></div>}
       </div>
-      <FeedHelpTour characterName={char.name} hasPosts={!isFirstPost} isOpen={isHelpOpen} onClose={closeHelp} />
-      <CharacterVisibilityModal characterName={char.name} isOpen={isVisibilityModalOpen} isPublic={isPublic} onClose={() => setIsVisibilityModalOpen(false)} onSave={setCharacterVisibility} />
+      <FeedHelpTour characterName={displayName} hasPosts={!isFirstPost} isOpen={isHelpOpen} onClose={closeHelp} />
+      <CharacterVisibilityModal characterName={displayName} isOpen={isVisibilityModalOpen} isPublic={isPublic} onClose={() => setIsVisibilityModalOpen(false)} onSave={setCharacterVisibility} />
     </div>
   );
 }
 
-function FirstSceneBanner({ char }: { char: FirstSceneCharacter }): React.ReactElement {
-  const line = compactSceneText(char.catchphrase, `${char.name}의 첫 문장을 기다리는 중`);
+function FirstSceneBanner({ char, displayName }: { char: FirstSceneCharacter; displayName: string }): React.ReactElement {
+  const line = compactSceneText(char.catchphrase, `${displayName}의 첫 문장을 기다리는 중`);
   const context = compactSceneText(char.world || char.interests || char.age, "설정에서 장면을 준비하고 있어요");
   return <div className="al-first-banner-copy"><small>첫 장면의 단서</small><p>“{line}”</p><span>{context}</span></div>;
 }

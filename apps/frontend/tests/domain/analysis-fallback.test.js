@@ -11,3 +11,10 @@ test("analysis fallback uses a readable handle base when the name is latin text"
   const actual = analysisFallbackProfile("Lian, 21 years old", "", "z9y8x7");
   assert.equal(actual.handle, "lian-z9y8x7");
 });
+
+test("analysis fallback extracts the name and age from a conversational example", () => {
+  const actual = analysisFallbackProfile("하루! 20살 평범한 대학생인데 텐션이 미쳤음. 아무한테나 말 검.", "", "a1b2c3");
+  assert.equal(actual.name, "하루");
+  assert.equal(actual.age, "20살");
+  assert.equal(actual.handle, "character-a1b2c3");
+});

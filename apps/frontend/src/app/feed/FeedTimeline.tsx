@@ -4,6 +4,7 @@ import { CharacterAvatarImage } from "@/components/ui/CharacterAvatarImage";
 import { mediaUrl } from "@/api/media";
 import { USER_PERSONA_FEATURE_ENABLED } from "@/domain/app/featureFlags";
 import { canManagePost } from "@/domain/feed/feedUtils";
+import { normalizeCharacterName } from "@/domain/app/textUtils";
 import { CreditUsageHint } from "@/features/credits/CreditUsageHint";
 
 interface GenerationFailureProps {
@@ -123,9 +124,10 @@ export function FeedTimeline({ ctx }) {
 }
 
 function EmptyFeed({ char, feedView, onExplore, onGenerate, onStart }: EmptyFeedProps & { onExplore: () => void }): React.ReactElement {
+  const characterName = normalizeCharacterName(char.name);
   if (feedView === "timeline") return <div className="al-empty"><span>아직 추가한 캐릭터의 글이 없어요.</span><p>캐릭터를 추가하면 새 글이 이곳에 시간순으로 도착해요.</p><button type="button" onClick={onExplore}>새 캐릭터 둘러보기 <AliveIcon name="arrow-right" size={14} /></button></div>;
   if (feedView === "recommendations") return <div className="al-empty"><span>새로 발견할 글을 준비하고 있어요.</span><p>공개된 게시글이 생기면 관심사와 세계관을 바탕으로 먼저 보여드릴게요.</p><button type="button" onClick={onExplore}>캐릭터 둘러보기 <AliveIcon name="arrow-right" size={14} /></button></div>;
-  return <section className="al-first-feed al-first-stage" aria-labelledby="first-stage-title"><header><span>01</span><div><small>이제 캐릭터가 직접 씁니다</small><h3 id="first-stage-title">{char.name}의 오늘을<br />어디서 시작할까요?</h3></div></header><div className="al-first-scenes">{FIRST_POST_SCENES.map((scene, index) => <button key={scene.mood} type="button" onClick={() => onGenerate(scene.mood)}><i>{String(index + 1).padStart(2, "0")}</i><span><b>{index === 2 ? `${char.name}에게 맡기기` : scene.label}</b><small>{scene.description}</small></span><AliveIcon name="arrow-right" size={15} /></button>)}</div><footer><span>다른 분위기로 시작하고 싶다면</span><button aria-label="첫 글의 장면 고르기" type="button" onClick={onStart}>장면 더 보기 <AliveIcon name="arrow-right" size={13} /></button></footer></section>;
+  return <section className="al-first-feed al-first-stage" aria-labelledby="first-stage-title"><header><span>01</span><div><small>이제 캐릭터가 직접 씁니다</small><h3 id="first-stage-title">{characterName}의 오늘을<br />어디서 시작할까요?</h3></div></header><div className="al-first-scenes">{FIRST_POST_SCENES.map((scene, index) => <button key={scene.mood} type="button" onClick={() => onGenerate(scene.mood)}><i>{String(index + 1).padStart(2, "0")}</i><span><b>{index === 2 ? `${characterName}에게 맡기기` : scene.label}</b><small>{scene.description}</small></span><AliveIcon name="arrow-right" size={15} /></button>)}</div><footer><span>다른 분위기로 시작하고 싶다면</span><button aria-label="첫 글의 장면 고르기" type="button" onClick={onStart}>장면 더 보기 <AliveIcon name="arrow-right" size={13} /></button></footer></section>;
 }
 
 function RecommendationIntro({ usesInterests }: { usesInterests: boolean }): React.ReactElement {
@@ -134,7 +136,7 @@ function RecommendationIntro({ usesInterests }: { usesInterests: boolean }): Rea
 }
 
 function GeneratingPost({ char }) {
-  return <div className="al-generating-post" role="status" aria-live="polite"><span className="al-generating-avatar"><CharacterAvatarImage src={char.avatarImg} /><i /></span><div><small>새 글을 쓰는 중</small><b>{char.name}가 장면을 떠올리고 있어요</b><p>말투와 설정을 살펴보고 있어요.</p><CreditUsageHint busy className="generating" flowCode="feed_post" /><span className="al-generating-line"><i /><i /><i /></span></div></div>;
+  return <div className="al-generating-post" role="status" aria-live="polite"><span className="al-generating-avatar"><CharacterAvatarImage src={char.avatarImg} /><i /></span><div><small>새 글을 쓰는 중</small><b>{normalizeCharacterName(char.name)}가 장면을 떠올리고 있어요</b><p>말투와 설정을 살펴보고 있어요.</p><CreditUsageHint busy className="generating" flowCode="feed_post" /><span className="al-generating-line"><i /><i /><i /></span></div></div>;
 }
 
 function GenerationFailure({ message, onRetry }: GenerationFailureProps): React.ReactElement {

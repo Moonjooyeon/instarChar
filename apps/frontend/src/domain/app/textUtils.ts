@@ -16,6 +16,19 @@ export function fieldText(value: unknown): string {
   return String(value).trim();
 }
 
+export const CHARACTER_NAME_MAX_LENGTH = 24;
+
+export function normalizeCharacterName(value: unknown, fallback: unknown = "새 캐릭터"): string {
+  const raw = fieldText(value).replace(/\s+/g, " ").trim();
+  const unlabelled = raw.replace(/^(?:이름(?:은)?|캐릭터(?:는)?)\s*(?:[:：]\s*|\s+)/u, "");
+  const ageStart = unlabelled.search(/[!！,.，]?\s*\d{1,3}\s*(?:살|세)(?=\s|[.!?,，]|$)/u);
+  const beforeAge = ageStart >= 0 ? unlabelled.slice(0, ageStart) : unlabelled;
+  const first = beforeAge.split(/[,，]|[!！?？](?=\s|$)/u)[0]?.trim() || "";
+  const clean = first.replace(/[!！?？.,，:：]+$/u, "").trim();
+  const safeFallback = fieldText(fallback) || "새 캐릭터";
+  return Array.from(clean || safeFallback).slice(0, CHARACTER_NAME_MAX_LENGTH).join("");
+}
+
 function objectFieldText(value: Record<string, unknown>): string {
   return Object.entries(value)
     .map(([key, item]) => `${key}: ${fieldText(item)}`)

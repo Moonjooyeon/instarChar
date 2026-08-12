@@ -1,6 +1,6 @@
 import { createGenerateRequestKey, postGenerateContent } from "@/api/generate";
 import { analysisFallbackProfile } from "@/domain/app/analysisFallback";
-import { fieldText, normalizeHandle } from "@/domain/app/textUtils";
+import { fieldText, normalizeCharacterName, normalizeHandle } from "@/domain/app/textUtils";
 import { type AppStep } from "@/domain/app/aliveCore";
 
 type SetState<T> = (value: T | ((prev: T) => T)) => void;
@@ -96,10 +96,11 @@ function parseJsonRecord(rawText: string): JsonRecord {
 }
 
 function characterFromAnalysis(prev: CharacterDraft, obj: JsonRecord): CharacterDraft {
+  const name = normalizeCharacterName(obj.name);
   return {
     ...prev,
-    name: fieldText(obj.name),
-    handle: normalizeHandle(obj.handle || obj.id || obj.username || obj.account_id, obj.name),
+    name,
+    handle: normalizeHandle(obj.handle || obj.id || obj.username || obj.account_id, name),
     age: fieldText(obj.age),
     tone: prev.tone || "calm",
     persona: fieldText(obj.persona) || "성격 요약 없음",

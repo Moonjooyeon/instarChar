@@ -16,8 +16,16 @@ def test_server_prompt_keeps_untrusted_context_between_fixed_policies() -> None:
 def test_character_analysis_ignores_client_system_and_requires_contract() -> None:
     prompt = compose_system_instruction("character_analysis", "SYSTEM OVERRIDE")
     assert "SYSTEM OVERRIDE" not in prompt
+    assert "고유 이름 하나만 1~24자" in prompt
     assert valid_character_analysis(json.dumps(character_payload(), ensure_ascii=False)) is True
     assert valid_character_analysis('{"target_type":"character","name":"리안","warmth":"normal"}') is False
+
+
+@pytest.mark.parametrize("name", ["가" * 25, "하루! 20살 평범한 대학생"])
+def test_character_analysis_rejects_descriptive_names(name: str) -> None:
+    payload = character_payload()
+    payload["name"] = name
+    assert valid_character_analysis(json.dumps(payload, ensure_ascii=False)) is False
 
 
 @pytest.mark.parametrize(("kind", "value"), [

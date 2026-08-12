@@ -307,6 +307,7 @@ body{ overflow-x:hidden; }
 .al-help-coach button:focus-visible{ outline:2px solid #c7b1fa; outline-offset:1px; }
 .al-profile-top-main{ min-width:0; flex:1 1 auto; }
 .al-name-line{ display:flex; align-items:center; min-width:0; }
+.al-name-line h2{ display:-webkit-box; overflow:hidden; overflow-wrap:anywhere; -webkit-box-orient:vertical; -webkit-line-clamp:2; }
 .al-world-chip{ flex-shrink:0; border:1px solid #3a3550; border-radius:999px; padding:3px 7px; cursor:pointer;
   background:#1c1730; color:#c8b3ff; font-family:inherit; font-size:10.5px; font-weight:900; line-height:1.1; }
 .al-world-chip:hover,.al-world-chip.on{ border-color:var(--accent); color:#fff; background:#241d35; }

@@ -5,6 +5,7 @@ import {
   characterHandleError,
   fieldText,
   isValidCharacterHandle,
+  normalizeCharacterName,
   normalizeHandle,
   recentLinesBlock,
   worldBridgeBlock,
@@ -20,6 +21,13 @@ test("normalizeHandle strips symbols and falls back safely", () => {
   assert.equal(normalizeHandle("!!!", "캐릭터"), "character");
   assert.equal(normalizeHandle("", "Alive Hero"), "alivehero");
   assert.equal(normalizeHandle("!!!"), "");
+});
+
+test("normalizeCharacterName keeps only the proper name from profile prose", () => {
+  assert.equal(normalizeCharacterName("하루! 20살 평범한 대학생인데 텐션이 미쳤음."), "하루");
+  assert.equal(normalizeCharacterName("이름은 리안, 21세. 마법학교 조교."), "리안");
+  assert.equal(normalizeCharacterName("Dr. Stone"), "Dr. Stone");
+  assert.equal(Array.from(normalizeCharacterName("가".repeat(30))).length, 24);
 });
 
 test("character handle validation matches reserved-word policy", () => {

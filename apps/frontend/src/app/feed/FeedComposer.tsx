@@ -1,6 +1,7 @@
 import React from "react";
 import { AliveIcon } from "@/components/ui/AliveIcon";
 import { CreditUsageHint } from "@/features/credits/CreditUsageHint";
+import { normalizeCharacterName } from "@/domain/app/textUtils";
 
 type AutoSetter = (enabled: boolean, intervalSeconds?: number) => Promise<boolean>;
 type AutoRoutinePanelProps = { auto: boolean; autoIntervalSeconds: number; autoPostNotice: string; nextIn: number; setAuto: AutoSetter; };
@@ -37,6 +38,7 @@ export function FeedComposer({ ctx }) {
   } = ctx;
   const [isAdvancedOpen, setIsAdvancedOpen] = React.useState(false);
   const isFirstPost = myPosts.length === 0;
+  const displayName = normalizeCharacterName(char.name);
   if (loading) return null;
   if (isFirstPost && !moodOpen) return null;
   return (
@@ -44,13 +46,13 @@ export function FeedComposer({ ctx }) {
       <div className="al-composer">
         {!moodOpen ? (
           <div className="al-compose-row">
-            <button className="al-wake border-line-strong bg-accent-soft text-accent-ink hover:border-accent hover:bg-accent hover:text-on-accent" onClick={() => setMoodOpen(true)}><AliveIcon name="sparkle" size={16} /> {josa(char.name, "한테/한테")} 글 부탁하기</button>
+            <button className="al-wake border-line-strong bg-accent-soft text-accent-ink hover:border-accent hover:bg-accent hover:text-on-accent" onClick={() => setMoodOpen(true)}><AliveIcon name="sparkle" size={16} /> {josa(displayName, "한테/한테")} 글 부탁하기</button>
             <button className="al-writeself border-line bg-surface-raised text-ink hover:border-accent hover:bg-accent-soft" onClick={() => setWriteOpen((value) => !value)}><AliveIcon name="pen" size={15} /> 직접 쓰기</button>
           </div>
         ) : (
-          <div className="al-moods"><header className="al-moods-head"><small>{isFirstPost ? "다른 시작" : "글 부탁하기"}</small><p className="al-moods-q">{isFirstPost ? `${char.name}의 첫 글은 어떤 장면일까요?` : "어떤 글을 부탁할까요?"}</p><CreditUsageHint className="feed" flowCode="feed_post" label="글 한 편 예상 사용량" /></header><div className="al-moods-grid">{POST_MOODS.map((mood) => <MoodButton key={mood} mood={mood} onSelect={(value) => { setFeedView("mine"); generatePost(value); }} />)}</div><button className="al-moods-cancel" onClick={() => setMoodOpen(false)}>닫기</button></div>
+          <div className="al-moods"><header className="al-moods-head"><small>{isFirstPost ? "다른 시작" : "글 부탁하기"}</small><p className="al-moods-q">{isFirstPost ? `${displayName}의 첫 글은 어떤 장면일까요?` : "어떤 글을 부탁할까요?"}</p><CreditUsageHint className="feed" flowCode="feed_post" label="글 한 편 예상 사용량" /></header><div className="al-moods-grid">{POST_MOODS.map((mood) => <MoodButton key={mood} mood={mood} onSelect={(value) => { setFeedView("mine"); generatePost(value); }} />)}</div><button className="al-moods-cancel" onClick={() => setMoodOpen(false)}>닫기</button></div>
         )}
-        {writeOpen && <div className="al-writebox"><p className="al-write-lbl">{char.name}의 목소리로 직접 작성해요.</p><textarea value={writeText} onChange={(event) => setWriteText(event.target.value)} placeholder={`${char.name}의 글을 직접 써보세요.`} /><div className="al-write-actions"><button className="al-write-cancel border-line bg-transparent text-soft hover:border-line-strong hover:bg-surface-muted hover:text-ink" onClick={() => { setWriteOpen(false); setWriteText(""); }}>취소</button><button className="al-write-post bg-accent text-on-accent hover:bg-accent-strong disabled:bg-surface-muted disabled:text-soft" disabled={!writeText.trim()} onClick={() => { manualPost(writeText); setWriteText(""); setWriteOpen(false); }}>올리기</button></div></div>}
+        {writeOpen && <div className="al-writebox"><p className="al-write-lbl">{displayName}의 목소리로 직접 작성해요.</p><textarea value={writeText} onChange={(event) => setWriteText(event.target.value)} placeholder={`${displayName}의 글을 직접 써보세요.`} /><div className="al-write-actions"><button className="al-write-cancel border-line bg-transparent text-soft hover:border-line-strong hover:bg-surface-muted hover:text-ink" onClick={() => { setWriteOpen(false); setWriteText(""); }}>취소</button><button className="al-write-post bg-accent text-on-accent hover:bg-accent-strong disabled:bg-surface-muted disabled:text-soft" disabled={!writeText.trim()} onClick={() => { manualPost(writeText); setWriteText(""); setWriteOpen(false); }}>올리기</button></div></div>}
       </div>
       {!isFirstPost && <button className="al-compose-settings-toggle" type="button" aria-expanded={isAdvancedOpen} onClick={() => setIsAdvancedOpen((open) => !open)}><span className="al-compose-settings-copy"><i><AliveIcon name="sparkle" size={15} /></i><span><b>근황 루틴</b><small>{composerSettingsSummary(auto, autoIntervalSeconds)}</small></span></span><i className="al-compose-settings-icon"><AliveIcon name={isAdvancedOpen ? "minus" : "plus"} size={15} /></i></button>}
       {!isFirstPost && isAdvancedOpen && <div className="al-compose-settings"><AutoRoutinePanel auto={auto} autoIntervalSeconds={autoIntervalSeconds} autoPostNotice={autoPostNotice} nextIn={nextIn} setAuto={setAuto} />
