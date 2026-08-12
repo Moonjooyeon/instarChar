@@ -116,6 +116,7 @@ test("the credit mockup uses a dedicated semantic screen and shared shortcuts", 
   assert.match(dmListScreen, /CreditShortcut/);
   assert.match(dmThreadScreen, /CreditShortcut/);
   assert.match(creditScreen, /al-phone al-theme-ready al-credit-theme-ready/);
+  assert.match(creditScreen, /VAT 포함/);
   assert.match(creditScreen, /FlowCatalog/);
   assert.ok([overviewIndex, offerIndex, checkoutIndex, missionsIndex, detailsIndex].every((index) => index >= 0));
   assert.ok(overviewIndex < offerIndex && offerIndex < checkoutIndex && checkoutIndex < missionsIndex && missionsIndex < detailsIndex);

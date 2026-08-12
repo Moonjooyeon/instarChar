@@ -216,7 +216,7 @@ function OfferList({
           <span>충전</span>
           <h2 id="credit-offers-title">크레딧 선택</h2>
         </div>
-        <small>첫 구매 시 10% 추가</small>
+        <small>첫 구매 시 10% 추가 · VAT 포함</small>
       </header>
       <div>
         {offers.map((offer) => (
@@ -290,7 +290,7 @@ function CheckoutPreview({
       <button type="button" disabled={!available || purchasing} onClick={() => offer?.sku && purchase.purchase(offer.sku)}>
         {purchasing ? "결제 처리 중" : available ? "구매하기" : "결제 준비 중"}
       </button>
-      <p className={purchase.error ? "error" : ""}><AliveIcon name={purchase.error ? "help" : "check"} size={13} />{purchase.error || purchase.notice || (available ? "결제 후 크레딧이 바로 지급돼요." : "지금은 결제되지 않아요.")}</p>
+      <p className={purchase.error ? "error" : ""}><AliveIcon name={purchase.error ? "help" : "check"} size={13} />{purchase.error || purchase.notice || (available ? "결제 후 크레딧이 바로 지급돼요. 표시 금액은 VAT 포함이에요." : "지금은 결제되지 않아요.")}</p>
     </section>
   );
 }

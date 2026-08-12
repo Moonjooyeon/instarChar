@@ -13,7 +13,7 @@ def test_complete_toss_iap_configuration_is_valid(tmp_path: Path) -> None:
 
 def test_credit_products_match_registered_console_prices() -> None:
     prices = [(product.supply_price_krw, product.price_krw) for product in CREDIT_PRODUCTS]
-    assert prices == [(4500, 4950), (9000, 9900), (27000, 29700), (45000, 49500), (90000, 99000)]
+    assert prices == [(4900, 5390), (9900, 10890), (29500, 32450), (49500, 54450), (99000, 108900)]
 
 
 def test_purchase_flag_requires_main_integration_flag() -> None:

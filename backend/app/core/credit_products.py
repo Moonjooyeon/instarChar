@@ -32,11 +32,11 @@ class CreditProduct:
 
 
 CREDIT_PRODUCTS = (
-    CreditProduct("credit-5000", 4500, 4950, 500, 0, "가볍게 이어가기"),
-    CreditProduct("credit-10000", 9000, 9900, 1000, 0, "꾸준히 이어가기"),
-    CreditProduct("credit-30000", 27000, 29700, 3000, 150, "가장 많이 선택해요"),
-    CreditProduct("credit-50000", 45000, 49500, 5000, 500, "오래 즐기기"),
-    CreditProduct("credit-100000", 90000, 99000, 10000, 1500, "깊게 이어가기"),
+    CreditProduct("credit-5000", 4900, 5390, 500, 0, "가볍게 이어가기"),
+    CreditProduct("credit-10000", 9900, 10890, 1000, 0, "꾸준히 이어가기"),
+    CreditProduct("credit-30000", 29500, 32450, 3000, 150, "가장 많이 선택해요"),
+    CreditProduct("credit-50000", 49500, 54450, 5000, 500, "오래 즐기기"),
+    CreditProduct("credit-100000", 99000, 108900, 10000, 1500, "깊게 이어가기"),
 )
 
 
