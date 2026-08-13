@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from contextlib import nullcontext
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 from types import ModuleType
@@ -9,6 +10,8 @@ import pytest
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.sql.schema import SchemaItem
+
+from app.models.entities import Base
 
 
 def _load_initial_migration() -> ModuleType:
@@ -29,6 +32,13 @@ def _load_migration(filename: str) -> ModuleType:
     migration = module_from_spec(spec)
     spec.loader.exec_module(migration)
     return migration
+
+
+def _autocommit_context() -> Mock:
+    context = Mock()
+    context.as_sql = False
+    context.autocommit_block.return_value = nullcontext()
+    return context
 
 
 def test_initial_user_provider_enum_reuses_existing_type(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -189,3 +199,94 @@ def test_schema_alignment_migration_follows_ai_prompt_version(monkeypatch: pytes
     assert migration.down_revision == "20260812_0024"
     assert "UPDATE credit_purchases" in statements[0]
     assert alterations == [("credit_purchases", "created_at", False), ("credit_purchases", "updated_at", False)]
+
+
+def test_recommendation_signal_indexes_are_created_concurrently(monkeypatch: pytest.MonkeyPatch) -> None:
+    migration = _load_migration("20260813_0026_recommendation_signal_indexes.py")
+    created: list[tuple[str, str, list[str], bool, bool]] = []
+    statements: list[str] = []
+    connection = Mock()
+    connection.execute.return_value.scalar_one_or_none.return_value = None
+    monkeypatch.setattr(migration.op, "get_context", _autocommit_context)
+    monkeypatch.setattr(migration.op, "get_bind", lambda: connection)
+    monkeypatch.setattr(migration.op, "create_index", lambda name, table, columns, **values: created.append((name, table, columns, values["postgresql_concurrently"], values["if_not_exists"])))
+    monkeypatch.setattr(migration.op, "execute", lambda statement: statements.append(str(statement)))
+    cast(Callable[[], None], migration.upgrade)()
+    assert migration.down_revision == "20260812_0025"
+    assert created == [
+        ("ix_character_follows_follower_recent", "character_follows", ["follower_id", "follower_account_id", "created_at", "id", "target_shared_character_id"], True, True),
+        ("ix_character_post_likes_liker_recent", "character_post_likes", ["liker_owner_id", "liker_account_id", "created_at", "id", "target_character_id"], True, True),
+        ("ix_user_blocks_blocked_blocker", "user_blocks", ["blocked_id", "blocker_id"], True, True),
+    ]
+    assert statements == [f"SELECT pg_advisory_lock({migration._LOCK_KEY})", f"SELECT pg_advisory_unlock({migration._LOCK_KEY})"]
+
+
+def test_recommendation_signal_indexes_only_replace_invalid_artifacts(monkeypatch: pytest.MonkeyPatch) -> None:
+    migration = _load_migration("20260813_0026_recommendation_signal_indexes.py")
+    results = [Mock(), Mock(), Mock()]
+    for result, validity in zip(results, [True, False, None], strict=True):
+        result.scalar_one_or_none.return_value = validity
+    connection = Mock()
+    connection.execute.side_effect = results
+    created: list[str] = []
+    statements: list[str] = []
+    monkeypatch.setattr(migration.op, "get_context", _autocommit_context)
+    monkeypatch.setattr(migration.op, "get_bind", lambda: connection)
+    monkeypatch.setattr(migration.op, "create_index", lambda name, *args, **kwargs: created.append(name))
+    monkeypatch.setattr(migration.op, "execute", lambda statement: statements.append(str(statement)))
+    cast(Callable[[], None], migration.upgrade)()
+    assert created == [migration.INDEXES[1][0], migration.INDEXES[2][0]]
+    assert statements[1:-1] == [f'DROP INDEX CONCURRENTLY IF EXISTS "{migration.INDEXES[1][0]}"']
+
+
+def test_recommendation_signal_indexes_support_offline_sql(monkeypatch: pytest.MonkeyPatch) -> None:
+    migration = _load_migration("20260813_0026_recommendation_signal_indexes.py")
+    context = _autocommit_context()
+    context.as_sql = True
+    created: list[tuple[str, bool]] = []
+    monkeypatch.setattr(migration.op, "get_context", lambda: context)
+    monkeypatch.setattr(migration.op, "get_bind", Mock(side_effect=AssertionError("offline SQL must not query PostgreSQL")))
+    monkeypatch.setattr(migration.op, "create_index", lambda name, *args, **values: created.append((name, values["if_not_exists"])))
+    monkeypatch.setattr(migration.op, "execute", lambda statement: None)
+    cast(Callable[[], None], migration.upgrade)()
+    assert created == [(name, True) for name, _, _ in migration.INDEXES]
+
+
+def test_recommendation_signal_index_lock_releases_after_create_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    migration = _load_migration("20260813_0026_recommendation_signal_indexes.py")
+    connection = Mock()
+    connection.execute.return_value.scalar_one_or_none.return_value = None
+    statements: list[str] = []
+    monkeypatch.setattr(migration.op, "get_context", _autocommit_context)
+    monkeypatch.setattr(migration.op, "get_bind", lambda: connection)
+    monkeypatch.setattr(migration.op, "create_index", Mock(side_effect=RuntimeError("create failed")))
+    monkeypatch.setattr(migration.op, "execute", lambda statement: statements.append(str(statement)))
+    with pytest.raises(RuntimeError, match="create failed"):
+        cast(Callable[[], None], migration.upgrade)()
+    assert statements == [f"SELECT pg_advisory_lock({migration._LOCK_KEY})", f"SELECT pg_advisory_unlock({migration._LOCK_KEY})"]
+
+
+def test_recommendation_signal_indexes_are_dropped_concurrently(monkeypatch: pytest.MonkeyPatch) -> None:
+    migration = _load_migration("20260813_0026_recommendation_signal_indexes.py")
+    statements: list[str] = []
+    monkeypatch.setattr(migration.op, "get_context", _autocommit_context)
+    monkeypatch.setattr(migration.op, "execute", lambda statement: statements.append(str(statement)))
+    cast(Callable[[], None], migration.downgrade)()
+    assert statements == [
+        f"SELECT pg_advisory_lock({migration._LOCK_KEY})",
+        'DROP INDEX CONCURRENTLY IF EXISTS "ix_user_blocks_blocked_blocker"',
+        'DROP INDEX CONCURRENTLY IF EXISTS "ix_character_post_likes_liker_recent"',
+        'DROP INDEX CONCURRENTLY IF EXISTS "ix_character_follows_follower_recent"',
+        f"SELECT pg_advisory_unlock({migration._LOCK_KEY})",
+    ]
+
+
+def test_recommendation_signal_indexes_match_model_metadata() -> None:
+    migration = _load_migration("20260813_0026_recommendation_signal_indexes.py")
+    indexes = cast(tuple[tuple[str, str, tuple[str, ...]], ...], migration.INDEXES)
+    actual: list[tuple[str, str, tuple[str, ...]]] = []
+    for name, table_name, _ in indexes:
+        table = Base.metadata.tables[table_name]
+        index = next(item for item in table.indexes if item.name == name)
+        actual.append((name, table_name, tuple(column.name for column in index.columns)))
+    assert tuple(actual) == indexes

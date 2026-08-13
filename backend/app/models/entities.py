@@ -138,7 +138,10 @@ class UserPolicyConsent(Base):
 
 class UserBlock(Base):
     __tablename__ = "user_blocks"
-    __table_args__ = (UniqueConstraint("blocker_id", "blocked_id", name="uq_user_blocks_pair"),)
+    __table_args__ = (
+        UniqueConstraint("blocker_id", "blocked_id", name="uq_user_blocks_pair"),
+        Index("ix_user_blocks_blocked_blocker", "blocked_id", "blocker_id"),
+    )
     id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid4)
     blocker_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     blocked_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
@@ -246,7 +249,11 @@ class SharedCharacter(TimestampMixin, Base):
 
 class CharacterFollow(Base):
     __tablename__ = "character_follows"
-    __table_args__ = (UniqueConstraint("follower_id", "follower_account_id", "target_shared_character_id", name="uq_character_follows"), Index("ix_character_follows_target_created", "target_shared_character_id", "created_at"))
+    __table_args__ = (
+        UniqueConstraint("follower_id", "follower_account_id", "target_shared_character_id", name="uq_character_follows"),
+        Index("ix_character_follows_target_created", "target_shared_character_id", "created_at"),
+        Index("ix_character_follows_follower_recent", "follower_id", "follower_account_id", "created_at", "id", "target_shared_character_id"),
+    )
     id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid4)
     follower_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     follower_name: Mapped[str] = mapped_column(String(120), nullable=False, default="")
@@ -281,6 +288,7 @@ class CharacterPostLike(Base):
         ForeignKeyConstraint(["liker_owner_id", "liker_account_id"], ["characters.owner_id", "characters.source_account_id"], ondelete="CASCADE", name="fk_post_likes_liker_character"),
         UniqueConstraint("liker_owner_id", "liker_account_id", "target_character_id", "target_post_id", name="uq_character_post_likes"),
         Index("ix_character_post_likes_target", "target_character_id", "target_post_id"),
+        Index("ix_character_post_likes_liker_recent", "liker_owner_id", "liker_account_id", "created_at", "id", "target_character_id"),
     )
     id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid4)
     liker_owner_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), nullable=False)

@@ -201,6 +201,8 @@ test("the staged feed timeline base uses semantic states without migrating comme
   assert.doesNotMatch(timeline, /추천 <b>\{recommendationPosts\.length\}<\/b>/);
   assert.match(timeline, /내 글 <b>\{myPosts\.length\}<\/b>/);
   assert.match(timeline, /FIRST_POST_SCENES/);
+  assert.match(timeline, /loading="lazy" decoding="async"/);
+  assert.match(readFileSync(path.resolve(process.cwd(), "src/components/ui/CharacterAvatarImage.tsx"), "utf8"), /loading="lazy" decoding="async"/);
   assert.match(timeline, /al-like \$\{post\.liked \? "on text-like"/);
   assert.match(timelineStyles, /\.al-feed-theme-ready \.al-first-stage/);
   assert.match(timelineStyles, /\.al-feed-theme-ready \.al-generating-post/);

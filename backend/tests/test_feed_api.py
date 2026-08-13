@@ -10,10 +10,11 @@ from sqlalchemy import Integer, column, select
 from sqlalchemy.dialects import postgresql
 
 from app.api.deps import get_current_user
+from app.core.errors import TooManyRequestsError
+from app.core.recommendations import RECOMMENDATION_FIELDS, character_recommendation_terms
 from app.db.session import get_db_session
 from app.main import app
 from app.models import Character, PublicFeedPost, SharedCharacter
-from app.core.errors import TooManyRequestsError
 from app.repositories.feed import FeedRepository
 from app.schemas.feed import FeedPage, FeedPageItem
 
@@ -133,6 +134,61 @@ def test_feed_candidates_require_active_moderation_status() -> None:
     assert "users.moderation_status" in compiled
 
 
+def test_feed_results_only_select_dto_author_columns() -> None:
+    repository = FeedRepository(SimpleNamespace(), cursor_secret="test-secret")
+    compiled = str(repository._result_statement().compile(dialect=postgresql.dialect()))
+    projection = compiled.partition("\nFROM")[0]
+    assert "characters.id" in projection
+    assert "shared_characters.handle" in projection
+    assert "characters.posts" not in projection
+    assert "characters.gallery" not in projection
+    assert "characters.following" not in projection
+    assert "characters.character" not in projection
+    assert "shared_characters.character" not in projection
+
+
+def test_active_character_only_selects_recommendation_columns() -> None:
+    active = Character(owner_id=uuid4(), source_account_id="char-1", name="세인", handle="sein", character={"interests": "마법"})
+    session = SignalSession([[active]])
+    result = asyncio.run(FeedRepository(session, cursor_secret="test-secret")._active_character(active.owner_id, active.source_account_id))
+    projection = str(session.statements[0].compile(dialect=postgresql.dialect())).partition("\nFROM")[0]
+    assert result is active
+    assert "characters.id" in projection
+    assert "characters.source_account_id" in projection
+    assert "characters.character" in projection
+    assert "characters.posts" not in projection
+    assert "characters.gallery" not in projection
+    assert "characters.following" not in projection
+
+
+def test_behavior_signal_projects_only_recommendation_fields_and_tags() -> None:
+    repository = FeedRepository(SimpleNamespace(), cursor_secret="test-secret")
+    compiled = str(repository._signal_statement(3).compile(dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}))
+    projection = compiled.partition("\nFROM")[0]
+    for field in RECOMMENDATION_FIELDS:
+        assert f"shared_characters.character ->> '{field}' AS {field}" in projection
+    assert "shared_characters.tags" in projection
+    assert "SELECT shared_characters.character," not in projection
+
+
+def test_behavior_signal_text_projection_preserves_recommendation_terms() -> None:
+    repository = FeedRepository(SimpleNamespace(), cursor_secret="test-secret")
+    original = {"interests": "홍차", "world": ["마법 학교", "극장"], "persona": None, "surface": "차분함", "age": 20}
+    projected = ("홍차", '["마법 학교", "극장"]', None, "차분함", "20", ["관찰자"], 3)
+    character, tags, boost = repository._signal_from_row(projected)
+    assert character_recommendation_terms(character) == character_recommendation_terms(original)
+    assert tags == ["관찰자"]
+    assert boost == 3
+
+
+def test_recommendation_order_uses_labeled_score_expression() -> None:
+    repository = FeedRepository(SimpleNamespace(), cursor_secret="test-secret")
+    score = repository._recommendation_score({"마법": 6}).label("score")
+    statement = repository._result_statement(score).order_by(score.desc())
+    compiled = str(statement.compile(dialect=postgresql.dialect()))
+    assert "ORDER BY score DESC" in compiled
+
+
 def test_recommendation_page_limits_repeated_authors_and_advances_cursor() -> None:
     repository = FeedRepository(SimpleNamespace(), cursor_secret="test-secret")
     first_id = uuid4()
@@ -148,19 +204,25 @@ def test_recommendation_page_limits_repeated_authors_and_advances_cursor() -> No
 def test_recommendation_weights_combine_profile_follow_and_like_signals() -> None:
     followed = SharedCharacter(owner_id=uuid4(), source_account_id="followed", name="극장", tags=["마법"], character={"world": "마법 극장"})
     liked = SharedCharacter(owner_id=uuid4(), source_account_id="liked", name="탐정", tags=["추리"], character={"interests": "추리 소설"})
-    session = SignalSession([[followed], [liked]])
+    session = SignalSession([[signal_row(followed, 3), signal_row(liked, 1)]])
     active = Character(owner_id=uuid4(), source_account_id="char-1", name="세인", handle="sein", character={"interests": "마법, 홍차"})
     weights = asyncio.run(FeedRepository(session, cursor_secret="test-secret")._recommendation_weights(active.owner_id, active, set()))
     assert weights["마법"] == 9
     assert weights["홍차"] == 6
     assert weights["추리"] == 1
+    assert len(session.statements) == 1
 
 
-def test_behavior_signals_exclude_blocked_owners() -> None:
+def test_behavior_signals_union_recent_branches_and_exclude_blocked_owners() -> None:
     session = SignalSession([[]])
-    asyncio.run(FeedRepository(session, cursor_secret="test-secret")._followed_signals(uuid4(), "char-1", {uuid4()}))
-    compiled = str(session.statements[0].compile(dialect=postgresql.dialect()))
-    assert "shared_characters.owner_id NOT IN" in compiled
+    repository = FeedRepository(session, cursor_secret="test-secret")
+    asyncio.run(repository._behavior_signals(uuid4(), "char-1", {uuid4()}))
+    compiled = str(session.statements[0].compile(dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}))
+    assert compiled.count("shared_characters.owner_id NOT IN") == 2
+    assert compiled.count("LIMIT 80") == 2
+    assert "character_follows.created_at DESC, character_follows.id DESC" in compiled
+    assert "character_post_likes.created_at DESC, character_post_likes.id DESC" in compiled
+    assert "UNION ALL" in compiled
 
 
 def test_feed_rate_limit_rejects_excess_requests() -> None:
@@ -195,11 +257,11 @@ class SignalResult:
     def __init__(self, rows: list[object]) -> None:
         self.rows = rows
 
-    def scalars(self) -> "SignalResult":
-        return self
-
     def all(self) -> list[object]:
         return self.rows
+
+    def scalar_one_or_none(self) -> object | None:
+        return self.rows[0] if self.rows else None
 
 
 class SignalSession:
@@ -218,6 +280,10 @@ def feed_row(author_id: object, post_id: str, score: int) -> tuple[object, objec
     character = SimpleNamespace(id=author_id)
     shared = SimpleNamespace(handle="author", id=uuid4(), name="작성자", owner_id=uuid4())
     return post, character, shared, score
+
+
+def signal_row(shared: SharedCharacter, boost: int) -> tuple[object, ...]:
+    return (*[shared.character.get(field) for field in RECOMMENDATION_FIELDS], shared.tags, boost)
 
 
 def make_test_client() -> TestClient:

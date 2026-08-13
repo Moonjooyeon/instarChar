@@ -6,9 +6,10 @@ import json
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
-from sqlalchemy import and_, case, exists, func, literal, or_, select
+from sqlalchemy import and_, case, exists, func, literal, or_, select, union_all
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import load_only
 from sqlalchemy.sql.elements import ColumnElement
 from sqlalchemy.sql.selectable import Subquery
 
@@ -20,6 +21,7 @@ from app.schemas.feed import FeedKind, FeedPage, FeedPageItem
 
 
 FeedCursor = tuple[datetime, str, UUID, int]
+RecommendationSignal = tuple[dict[str, object], list[str], int]
 _PROFILE_WEIGHTS = (("interests", 6), ("world", 4), ("persona", 2), ("surface", 2))
 _MAX_RECOMMENDATION_TERMS = 24
 _RECOMMENDATION_SCAN_MULTIPLIER = 6
@@ -53,7 +55,7 @@ class FeedRepository:
             raise TooManyRequestsError("Feed request limit reached")
 
     async def _timeline_page(self, user_id: UUID, source_account_id: str, cursor: FeedCursor | None, limit: int) -> FeedPage:
-        statement = self._base_statement().join(CharacterFollow, CharacterFollow.target_shared_character_id == SharedCharacter.id).where(CharacterFollow.follower_id == user_id, CharacterFollow.follower_account_id == source_account_id)
+        statement = self._result_statement().join(CharacterFollow, CharacterFollow.target_shared_character_id == SharedCharacter.id).where(CharacterFollow.follower_id == user_id, CharacterFollow.follower_account_id == source_account_id)
         statement = self._apply_exclusions(statement, await self._excluded_owner_ids(user_id))
         statement = self._apply_cursor(statement, cursor).order_by(PublicFeedPost.created_at.desc(), PublicFeedPost.post_id.desc(), PublicFeedPost.author_character_id.desc()).limit(limit + 1)
         rows = list((await self.session.execute(statement)).all())
@@ -62,12 +64,12 @@ class FeedRepository:
     async def _recommendation_page(self, user_id: UUID, active: Character, cursor: FeedCursor | None, limit: int) -> FeedPage:
         excluded = await self._excluded_owner_ids(user_id)
         weights = await self._recommendation_weights(user_id, active, excluded)
-        score = self._recommendation_score(weights)
+        score = self._recommendation_score(weights).label("score")
         candidate_statement = self._recommendation_base(user_id, active, excluded)
         candidates = self._recent_recommendation_posts(candidate_statement)
         candidate_match = and_(candidates.c.author_character_id == PublicFeedPost.author_character_id, candidates.c.post_id == PublicFeedPost.post_id)
-        statement = self._base_statement().join(candidates, candidate_match)
-        statement = statement.with_only_columns(PublicFeedPost, Character, SharedCharacter, score.label("score"))
+        statement = self._result_statement().join(candidates, candidate_match)
+        statement = statement.with_only_columns(PublicFeedPost, Character, SharedCharacter, score)
         statement = self._apply_ranked_cursor(statement, cursor, score).order_by(score.desc(), PublicFeedPost.created_at.desc(), PublicFeedPost.post_id.desc(), PublicFeedPost.author_character_id.desc())
         scan_limit = limit * _RECOMMENDATION_SCAN_MULTIPLIER
         rows = list((await self.session.execute(statement.limit(scan_limit + 1))).all())
@@ -85,29 +87,39 @@ class FeedRepository:
 
     async def _recommendation_weights(self, user_id: UUID, active: Character, excluded: set[UUID]) -> dict[str, int]:
         weights = self._profile_weights(active)
-        followed = await self._followed_signals(user_id, active.source_account_id, excluded)
-        liked = await self._liked_signals(user_id, active.source_account_id, excluded)
-        for shared in followed:
-            self._add_signal(weights, shared, 3)
-        for shared in liked:
-            self._add_signal(weights, shared, 1)
+        signals = await self._behavior_signals(user_id, active.source_account_id, excluded)
+        for character, tags, boost in signals:
+            self._add_signal(weights, character, tags, boost)
         ranked = sorted(weights.items(), key=lambda item: (-item[1], item[0]))
         return dict(ranked[:_MAX_RECOMMENDATION_TERMS])
 
-    async def _followed_signals(self, user_id: UUID, source_account_id: str, excluded: set[UUID]) -> list[SharedCharacter]:
-        statement = select(SharedCharacter).join(CharacterFollow, CharacterFollow.target_shared_character_id == SharedCharacter.id)
+    async def _behavior_signals(self, user_id: UUID, source_account_id: str, excluded: set[UUID]) -> list[RecommendationSignal]:
+        followed = self._followed_signal_statement(user_id, source_account_id, excluded)
+        liked = self._liked_signal_statement(user_id, source_account_id, excluded)
+        rows = (await self.session.execute(union_all(followed, liked))).all()
+        return [self._signal_from_row(tuple(row)) for row in rows]
+
+    def _followed_signal_statement(self, user_id: UUID, source_account_id: str, excluded: set[UUID]) -> object:
+        statement = self._signal_statement(3).join(CharacterFollow, CharacterFollow.target_shared_character_id == SharedCharacter.id)
         statement = statement.where(CharacterFollow.follower_id == user_id, CharacterFollow.follower_account_id == source_account_id)
         statement = self._apply_exclusions(statement, excluded)
-        result = await self.session.execute(statement.order_by(CharacterFollow.created_at.desc()).limit(80))
-        return list(result.scalars().all())
+        return statement.order_by(CharacterFollow.created_at.desc(), CharacterFollow.id.desc()).limit(80)
 
-    async def _liked_signals(self, user_id: UUID, source_account_id: str, excluded: set[UUID]) -> list[SharedCharacter]:
+    def _liked_signal_statement(self, user_id: UUID, source_account_id: str, excluded: set[UUID]) -> object:
         linked = and_(SharedCharacter.owner_id == Character.owner_id, SharedCharacter.source_account_id == Character.source_account_id)
-        statement = select(SharedCharacter).join(Character, linked).join(CharacterPostLike, CharacterPostLike.target_character_id == Character.id)
+        statement = self._signal_statement(1).join(Character, linked).join(CharacterPostLike, CharacterPostLike.target_character_id == Character.id)
         statement = statement.where(CharacterPostLike.liker_owner_id == user_id, CharacterPostLike.liker_account_id == source_account_id)
         statement = self._apply_exclusions(statement, excluded)
-        result = await self.session.execute(statement.order_by(CharacterPostLike.created_at.desc()).limit(80))
-        return list(result.scalars().all())
+        return statement.order_by(CharacterPostLike.created_at.desc(), CharacterPostLike.id.desc()).limit(80)
+
+    def _signal_statement(self, boost: int) -> object:
+        fields = [SharedCharacter.character[field].astext.label(field) for field in RECOMMENDATION_FIELDS]
+        return select(*fields, SharedCharacter.tags, literal(boost).label("boost"))
+
+    def _signal_from_row(self, row: tuple[object, ...]) -> RecommendationSignal:
+        character = {field: row[index] for index, field in enumerate(RECOMMENDATION_FIELDS)}
+        tags = [str(tag) for tag in row[-2]] if isinstance(row[-2], list) else []
+        return character, tags, int(str(row[-1]))
 
     def _profile_weights(self, active: Character) -> dict[str, int]:
         weights: dict[str, int] = {}
@@ -117,9 +129,9 @@ class FeedRepository:
                 weights[term] = max(weights.get(term, 0), weight)
         return weights
 
-    def _add_signal(self, weights: dict[str, int], shared: SharedCharacter, boost: int) -> None:
-        profile_terms = character_recommendation_terms(dict(shared.character or {}))
-        terms = normalize_recommendation_terms([*profile_terms, *list(shared.tags or [])])
+    def _add_signal(self, weights: dict[str, int], character: dict[str, object], tags: list[str], boost: int) -> None:
+        profile_terms = character_recommendation_terms(character)
+        terms = normalize_recommendation_terms([*profile_terms, *tags])
         for term in terms:
             weights[term] = min(12, weights.get(term, 0) + boost)
 
@@ -160,8 +172,13 @@ class FeedRepository:
         statement = statement.join(SharedCharacter, and_(SharedCharacter.owner_id == Character.owner_id, SharedCharacter.source_account_id == Character.source_account_id)).join(User, User.id == SharedCharacter.owner_id)
         return statement.where(Character.is_public.is_(True), User.moderation_status == UserModerationStatus.active)
 
+    def _result_statement(self, *extra: object) -> object:
+        statement = self._base_statement(*extra).options(load_only(Character.id))
+        return statement.options(load_only(SharedCharacter.id, SharedCharacter.owner_id, SharedCharacter.name, SharedCharacter.handle))
+
     async def _active_character(self, owner_id: UUID, source_account_id: str) -> Character:
-        statement = select(Character).where(Character.owner_id == owner_id, Character.source_account_id == source_account_id)
+        statement = select(Character).options(load_only(Character.id, Character.source_account_id, Character.character))
+        statement = statement.where(Character.owner_id == owner_id, Character.source_account_id == source_account_id)
         row = (await self.session.execute(statement)).scalar_one_or_none()
         if not row:
             raise BadRequestError("Character not found")

@@ -39,6 +39,7 @@ type ExternalComment = {
 type FeedOptions = {
   activeId: string | null;
   activeSharedId: string;
+  blockedUserIds: string[];
   following: FollowedCharacter[];
   personas: PersonaOption[];
   recommendationCandidates: FollowedCharacter[];
@@ -111,7 +112,7 @@ type AliveFeedReturn = {
   writeText: string;
 };
 
-export function useAliveFeed({ activeId, activeSharedId, following, personas, recommendationCandidates, recommendationProfile, setSaveStatus, step }: FeedOptions): AliveFeedReturn {
+export function useAliveFeed({ activeId, activeSharedId, blockedUserIds, following, personas, recommendationCandidates, recommendationProfile, setSaveStatus, step }: FeedOptions): AliveFeedReturn {
   const [posts, setPosts] = useState<FeedPost[]>([]);
   const [loading, setLoading] = useState(false);
   const [moodOpen, setMoodOpen] = useState(false);
@@ -133,8 +134,8 @@ export function useAliveFeed({ activeId, activeSharedId, following, personas, re
   const [editingPost, setEditingPost] = useState<FeedPost | null>(null);
   const [editingComment, setEditingComment] = useState<EditingComment | null>(null);
   const [externalComments, setExternalComments] = useState<Record<string, unknown[]>>({});
-  const feedRevision = useMemo(() => JSON.stringify({ following: following.map((item) => item.sharedId || item.characterId || item.id || "").sort(), profile: [recommendationProfile.interests, recommendationProfile.persona, recommendationProfile.surface, recommendationProfile.world] }), [following, recommendationProfile.interests, recommendationProfile.persona, recommendationProfile.surface, recommendationProfile.world]);
-  const pagedFeed = useFeedPagination({ activeId, feedView, revision: feedRevision });
+  const feedRevision = useMemo(() => JSON.stringify({ blocked: [...blockedUserIds].sort(), following: following.map((item) => item.sharedId || item.characterId || item.id || "").sort(), profile: [recommendationProfile.interests, recommendationProfile.persona, recommendationProfile.surface, recommendationProfile.world] }), [blockedUserIds, following, recommendationProfile.interests, recommendationProfile.persona, recommendationProfile.surface, recommendationProfile.world]);
+  const pagedFeed = useFeedPagination({ activeId, feedView, isVisible: step === "feed", revision: feedRevision });
   const sortedPosts = useMemo(() => sanitizePosts(posts).sort((a, b) => postTimeMs(b) - postTimeMs(a)), [posts]);
   const myPosts = useMemo(() => sortedPosts.filter((post) => !post.author), [sortedPosts]);
   const rawFollowedPosts = useMemo(() => activeId ? pagedFeed.timelinePosts : (following || []).flatMap((item) => postsFromFollowedCharacter(item)), [activeId, following, pagedFeed.timelinePosts]);
@@ -143,7 +144,7 @@ export function useAliveFeed({ activeId, activeSharedId, following, personas, re
   const timelinePosts = useMemo(() => [...followedTimelinePosts].sort((a, b) => postTimeMs(b) - postTimeMs(a)), [followedTimelinePosts]);
   const rankedRecommendations = useMemo(() => recommendedCharacters(recommendationCandidates, following, recommendationProfile, activeId, activeSharedId), [activeId, activeSharedId, following, recommendationCandidates, recommendationProfile]);
   const recommendationSource = useMemo(() => activeId ? pagedFeed.recommendationPosts : rankedRecommendations.flatMap(postsFromRecommendedCharacter), [activeId, pagedFeed.recommendationPosts, rankedRecommendations]);
-  const recommendationPosts = useMemo(() => recommendationSource.map((post) => applyExternalComments(post, externalComments)).sort((a, b) => postTimeMs(b) - postTimeMs(a)), [externalComments, recommendationSource]);
+  const recommendationPosts = useMemo(() => recommendationSource.filter((post) => !blockedUserIds.includes(post.authorOwnerId || "")).map((post) => applyExternalComments(post, externalComments)).sort((a, b) => postTimeMs(b) - postTimeMs(a)), [blockedUserIds, externalComments, recommendationSource]);
   const recommendationUsesInterests = useMemo(() => recommendationPosts.some((post) => post.recommendationReason === "interest"), [recommendationPosts]);
   const visiblePosts = feedView === "mine" ? myPosts : feedView === "recommendations" ? recommendationPosts : timelinePosts;
   useEffect(() => { postsRef.current = posts; }, [posts]);

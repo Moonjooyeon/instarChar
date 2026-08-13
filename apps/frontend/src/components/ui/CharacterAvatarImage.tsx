@@ -9,7 +9,7 @@ interface CharacterAvatarImageProps {
 
 export function CharacterAvatarImage({ src }: CharacterAvatarImageProps): React.ReactElement {
   const imageSource = mediaUrl(src) || DEFAULT_CHARACTER_AVATAR;
-  return <img className="al-character-avatar-image" src={imageSource} alt="" aria-hidden="true" onError={replaceBrokenAvatar} />;
+  return <img className="al-character-avatar-image" src={imageSource} alt="" aria-hidden="true" loading="lazy" decoding="async" onError={replaceBrokenAvatar} />;
 }
 
 function replaceBrokenAvatar(event: SyntheticEvent<HTMLImageElement>): void {

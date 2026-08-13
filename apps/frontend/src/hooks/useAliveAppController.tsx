@@ -343,7 +343,7 @@ export function useAliveAppController() {
     writeOpen,
     writeText,
     generateServerPost,
-  } = useAliveFeed({ activeId, activeSharedId, following: feedFollowing, personas, recommendationCandidates: sharedCharacters, recommendationProfile: char, setSaveStatus, step });
+  } = useAliveFeed({ activeId, activeSharedId, blockedUserIds, following: feedFollowing, personas, recommendationCandidates: sharedCharacters, recommendationProfile: char, setSaveStatus, step });
   const {
     recordFollowChange,
     recordRelationshipFollowBack,
