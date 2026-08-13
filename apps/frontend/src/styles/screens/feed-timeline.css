@@ -1,8 +1,8 @@
 /* Phase 3C-1 covers timeline states and posts; comments remain staged separately. */
 .al-feed-theme-ready .al-feed{ background:var(--alive-phone); }
-.al-feed-theme-ready .al-feed-tabs{ border-color:var(--alive-line); background:var(--alive-surface-sunken); }
-.al-feed-theme-ready .al-feed-tabs button{ color:var(--alive-soft); }
-.al-feed-theme-ready .al-feed-tabs button.on{ border-bottom-color:var(--alive-accent); background:var(--alive-accent-soft); color:var(--alive-ink); }
+.al-feed-theme-ready .al-feed-tabs{ gap:4px; margin:12px 16px; padding:4px; border:1px solid var(--alive-line); border-radius:18px; background:var(--alive-surface-raised); box-shadow:var(--alive-shadow-control); }
+.al-feed-theme-ready .al-feed-tabs button{ padding:10px 8px; border-radius:14px; color:var(--alive-soft); }
+.al-feed-theme-ready .al-feed-tabs button.on{ border-bottom-color:transparent; background:var(--alive-accent); color:var(--alive-on-accent); }
 .al-feed-theme-ready .al-feed-tabs b{ color:var(--alive-accent-ink); }
 .al-feed-theme-ready .al-recommendation-intro{ display:flex; align-items:flex-start; gap:9px; margin:12px 16px 2px; padding:11px 12px; border:1px solid var(--alive-line); border-radius:12px; background:linear-gradient(125deg,var(--alive-accent-soft),var(--alive-surface)); }
 .al-feed-theme-ready .al-recommendation-intro > span{ display:grid; flex:0 0 auto; place-items:center; width:26px; height:26px; border-radius:9px; background:var(--alive-surface-raised); color:var(--alive-accent-ink); }

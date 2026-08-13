@@ -17,7 +17,7 @@ alive's frontend is currently a TypeScript React app built with Vite and wrapped
 |---------|---------|---------|
 | `react` | `18.3.1` | UI runtime |
 | `react-dom` | `18.3.1` | Browser DOM renderer |
-| `@apps-in-toss/web-framework` | `3.0.3` | Apps in Toss bridge, login, environment, and IAP APIs; upgraded 2026-08-12 |
+| `@apps-in-toss/web-framework` | `2.10.8` | Apps in Toss bridge, login, environment, and IAP APIs; pinned to the prior release SDK on 2026-08-13 |
 
 ## Dev Dependencies
 

@@ -211,6 +211,16 @@ test("the staged feed timeline base uses semantic states without migrating comme
   assert.doesNotMatch(timelineStyles, /#[0-9a-fA-F]{3,8}/);
 });
 
+test("feed tabs use the Toss-required floating treatment", () => {
+  const timeline = readFileSync(path.resolve(process.cwd(), "src/app/feed/FeedTimeline.tsx"), "utf8");
+  const timelineStyles = readFileSync(path.resolve(process.cwd(), "src/styles/screens/feed-timeline.css"), "utf8");
+  const entryStyles = readFileSync(path.resolve(process.cwd(), "src/styles/screens/entry.css"), "utf8");
+  assert.match(timeline, /className="al-feed-tabs" role="tablist"/);
+  assert.match(timelineStyles, /\.al-feed-theme-ready \.al-feed-tabs\{ gap:4px; margin:12px 16px; padding:4px;[^}]*border-radius:18px;[^}]*box-shadow:var\(--alive-shadow-control\); \}/);
+  assert.match(timelineStyles, /\.al-feed-theme-ready \.al-feed-tabs button\.on\{ border-bottom-color:transparent; background:var\(--alive-accent\); color:var\(--alive-on-accent\); \}/);
+  assert.match(entryStyles, /\.al-theme-ready \.al-tour-demo-tabs\{ gap:4px; margin:10px 12px; padding:4px;[^}]*border-radius:14px;[^}]*box-shadow:var\(--alive-shadow-control\); \}/);
+});
+
 test("the staged feed comments use semantic author and input states", () => {
   const indexStyles = readFileSync(path.resolve(process.cwd(), "src/styles/index.css"), "utf8");
   const timeline = readFileSync(path.resolve(process.cwd(), "src/app/feed/FeedTimeline.tsx"), "utf8");
