@@ -178,8 +178,6 @@ test("the staged feed composer uses semantic controls and its own style bridge",
   assert.match(composer, /근황 루틴/);
   assert.match(composer, /al-auto-post-notice/);
   assert.match(composer, /AUTO_POST_PACES/);
-  assert.match(composer, /intervalSeconds: 10800/);
-  assert.doesNotMatch(composer, /intervalSeconds: 43200/);
   assert.match(composer, /maximumCost: 48/);
   assert.match(composer, /role="group"/);
   assert.match(composer, /사용과 환급 기준/);

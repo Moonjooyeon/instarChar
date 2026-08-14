@@ -74,7 +74,7 @@ def test_interval_change_keeps_the_already_scheduled_next_post() -> None:
     now = datetime(2026, 8, 12, 3, tzinfo=timezone.utc)
     scheduled = now + timedelta(minutes=50)
     assert next_auto_post_schedule(True, 3600, True, scheduled, now) == scheduled
-    assert next_auto_post_schedule(True, 10800, True, scheduled, now) == scheduled
+    assert next_auto_post_schedule(True, 43200, True, scheduled, now) == scheduled
     assert next_auto_post_schedule(True, 3600, True, now + timedelta(hours=5), now) == now + timedelta(hours=1)
 
 
@@ -126,8 +126,8 @@ def test_new_character_auto_post_defaults_are_enabled() -> None:
     now = datetime.now(timezone.utc)
     scheduled = default_next_auto_post_at()
     assert Character.__table__.c.auto_post_enabled.default.arg is True
-    assert Character.__table__.c.auto_post_interval_seconds.default.arg == 21600
-    assert timedelta(hours=6) <= scheduled - now < timedelta(hours=6, seconds=1)
+    assert Character.__table__.c.auto_post_interval_seconds.default.arg == 3600
+    assert timedelta(hours=1) <= scheduled - now < timedelta(hours=1, seconds=1)
 
 
 def test_scheduler_can_be_disabled_for_local_tests(monkeypatch: MonkeyPatch) -> None:

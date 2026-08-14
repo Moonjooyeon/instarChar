@@ -6,7 +6,7 @@ from typing import Optional
 from pydantic import BaseModel, Field, field_validator
 
 
-ALLOWED_AUTO_POST_INTERVALS = {3600, 10800, 21600}
+ALLOWED_AUTO_POST_INTERVALS = {3600, 21600, 43200}
 MAX_CHARACTER_POSTS = 40
 MAX_POST_ID_LENGTH = 120
 
@@ -50,7 +50,7 @@ class AutoPostUpdate(BaseModel):
         if value is None:
             return None
         if value not in ALLOWED_AUTO_POST_INTERVALS:
-            raise ValueError("interval_seconds must be 3600, 10800, or 21600")
+            raise ValueError("interval_seconds must be 3600, 21600, or 43200")
         return value
 
 

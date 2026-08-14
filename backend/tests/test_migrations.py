@@ -77,17 +77,23 @@ def test_character_handle_migration_follows_apple_notifications() -> None:
 
 def test_auto_post_default_enabled_migration_follows_schema_alignment(monkeypatch: pytest.MonkeyPatch) -> None:
     migration = _load_migration("20260814_0026_auto_post_default_enabled.py")
-    statements: list[str] = []
     altered_columns: list[str] = []
-    def capture_execute(statement: object) -> None:
-        statements.append(str(statement))
     def capture_alter(_: str, column_name: str, **kwargs: object) -> None:
         altered_columns.append(column_name)
-    monkeypatch.setattr(migration.op, "execute", capture_execute)
     monkeypatch.setattr(migration.op, "alter_column", capture_alter)
     migration.upgrade()
     assert migration.down_revision == "20260812_0025"
-    assert "auto_post_interval_seconds = 43200" in statements[0]
+    assert altered_columns == ["auto_post_enabled", "next_auto_post_at"]
+
+
+def test_auto_post_default_correction_follows_initial_rollout(monkeypatch: pytest.MonkeyPatch) -> None:
+    migration = _load_migration("20260814_0027_auto_post_default_correction.py")
+    altered_columns: list[str] = []
+    def capture_alter(_: str, column_name: str, **kwargs: object) -> None:
+        altered_columns.append(column_name)
+    monkeypatch.setattr(migration.op, "alter_column", capture_alter)
+    migration.upgrade()
+    assert migration.down_revision == "20260814_0026"
     assert altered_columns == ["auto_post_enabled", "auto_post_interval_seconds", "next_auto_post_at"]
 
 
