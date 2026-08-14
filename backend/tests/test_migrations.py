@@ -75,6 +75,22 @@ def test_character_handle_migration_follows_apple_notifications() -> None:
     assert migration.down_revision == "20260728_0008"
 
 
+def test_auto_post_default_enabled_migration_follows_schema_alignment(monkeypatch: pytest.MonkeyPatch) -> None:
+    migration = _load_migration("20260814_0026_auto_post_default_enabled.py")
+    statements: list[str] = []
+    altered_columns: list[str] = []
+    def capture_execute(statement: object) -> None:
+        statements.append(str(statement))
+    def capture_alter(_: str, column_name: str, **kwargs: object) -> None:
+        altered_columns.append(column_name)
+    monkeypatch.setattr(migration.op, "execute", capture_execute)
+    monkeypatch.setattr(migration.op, "alter_column", capture_alter)
+    migration.upgrade()
+    assert migration.down_revision == "20260812_0025"
+    assert "auto_post_interval_seconds = 43200" in statements[0]
+    assert altered_columns == ["auto_post_enabled", "auto_post_interval_seconds", "next_auto_post_at"]
+
+
 def test_character_handle_migration_assigns_deterministic_unique_values() -> None:
     migration = _load_migration("20260730_0009_character_handle_uniqueness.py")
     assign = cast(Callable[[list[tuple[object, object, str, str]]], list[tuple[object, object, str, str]]], migration._assign_handles)

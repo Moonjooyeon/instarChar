@@ -150,10 +150,12 @@ def test_auto_post_accepts_only_supported_intervals(monkeypatch: MonkeyPatch) ->
 
     monkeypatch.setattr(CharacterPostsRepository, "update_auto_post", update_auto_post)
     with make_test_client() as client:
-        accepted = client.patch("/api/characters/char-1/auto-post", json={"enabled": True, "interval_seconds": 21600})
+        accepted_six_hourly = client.patch("/api/characters/char-1/auto-post", json={"enabled": True, "interval_seconds": 21600})
+        accepted_three_hourly = client.patch("/api/characters/char-1/auto-post", json={"enabled": True, "interval_seconds": 10800})
         accepted_hourly = client.patch("/api/characters/char-1/auto-post", json={"enabled": True, "interval_seconds": 3600})
-        rejected = client.patch("/api/characters/char-1/auto-post", json={"enabled": True, "interval_seconds": 900})
-    assert accepted.status_code == 200
+        rejected = client.patch("/api/characters/char-1/auto-post", json={"enabled": True, "interval_seconds": 43200})
+    assert accepted_six_hourly.status_code == 200
+    assert accepted_three_hourly.status_code == 200
     assert accepted_hourly.status_code == 200
     assert rejected.status_code == 422
 

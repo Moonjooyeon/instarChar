@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import enum
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Optional
 from uuid import UUID, uuid4
@@ -14,6 +14,10 @@ from app.db.base import Base
 
 
 JsonMap = dict[str, object]
+
+
+def default_next_auto_post_at() -> datetime:
+    return datetime.now(timezone.utc) + timedelta(hours=6)
 
 
 class UserProvider(str, enum.Enum):
@@ -212,9 +216,9 @@ class Character(TimestampMixin, Base):
     posts_revision: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     following: Mapped[list[object]] = mapped_column(JSONB, nullable=False, default=list)
     is_public: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    auto_post_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    auto_post_interval_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=3600)
-    next_auto_post_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    auto_post_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    auto_post_interval_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=21600)
+    next_auto_post_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), default=default_next_auto_post_at)
     last_auto_post_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     last_auto_post_error: Mapped[str] = mapped_column(Text, nullable=False, default="")
     auto_post_failure_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

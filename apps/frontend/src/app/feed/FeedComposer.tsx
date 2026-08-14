@@ -8,8 +8,8 @@ type AutoRoutinePanelProps = { auto: boolean; autoIntervalSeconds: number; autoP
 type AutoPace = { intervalSeconds: number; label: string; maximumCost: number; recommended?: boolean; };
 
 const AUTO_POST_PACES: AutoPace[] = [
-  { intervalSeconds: 43200, label: "가끔", maximumCost: 4 },
-  { intervalSeconds: 21600, label: "보통", maximumCost: 8, recommended: true },
+  { intervalSeconds: 21600, label: "가끔", maximumCost: 8, recommended: true },
+  { intervalSeconds: 10800, label: "보통", maximumCost: 16 },
   { intervalSeconds: 3600, label: "자주", maximumCost: 48 },
 ];
 
@@ -119,11 +119,11 @@ function autoDailyCost(interval: number): number {
 }
 
 function autoIntervalLabel(interval: number): string {
-  return interval === 3600 ? "1시간" : interval === 21600 ? "6시간" : "12시간";
+  return interval === 3600 ? "1시간" : interval === 10800 ? "3시간" : "6시간";
 }
 
 function autoPostPace(interval: number): AutoPace {
-  return AUTO_POST_PACES.find((pace) => pace.intervalSeconds === interval) || AUTO_POST_PACES[1];
+  return AUTO_POST_PACES.find((pace) => pace.intervalSeconds === interval) || AUTO_POST_PACES[0];
 }
 
 function countdownText(seconds) {
