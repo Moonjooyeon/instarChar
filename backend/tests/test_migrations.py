@@ -102,6 +102,15 @@ def test_auto_post_and_recommendation_migration_heads_are_merged() -> None:
     assert migration.down_revision == ("20260813_0026", "20260814_0027")
 
 
+def test_auto_post_six_hour_default_follows_merged_heads(monkeypatch: pytest.MonkeyPatch) -> None:
+    migration = _load_migration("20260815_0029_auto_post_six_hour_default.py")
+    altered_columns: list[str] = []
+    monkeypatch.setattr(migration.op, "alter_column", lambda _table, column, **_values: altered_columns.append(column))
+    migration.upgrade()
+    assert migration.down_revision == "20260814_0028"
+    assert altered_columns == ["auto_post_interval_seconds", "next_auto_post_at"]
+
+
 def test_character_handle_migration_assigns_deterministic_unique_values() -> None:
     migration = _load_migration("20260730_0009_character_handle_uniqueness.py")
     assign = cast(Callable[[list[tuple[object, object, str, str]]], list[tuple[object, object, str, str]]], migration._assign_handles)
