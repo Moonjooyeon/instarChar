@@ -183,6 +183,8 @@ test("the staged feed composer uses semantic controls and its own style bridge",
   assert.match(composer, /사용과 환급 기준/);
   assert.match(composer, /routineScheduleCopy/);
   assert.match(composer, /다음 근황은 약/);
+  assert.match(composer, /React\.useState\(\(\) => isFirstPost\)/);
+  assert.match(composer, /if \(isFirstPost && !moodOpen\) return autoPostSettings/);
   assert.match(readFileSync(path.resolve(process.cwd(), "src/hooks/useAliveFeed.ts"), "utf8"), /setAutoIntervalSeconds\(state\.auto_post_interval_seconds\)/);
   assert.match(composer, /function MoodButton/);
   assert.match(composerStyles, /\.al-feed-theme-ready \.al-composer/);

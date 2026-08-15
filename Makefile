@@ -14,7 +14,7 @@ WEB_PREVIEW_PORT ?= 4173
 ANDROID_PROJECT_DIR ?= android
 ANDROID_SDK_ROOT ?= $(HOME)/Library/Android/sdk
 ANDROID_ADB ?= $(ANDROID_SDK_ROOT)/platform-tools/adb
-ANDROID_JAVA_HOME ?= $(shell /usr/libexec/java_home -v 21 2>/dev/null)
+ANDROID_JAVA_HOME ?= $(shell /usr/libexec/java_home -v 21 2>/dev/null || test ! -d "/Applications/Android Studio.app/Contents/jbr/Contents/Home" || printf '%s' "/Applications/Android Studio.app/Contents/jbr/Contents/Home")
 ANDROID_GRADLE_USER_HOME ?= $(ANDROID_PROJECT_DIR)/.gradle-user-home
 IOS_ARCHIVE_PATH ?= ios/build/ALIVE.xcarchive
 IOS_LOCAL_EXPORT_PATH ?= dist/store/ios/export
@@ -25,7 +25,7 @@ FRONTEND_WEB_ENV = $(if $(WEB_API_URL),VITE_API_BASE_URL=$(WEB_API_URL) )
 FRONTEND_BUILD_ENV = $(if $(CAP_API_URL),VITE_API_BASE_URL=$(CAP_API_URL) )
 FRONTEND_LOCAL_BUILD_ENV = VITE_API_BASE_URL=$(LOCAL_CAP_BASE_URL) VITE_LEGAL_BASE_URL=$(LOCAL_CAP_BASE_URL)
 
-.PHONY: help local-up local-down local-logs local-ps backend-dev backend-run backend-test backend-compile iap-release-check web-dev web-build web-preview android-java-home android-local-properties cap-doctor cap-build cap-build-local cap-sync cap-sync-local cap-open-ios cap-open-android cap-run-ios cap-run-android cap-checklist android-bundle-release ios-archive-release ios-export-release-local
+.PHONY: help local-up local-down local-logs local-ps backend-dev backend-run backend-test backend-compile iap-release-check web-dev web-build web-preview toss-build toss-deploy android-java-home android-local-properties cap-doctor cap-build cap-build-local cap-sync cap-sync-local cap-open-ios cap-open-android cap-run-ios cap-run-android cap-checklist android-bundle-release ios-archive-release ios-export-release-local
 
 help:
 	@printf '%s\n' \
@@ -44,6 +44,8 @@ help:
 		'  make web-dev                            Run Vite on 0.0.0.0.' \
 		'  make web-build                          Build the frontend web bundle.' \
 		'  make web-preview                        Preview on 0.0.0.0.' \
+		'  make toss-build                         Verify and package the Apps in Toss .ait bundle.' \
+		'  make toss-deploy                        Upload the .ait bundle with an authenticated AIT CLI.' \
 		'  make android-local-properties           Write android/local.properties with sdk.dir.' \
 		'' \
 		'Capacitor helper targets:' \
@@ -108,6 +110,14 @@ web-build:
 web-preview:
 	$(FRONTEND_WEB_ENV)$(NPM) --workspace $(FRONTEND_WORKSPACE) run preview -- --host $(WEB_HOST) --port $(WEB_PREVIEW_PORT)
 
+toss-build:
+	$(NPM) run typecheck -w $(FRONTEND_WORKSPACE)
+	$(NPM) run test:domain -w $(FRONTEND_WORKSPACE)
+	$(NPM) run build:toss -w $(FRONTEND_WORKSPACE)
+
+toss-deploy: toss-build
+	cd $(FRONTEND_WORKSPACE) && npx ait deploy
+
 android-java-home:
 	@test -n "$(ANDROID_JAVA_HOME)" || (printf 'JDK 21 not found.\nInstall JDK 21 or set ANDROID_JAVA_HOME=/path/to/jdk21 and retry.\n' && exit 1)
 	@printf 'Using JDK 21 at %s\n' "$(ANDROID_JAVA_HOME)"
@@ -148,10 +158,10 @@ cap-run-ios:
 	$(CAP) run ios
 
 cap-run-android: android-java-home android-local-properties
-	JAVA_HOME=$(ANDROID_JAVA_HOME) ANDROID_HOME=$(ANDROID_SDK_ROOT) ANDROID_SDK_ROOT=$(ANDROID_SDK_ROOT) GRADLE_USER_HOME=$(ANDROID_GRADLE_USER_HOME) $(CAP) run android
+	JAVA_HOME="$(ANDROID_JAVA_HOME)" ANDROID_HOME="$(ANDROID_SDK_ROOT)" ANDROID_SDK_ROOT="$(ANDROID_SDK_ROOT)" GRADLE_USER_HOME="$(ANDROID_GRADLE_USER_HOME)" "$(CAP)" run android
 
 android-bundle-release: cap-sync android-java-home android-local-properties
-	JAVA_HOME=$(ANDROID_JAVA_HOME) ANDROID_HOME=$(ANDROID_SDK_ROOT) ANDROID_SDK_ROOT=$(ANDROID_SDK_ROOT) GRADLE_USER_HOME=$(ANDROID_GRADLE_USER_HOME) $(ANDROID_PROJECT_DIR)/gradlew -p $(ANDROID_PROJECT_DIR) bundleRelease
+	JAVA_HOME="$(ANDROID_JAVA_HOME)" ANDROID_HOME="$(ANDROID_SDK_ROOT)" ANDROID_SDK_ROOT="$(ANDROID_SDK_ROOT)" GRADLE_USER_HOME="$(ANDROID_GRADLE_USER_HOME)" "$(ANDROID_PROJECT_DIR)/gradlew" -p $(ANDROID_PROJECT_DIR) bundleRelease
 
 ios-archive-release: cap-sync
 	xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release -destination 'generic/platform=iOS' -archivePath $(IOS_ARCHIVE_PATH) archive -allowProvisioningUpdates

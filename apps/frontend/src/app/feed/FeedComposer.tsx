@@ -5,6 +5,7 @@ import { normalizeCharacterName } from "@/domain/app/textUtils";
 
 type AutoSetter = (enabled: boolean, intervalSeconds?: number) => Promise<boolean>;
 type AutoRoutinePanelProps = { auto: boolean; autoIntervalSeconds: number; autoPostNotice: string; nextIn: number; setAuto: AutoSetter; };
+type AutoPostSettingsProps = { auto: boolean; autoIntervalSeconds: number; autoPostNotice: string; char: { directions?: string }; isOpen: boolean; nextIn: number; onToggle: () => void; setAuto: AutoSetter; update: (field: string, value: string) => void; };
 type AutoPace = { intervalSeconds: number; label: string; maximumCost: number; recommended?: boolean; };
 
 const AUTO_POST_PACES: AutoPace[] = [
@@ -36,11 +37,12 @@ export function FeedComposer({ ctx }) {
     writeOpen,
     writeText,
   } = ctx;
-  const [isAdvancedOpen, setIsAdvancedOpen] = React.useState(false);
   const isFirstPost = myPosts.length === 0;
+  const [isAdvancedOpen, setIsAdvancedOpen] = React.useState(() => isFirstPost);
   const displayName = normalizeCharacterName(char.name);
   if (loading) return null;
-  if (isFirstPost && !moodOpen) return null;
+  const autoPostSettings = <AutoPostSettings auto={auto} autoIntervalSeconds={autoIntervalSeconds} autoPostNotice={autoPostNotice} char={char} isOpen={isAdvancedOpen} nextIn={nextIn} onToggle={() => setIsAdvancedOpen((open) => !open)} setAuto={setAuto} update={update} />;
+  if (isFirstPost && !moodOpen) return autoPostSettings;
   return (
     <>
       <div className="al-composer">
@@ -54,15 +56,13 @@ export function FeedComposer({ ctx }) {
         )}
         {writeOpen && <div className="al-writebox"><p className="al-write-lbl">{displayName}의 목소리로 직접 작성해요.</p><textarea value={writeText} onChange={(event) => setWriteText(event.target.value)} placeholder={`${displayName}의 글을 직접 써보세요.`} /><div className="al-write-actions"><button className="al-write-cancel border-line bg-transparent text-soft hover:border-line-strong hover:bg-surface-muted hover:text-ink" onClick={() => { setWriteOpen(false); setWriteText(""); }}>취소</button><button className="al-write-post bg-accent text-on-accent hover:bg-accent-strong disabled:bg-surface-muted disabled:text-soft" disabled={!writeText.trim()} onClick={() => { manualPost(writeText); setWriteText(""); setWriteOpen(false); }}>올리기</button></div></div>}
       </div>
-      {!isFirstPost && <button className="al-compose-settings-toggle" type="button" aria-expanded={isAdvancedOpen} onClick={() => setIsAdvancedOpen((open) => !open)}><span className="al-compose-settings-copy"><i><AliveIcon name="sparkle" size={15} /></i><span><b>근황 루틴</b><small>{composerSettingsSummary(auto, autoIntervalSeconds)}</small></span></span><i className="al-compose-settings-icon"><AliveIcon name={isAdvancedOpen ? "minus" : "plus"} size={15} /></i></button>}
-      {!isFirstPost && isAdvancedOpen && <div className="al-compose-settings"><AutoRoutinePanel auto={auto} autoIntervalSeconds={autoIntervalSeconds} autoPostNotice={autoPostNotice} nextIn={nextIn} setAuto={setAuto} />
-      <div className="al-directive">
-        <span className="al-directive-lbl">다음 근황에 담을 지금 상황</span>
-        <input className="al-directive-input" value={char.directions || ""} onChange={(event) => update("directions", event.target.value)} placeholder="예: 연이랑 데이트하고 기분 좋음 / 시험 끝나서 들뜬 상태" />
-        {(char.directions || "").trim() && <span className="al-directive-on">적용 중</span>}
-      </div></div>}
+      {autoPostSettings}
     </>
   );
+}
+
+function AutoPostSettings({ auto, autoIntervalSeconds, autoPostNotice, char, isOpen, nextIn, onToggle, setAuto, update }: AutoPostSettingsProps): React.ReactElement {
+  return <><button className="al-compose-settings-toggle" type="button" aria-expanded={isOpen} onClick={onToggle}><span className="al-compose-settings-copy"><i><AliveIcon name="sparkle" size={15} /></i><span><b>근황 루틴</b><small>{composerSettingsSummary(auto, autoIntervalSeconds)}</small></span></span><i className="al-compose-settings-icon"><AliveIcon name={isOpen ? "minus" : "plus"} size={15} /></i></button>{isOpen && <div className="al-compose-settings"><AutoRoutinePanel auto={auto} autoIntervalSeconds={autoIntervalSeconds} autoPostNotice={autoPostNotice} nextIn={nextIn} setAuto={setAuto} /><div className="al-directive"><span className="al-directive-lbl">다음 근황에 담을 지금 상황</span><input className="al-directive-input" value={char.directions || ""} onChange={(event) => update("directions", event.target.value)} placeholder="예: 연이랑 데이트하고 기분 좋음 / 시험 끝나서 들뜬 상태" />{(char.directions || "").trim() && <span className="al-directive-on">적용 중</span>}</div></div>}</>;
 }
 
 function MoodButton({ mood, onSelect }: { mood: string; onSelect: (mood: string) => void }): React.ReactElement {
