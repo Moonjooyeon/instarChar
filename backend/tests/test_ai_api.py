@@ -229,6 +229,16 @@ def test_generate_rejects_unsafe_input_before_provider_call(monkeypatch: pytest.
     assert response.json()["error"] == "CONTENT_POLICY_VIOLATION"
 
 
+def test_generate_allows_moderated_character_context_in_system_prompt(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def call_gemini_once(self: object, model_name: str, body: dict[str, object]) -> MonoGptGeminiResponse:
+        return MonoGptGeminiResponse(200, gemini_response("무사히 돌아왔구나."))
+    monkeypatch.setattr(MonoGptGeminiGenerateService, "_call_gemini_once", call_gemini_once)
+    body = {**generate_body(), "system": "캐릭터의 과거 설정: 성폭행 피해를 겪었다."}
+    with make_test_client(monkeypatch) as client:
+        response = client.post("/api/ai/generate", json=body)
+    assert response.status_code == 200
+
+
 def test_generate_refunds_unsafe_provider_output(monkeypatch: pytest.MonkeyPatch) -> None:
     async def call_gemini_once(self: object, model_name: str, body: dict[str, object]) -> MonoGptGeminiResponse:
         return MonoGptGeminiResponse(200, gemini_response("kill yourself"))

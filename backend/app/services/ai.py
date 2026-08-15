@@ -86,7 +86,7 @@ class MonoGptGeminiGenerateService:
             return GenerateApiResult(500, {"error": "API_KEY_MISSING", "message": "서버에 MonoGPT Gemini API 키가 설정되지 않았습니다."})
         if not payload.messages:
             return GenerateApiResult(400, {"error": "BAD_REQUEST", "message": "messages 배열이 필요합니다."})
-        if not is_safe_ai_content([payload.system, [message.content for message in payload.messages]]):
+        if not is_safe_ai_content([message.content for message in payload.messages]):
             return GenerateApiResult(400, {"error": "CONTENT_POLICY_VIOLATION", "message": "안전 정책상 처리할 수 없는 내용이 포함되어 있어."})
         if self._payload_parts(payload) > 200:
             return GenerateApiResult(413, {"error": "PAYLOAD_TOO_LARGE", "message": "한 번에 보낼 수 있는 메시지 조각이 너무 많아."})
