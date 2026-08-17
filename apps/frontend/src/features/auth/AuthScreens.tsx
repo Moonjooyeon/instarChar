@@ -7,8 +7,7 @@ import { ServiceTour } from "@/features/onboarding/ServiceTour";
 const PRIMARY_AUTH_ACTION_CLASS = "al-auth-btn bg-accent text-on-accent hover:bg-accent-strong disabled:bg-surface-muted disabled:text-soft";
 const SECONDARY_AUTH_ACTION_CLASS = "al-auth-linkbtn border-line bg-accent-soft text-accent-ink hover:border-accent hover:bg-surface-raised hover:text-accent-strong";
 
-export function AuthLoadingScreen({ authMessage, onRetryCharacters }) {
-  const canRetry = String(authMessage || "").includes("캐릭터를 불러오지 못했어요");
+export function AuthLoadingScreen({ authMessage, canRetry, onRetry }) {
 
   return (
     <div className="al-phone al-theme-ready">
@@ -18,7 +17,7 @@ export function AuthLoadingScreen({ authMessage, onRetryCharacters }) {
         <p>계정과 저장된 캐릭터를 확인하고 있어.</p>
         {authMessage && <p className="al-auth-msg">{authMessage}</p>}
         {canRetry && (
-          <button className={PRIMARY_AUTH_ACTION_CLASS} onClick={onRetryCharacters}>
+          <button className={PRIMARY_AUTH_ACTION_CLASS} onClick={onRetry}>
             다시 불러오기
           </button>
         )}

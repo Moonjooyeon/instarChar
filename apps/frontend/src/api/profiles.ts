@@ -6,6 +6,13 @@ export type ProfileRow = {
   onboarded?: boolean;
 };
 
+export type ProfileState = ProfileRow & {
+  characters?: Record<string, unknown>[];
+  dm_threads?: Record<string, unknown>[];
+  personas?: Record<string, unknown>[];
+  shared_dm_threads?: Record<string, unknown>[];
+};
+
 type ProfilePayload = Record<string, unknown> & {
   app_state?: unknown;
   display_name?: string;
@@ -30,8 +37,8 @@ export function upsertProfile(payload: unknown): Promise<{ error: { message?: st
   });
 }
 
-export function loadProfileRow(_userId: string): Promise<ApiResult<ProfileRow>> {
-  return apiResult<ProfileRow>("/profile/state");
+export function loadProfileRow(_userId: string): Promise<ApiResult<ProfileState>> {
+  return apiResult<ProfileState>("/profile/state");
 }
 
 export function createProfileShell(payload: unknown): Promise<{ error: { message?: string } | null }> {

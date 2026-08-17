@@ -5,6 +5,7 @@ import {
   syncStructuredRows,
   type QueryResult,
   type SettledQueryResult,
+  type StructuredProfileState,
 } from "@/api/structured";
 import { hasRemoteApiClient } from "@/api/client";
 import { roomKeyFromDmThreadKey } from "@/domain/dm/dmKeyUtils";
@@ -97,6 +98,7 @@ type StructuredPersistenceOptions = {
 
 type StructuredPersistenceReturn = {
   deleteStructuredCharacterAccount: (targetId: string) => Promise<boolean | undefined>;
+  hydrateStructuredState: (baseState: AppSnapshot, profileState: StructuredProfileState) => AppSnapshot;
   loadStructuredStateFallback: (baseState: AppSnapshot, ownerId: string) => Promise<AppSnapshot>;
   syncStructuredState: (snapshot: AppSnapshot | null | undefined) => Promise<void>;
 };
@@ -125,7 +127,10 @@ export function useAliveStructuredPersistence({ deletedDmKeysRef, session, share
       return baseState;
     }
   }
-  return { deleteStructuredCharacterAccount, loadStructuredStateFallback, syncStructuredState };
+  function hydrateStructuredState(baseState: AppSnapshot, profileState: StructuredProfileState): AppSnapshot {
+    return applyStructuredState(baseState, loadStructuredRowsFromProfile(profileState), deletedDmKeysRef);
+  }
+  return { deleteStructuredCharacterAccount, hydrateStructuredState, loadStructuredStateFallback, syncStructuredState };
 }
 
 function structuredDeleteSucceeded(results: SettledQueryResult[]): boolean {
@@ -245,7 +250,25 @@ function warnStructuredSyncFailures(results: SettledQueryResult[]): void {
 }
 
 async function loadStructuredState(baseState: AppSnapshot, ownerId: string, deletedDmKeysRef: DeletedDmKeysRef): Promise<AppSnapshot> {
-  const [charsResult, charDetailsResult, personasResult, dmResult, sharedDmResult] = await loadStructuredRows(ownerId);
+  return applyStructuredState(baseState, await loadStructuredRows(ownerId), deletedDmKeysRef);
+}
+
+function loadStructuredRowsFromProfile(profileState: StructuredProfileState): SettledQueryResult[] {
+  return [
+    structuredResult(profileState.characters),
+    structuredResult(profileState.characters),
+    structuredResult(profileState.personas),
+    structuredResult(profileState.dm_threads),
+    structuredResult(profileState.shared_dm_threads),
+  ];
+}
+
+function structuredResult(rows: Record<string, unknown>[] | undefined): SettledQueryResult {
+  return { status: "fulfilled", value: { data: rows || [], error: null } };
+}
+
+function applyStructuredState(baseState: AppSnapshot, results: SettledQueryResult[], deletedDmKeysRef: DeletedDmKeysRef): AppSnapshot {
+  const [charsResult, charDetailsResult, personasResult, dmResult, sharedDmResult] = results;
   const next = { ...baseState };
   warnStructuredLoadFailures(charsResult, charDetailsResult);
   applyCharacterRows(next, baseState, charsResult, charDetailsResult);

@@ -7,18 +7,18 @@ export type QueryResult = {
 
 export type SettledQueryResult = PromiseSettledResult<QueryResult>;
 
+export type StructuredProfileState = {
+  characters?: Record<string, unknown>[];
+  dm_threads?: Record<string, unknown>[];
+  personas?: Record<string, unknown>[];
+  shared_dm_threads?: Record<string, unknown>[];
+};
+
 type StructuredRows = {
   characterRows: Record<string, unknown>[];
   ownerDmRows: Record<string, unknown>[];
   personaRows: Record<string, unknown>[];
   sharedDmRows: Record<string, unknown>[];
-};
-
-type ProfileStateResponse = {
-  characters?: Record<string, unknown>[];
-  dm_threads?: Record<string, unknown>[];
-  personas?: Record<string, unknown>[];
-  shared_dm_threads?: Record<string, unknown>[];
 };
 
 export async function deleteStructuredCharacterData(_ownerId: string, targetId: string): Promise<SettledQueryResult[]> {
@@ -39,10 +39,14 @@ export async function syncStructuredRows(rows: StructuredRows): Promise<SettledQ
   return [fulfilled(result)];
 }
 
-export async function loadStructuredRows(_ownerId: string): Promise<SettledQueryResult[]> {
-  const result = await apiResult<ProfileStateResponse>("/profile/state");
+export async function loadStructuredRows(_ownerId: string, initialState?: StructuredProfileState): Promise<SettledQueryResult[]> {
+  if (initialState) return structuredRows(initialState);
+  const result = await apiResult<StructuredProfileState>("/profile/state");
   if (result.error) return [errorResult(result.error), errorResult(result.error), errorResult(result.error), errorResult(result.error), errorResult(result.error)];
-  const data = result.data || {};
+  return structuredRows(result.data || {});
+}
+
+function structuredRows(data: StructuredProfileState): SettledQueryResult[] {
   return [
     fulfilled(rowsResult(data.characters)),
     fulfilled(rowsResult(data.characters)),

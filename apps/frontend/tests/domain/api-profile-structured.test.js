@@ -88,6 +88,26 @@ test("loadStructuredRows adapts FastAPI profile state to legacy settled results"
   }
 });
 
+test("loadStructuredRows reuses the profile bootstrap response without another request", async () => {
+  const restoreFetch = stubFetch(jsonResponse({}));
+  try {
+    const [chars, details, personas, ownerDm, sharedDm] = await loadStructuredRows("ignored-user-id", {
+      characters: [{ source_account_id: "char-1", name: "A" }],
+      personas: [{ persona_id: "p1", name: "P" }],
+      dm_threads: [{ thread_key: "owner::char-1::A" }],
+      shared_dm_threads: [{ thread_key: "dm::A|B" }],
+    });
+    assert.deepEqual(chars.value.data, [{ source_account_id: "char-1", name: "A" }]);
+    assert.deepEqual(details.value.data, [{ source_account_id: "char-1", name: "A" }]);
+    assert.deepEqual(personas.value.data, [{ persona_id: "p1", name: "P" }]);
+    assert.deepEqual(ownerDm.value.data, [{ thread_key: "owner::char-1::A" }]);
+    assert.deepEqual(sharedDm.value.data, [{ thread_key: "dm::A|B" }]);
+    assert.equal(globalThis.fetch.calls.length, 0);
+  } finally {
+    restoreFetch();
+  }
+});
+
 test("deleteStructuredCharacterData calls character cleanup endpoint", async () => {
   const restoreFetch = stubFetch(new Response(null, { status: 204 }));
   try {

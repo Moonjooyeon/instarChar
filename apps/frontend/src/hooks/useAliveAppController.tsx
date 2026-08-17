@@ -272,7 +272,9 @@ export function useAliveAppController() {
     setReportTarget,
     submitReport,
     termsVersion,
-  } = useAliveSafety({ session, setSaveStatus });
+    retrySafetyState,
+    safetyLoadFailed,
+  } = useAliveSafety({ session, setAuthMessage, setSaveStatus });
   const safeFollowing = following.filter((item) => !item.ownerId || !blockedUserIds.includes(item.ownerId));
   const feedFollowing = hydrateFollowedCharacters(safeFollowing, sharedCharacters);
   const {
@@ -499,6 +501,7 @@ export function useAliveAppController() {
   } = useAliveLocalPersistence();
   const {
     deleteStructuredCharacterAccount,
+    hydrateStructuredState,
     loadStructuredStateFallback,
     syncStructuredState,
   } = useAliveStructuredPersistence({
@@ -777,6 +780,7 @@ export function useAliveAppController() {
     applyAppState,
     blankAppState,
     hasUsableSavedState,
+    hydrateStructuredState,
     loadStructuredStateFallback,
     profileLoadedRef,
     profileLoadRetry,
@@ -1326,6 +1330,7 @@ export function useAliveAppController() {
     publicPostSnapshot,
     recommendationPosts,
     recommendationUsesInterests,
+    retrySafetyState,
     retryFeedPosts,
     publicProfile,
     reportTarget,
@@ -1376,6 +1381,7 @@ export function useAliveAppController() {
     saveRenameDm,
     saveStatus,
     saveTimerRef,
+    safetyLoadFailed,
     sendDM,
     restoreFailedDmDraft,
     session,

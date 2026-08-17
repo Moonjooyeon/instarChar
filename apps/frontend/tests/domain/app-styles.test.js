@@ -4,7 +4,7 @@ import path from "node:path";
 import test from "node:test";
 
 test("the app bundles and uses a Korean-capable font", () => {
-  const entryPath = path.resolve(process.cwd(), "src/main.tsx");
+  const entryPath = path.resolve(process.cwd(), "src/app/AliveAppRuntime.tsx");
   const stylesPath = path.resolve(process.cwd(), "src/styles/theme.css");
   const entry = readFileSync(entryPath, "utf8");
   const styles = readFileSync(stylesPath, "utf8");

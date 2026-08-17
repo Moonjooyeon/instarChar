@@ -17,20 +17,30 @@ type SessionLike = {
 
 type SafetyOptions = {
   session: SessionLike | null;
+  setAuthMessage: (value: string) => void;
   setSaveStatus: Dispatch<SetStateAction<string>>;
 };
 
-export function useAliveSafety({ session, setSaveStatus }: SafetyOptions) {
+export function useAliveSafety({ session, setAuthMessage, setSaveStatus }: SafetyOptions) {
   const [consentAccepted, setConsentAccepted] = useState(false);
   const [consentLoaded, setConsentLoaded] = useState(false);
+  const [safetyLoadFailed, setSafetyLoadFailed] = useState(false);
+  const [safetyLoadRetry, setSafetyLoadRetry] = useState(0);
   const [termsVersion, setTermsVersion] = useState("");
   const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
   const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
   useEffect(() => {
     setConsentLoaded(false);
+    setSafetyLoadFailed(false);
     if (!session?.user?.id) return resetSafetyState(setConsentAccepted, setBlockedUserIds, setConsentLoaded);
-    void loadSafetyState(setBlockedUserIds, setConsentAccepted, setConsentLoaded, setTermsVersion);
-  }, [session?.user?.id]);
+    let active = true;
+    void loadSafetyState(setBlockedUserIds, setConsentAccepted, setConsentLoaded, setTermsVersion).catch(() => {
+      if (!active) return;
+      setSafetyLoadFailed(true);
+      setAuthMessage("안전 정보를 불러오지 못했어. 다시 시도해줘.");
+    });
+    return () => { active = false; };
+  }, [session?.user?.id, safetyLoadRetry]);
   async function acceptTerms(): Promise<void> {
     const result = await acceptSafetyTerms();
     if (result.error) return setSaveStatus(`약관 동의 실패: ${result.error.message}`);
@@ -54,7 +64,10 @@ export function useAliveSafety({ session, setSaveStatus }: SafetyOptions) {
     setReportTarget(null);
     setSaveStatus("신고가 접수됐어요");
   }
-  return { acceptTerms, blockedUserIds, blockUser, consentAccepted, consentLoaded, reportTarget, setReportTarget, submitReport, termsVersion };
+  function retrySafetyState(): void {
+    setSafetyLoadRetry((value) => value + 1);
+  }
+  return { acceptTerms, blockedUserIds, blockUser, consentAccepted, consentLoaded, reportTarget, retrySafetyState, safetyLoadFailed, setReportTarget, submitReport, termsVersion };
 }
 
 async function loadSafetyState(
@@ -64,6 +77,7 @@ async function loadSafetyState(
   setVersion: Dispatch<SetStateAction<string>>,
 ): Promise<void> {
   const [consent, blocks] = await Promise.all([getSafetyConsent(), getBlockedUsers()]);
+  if (consent.error || blocks.error) throw new Error("Safety state request failed");
   setAccepted(Boolean(consent.data?.accepted));
   setVersion(consent.data?.terms_version || "");
   setBlocked(blocks.data?.user_ids || []);

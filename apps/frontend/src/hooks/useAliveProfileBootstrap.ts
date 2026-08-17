@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import {
   createProfileShell as createRemoteProfileShell,
   loadProfileRow,
+  type ProfileState,
 } from "@/api/profiles";
 import { hasBackendApiConfig } from "@/api/client";
 
@@ -39,6 +40,7 @@ type ProfileBootstrapOptions = {
   blankAppState: (name?: string) => AppState;
   cancelled?: () => boolean;
   hasUsableSavedState: (state: unknown) => boolean;
+  hydrateStructuredState: (baseState: AppState, profileState: ProfileState) => AppState;
   loadStructuredStateFallback: (
     baseState: AppState,
     ownerId: string,
@@ -64,6 +66,7 @@ export function useAliveProfileBootstrap({
   applyAppState,
   blankAppState,
   hasUsableSavedState,
+  hydrateStructuredState,
   loadStructuredStateFallback,
   profileLoadedRef,
   profileLoadRetry,
@@ -91,6 +94,7 @@ export function useAliveProfileBootstrap({
       blankAppState,
       cancelled: () => cancelled,
       hasUsableSavedState,
+      hydrateStructuredState,
       loadStructuredStateFallback,
       profileLoadedRef,
       profileTableBrokenRef,
@@ -196,10 +200,7 @@ async function loadRemoteProfile(
     backupState,
     defaultName,
   );
-  const mergedState = await options.loadStructuredStateFallback(
-    baseState,
-    options.session.user.id,
-  );
+  const mergedState = options.hydrateStructuredState(baseState, data || {});
   if (options.cancelled()) return;
   applyLoadedProfile(options, mergedState, defaultName, data);
   if (!data) await createProfileShell(options, defaultName);

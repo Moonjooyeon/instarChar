@@ -1,10 +1,10 @@
-﻿import React from "react";
-import { AppView } from "@/app/AppView";
-import { useAliveAppController } from "@/hooks/useAliveAppController";
+import React, { Suspense, lazy } from "react";
+import { AppLaunchScreen } from "@/features/auth/AppLaunchScreen";
 
-function App() {
-  const appViewCtx = useAliveAppController();
-  return <AppView ctx={appViewCtx} />;
+const AliveAppRuntime = lazy(() => import("@/app/AliveAppRuntime"));
+
+function App(): React.ReactElement {
+  return <Suspense fallback={<AppLaunchScreen />}><AliveAppRuntime /></Suspense>;
 }
 
 export default App;
