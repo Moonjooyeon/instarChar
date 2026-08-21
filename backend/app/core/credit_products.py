@@ -55,6 +55,21 @@ def credit_product_by_sku(settings: Settings, sku: str) -> CreditProduct | None:
     return next((product for product in CREDIT_PRODUCTS if configured[product.offer_id] == sku and sku), None)
 
 
+def google_play_product_ids(settings: Settings) -> dict[str, str]:
+    return {
+        "credit-5000": settings.google_play_iap_credit_5000_product_id,
+        "credit-10000": settings.google_play_iap_credit_10000_product_id,
+        "credit-30000": settings.google_play_iap_credit_30000_product_id,
+        "credit-50000": settings.google_play_iap_credit_50000_product_id,
+        "credit-100000": settings.google_play_iap_credit_100000_product_id,
+    }
+
+
+def credit_product_by_google_play_id(settings: Settings, product_id: str) -> CreditProduct | None:
+    configured = google_play_product_ids(settings)
+    return next((product for product in CREDIT_PRODUCTS if configured[product.offer_id] == product_id and product_id), None)
+
+
 def validate_toss_iap_configuration(settings: Settings) -> None:
     requested = settings.toss_iap_enabled or settings.toss_iap_purchase_enabled or settings.toss_iap_reconciliation_enabled or settings.toss_iap_audit_alerts_enabled or settings.toss_iap_sandbox_enabled
     if not requested:
@@ -73,6 +88,18 @@ def validate_toss_iap_configuration(settings: Settings) -> None:
     _validate_iap_sandbox(settings)
 
 
+def validate_google_play_iap_configuration(settings: Settings) -> None:
+    requested = settings.google_play_iap_enabled or settings.google_play_iap_purchase_enabled or settings.google_play_rtdn_enabled
+    if not requested:
+        return
+    if not settings.google_play_iap_enabled:
+        raise ValueError("GOOGLE_PLAY_IAP_ENABLED must be true before enabling purchases")
+    _validate_google_play_rollout(settings)
+    _validate_google_play_credentials(settings)
+    _validate_google_play_product_ids(settings)
+    _validate_google_play_rtdn(settings)
+
+
 def toss_iap_purchase_available(settings: Settings, provider: UserProvider, subject: str) -> bool:
     if not settings.toss_iap_enabled or not settings.toss_iap_purchase_enabled:
         return False
@@ -85,6 +112,19 @@ def toss_iap_purchase_available(settings: Settings, provider: UserProvider, subj
         return True
     message = f"purchase-rollout:toss:{subject}".encode()
     digest = new_hmac(settings.toss_iap_subject_hmac_key.encode(), message, sha256).digest()
+    return int.from_bytes(digest[:8], "big") % 100 < percent
+
+
+def google_play_iap_purchase_available(settings: Settings, subject: str) -> bool:
+    if not settings.google_play_iap_enabled or not settings.google_play_iap_purchase_enabled or not subject:
+        return False
+    percent = settings.google_play_iap_purchase_rollout_percent
+    if percent <= 0:
+        return False
+    if percent >= 100:
+        return True
+    message = f"purchase-rollout:google-play:{subject}".encode()
+    digest = new_hmac(settings.google_play_iap_subject_hmac_key.encode(), message, sha256).digest()
     return int.from_bytes(digest[:8], "big") % 100 < percent
 
 
@@ -123,3 +163,39 @@ def _validate_iap_sandbox(settings: Settings) -> None:
     configured = set(credit_product_skus(settings).values())
     if settings.toss_iap_sandbox_product_sku not in configured:
         raise ValueError("TOSS_IAP_SANDBOX_PRODUCT_SKU must match a configured Toss IAP credit SKU")
+
+
+def _validate_google_play_rollout(settings: Settings) -> None:
+    percent = settings.google_play_iap_purchase_rollout_percent
+    if percent < 0 or percent > 100:
+        raise ValueError("GOOGLE_PLAY_IAP_PURCHASE_ROLLOUT_PERCENT must be between 0 and 100")
+
+
+def _validate_google_play_credentials(settings: Settings) -> None:
+    key = settings.google_play_iap_subject_hmac_key
+    if len(key.encode()) < 32 or not key.strip():
+        raise ValueError("GOOGLE_PLAY_IAP_SUBJECT_HMAC_KEY must contain at least 32 bytes")
+    if key == settings.auth_secret_key:
+        raise ValueError("GOOGLE_PLAY_IAP_SUBJECT_HMAC_KEY must be separate from AUTH_SECRET_KEY")
+    if not settings.google_play_iap_package_name.strip():
+        raise ValueError("GOOGLE_PLAY_IAP_PACKAGE_NAME must be present")
+    if not Path(settings.google_play_iap_service_account_json_path).is_file():
+        raise ValueError("GOOGLE_PLAY_IAP_SERVICE_ACCOUNT_JSON_PATH must point to an existing file")
+
+
+def _validate_google_play_product_ids(settings: Settings) -> None:
+    product_ids = list(google_play_product_ids(settings).values())
+    if any(not product_id.strip() or product_id != product_id.strip() for product_id in product_ids):
+        raise ValueError("All Google Play credit product IDs must be present without surrounding whitespace")
+    if len(set(product_ids)) != len(product_ids):
+        raise ValueError("Google Play credit product IDs must be unique")
+
+
+def _validate_google_play_rtdn(settings: Settings) -> None:
+    if not settings.google_play_rtdn_enabled:
+        return
+    if not settings.google_play_rtdn_audience.strip():
+        raise ValueError("GOOGLE_PLAY_RTDN_AUDIENCE must be present when RTDN is enabled")
+    email = settings.google_play_rtdn_push_service_account_email
+    if not re.fullmatch(r"[^@\s]+@[^@\s]+\.gserviceaccount\.com", email):
+        raise ValueError("GOOGLE_PLAY_RTDN_PUSH_SERVICE_ACCOUNT_EMAIL must be a service account email")

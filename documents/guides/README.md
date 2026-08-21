@@ -2,8 +2,8 @@
 title: ALIVE 가이드 인덱스
 author: black (black@ashwoodfriends.com)
 created: 2026-08-06
-updated: 2026-08-11
-version: 1.1.0
+updated: 2026-08-21
+version: 1.2.0
 status: approved
 ---
 
@@ -13,3 +13,4 @@ status: approved
 
 - [스토어 등록정보](guide_store-listing-ko-kr.md)
 - [앱인토스 인앱결제 배포 및 운영](guide_apps-in-toss-iap-operations.md)
+- [Android Google Play 크레딧 결제 내부 테스트](guide_google-play-iap-internal-test.md)

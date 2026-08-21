@@ -143,6 +143,21 @@ def test_auto_post_claim_lease_downgrade_restores_only_recovered_rows(monkeypatc
     assert dropped == ["auto_post_legacy_credit_stop_recovered", "auto_post_claimed_at"]
 
 
+def test_google_play_rtdn_migration_follows_purchase_identity(monkeypatch: pytest.MonkeyPatch) -> None:
+    migration = _load_migration("20260821_0032_google_play_rtdn.py")
+    tables: dict[str, tuple[object, ...]] = {}
+    indexes: list[str] = []
+    monkeypatch.setattr(migration.op, "create_table", lambda name, *columns, **_values: tables.update({name: columns}))
+    monkeypatch.setattr(migration.op, "create_index", lambda name, *_values: indexes.append(name))
+    migration.upgrade()
+    account_columns = {column.name for column in tables["google_play_accounts"] if isinstance(column, sa.Column)}
+    event_columns = {column.name for column in tables["google_play_rtdn_events"] if isinstance(column, sa.Column)}
+    assert migration.down_revision == "20260821_0031"
+    assert {"id", "user_id", "account_id"} <= account_columns
+    assert {"message_id", "purchase_token", "status", "claimed_at"} <= event_columns
+    assert indexes == ["ix_google_play_rtdn_events_status_created"]
+
+
 def test_character_handle_migration_assigns_deterministic_unique_values() -> None:
     migration = _load_migration("20260730_0009_character_handle_uniqueness.py")
     assign = cast(Callable[[list[tuple[object, object, str, str]]], list[tuple[object, object, str, str]]], migration._assign_handles)

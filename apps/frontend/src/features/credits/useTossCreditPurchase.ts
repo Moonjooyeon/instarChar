@@ -3,18 +3,10 @@ import React from "react";
 import { grantCreditPurchase, type CreditOffer } from "@/api/credits";
 import { getTossIapProducts, isAppsInTossIapRuntime, startTossIapPurchase, tossIapErrorMessage, type TossIapProduct } from "@/api/tossIap";
 import { recoverTossCreditPurchases, type PurchaseRecoveryResult } from "@/features/credits/tossPurchaseRecovery";
+import type { CreditPurchaseState } from "@/features/credits/creditPurchaseTypes";
 
 
-type TossCreditPurchaseState = {
-  displayAmounts: Record<string, string>;
-  availableSkus: ReadonlySet<string>;
-  purchasingSku: string;
-  notice: string;
-  error: string;
-  purchase: (sku: string) => Promise<void>;
-};
-
-export function useTossCreditPurchase(offers: CreditOffer[], onUpdated: () => void): TossCreditPurchaseState {
+export function useTossCreditPurchase(offers: CreditOffer[], onUpdated: () => void): CreditPurchaseState {
   const [products, setProducts] = React.useState<TossIapProduct[]>([]);
   const [purchasingSku, setPurchasingSku] = React.useState("");
   const [notice, setNotice] = React.useState("");
@@ -31,7 +23,7 @@ export function useTossCreditPurchase(offers: CreditOffer[], onUpdated: () => vo
       failPurchase(value, cleanup, setPurchasingSku, setNotice, setError);
     }
   }, [onUpdated]);
-  return { displayAmounts: displayAmounts(products), availableSkus: new Set(products.map((product) => product.sku)), purchasingSku, notice, error, purchase };
+  return { displayAmounts: displayAmounts(products), availableProductIds: new Set(products.map((product) => product.sku)), purchasingProductId: purchasingSku, notice, error, purchase };
 }
 
 function preparePurchase(sku: string, cleanup: React.MutableRefObject<(() => void) | null>, setPurchasingSku: React.Dispatch<React.SetStateAction<string>>, setNotice: React.Dispatch<React.SetStateAction<string>>, setError: React.Dispatch<React.SetStateAction<string>>): void {

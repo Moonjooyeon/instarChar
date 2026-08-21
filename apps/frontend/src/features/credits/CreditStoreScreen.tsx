@@ -11,6 +11,7 @@ import {
   type CreditPurchase,
   type CreditUsage,
 } from "@/api/credits";
+import { isGooglePlayIapRuntime } from "@/api/googlePlayIap";
 import { AliveIcon } from "@/components/ui/AliveIcon";
 import { creditUsageAmount } from "@/domain/credits/creditPresentation";
 import { dmResponseFlowLabel } from "@/domain/dm/dmResponseMode";
@@ -18,6 +19,8 @@ import { CreditChargeOrder, CreditFlowCatalog } from "@/features/credits/CreditF
 import { CreditPurchaseHistory } from "@/features/credits/CreditPurchaseHistory";
 import { StarterMissionJourney } from "@/features/credits/StarterMissions";
 import { useTossCreditPurchase } from "@/features/credits/useTossCreditPurchase";
+import { useGooglePlayCreditPurchase } from "@/features/credits/useGooglePlayCreditPurchase";
+import type { CreditPurchaseState } from "@/features/credits/creditPurchaseTypes";
 import type { RewardMissionCode } from "@/domain/credits/rewardMissions";
 
 interface CreditStoreScreenProps {
@@ -37,7 +40,10 @@ export function CreditStoreScreen({
 }: CreditStoreScreenProps): React.ReactElement {
   const { data, error, loading, retry } = useCreditStoreData();
   const offers = data.catalog?.offers || [];
-  const purchase = useTossCreditPurchase(offers, retry);
+  const tossPurchase = useTossCreditPurchase(offers, retry);
+  const googlePlayPurchase = useGooglePlayCreditPurchase(offers, retry);
+  const googlePlay = isGooglePlayIapRuntime();
+  const purchase = googlePlay ? googlePlayPurchase : tossPurchase;
   const featured =
     offers.find((offer) => offer.id === "credit-30000") || offers[0];
   const [selectedId, setSelectedId] = React.useState("");
@@ -53,11 +59,12 @@ export function CreditStoreScreen({
         <CreditOverview balance={data.balance} />
         <OfferList
           displayAmounts={purchase.displayAmounts}
+          googlePlay={googlePlay}
           offers={offers}
           selectedId={selected?.id || ""}
           onSelect={setSelectedId}
         />
-        <CheckoutPreview offer={selected} purchase={purchase} />
+        <CheckoutPreview offer={selected} googlePlay={googlePlay} purchase={purchase} />
         <StarterMissionJourney missions={data.balance?.reward_missions || []} onContinue={onContinueMission} />
         <CreditDetails
           flows={data.catalog?.flows || []}
@@ -200,11 +207,13 @@ function EnergyMeter({ percent }: { percent: number }): React.ReactElement {
 
 function OfferList({
   displayAmounts,
+  googlePlay,
   offers,
   onSelect,
   selectedId,
 }: {
   displayAmounts: Record<string, string>;
+  googlePlay: boolean;
   offers: readonly CreditOffer[];
   onSelect: (id: string) => void;
   selectedId: string;
@@ -224,7 +233,7 @@ function OfferList({
             isSelected={offer.id === selectedId}
             key={offer.id}
             offer={offer}
-            displayAmount={displayAmounts[offer.sku]}
+            displayAmount={displayAmounts[purchaseProductId(offer, googlePlay)]}
             onSelect={onSelect}
           />
         ))}
@@ -269,14 +278,18 @@ function OfferRow({
 
 function CheckoutPreview({
   offer,
+  googlePlay,
   purchase,
 }: {
   offer?: CreditOffer;
-  purchase: ReturnType<typeof useTossCreditPurchase>;
+  googlePlay: boolean;
+  purchase: CreditPurchaseState;
 }): React.ReactElement {
-  const displayAmount = offer ? purchase.displayAmounts[offer.sku] : "";
-  const available = Boolean(offer?.payment_available && offer.sku && purchase.availableSkus.has(offer.sku));
-  const purchasing = Boolean(offer?.sku && purchase.purchasingSku === offer.sku);
+  const productId = offer ? purchaseProductId(offer, googlePlay) : "";
+  const displayAmount = productId ? purchase.displayAmounts[productId] : "";
+  const providerAvailable = googlePlay ? offer?.google_play_payment_available : offer?.payment_available;
+  const available = Boolean(providerAvailable && productId && purchase.availableProductIds.has(productId));
+  const purchasing = Boolean(productId && purchase.purchasingProductId === productId);
   return (
     <section className="al-credit-checkout" aria-label="결제 요약">
       <div>
@@ -287,12 +300,16 @@ function CheckoutPreview({
             : "상품 확인 중"}
         </b>
       </div>
-      <button type="button" disabled={!available || purchasing} onClick={() => offer?.sku && purchase.purchase(offer.sku)}>
+      <button type="button" disabled={!available || purchasing} onClick={() => productId && purchase.purchase(productId)}>
         {purchasing ? "결제 처리 중" : available ? "구매하기" : "결제 준비 중"}
       </button>
       <p className={purchase.error ? "error" : ""}><AliveIcon name={purchase.error ? "help" : "check"} size={13} />{purchase.error || purchase.notice || (available ? "결제 후 크레딧이 바로 지급돼요. 표시 금액은 VAT 포함이에요." : "지금은 결제되지 않아요.")}</p>
     </section>
   );
+}
+
+function purchaseProductId(offer: CreditOffer, googlePlay: boolean): string {
+  return googlePlay ? offer.google_play_product_id : offer.sku;
 }
 
 function CreditDetails({ flows, purchases, usages }: { flows: CreditFlow[]; purchases: CreditPurchase[]; usages: CreditUsage[] }): React.ReactElement {

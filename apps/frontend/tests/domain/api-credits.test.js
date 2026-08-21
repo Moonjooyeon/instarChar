@@ -5,6 +5,8 @@ import {
   getCreditCatalog,
   getCreditPurchases,
   getCreditUsage,
+  getGooglePlayPurchaseContext,
+  grantGooglePlayCreditPurchase,
   grantCreditPurchase,
 } from "../../src/api/credits.js";
 
@@ -56,6 +58,22 @@ test("credit purchase grant posts provider order, product, and operational envir
     assert.equal(call.input, "/api/credits/purchases/grant");
     assert.equal(call.init.method, "POST");
     assert.deepEqual(JSON.parse(call.init.body), { order_id: "order-1", sku: "sku-500", environment: "sandbox" });
+  } finally {
+    restoreFetch();
+  }
+});
+
+
+test("Google Play credit APIs request a server-owned account context and purchase-token grant", async () => {
+  const restoreFetch = stubFetch([{ available: true, obfuscated_account_id: "account" }, { order_id: "token", status: "granted", granted_credits: 550 }]);
+  try {
+    const context = await getGooglePlayPurchaseContext();
+    const result = await grantGooglePlayCreditPurchase("purchase-token");
+    assert.deepEqual(context, { available: true, obfuscated_account_id: "account" });
+    assert.equal(result.order_id, "token");
+    assert.equal(globalThis.fetch.calls[0].input, "/api/credits/purchases/google-play/context");
+    assert.equal(globalThis.fetch.calls[1].input, "/api/credits/purchases/google-play/grant");
+    assert.deepEqual(JSON.parse(globalThis.fetch.calls[1].init.body), { purchase_token: "purchase-token" });
   } finally {
     restoreFetch();
   }

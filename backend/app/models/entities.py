@@ -375,11 +375,12 @@ class CreditLedgerEntry(Base):
 
 class CreditPurchase(TimestampMixin, Base):
     __tablename__ = "credit_purchases"
-    __table_args__ = (UniqueConstraint("provider_order_id", name="uq_credit_purchases_provider_order"), Index("ix_credit_purchases_user_created", "user_id", "created_at"), Index("ix_credit_purchases_status_checked", "status", "provider_checked_at"), Index("ix_credit_purchases_subject_granted", "provider_subject_hash", "granted_credits"), Index("ix_credit_purchases_retention", "retention_until"), CheckConstraint("status IN ('processing', 'granted', 'refunded', 'failed', 'review')", name="ck_credit_purchases_status"), CheckConstraint("base_credits >= 0 AND product_bonus_credits >= 0 AND first_purchase_bonus_credits >= 0 AND granted_credits >= 0 AND chargeback_credits >= 0", name="ck_credit_purchases_credit_amounts"))
+    __table_args__ = (UniqueConstraint("provider", "provider_order_id", name="uq_credit_purchases_provider_order"), Index("ix_credit_purchases_user_created", "user_id", "created_at"), Index("ix_credit_purchases_status_checked", "status", "provider_checked_at"), Index("ix_credit_purchases_subject_granted", "provider_subject_hash", "granted_credits"), Index("ix_credit_purchases_retention", "retention_until"), CheckConstraint("status IN ('processing', 'granted', 'refunded', 'failed', 'review')", name="ck_credit_purchases_status"), CheckConstraint("base_credits >= 0 AND product_bonus_credits >= 0 AND first_purchase_bonus_credits >= 0 AND granted_credits >= 0 AND chargeback_credits >= 0", name="ck_credit_purchases_credit_amounts"))
     id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid4)
     user_id: Mapped[Optional[UUID]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     provider: Mapped[str] = mapped_column(String(32), nullable=False, default="apps_in_toss")
-    provider_order_id: Mapped[str] = mapped_column(String(80), nullable=False)
+    provider_order_id: Mapped[str] = mapped_column(String(512), nullable=False)
+    ledger_reference: Mapped[str] = mapped_column(String(96), nullable=False, default="")
     provider_subject_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     retention_until: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     sku: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -393,8 +394,31 @@ class CreditPurchase(TimestampMixin, Base):
     chargeback_credits: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     failure_reason: Mapped[str] = mapped_column(String(255), nullable=False, default="")
     provider_checked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    provider_consumed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     granted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     refunded_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+
+class GooglePlayAccount(Base):
+    __tablename__ = "google_play_accounts"
+    id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid4)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    account_id: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class GooglePlayRtdnEvent(Base):
+    __tablename__ = "google_play_rtdn_events"
+    __table_args__ = (Index("ix_google_play_rtdn_events_status_created", "status", "created_at"),)
+    id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid4)
+    message_id: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+    notification_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    purchase_token: Mapped[str] = mapped_column(String(512), nullable=False, default="")
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="processing")
+    failure_reason: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    claimed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    processed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
 
 class RewardGrant(Base):

@@ -120,6 +120,20 @@ def test_credit_purchase_grant_rejects_unknown_operational_environment() -> None
     assert response.status_code == 422
 
 
+def test_google_play_rtdn_forwards_only_pubsub_message_and_authorization(monkeypatch: pytest.MonkeyPatch) -> None:
+    received: list[tuple[str, str, str]] = []
+    class StubRtdnService:
+        def __init__(self, settings: object, session: object) -> None:
+            return None
+        async def process(self, authorization: str, message_id: str, data: str) -> None:
+            received.append((authorization, message_id, data))
+    monkeypatch.setattr("app.api.v1.credits.GooglePlayRtdnService", StubRtdnService)
+    with make_test_client() as client:
+        response = client.post("/api/credits/purchases/google-play/rtdn", headers={"Authorization": "Bearer signed-push"}, json={"message": {"messageId": "event-1", "data": "cHVibGlzaGVk"}})
+    assert response.status_code == 204
+    assert received == [("Bearer signed-push", "event-1", "cHVibGlzaGVk")]
+
+
 def test_credit_purchase_history_is_scoped_to_current_user(monkeypatch: pytest.MonkeyPatch) -> None:
     requested_users: list[object] = []
     created_at = datetime(2026, 8, 11, tzinfo=timezone.utc)

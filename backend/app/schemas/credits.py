@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 class CreditOfferResponse(BaseModel):
     id: str
     sku: str = ""
+    google_play_product_id: str = ""
     price_krw: int
     base_credits: int
     product_bonus_credits: int
@@ -18,6 +19,7 @@ class CreditOfferResponse(BaseModel):
     first_purchase_total_credits: int
     label: str
     payment_available: bool = False
+    google_play_payment_available: bool = False
 
 
 class CreditFlowResponse(BaseModel):
@@ -76,6 +78,25 @@ class CreditPurchaseGrantRequest(BaseModel):
     order_id: str = Field(min_length=1, max_length=80)
     sku: str = Field(default="", max_length=255)
     environment: Literal["toss", "sandbox"] = "toss"
+
+
+class GooglePlayCreditPurchaseGrantRequest(BaseModel):
+    purchase_token: str = Field(min_length=1, max_length=512)
+
+
+class GooglePlayPurchaseContextResponse(BaseModel):
+    available: bool
+    obfuscated_account_id: str = ""
+
+
+class GooglePlayRtdnMessage(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    data: str = Field(min_length=1, max_length=32768)
+    message_id: str = Field(alias="messageId", min_length=1, max_length=255)
+
+
+class GooglePlayRtdnRequest(BaseModel):
+    message: GooglePlayRtdnMessage
 
 
 class CreditPurchaseGrantResponse(BaseModel):

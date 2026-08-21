@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from hashlib import sha256
 from uuid import UUID, uuid4
 
 from sqlalchemy import and_, case, delete, func, literal, or_, select, text, update
@@ -13,7 +14,7 @@ from sqlalchemy.sql.selectable import ScalarSelect
 from app.core.credit_products import FIRST_PURCHASE_BONUS_PERCENT, CreditProduct
 from app.core.errors import BadRequestError, ConflictError
 from app.models import CreditAccount, CreditLedgerEntry, CreditPurchase, RewardGrant, User
-from app.services.toss_iap import TossIapOrder
+from app.services.purchase_orders import PurchaseOrder
 
 
 FIRST_PURCHASE_EVENT = "first_purchase"
@@ -67,7 +68,7 @@ class CreditPurchaseRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
-    async def apply(self, user: User, subject_hash: str, order: TossIapOrder, product: CreditProduct) -> CreditPurchaseResult:
+    async def apply(self, user: User, subject_hash: str, order: PurchaseOrder, product: CreditProduct) -> CreditPurchaseResult:
         purchase = await self._reserve(user.id, subject_hash, order, product)
         self._validate_owner(purchase, user.id, order.sku)
         if order.status == "REFUNDED":
@@ -96,7 +97,7 @@ class CreditPurchaseRepository:
         if not purchase:
             return None
         account = await self._account(purchase.user_id) if purchase.user_id else None
-        keys = (f"purchase:{order_id}", f"chargeback:{order_id}")
+        keys = (self._ledger_key("purchase", purchase), self._ledger_key("chargeback", purchase))
         statement = select(CreditLedgerEntry).where(CreditLedgerEntry.idempotency_key.in_(keys)).order_by(CreditLedgerEntry.created_at)
         ledger = list((await self.session.execute(statement)).scalars().all())
         return purchase, account, ledger
@@ -111,6 +112,19 @@ class CreditPurchaseRepository:
     async def history(self, user_id: UUID, limit: int = 30) -> list[CreditPurchase]:
         statement = select(CreditPurchase).where(CreditPurchase.user_id == user_id).order_by(CreditPurchase.created_at.desc()).limit(limit)
         return list((await self.session.execute(statement)).scalars().all())
+
+    async def provider_purchase(self, user_id: UUID, provider: str, order_id: str) -> CreditPurchase | None:
+        statement = select(CreditPurchase).where(CreditPurchase.user_id == user_id, CreditPurchase.provider == provider, CreditPurchase.provider_order_id == order_id)
+        return (await self.session.execute(statement)).scalar_one_or_none()
+
+    async def provider_order(self, provider: str, order_id: str) -> CreditPurchase | None:
+        statement = select(CreditPurchase).where(CreditPurchase.provider == provider, CreditPurchase.provider_order_id == order_id)
+        return (await self.session.execute(statement)).scalar_one_or_none()
+
+    async def mark_provider_consumed(self, provider: str, order_id: str) -> None:
+        statement = update(CreditPurchase).where(CreditPurchase.provider == provider, CreditPurchase.provider_order_id == order_id).values(provider_consumed_at=datetime.now(timezone.utc))
+        await self.session.execute(statement)
+        await self.session.commit()
 
     async def retain_subject_link_for_deletion(self, user_id: UUID, now: datetime) -> None:
         legal_until = CreditPurchase.created_at + text("INTERVAL '5 years'")
@@ -159,7 +173,7 @@ class CreditPurchaseRepository:
         return select(CreditAccount, purchased, bonus).outerjoin(totals, totals.c.user_id == CreditAccount.user_id).where(purchase_user, mismatch).order_by(CreditAccount.updated_at.desc()).limit(limit)
 
     def _purchase_ledger_total(self, prefix: str) -> ScalarSelect[int]:
-        key = literal(prefix) + CreditPurchase.provider_order_id
+        key = literal(prefix) + case((CreditPurchase.ledger_reference != "", CreditPurchase.ledger_reference), else_=CreditPurchase.provider_order_id)
         return select(func.coalesce(func.sum(CreditLedgerEntry.amount), 0)).where(CreditLedgerEntry.user_id == CreditPurchase.user_id, CreditLedgerEntry.idempotency_key == key).correlate(CreditPurchase).scalar_subquery()
 
     def _purchase_audit_reasons(self, purchase: CreditPurchase, purchase_total: int, chargeback_total: int, now: datetime) -> tuple[str, ...]:
@@ -191,7 +205,7 @@ class CreditPurchaseRepository:
             reasons.append("bonus_balance_mismatch")
         return CreditAccountAuditItem(account.user_id, account.purchased_credits, account.bonus_credits, debt, purchased_total, bonus_total, tuple(reasons))
 
-    async def reconcile(self, purchase_id: UUID, order: TossIapOrder) -> None:
+    async def reconcile(self, purchase_id: UUID, order: PurchaseOrder) -> None:
         purchase = await self._purchase_by_id(purchase_id)
         if not purchase:
             return
@@ -207,7 +221,7 @@ class CreditPurchaseRepository:
         purchase.provider_checked_at = datetime.now(timezone.utc)
         await self.session.commit()
 
-    async def _reconcile_processing(self, purchase: CreditPurchase, order: TossIapOrder) -> bool:
+    async def _reconcile_processing(self, purchase: CreditPurchase, order: PurchaseOrder) -> bool:
         if purchase.status != "processing":
             return False
         if order.status == "PAYMENT_COMPLETED" and purchase.user_id:
@@ -224,14 +238,14 @@ class CreditPurchaseRepository:
             return True
         return False
 
-    async def _reserve(self, user_id: UUID, subject_hash: str, order: TossIapOrder, product: CreditProduct) -> CreditPurchase:
+    async def _reserve(self, user_id: UUID, subject_hash: str, order: PurchaseOrder, product: CreditProduct) -> CreditPurchase:
         purchase_id = uuid4()
-        statement = insert(CreditPurchase).values(id=purchase_id, user_id=user_id, provider=order.provider, provider_order_id=order.order_id, provider_subject_hash=subject_hash, sku=order.sku, provider_status=order.status, price_krw=product.price_krw, base_credits=product.base_credits, product_bonus_credits=product.product_bonus_credits).on_conflict_do_nothing(index_elements=[CreditPurchase.provider_order_id]).returning(CreditPurchase.id)
+        statement = insert(CreditPurchase).values(id=purchase_id, user_id=user_id, provider=order.provider, provider_order_id=order.order_id, ledger_reference=self._ledger_reference(order), provider_subject_hash=subject_hash, sku=order.sku, provider_status=order.status, price_krw=product.price_krw, base_credits=product.base_credits, product_bonus_credits=product.product_bonus_credits).on_conflict_do_nothing(index_elements=[CreditPurchase.provider, CreditPurchase.provider_order_id]).returning(CreditPurchase.id)
         await self.session.execute(statement)
-        result = await self.session.execute(select(CreditPurchase).where(CreditPurchase.provider_order_id == order.order_id).with_for_update())
+        result = await self.session.execute(select(CreditPurchase).where(CreditPurchase.provider == order.provider, CreditPurchase.provider_order_id == order.order_id).with_for_update())
         return result.scalar_one()
 
-    async def _grant(self, purchase: CreditPurchase, user_id: UUID, order: TossIapOrder) -> CreditPurchaseResult:
+    async def _grant(self, purchase: CreditPurchase, user_id: UUID, order: PurchaseOrder) -> CreditPurchaseResult:
         if not await self._user_exists(user_id):
             return await self._review(purchase, order, "Purchase user no longer exists")
         account = await self._locked_account(user_id)
@@ -244,7 +258,7 @@ class CreditPurchaseRepository:
         await self.session.commit()
         return self._snapshot(purchase, account)
 
-    async def _refund(self, purchase: CreditPurchase, order: TossIapOrder) -> CreditPurchaseResult:
+    async def _refund(self, purchase: CreditPurchase, order: PurchaseOrder) -> CreditPurchaseResult:
         if purchase.status == "refunded":
             return await self._result(purchase)
         account = await self._locked_account(purchase.user_id) if purchase.user_id else None
@@ -260,22 +274,22 @@ class CreditPurchaseRepository:
         await self.session.commit()
         return self._snapshot(purchase, account)
 
-    async def _not_payable(self, purchase: CreditPurchase, order: TossIapOrder) -> CreditPurchaseResult:
+    async def _not_payable(self, purchase: CreditPurchase, order: PurchaseOrder) -> CreditPurchaseResult:
         await self._save_not_payable(purchase, order)
         raise ConflictError("Purchase is not ready to grant")
 
-    async def _save_not_payable(self, purchase: CreditPurchase, order: TossIapOrder) -> None:
+    async def _save_not_payable(self, purchase: CreditPurchase, order: PurchaseOrder) -> None:
         purchase.provider_status = order.status
         purchase.failure_reason = order.reason
         purchase.status = "failed" if order.status in ("FAILED", "NOT_FOUND", "MINIAPP_MISMATCH") else "processing"
         purchase.provider_checked_at = datetime.now(timezone.utc)
         await self.session.commit()
 
-    async def _review(self, purchase: CreditPurchase, order: TossIapOrder, reason: str) -> CreditPurchaseResult:
+    async def _review(self, purchase: CreditPurchase, order: PurchaseOrder, reason: str) -> CreditPurchaseResult:
         await self._save_review(purchase, order, reason)
         raise ConflictError("Purchase requires review")
 
-    async def _save_review(self, purchase: CreditPurchase, order: TossIapOrder, reason: str) -> None:
+    async def _save_review(self, purchase: CreditPurchase, order: PurchaseOrder, reason: str) -> None:
         purchase.status = "review"
         purchase.provider_status = order.status
         purchase.failure_reason = reason
@@ -328,7 +342,7 @@ class CreditPurchaseRepository:
         account.purchased_credits -= recovered
         account.debt_credits = int(account.debt_credits or 0) + amount - recovered
 
-    def _mark_granted(self, purchase: CreditPurchase, order: TossIapOrder, total: int, first_bonus: int) -> None:
+    def _mark_granted(self, purchase: CreditPurchase, order: PurchaseOrder, total: int, first_bonus: int) -> None:
         purchase.status = "granted"
         purchase.provider_status = order.status
         purchase.first_purchase_bonus_credits = first_bonus
@@ -338,13 +352,23 @@ class CreditPurchaseRepository:
 
     def _add_purchase_ledger(self, user_id: UUID, purchase: CreditPurchase, total: int, first_bonus: int) -> None:
         metadata = {"provider": purchase.provider, "order_id": purchase.provider_order_id, "sku": purchase.sku, "base_credits": purchase.base_credits, "product_bonus_credits": purchase.product_bonus_credits, "first_purchase_bonus_credits": first_bonus}
-        self.session.add(CreditLedgerEntry(user_id=user_id, entry_type="purchase", balance_type="purchased", amount=total, idempotency_key=f"purchase:{purchase.provider_order_id}", entry_metadata=metadata))
+        self.session.add(CreditLedgerEntry(user_id=user_id, entry_type="purchase", balance_type="purchased", amount=total, idempotency_key=self._ledger_key("purchase", purchase), entry_metadata=metadata))
 
     def _add_chargeback_ledger(self, purchase: CreditPurchase, amount: int) -> None:
         if not purchase.user_id:
             return
         metadata = {"provider": purchase.provider, "order_id": purchase.provider_order_id, "sku": purchase.sku}
-        self.session.add(CreditLedgerEntry(user_id=purchase.user_id, entry_type="chargeback", balance_type="purchased", amount=-amount, idempotency_key=f"chargeback:{purchase.provider_order_id}", entry_metadata=metadata))
+        self.session.add(CreditLedgerEntry(user_id=purchase.user_id, entry_type="chargeback", balance_type="purchased", amount=-amount, idempotency_key=self._ledger_key("chargeback", purchase), entry_metadata=metadata))
+
+    def _ledger_reference(self, order: PurchaseOrder) -> str:
+        if order.provider == TOSS_PURCHASE_PROVIDER:
+            return order.order_id
+        digest = sha256(f"{order.provider}:{order.order_id}".encode()).hexdigest()
+        return f"{order.provider}:{digest}"
+
+    def _ledger_key(self, kind: str, purchase: CreditPurchase) -> str:
+        reference = purchase.ledger_reference or purchase.provider_order_id
+        return f"{kind}:{reference}"
 
     def _snapshot(self, purchase: CreditPurchase, account: CreditAccount | None) -> CreditPurchaseResult:
         purchased = account.purchased_credits if account else 0

@@ -47,6 +47,18 @@ test("Android permits local HTTP only in debug builds", () => {
   assert.match(debugManifest, /android:usesCleartextTraffic="true"/);
 });
 
+test("Android Google Play billing uses one shared client connection", () => {
+  const manifest = readFileSync(path.resolve(process.cwd(), "../../android/app/src/main/AndroidManifest.xml"), "utf8");
+  const gradle = readFileSync(path.resolve(process.cwd(), "../../android/app/build.gradle"), "utf8");
+  const activity = readFileSync(path.resolve(process.cwd(), "../../android/app/src/main/java/com/ashwoodfriends/alive/MainActivity.java"), "utf8");
+  const plugin = readFileSync(path.resolve(process.cwd(), "../../android/app/src/main/java/com/ashwoodfriends/alive/GooglePlayBillingPlugin.java"), "utf8");
+  assert.match(manifest, /com\.android\.vending\.BILLING/);
+  assert.match(gradle, /com\.android\.billingclient:billing:9\.1\.0/);
+  assert.match(activity, /registerPlugin\(GooglePlayBillingPlugin\.class\)/);
+  assert.match(plugin, /connectionRequests\.add\(new ConnectionRequest/);
+  assert.match(plugin, /if \(connecting\) return/);
+});
+
 test("Android hides the persistent navigation buttons", () => {
   const entryPath = path.resolve(process.cwd(), "src/main.tsx");
   const entry = readFileSync(entryPath, "utf8");
