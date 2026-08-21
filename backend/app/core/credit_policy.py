@@ -6,7 +6,7 @@ from decimal import Decimal
 from zoneinfo import ZoneInfo
 
 
-CREDIT_POLICY_VERSION = "credit-2026-08-v8"
+CREDIT_POLICY_VERSION = "credit-2026-08-v9"
 ENERGY_POLICY_VERSION = "energy-2026-08-v2"
 ENERGY_MAX_PERCENT = 100
 ENERGY_RECOVERY_PERCENT = 25
@@ -46,7 +46,7 @@ FLOW_POLICIES: dict[str, FlowPolicy] = {
     "assist_relationship": FlowPolicy("assist_relationship", 0, 0, "flash", "관계 보조 처리", 6000, 160, 0, 6, public=False, hard_daily_limit=6),
     "assist_session": FlowPolicy("assist_session", 0, 0, "flash", "대화 정리", 14000, 1024, 128, 4, public=False, hard_daily_limit=4),
     "character_analysis": FlowPolicy("character_analysis", 10, 0, "pro", "캐릭터 분석", 20000, 1536, 256, 3, energy_allowed=False, bonus_allowed=False, hard_daily_limit=3, intro_free_uses=1),
-    "auto_feed_post": FlowPolicy("auto_feed_post", 2, 0, "flash", "혼자 남기는 근황", 16000, 768, 128, 24, public=False, energy_allowed=False, bonus_allowed=False, hard_daily_limit=24),
+    "auto_feed_post": FlowPolicy("auto_feed_post", 2, 25, "flash", "혼자 남기는 근황", 16000, 768, 128, 24, public=False, hard_daily_limit=24),
     "internal": FlowPolicy("internal", 0, 0, "flash", "내부 처리", 40000, 2048, 0, 0, public=False),
     "internal_pro": FlowPolicy("internal_pro", 0, 0, "pro", "내부 고품질 처리", 50000, 4096, 1024, 0, public=False),
 }

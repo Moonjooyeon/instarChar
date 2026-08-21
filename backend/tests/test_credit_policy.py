@@ -49,7 +49,7 @@ def test_monthly_usage_resets_at_first_day_korean_midnight() -> None:
 
 def test_onboarding_bonus_policy_totals_150_credits() -> None:
     assert SIGNUP_BONUS_CREDITS + FIRST_CHARACTER_BONUS_CREDITS + FIRST_DM_BONUS_CREDITS == 150
-    assert CREDIT_POLICY_VERSION == "credit-2026-08-v8"
+    assert CREDIT_POLICY_VERSION == "credit-2026-08-v9"
     assert ENERGY_POLICY_VERSION == "energy-2026-08-v2"
 
 
@@ -73,11 +73,11 @@ def test_internal_flows_are_not_public() -> None:
         resolve_public_flow("internal")
 
 
-def test_auto_feed_flow_uses_discounted_purchased_credits() -> None:
+def test_auto_feed_flow_uses_energy_then_held_credits() -> None:
     policy = resolve_flow("auto_feed_post")
-    assert (policy.credits, policy.energy_percent, policy.free_daily_limit, policy.hard_daily_limit) == (2, 0, 24, 24)
-    assert policy.energy_allowed is False
-    assert policy.bonus_allowed is False
+    assert (policy.credits, policy.energy_percent, policy.free_daily_limit, policy.hard_daily_limit) == (2, 25, 24, 24)
+    assert policy.energy_allowed is True
+    assert policy.bonus_allowed is True
     with pytest.raises(ValueError, match="공개 API"):
         resolve_public_flow("auto_feed_post")
 

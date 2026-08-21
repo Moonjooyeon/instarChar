@@ -4,6 +4,7 @@ import asyncio
 import json
 from collections.abc import Coroutine
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from uuid import uuid4
 
 from pytest import MonkeyPatch
@@ -30,20 +31,26 @@ class StubPosts:
         self.auto_stopped = False
         self.committed = True
         self.posts = posts or []
+        self.retry_at: datetime | None = None
+        self.recorded_claimed_at: datetime | None = None
+        self.stopped_claimed_at: datetime | None = None
 
     async def owned_character(self, owner_id: object, source_account_id: str) -> StubCharacter:
         return StubCharacter(character={"persona": "차분함"}, posts=self.posts)
 
-    async def append_generated_post(self, owner_id: object, source_account_id: str, post: dict[str, object], is_auto: bool = False, commit: bool = True) -> CharacterPostsResponse:
+    async def append_generated_post(self, owner_id: object, source_account_id: str, post: dict[str, object], is_auto: bool = False, commit: bool = True, auto_claimed_at: datetime | None = None) -> CharacterPostsResponse:
         self.saved = post
         self.committed = commit
         return CharacterPostsResponse(posts=[post], revision=1, auto_post_enabled=False, auto_post_interval_seconds=900)
 
-    async def record_auto_failure(self, owner_id: object, source_account_id: str, error: str, retry_at: object) -> None:
+    async def record_auto_failure(self, owner_id: object, source_account_id: str, error: str, retry_at: datetime, auto_claimed_at: datetime | None = None) -> None:
         self.error = error
+        self.retry_at = retry_at
+        self.recorded_claimed_at = auto_claimed_at
 
-    async def stop_auto_post_for_credit(self, owner_id: object, source_account_id: str) -> None:
+    async def stop_auto_post_for_balance(self, owner_id: object, source_account_id: str, auto_claimed_at: datetime | None = None) -> None:
         self.auto_stopped = True
+        self.stopped_claimed_at = auto_claimed_at
 
 
 class StubUsage:
@@ -52,7 +59,7 @@ class StubUsage:
 
 
 class FailingPosts(StubPosts):
-    async def append_generated_post(self, owner_id: object, source_account_id: str, post: dict[str, object], is_auto: bool = False, commit: bool = True) -> CharacterPostsResponse:
+    async def append_generated_post(self, owner_id: object, source_account_id: str, post: dict[str, object], is_auto: bool = False, commit: bool = True, auto_claimed_at: datetime | None = None) -> CharacterPostsResponse:
         raise RuntimeError("database unavailable")
 
 
@@ -144,6 +151,19 @@ def test_feed_generation_rejects_legacy_provider_replay_without_duplicate_save(m
     assert posts.saved is None
 
 
+def test_auto_feed_retries_a_legacy_replay_and_releases_its_claim(monkeypatch: MonkeyPatch) -> None:
+    async def generate(self: object, payload: object, owner_id: object, finalize_credit: bool = True) -> GenerateApiResult:
+        return GenerateApiResult(200, {"content": [{"type": "text", "text": "과거 응답"}]}, uuid4(), replayed=True)
+    monkeypatch.setattr(MonoGptGeminiGenerateService, "generate", generate)
+    claimed_at = datetime.now(timezone.utc)
+    posts = StubPosts()
+    service = FeedGenerationService(posts, StubUsage(), Settings(monogpt_gemini_api_key="test"))
+    result = run(service.generate(uuid4(), "char-1", feed_request(), is_auto=True, auto_claimed_at=claimed_at))
+    assert (result.status_code, result.body["error"]) == (409, "REQUEST_ALREADY_PROCESSED")
+    assert posts.recorded_claimed_at == claimed_at
+    assert posts.retry_at is not None
+
+
 def test_feed_generation_does_not_save_when_usage_is_blocked(monkeypatch: MonkeyPatch) -> None:
     async def generate(self: object, payload: object, owner_id: object, finalize_credit: bool = True) -> GenerateApiResult:
         return GenerateApiResult(429, {"error": "DAILY_LIMIT_EXCEEDED"})
@@ -151,10 +171,14 @@ def test_feed_generation_does_not_save_when_usage_is_blocked(monkeypatch: Monkey
     monkeypatch.setattr(MonoGptGeminiGenerateService, "generate", generate)
     posts = StubPosts()
     service = FeedGenerationService(posts, StubUsage(), Settings(monogpt_gemini_api_key="test"))
-    result = run(service.generate(uuid4(), "char-1", feed_request(), is_auto=True))
+    claimed_at = datetime.now(timezone.utc)
+    result = run(service.generate(uuid4(), "char-1", feed_request(), is_auto=True, auto_claimed_at=claimed_at))
     assert result.status_code == 429
     assert posts.saved is None
     assert posts.error.startswith("DAILY_LIMIT_EXCEEDED")
+    assert posts.recorded_claimed_at == claimed_at
+    assert posts.retry_at is not None
+    assert posts.auto_stopped is False
 
 
 def test_auto_feed_commits_post_after_discounted_credit_reservation(monkeypatch: MonkeyPatch) -> None:
@@ -168,14 +192,17 @@ def test_auto_feed_commits_post_after_discounted_credit_reservation(monkeypatch:
     assert posts.committed is True
 
 
-def test_auto_feed_stops_when_purchased_credits_are_insufficient(monkeypatch: MonkeyPatch) -> None:
+def test_auto_feed_stops_only_when_available_balance_is_exhausted(monkeypatch: MonkeyPatch) -> None:
     async def generate(self: object, payload: object, owner_id: object, finalize_credit: bool = True) -> GenerateApiResult:
         return GenerateApiResult(402, {"error": "CREDIT_INSUFFICIENT"})
     monkeypatch.setattr(MonoGptGeminiGenerateService, "generate", generate)
     posts = StubPosts()
-    result = run(FeedGenerationService(posts, StubUsage(), Settings(monogpt_gemini_api_key="test")).generate(uuid4(), "char-1", feed_request(), is_auto=True))
+    claimed_at = datetime.now(timezone.utc)
+    result = run(FeedGenerationService(posts, StubUsage(), Settings(monogpt_gemini_api_key="test")).generate(uuid4(), "char-1", feed_request(), is_auto=True, auto_claimed_at=claimed_at))
     assert result.status_code == 402
+    assert result.body["error"] == "AUTO_POST_BALANCE_EXHAUSTED"
     assert posts.auto_stopped is True
+    assert posts.stopped_claimed_at == claimed_at
     assert posts.error == ""
 
 

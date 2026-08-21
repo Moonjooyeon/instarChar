@@ -6,12 +6,12 @@ import { normalizeCharacterName } from "@/domain/app/textUtils";
 type AutoSetter = (enabled: boolean, intervalSeconds?: number) => Promise<boolean>;
 type AutoRoutinePanelProps = { auto: boolean; autoIntervalSeconds: number; autoPostNotice: string; nextIn: number; setAuto: AutoSetter; };
 type AutoPostSettingsProps = { auto: boolean; autoIntervalSeconds: number; autoPostNotice: string; char: { directions?: string }; isOpen: boolean; nextIn: number; onToggle: () => void; setAuto: AutoSetter; update: (field: string, value: string) => void; };
-type AutoPace = { intervalSeconds: number; label: string; maximumCost: number; recommended?: boolean; };
+type AutoPace = { intervalSeconds: number; label: string; recommended?: boolean; };
 
 const AUTO_POST_PACES: AutoPace[] = [
-  { intervalSeconds: 43200, label: "가끔", maximumCost: 4 },
-  { intervalSeconds: 21600, label: "보통", maximumCost: 8, recommended: true },
-  { intervalSeconds: 3600, label: "자주", maximumCost: 48 },
+  { intervalSeconds: 43200, label: "가끔" },
+  { intervalSeconds: 21600, label: "보통", recommended: true },
+  { intervalSeconds: 3600, label: "자주" },
 ];
 
 export function FeedComposer({ ctx }) {
@@ -62,7 +62,7 @@ export function FeedComposer({ ctx }) {
 }
 
 function AutoPostSettings({ auto, autoIntervalSeconds, autoPostNotice, char, isOpen, nextIn, onToggle, setAuto, update }: AutoPostSettingsProps): React.ReactElement {
-  return <><button className="al-compose-settings-toggle" type="button" aria-expanded={isOpen} onClick={onToggle}><span className="al-compose-settings-copy"><i><AliveIcon name="sparkle" size={15} /></i><span><b>근황 루틴</b><small>{composerSettingsSummary(auto, autoIntervalSeconds)}</small></span></span><i className="al-compose-settings-icon"><AliveIcon name={isOpen ? "minus" : "plus"} size={15} /></i></button>{isOpen && <div className="al-compose-settings"><AutoRoutinePanel auto={auto} autoIntervalSeconds={autoIntervalSeconds} autoPostNotice={autoPostNotice} nextIn={nextIn} setAuto={setAuto} /><div className="al-directive"><span className="al-directive-lbl">다음 근황에 담을 지금 상황</span><input className="al-directive-input" value={char.directions || ""} onChange={(event) => update("directions", event.target.value)} placeholder="예: 연이랑 데이트하고 기분 좋음 / 시험 끝나서 들뜬 상태" />{(char.directions || "").trim() && <span className="al-directive-on">적용 중</span>}</div></div>}</>;
+  return <><button className="al-compose-settings-toggle" type="button" aria-expanded={isOpen} onClick={onToggle}><span className="al-compose-settings-copy"><i><AliveIcon name="sparkle" size={15} /></i><span><b>근황 루틴</b><small>{composerSettingsSummary(auto, autoIntervalSeconds, autoPostNotice)}</small></span></span><i className="al-compose-settings-icon"><AliveIcon name={isOpen ? "minus" : "plus"} size={15} /></i></button>{!isOpen && autoPostNotice && <p className="al-auto-post-notice al-auto-post-notice-collapsed" role="status">{autoPostNotice}</p>}{isOpen && <div className="al-compose-settings"><AutoRoutinePanel auto={auto} autoIntervalSeconds={autoIntervalSeconds} autoPostNotice={autoPostNotice} nextIn={nextIn} setAuto={setAuto} /><div className="al-directive"><span className="al-directive-lbl">다음 근황에 담을 지금 상황</span><input className="al-directive-input" value={char.directions || ""} onChange={(event) => update("directions", event.target.value)} placeholder="예: 연이랑 데이트하고 기분 좋음 / 시험 끝나서 들뜬 상태" />{(char.directions || "").trim() && <span className="al-directive-on">적용 중</span>}</div></div>}</>;
 }
 
 function MoodButton({ mood, onSelect }: { mood: string; onSelect: (mood: string) => void }): React.ReactElement {
@@ -78,8 +78,9 @@ function moodLabel(mood: string): { hint: string; title: string } {
   return { title: parenthetical[1], hint: parenthetical[2] };
 }
 
-function composerSettingsSummary(auto: boolean, interval: number): string {
-  return `${auto ? "남기는 중" : "쉬는 중"} · ${autoIntervalLabel(interval)}마다 · 24시간 최대 ${autoDailyCost(interval)}C`;
+function composerSettingsSummary(auto: boolean, interval: number, notice: string): string {
+  if (notice) return auto ? `자동 재시도 중 · ${autoIntervalLabel(interval)}마다` : "루틴 종료 · 자원을 채운 뒤 다시 시작";
+  return `${auto ? "남기는 중" : "쉬는 중"} · ${autoIntervalLabel(interval)}마다 · 에너지 우선`;
 }
 
 function AutoRoutinePanel({ auto, autoIntervalSeconds, autoPostNotice, nextIn, setAuto }: AutoRoutinePanelProps): React.ReactElement {
@@ -95,7 +96,7 @@ function AutoRoutinePanel({ auto, autoIntervalSeconds, autoPostNotice, nextIn, s
     await setAuto(auto ? isChangePending : true, draftInterval);
     setIsSaving(false);
   }
-  return <section className="al-auto-routine" aria-labelledby="auto-routine-title"><header><small>캐릭터의 루틴</small><b id="auto-routine-title">혼자 남기는 근황</b><p>캐릭터가 자신의 일상을 가끔 남겨요.</p></header><div className="al-auto-paces" role="group" aria-label="근황 빈도">{AUTO_POST_PACES.map((item) => <AutoPaceButton current={draftInterval} key={item.intervalSeconds} pace={item} onSelect={setDraftInterval} />)}</div><p className="al-auto-selection"><b>{pace.label} · {autoIntervalLabel(pace.intervalSeconds)}마다</b><span>24시간 최대 {pace.maximumCost}C</span></p><p className="al-auto-schedule">{routineScheduleCopy(auto, isChangePending, draftInterval, nextIn)}</p><button className={`al-auto-action ${auto && !isChangePending ? "on" : ""}`} disabled={isSaving} type="button" onClick={() => { void applyRoutine(); }}>{isSaving ? "저장 중…" : `${autoIntervalLabel(draftInterval)} ${action}`}</button><CreditLifecycleNote />{autoPostNotice && <p className="al-auto-post-notice" role="status">{autoPostNotice}</p>}</section>;
+  return <section className="al-auto-routine" aria-labelledby="auto-routine-title"><header><small>캐릭터의 루틴</small><b id="auto-routine-title">혼자 남기는 근황</b><p>캐릭터가 자신의 일상을 가끔 남겨요.</p></header><div className="al-auto-paces" role="group" aria-label="근황 빈도">{AUTO_POST_PACES.map((item) => <AutoPaceButton current={draftInterval} key={item.intervalSeconds} pace={item} onSelect={setDraftInterval} />)}</div><p className="al-auto-selection"><b>{pace.label} · {autoIntervalLabel(pace.intervalSeconds)}마다</b><span>에너지 25% 우선 · 부족하면 2C</span></p><p className="al-auto-schedule">{routineScheduleCopy(auto, isChangePending, draftInterval, nextIn)}</p><button className={`al-auto-action ${auto && !isChangePending ? "on" : ""}`} disabled={isSaving} type="button" onClick={() => { void applyRoutine(); }}>{isSaving ? "저장 중…" : `${autoIntervalLabel(draftInterval)} ${action}`}</button><CreditLifecycleNote />{autoPostNotice && <p className="al-auto-post-notice" role="status">{autoPostNotice}</p>}</section>;
 }
 
 function AutoPaceButton({ current, pace, onSelect }: { current: number; pace: AutoPace; onSelect: (interval: number) => void; }): React.ReactElement {
@@ -104,7 +105,7 @@ function AutoPaceButton({ current, pace, onSelect }: { current: number; pace: Au
 }
 
 function CreditLifecycleNote(): React.ReactElement {
-  return <details className="al-auto-credit-life"><summary>사용과 환급 기준</summary><p>요청할 때 2C를 잠시 예약하고, 글이 저장되면 확정돼요. 빈 응답·중복·저장 실패면 자동으로 돌아와요. 루틴을 멈춰도 이미 시작한 한 편은 마무리될 수 있어요.</p></details>;
+  return <details className="al-auto-credit-life"><summary>사용 자원과 종료 기준</summary><p>한 편마다 무료 회복 에너지 25%를 먼저 사용해요. 부족하면 무료 보너스, 구매 크레딧 순서로 2C를 사용하고, 모두 부족하면 루틴이 종료돼요. 일시적인 생성 실패는 차감 없이 자동으로 다시 시도해요.</p></details>;
 }
 
 function routineScheduleCopy(auto: boolean, isChangePending: boolean, interval: number, nextIn: number): string {
@@ -112,10 +113,6 @@ function routineScheduleCopy(auto: boolean, isChangePending: boolean, interval: 
   if (!isChangePending) return nextIn > 0 ? `다음 근황까지 약 ${countdownText(nextIn)}` : "다음 근황 시간을 확인하고 있어요.";
   if (nextIn <= 0) return "새 주기는 다음 근황부터 적용돼요.";
   return `다음 근황은 약 ${countdownText(Math.min(nextIn, interval))} 뒤, 그다음부터 ${autoIntervalLabel(interval)}마다예요.`;
-}
-
-function autoDailyCost(interval: number): number {
-  return Math.floor(86400 / interval) * 2;
 }
 
 function autoIntervalLabel(interval: number): string {

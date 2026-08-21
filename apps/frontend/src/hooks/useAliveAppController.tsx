@@ -288,6 +288,7 @@ export function useAliveAppController() {
   });
   const {
     auto,
+    autoPostNotice,
     canLikePost,
     commentAs,
     commentOn,
@@ -1117,6 +1118,7 @@ export function useAliveAppController() {
     authResolvedRef,
     auto,
     autoIntervalSeconds,
+    autoPostNotice,
     canLikePost,
     autoChatRef,
     autoChatting,

@@ -27,18 +27,21 @@ class FeedGenerationService:
         self.posts = posts
         self.ai = MonoGptGeminiGenerateService(settings, usage, credits)
 
-    async def generate(self, owner_id: UUID, source_account_id: str, payload: FeedPostGenerateRequest, is_auto: bool = False) -> GenerateApiResult:
+    async def generate(self, owner_id: UUID, source_account_id: str, payload: FeedPostGenerateRequest, is_auto: bool = False, auto_claimed_at: datetime | None = None) -> GenerateApiResult:
         character = await self.posts.owned_character(owner_id, source_account_id)
         flow = "auto_feed_post" if is_auto else "character-feed-post-v1"
         request = self._request(character.name, character.character, character.posts, payload.mood, payload.idempotency_key, flow)
         result = await self._generate_result(request, owner_id, finalize_credit=False)
         if result.status_code != 200:
-            return await self._failed_result(owner_id, source_account_id, result, character.auto_post_failure_count, is_auto)
+            return await self._failed_result(owner_id, source_account_id, result, character.auto_post_failure_count, is_auto, auto_claimed_at)
         if result.replayed:
-            return self._replayed_result(result)
-        persisted = await self._persist_result(owner_id, source_account_id, payload.mood, result, is_auto, character.posts)
+            replayed = self._replayed_result(result)
+            if is_auto and replayed.status_code != 200:
+                return await self._failed_result(owner_id, source_account_id, replayed, character.auto_post_failure_count, True, auto_claimed_at)
+            return replayed
+        persisted = await self._persist_result(owner_id, source_account_id, payload.mood, result, is_auto, character.posts, auto_claimed_at)
         if persisted.status_code != 200 and is_auto:
-            return await self._failed_result(owner_id, source_account_id, persisted, character.auto_post_failure_count, True)
+            return await self._failed_result(owner_id, source_account_id, persisted, character.auto_post_failure_count, True, auto_claimed_at)
         return persisted
 
     def _replayed_result(self, result: GenerateApiResult) -> GenerateApiResult:
@@ -47,15 +50,15 @@ class FeedGenerationService:
         body = {"error": "REQUEST_ALREADY_PROCESSED", "message": "이미 처리된 피드 생성 요청이야."}
         return GenerateApiResult(409, body, result.credit_usage_id, result.provider_usage, replayed=True)
 
-    async def _failed_result(self, owner_id: UUID, source_account_id: str, result: GenerateApiResult, failure_count: int, is_auto: bool) -> GenerateApiResult:
+    async def _failed_result(self, owner_id: UUID, source_account_id: str, result: GenerateApiResult, failure_count: int, is_auto: bool, auto_claimed_at: datetime | None) -> GenerateApiResult:
         if is_auto and result.body.get("error") == "CREDIT_INSUFFICIENT":
-            await self.posts.stop_auto_post_for_credit(owner_id, source_account_id)
-            return result
+            await self.posts.stop_auto_post_for_balance(owner_id, source_account_id, auto_claimed_at)
+            return self._balance_exhausted_result(result)
         if is_auto:
-            await self._record_auto_failure(owner_id, source_account_id, result, failure_count)
+            await self._record_auto_failure(owner_id, source_account_id, result, failure_count, auto_claimed_at)
         return result
 
-    async def _persist_result(self, owner_id: UUID, source_account_id: str, mood: str, result: GenerateApiResult, is_auto: bool, existing_posts: list[object]) -> GenerateApiResult:
+    async def _persist_result(self, owner_id: UUID, source_account_id: str, mood: str, result: GenerateApiResult, is_auto: bool, existing_posts: list[object], auto_claimed_at: datetime | None) -> GenerateApiResult:
         post = self._post_from_result(result, mood)
         if not post:
             await self.ai.refund_result(result, owner_id, "INVALID_POST")
@@ -65,7 +68,7 @@ class FeedGenerationService:
             return GenerateApiResult(422, {"error": "POST_TOO_SIMILAR", "message": "최근 근황과 너무 비슷해 잠시 뒤 다른 장면으로 다시 작성합니다."})
         try:
             defer_commit = result.credit_usage_id is not None
-            state = await self.posts.append_generated_post(owner_id, source_account_id, post, is_auto=is_auto, commit=not defer_commit)
+            state = await self.posts.append_generated_post(owner_id, source_account_id, post, is_auto=is_auto, commit=not defer_commit, auto_claimed_at=auto_claimed_at)
         except Exception:
             await self.ai.refund_result(result, owner_id, "PERSISTENCE_FAILED")
             raise
@@ -79,11 +82,15 @@ class FeedGenerationService:
         except Exception:
             return GenerateApiResult(500, {"error": "GENERATION_FAILED", "message": "AI 생성 처리에 실패했습니다."})
 
-    async def _record_auto_failure(self, owner_id: UUID, source_account_id: str, result: GenerateApiResult, failure_count: int) -> None:
+    async def _record_auto_failure(self, owner_id: UUID, source_account_id: str, result: GenerateApiResult, failure_count: int, auto_claimed_at: datetime | None) -> None:
         code = str(result.body.get("error") or "GENERATION_FAILED")
         message = str(result.body.get("message") or code)
         retry_at = self._retry_at(code, failure_count)
-        await self.posts.record_auto_failure(owner_id, source_account_id, f"{code}: {message}", retry_at)
+        await self.posts.record_auto_failure(owner_id, source_account_id, f"{code}: {message}", retry_at, auto_claimed_at)
+
+    def _balance_exhausted_result(self, result: GenerateApiResult) -> GenerateApiResult:
+        body = {**result.body, "error": "AUTO_POST_BALANCE_EXHAUSTED", "message": "무료 에너지와 보유 크레딧이 부족해 자동 게시를 종료했어."}
+        return GenerateApiResult(result.status_code, body, result.credit_usage_id, result.provider_usage, result.replayed)
 
     def _retry_at(self, code: str, failure_count: int) -> datetime:
         now = datetime.now(timezone.utc)

@@ -60,8 +60,8 @@ async function mockAliveApi(page) {
 async function mockCreditsApi(page, rewards) {
   const flows = [
     ["direct_dm_basic", "기본 대화", 1, 8, 0, 0], ["direct_dm_context", "기억 반영", 3, 15, 0, 0], ["direct_dm_pro", "중요한 답장", 9, 25, 20, 0],
-    ["feed_post", "피드 글 생성", 3, 20, 0, 0], ["auto_feed_post", "혼자 남기는 근황", 2, 0, 24, 0], ["character_analysis", "캐릭터 분석", 10, 0, 3, 1],
-  ].map(([code, label, credits, energy_percent, hard_daily_limit, intro_free_uses]) => ({ code, label, credits, energy_percent, hard_daily_limit, intro_free_uses, energy_eligible: !["direct_dm_pro", "auto_feed_post", "character_analysis"].includes(String(code)), bonus_eligible: !["direct_dm_pro", "auto_feed_post", "character_analysis"].includes(String(code)) }));
+    ["feed_post", "피드 글 생성", 3, 20, 0, 0], ["auto_feed_post", "혼자 남기는 근황", 2, 25, 24, 0], ["character_analysis", "캐릭터 분석", 10, 0, 3, 1],
+  ].map(([code, label, credits, energy_percent, hard_daily_limit, intro_free_uses]) => ({ code, label, credits, energy_percent, hard_daily_limit, intro_free_uses, energy_eligible: !["direct_dm_pro", "character_analysis"].includes(String(code)), bonus_eligible: !["direct_dm_pro", "character_analysis"].includes(String(code)) }));
   const offers = [{ id: "credit-5000", price_krw: 5390, base_credits: 500, product_bonus_credits: 0, first_purchase_bonus_percent: 10, total_credits: 500, first_purchase_total_credits: 550, label: "가볍게 이어가기", payment_available: false }];
   await page.route("**/api/credits/catalog", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ credit_policy_version: "v1", energy_policy_version: "v1", offers, flows }) }));
   await page.route("**/api/credits/usage", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ items: [] }) }));

@@ -111,6 +111,38 @@ def test_auto_post_six_hour_default_follows_merged_heads(monkeypatch: pytest.Mon
     assert altered_columns == ["auto_post_interval_seconds", "next_auto_post_at"]
 
 
+def test_auto_post_claim_lease_recovers_only_system_stopped_rows(monkeypatch: pytest.MonkeyPatch) -> None:
+    migration = _load_migration("20260820_0030_auto_post_claim_lease.py")
+    columns: list[sa.Column[object]] = []
+    statements: list[str] = []
+    monkeypatch.setattr(migration.op, "add_column", lambda _table, column: columns.append(column))
+    monkeypatch.setattr(migration.op, "execute", lambda statement: statements.append(str(statement)))
+    migration.upgrade()
+    rendered = "\n".join(statements)
+    assert migration.down_revision == "20260815_0029"
+    assert [column.name for column in columns] == ["auto_post_claimed_at", "auto_post_legacy_credit_stop_recovered"]
+    assert columns[1].nullable is False
+    assert str(columns[1].server_default.arg) == "false"
+    assert "last_auto_post_error = 'AUTO_POST_CREDIT_INSUFFICIENT'" in rendered
+    assert "auto_post_enabled = true" in rendered
+    assert "auto_post_legacy_credit_stop_recovered = true" in rendered
+    assert "auto_post_interval_seconds * INTERVAL '1 second'" in rendered
+
+
+def test_auto_post_claim_lease_downgrade_restores_only_recovered_rows(monkeypatch: pytest.MonkeyPatch) -> None:
+    migration = _load_migration("20260820_0030_auto_post_claim_lease.py")
+    statements: list[str] = []
+    dropped: list[str] = []
+    monkeypatch.setattr(migration.op, "execute", lambda statement: statements.append(str(statement)))
+    monkeypatch.setattr(migration.op, "drop_column", lambda _table, column: dropped.append(column))
+    migration.downgrade()
+    rendered = "\n".join(statements)
+    assert "WHERE auto_post_legacy_credit_stop_recovered IS true" in rendered
+    assert "auto_post_enabled = false" in rendered
+    assert "last_auto_post_error = 'AUTO_POST_CREDIT_INSUFFICIENT'" in rendered
+    assert dropped == ["auto_post_legacy_credit_stop_recovered", "auto_post_claimed_at"]
+
+
 def test_character_handle_migration_assigns_deterministic_unique_values() -> None:
     migration = _load_migration("20260730_0009_character_handle_uniqueness.py")
     assign = cast(Callable[[list[tuple[object, object, str, str]]], list[tuple[object, object, str, str]]], migration._assign_handles)

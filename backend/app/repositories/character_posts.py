@@ -40,20 +40,22 @@ class CharacterPostsRepository:
         row.next_auto_post_at = next_auto_post_schedule(payload.enabled, payload.interval_seconds or 21600, row.auto_post_enabled, row.next_auto_post_at, now)
         row.auto_post_enabled = payload.enabled
         row.auto_post_interval_seconds = payload.interval_seconds
+        row.auto_post_claimed_at = None
+        row.auto_post_legacy_credit_stop_recovered = False
         row.last_auto_post_error = ""
         row.auto_post_failure_count = 0
         await self.session.commit()
         return self.response(row)
 
-    async def append_generated_post(self, owner_id: UUID, source_account_id: str, post: dict[str, object], is_auto: bool = False, commit: bool = True) -> CharacterPostsResponse:
+    async def append_generated_post(self, owner_id: UUID, source_account_id: str, post: dict[str, object], is_auto: bool = False, commit: bool = True, auto_claimed_at: datetime | None = None) -> CharacterPostsResponse:
         require_safe_content(post)
         row = await self.owned_character(owner_id, source_account_id, lock=True)
+        if is_auto:
+            await self._require_current_claim(row, auto_claimed_at)
         row.posts = [post, *list(row.posts or [])][:40]
         row.posts_revision += 1
         if is_auto:
-            row.last_auto_post_at = datetime.now(timezone.utc)
-            row.last_auto_post_error = ""
-            row.auto_post_failure_count = 0
+            complete_auto_post_schedule(row, datetime.now(timezone.utc))
         await self._sync_shared_posts(row)
         if commit:
             await self.session.commit()
@@ -68,18 +70,27 @@ class CharacterPostsRepository:
         await self.session.commit()
         return CharacterPostCommentsResponse(comments=comments)
 
-    async def record_auto_failure(self, owner_id: UUID, source_account_id: str, error: str, retry_at: datetime) -> None:
+    async def record_auto_failure(self, owner_id: UUID, source_account_id: str, error: str, retry_at: datetime, auto_claimed_at: datetime | None = None) -> None:
         row = await self.owned_character(owner_id, source_account_id, lock=True)
+        if not self._is_current_claim(row, auto_claimed_at):
+            await self.session.rollback()
+            return
         row.last_auto_post_error = error[:500]
         row.auto_post_failure_count += 1
-        row.next_auto_post_at = retry_at
+        row.auto_post_claimed_at = None
+        row.next_auto_post_at = retry_at if row.auto_post_enabled else None
         await self.session.commit()
 
-    async def stop_auto_post_for_credit(self, owner_id: UUID, source_account_id: str) -> None:
+    async def stop_auto_post_for_balance(self, owner_id: UUID, source_account_id: str, auto_claimed_at: datetime | None = None) -> None:
         row = await self.owned_character(owner_id, source_account_id, lock=True)
+        if not self._is_current_claim(row, auto_claimed_at):
+            await self.session.rollback()
+            return
         row.auto_post_enabled = False
         row.next_auto_post_at = None
-        row.last_auto_post_error = "AUTO_POST_CREDIT_INSUFFICIENT"
+        row.auto_post_claimed_at = None
+        row.last_auto_post_error = "AUTO_POST_BALANCE_EXHAUSTED"
+        row.auto_post_failure_count += 1
         await self.session.commit()
 
     async def owned_character(self, owner_id: UUID, source_account_id: str, lock: bool = False) -> Character:
@@ -149,6 +160,15 @@ class CharacterPostsRepository:
     def _comment_value(self, payload: CharacterPostCommentCreate) -> dict[str, object]:
         return {"byUser": True, "handle": payload.handle, "name": payload.name, "replyTo": payload.reply_to, "text": payload.text}
 
+    def _is_current_claim(self, row: Character, claimed_at: datetime | None) -> bool:
+        return claimed_at is None or row.auto_post_claimed_at == claimed_at
+
+    async def _require_current_claim(self, row: Character, claimed_at: datetime | None) -> None:
+        if self._is_current_claim(row, claimed_at):
+            return
+        await self.session.rollback()
+        raise ConflictError("Auto-post claim is stale")
+
 
 def next_auto_post_schedule(enabled: bool, interval_seconds: int, was_enabled: bool, current_next_at: datetime | None, now: datetime) -> datetime | None:
     if not enabled:
@@ -157,3 +177,11 @@ def next_auto_post_schedule(enabled: bool, interval_seconds: int, was_enabled: b
     if not was_enabled or current_next_at is None or current_next_at <= now:
         return next_from_now
     return min(current_next_at, next_from_now)
+
+
+def complete_auto_post_schedule(row: Character, completed_at: datetime) -> None:
+    row.last_auto_post_at = completed_at
+    row.last_auto_post_error = ""
+    row.auto_post_failure_count = 0
+    row.auto_post_claimed_at = None
+    row.next_auto_post_at = completed_at + timedelta(seconds=row.auto_post_interval_seconds) if row.auto_post_enabled else None

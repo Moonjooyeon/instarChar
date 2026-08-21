@@ -20,7 +20,7 @@ from app.main import app
 from app.repositories.ai_usage import AiUsageRepository, UsageReservation
 from app.repositories.credits import CreditRepository, CreditReservation
 from app.schemas.ai import GenerateRequest
-from app.services.ai import GEMINI_SAFETY_SETTINGS, MonoGptGeminiGenerateService, MonoGptGeminiResponse
+from app.services.ai import GEMINI_SAFETY_SETTINGS, MAX_PROVIDER_RETRY_AFTER_SECONDS, MonoGptGeminiGenerateService, MonoGptGeminiResponse
 
 
 @dataclass
@@ -162,6 +162,12 @@ def test_provider_reservation_uses_configured_rates_thinking_and_retry_policy() 
     service = MonoGptGeminiGenerateService(make_settings(monogpt_gemini_good_input_rate_usd=2, monogpt_gemini_good_output_rate_usd=12), StubCancellationUsage())  # type: ignore[arg-type]
     assert service._maximum_provider_cost(resolve_flow("direct_dm_pro")) == Decimal("0.090432")
     assert service._maximum_provider_cost(resolve_flow("character_analysis")) == Decimal("0.203008")
+
+
+def test_provider_retry_after_is_bounded_for_durable_auto_post_claims() -> None:
+    service = MonoGptGeminiGenerateService(make_settings(), StubCancellationUsage())  # type: ignore[arg-type]
+    assert service._retry_delay(0, MonoGptGeminiResponse(503, {}, retry_after=3600)) == MAX_PROVIDER_RETRY_AFTER_SECONDS
+    assert service._retry_delay(0, MonoGptGeminiResponse(503, {}, retry_after=10)) == 10
 
 
 def test_feed_generation_uses_a_higher_temperature_without_losing_json_mode() -> None:

@@ -21,6 +21,7 @@ from app.services.content_safety import is_safe_ai_content
 
 
 RETRYABLE_STATUS_CODES = {408, 500, 502, 503, 504, 599}
+MAX_PROVIDER_RETRY_AFTER_SECONDS = 30.0
 NON_RETRYABLE_EMPTY_REASONS = {"CONTENT_FILTER", "ERROR", "SAFETY"}
 UNSAFE_EMPTY_REASONS = {"CONTENT_FILTER", "SAFETY"}
 JSON_SYSTEM_PATTERN = re.compile(r"JSON|json|json 객체|json으로|반드시 JSON")
@@ -387,7 +388,7 @@ class MonoGptGeminiGenerateService:
 
     def _retry_delay(self, attempt: int, response: MonoGptGeminiResponse | None) -> float:
         if response and response.retry_after > 0:
-            return response.retry_after
+            return min(response.retry_after, MAX_PROVIDER_RETRY_AFTER_SECONDS)
         return (600 * (2 ** attempt) + random.randint(0, 249)) / 1000
 
     def _image_url(self, value: object) -> object:

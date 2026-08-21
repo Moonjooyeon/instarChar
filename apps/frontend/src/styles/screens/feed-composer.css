@@ -24,6 +24,7 @@
 .al-feed-theme-ready .al-moods-cancel{ color:var(--alive-soft); }
 .al-feed-theme-ready .al-moods-cancel:hover{ color:var(--alive-ink); }
 .al-feed-theme-ready .al-auto-post-notice{ margin:8px 0 0; color:var(--alive-accent-ink); font-size:10px; line-height:1.5; }
+.al-feed-theme-ready .al-auto-post-notice-collapsed{ margin:0; padding:9px 16px 11px; border-bottom:1px solid var(--alive-line); background:var(--alive-surface-sunken); }
 .al-feed-theme-ready .al-auto-routine{ padding:15px 16px 13px; border-bottom:1px solid var(--alive-line); background:var(--alive-surface-sunken); }
 .al-feed-theme-ready .al-auto-routine header small{ display:block; color:var(--alive-accent-ink); font-size:10px; font-weight:820; letter-spacing:.06em; }
 .al-feed-theme-ready .al-auto-routine header b{ display:block; margin-top:3px; color:var(--alive-ink); font-size:15px; letter-spacing:-.02em; }

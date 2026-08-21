@@ -427,9 +427,9 @@ function secondsUntil(value: string | null): number {
 }
 
 function autoPostNoticeFor(error: string): string {
-  if (error.startsWith("POST_TOO_SIMILAR")) return "최근 글과 너무 비슷해 새 장면으로 다시 작성 중이에요."
-  if (error === "AUTO_POST_CREDIT_INSUFFICIENT") return "구매 크레딧이 모자라서 혼자 남기는 근황은 잠시 쉬고 있어요."
-  return error ? "근황을 남기려다 잠시 쉬고 있어요. 다음 시도 때 다시 이어갈게요." : "";
+  if (error === "AUTO_POST_BALANCE_EXHAUSTED" || error === "AUTO_POST_CREDIT_INSUFFICIENT") return "에너지와 크레딧이 부족해 근황 루틴이 종료됐어요. 자원을 채운 뒤 다시 시작해 주세요.";
+  if (error.startsWith("POST_TOO_SIMILAR")) return "최근 글과 비슷해 이번 근황은 건너뛰었어요. 루틴은 유지되며 자동으로 다시 시도해요.";
+  return error ? "이번 근황 생성에 실패했어요. 루틴은 유지되며 자동으로 다시 시도해요." : "";
 }
 
 function isRevisionConflict(error: unknown): boolean {
