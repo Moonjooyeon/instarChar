@@ -13,6 +13,10 @@ x-backend: &backend
       source: ${TOSS_MTLS_SECRETS_DIR:-./secrets/toss}
       target: /run/secrets/toss
       read_only: true
+    - type: bind
+      source: ${GOOGLE_PLAY_SECRETS_DIR:-./secrets/google-play}
+      target: /run/secrets/google-play
+      read_only: true
   networks:
     - levelup-net
 
