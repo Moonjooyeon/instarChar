@@ -17,6 +17,10 @@ x-backend: &backend
       source: ${GOOGLE_PLAY_SECRETS_DIR:-./secrets/google-play}
       target: /run/secrets/google-play
       read_only: true
+    - type: bind
+      source: ${APP_STORE_SECRETS_DIR:-./secrets/app-store}
+      target: /run/secrets/app-store
+      read_only: true
   networks:
     - levelup-net
 

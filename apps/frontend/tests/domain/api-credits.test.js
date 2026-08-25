@@ -6,6 +6,8 @@ import {
   getCreditPurchases,
   getCreditUsage,
   getGooglePlayPurchaseContext,
+  getAppStorePurchaseContext,
+  grantAppStoreCreditPurchase,
   grantGooglePlayCreditPurchase,
   grantCreditPurchase,
 } from "../../src/api/credits.js";
@@ -74,6 +76,21 @@ test("Google Play credit APIs request a server-owned account context and purchas
     assert.equal(globalThis.fetch.calls[0].input, "/api/credits/purchases/google-play/context");
     assert.equal(globalThis.fetch.calls[1].input, "/api/credits/purchases/google-play/grant");
     assert.deepEqual(JSON.parse(globalThis.fetch.calls[1].init.body), { purchase_token: "purchase-token" });
+  } finally {
+    restoreFetch();
+  }
+});
+
+test("App Store credit APIs request an account token and send a signed transaction", async () => {
+  const restoreFetch = stubFetch([{ available: true, app_account_token: "token" }, { order_id: "transaction", status: "granted", granted_credits: 550 }]);
+  try {
+    const context = await getAppStorePurchaseContext();
+    const result = await grantAppStoreCreditPurchase("signed-transaction");
+    assert.deepEqual(context, { available: true, app_account_token: "token" });
+    assert.equal(result.order_id, "transaction");
+    assert.equal(globalThis.fetch.calls[0].input, "/api/credits/purchases/app-store/context");
+    assert.equal(globalThis.fetch.calls[1].input, "/api/credits/purchases/app-store/grant");
+    assert.deepEqual(JSON.parse(globalThis.fetch.calls[1].init.body), { signed_transaction: "signed-transaction" });
   } finally {
     restoreFetch();
   }

@@ -86,9 +86,20 @@ test("iOS bridge registers the local Apple sign-in plugin", () => {
   const applePlugin = readFileSync(path.join(iosAppPath, "AppleSignIn.swift"), "utf8");
   const storyboard = readFileSync(path.join(iosAppPath, "Base.lproj/Main.storyboard"), "utf8");
   assert.match(controller, /registerPluginInstance\(AppleSignIn\(\)\)/);
+  assert.match(controller, /registerPluginInstance\(AppStoreBilling\(\)\)/);
   assert.match(applePlugin, /getCredentialState\(forUserID:/);
   assert.match(applePlugin, /credentialRevokedNotification/);
   assert.match(storyboard, /customClass="AliveBridgeViewController"/);
+});
+
+test("iOS StoreKit bridge keeps transactions unfinished until the server grant completes", () => {
+  const iosAppPath = path.resolve(process.cwd(), "../../ios/App/App");
+  const plugin = readFileSync(path.join(iosAppPath, "AppStoreBilling.swift"), "utf8");
+  assert.match(plugin, /Transaction\.unfinished/);
+  assert.match(plugin, /Transaction\.updates/);
+  assert.match(plugin, /appAccountToken\(token\)/);
+  assert.match(plugin, /result\.jwsRepresentation/);
+  assert.match(plugin, /await transaction\.finish\(\)/);
 });
 
 test("iOS declares why camera access is required", () => {

@@ -252,15 +252,15 @@ Apple 공식 근거:
 
 ## App Store Connect 상품
 
-다섯 상품은 `Consumable`로 등록한다. Apple 상품 ID가 아직 사용되지 않았다면 Google Play와 같은 ID를 사용해 운영 매핑을 단순화하는 방안을 권장한다.
+다섯 상품은 `Consumable`로 등록한다. App Store Connect에 생성한 실제 상품 ID를 서버 설정과 동일하게 사용한다.
 
 | ALIVE 상품 | 권장 App Store 제품 ID | 지급량 |
 |---|---|---:|
-| `credit-5000` | `alive.credits.500` | 500C |
-| `credit-10000` | `alive.credits.1000` | 1,000C |
-| `credit-30000` | `alive.credits.3150` | 3,150C |
-| `credit-50000` | `alive.credits.5500` | 5,500C |
-| `credit-100000` | `alive.credits.11500` | 11,500C |
+| `credit-5000` | `ALIVE_CREDITS_500` | 500C |
+| `credit-10000` | `ALIVE_CREDITS_1000` | 1,000C |
+| `credit-30000` | `ALIVE_CREDITS_3150` | 3,150C |
+| `credit-50000` | `ALIVE_CREDITS_5500` | 5,500C |
+| `credit-100000` | `ALIVE_CREDITS_11500` | 11,500C |
 
 필요한 콘솔·운영 준비:
 
@@ -361,7 +361,7 @@ Apple 공식 근거:
 
 ## 남은 위험
 
-1. Android 빌드 번호 9와 iOS 빌드 번호 8이 현재 불일치하므로 다음 모바일 릴리스 전에 정렬해야 한다.
+1. iOS 빌드 번호를 Android와 같은 9로 정렬했다. TestFlight 업로드 전 새 빌드 번호가 App Store Connect의 업로드 이력보다 큰지 다시 확인해야 한다.
 2. 공통 원장에 `REFUND_REVERSED` 전이가 없으므로 Apple 환불 취소 처리 설계가 필요하다.
 3. `price_krw`만으로는 해외 App Store 거래의 실제 가격과 통화를 보존할 수 없다.
 4. 서로 다른 ALIVE 로그인 계정으로 Android와 iOS를 사용하면 지갑이 분리된다. 계정 연결은 별도 범위다.

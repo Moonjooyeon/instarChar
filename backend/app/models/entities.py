@@ -387,6 +387,9 @@ class CreditPurchase(TimestampMixin, Base):
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="processing")
     provider_status: Mapped[str] = mapped_column(String(32), nullable=False, default="")
     price_krw: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    provider_currency: Mapped[str] = mapped_column(String(3), nullable=False, default="")
+    provider_storefront: Mapped[str] = mapped_column(String(3), nullable=False, default="")
+    provider_price_milliunits: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     base_credits: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     product_bonus_credits: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     first_purchase_bonus_credits: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -414,6 +417,29 @@ class GooglePlayRtdnEvent(Base):
     message_id: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
     notification_type: Mapped[str] = mapped_column(String(64), nullable=False)
     purchase_token: Mapped[str] = mapped_column(String(512), nullable=False, default="")
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="processing")
+    failure_reason: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    claimed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    processed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+
+class AppStoreAccount(Base):
+    __tablename__ = "app_store_accounts"
+    __table_args__ = (UniqueConstraint("user_id", name="uq_app_store_accounts_user_id"),)
+    id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid4)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    account_token: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), nullable=False, unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class AppStoreNotificationEvent(Base):
+    __tablename__ = "app_store_notification_events"
+    __table_args__ = (Index("ix_app_store_notification_events_status_created", "status", "created_at"),)
+    id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid4)
+    notification_uuid: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+    notification_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    transaction_id: Mapped[str] = mapped_column(String(512), nullable=False, default="")
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="processing")
     failure_reason: Mapped[str] = mapped_column(String(255), nullable=False, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)

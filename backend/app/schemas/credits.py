@@ -11,6 +11,7 @@ class CreditOfferResponse(BaseModel):
     id: str
     sku: str = ""
     google_play_product_id: str = ""
+    app_store_product_id: str = ""
     price_krw: int
     base_credits: int
     product_bonus_credits: int
@@ -20,6 +21,7 @@ class CreditOfferResponse(BaseModel):
     label: str
     payment_available: bool = False
     google_play_payment_available: bool = False
+    app_store_payment_available: bool = False
 
 
 class CreditFlowResponse(BaseModel):
@@ -87,6 +89,20 @@ class GooglePlayCreditPurchaseGrantRequest(BaseModel):
 class GooglePlayPurchaseContextResponse(BaseModel):
     available: bool
     obfuscated_account_id: str = ""
+
+
+class AppStoreCreditPurchaseGrantRequest(BaseModel):
+    signed_transaction: str = Field(min_length=1, max_length=32768)
+
+
+class AppStorePurchaseContextResponse(BaseModel):
+    available: bool
+    app_account_token: str = ""
+
+
+class AppStoreNotificationRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    signed_payload: str = Field(alias="signedPayload", min_length=1, max_length=32768)
 
 
 class GooglePlayRtdnMessage(BaseModel):

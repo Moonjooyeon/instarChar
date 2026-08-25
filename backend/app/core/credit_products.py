@@ -70,6 +70,21 @@ def credit_product_by_google_play_id(settings: Settings, product_id: str) -> Cre
     return next((product for product in CREDIT_PRODUCTS if configured[product.offer_id] == product_id and product_id), None)
 
 
+def app_store_product_ids(settings: Settings) -> dict[str, str]:
+    return {
+        "credit-5000": settings.app_store_iap_credit_5000_product_id,
+        "credit-10000": settings.app_store_iap_credit_10000_product_id,
+        "credit-30000": settings.app_store_iap_credit_30000_product_id,
+        "credit-50000": settings.app_store_iap_credit_50000_product_id,
+        "credit-100000": settings.app_store_iap_credit_100000_product_id,
+    }
+
+
+def credit_product_by_app_store_id(settings: Settings, product_id: str) -> CreditProduct | None:
+    configured = app_store_product_ids(settings)
+    return next((product for product in CREDIT_PRODUCTS if configured[product.offer_id] == product_id and product_id), None)
+
+
 def validate_toss_iap_configuration(settings: Settings) -> None:
     requested = settings.toss_iap_enabled or settings.toss_iap_purchase_enabled or settings.toss_iap_reconciliation_enabled or settings.toss_iap_audit_alerts_enabled or settings.toss_iap_sandbox_enabled
     if not requested:
@@ -100,6 +115,17 @@ def validate_google_play_iap_configuration(settings: Settings) -> None:
     _validate_google_play_rtdn(settings)
 
 
+def validate_app_store_iap_configuration(settings: Settings) -> None:
+    requested = settings.app_store_iap_enabled or settings.app_store_iap_purchase_enabled
+    if not requested:
+        return
+    if not settings.app_store_iap_enabled:
+        raise ValueError("APP_STORE_IAP_ENABLED must be true before enabling purchases")
+    _validate_app_store_rollout(settings)
+    _validate_app_store_credentials(settings)
+    _validate_app_store_product_ids(settings)
+
+
 def toss_iap_purchase_available(settings: Settings, provider: UserProvider, subject: str) -> bool:
     if not settings.toss_iap_enabled or not settings.toss_iap_purchase_enabled:
         return False
@@ -125,6 +151,19 @@ def google_play_iap_purchase_available(settings: Settings, subject: str) -> bool
         return True
     message = f"purchase-rollout:google-play:{subject}".encode()
     digest = new_hmac(settings.google_play_iap_subject_hmac_key.encode(), message, sha256).digest()
+    return int.from_bytes(digest[:8], "big") % 100 < percent
+
+
+def app_store_iap_purchase_available(settings: Settings, subject: str) -> bool:
+    if not settings.app_store_iap_enabled or not settings.app_store_iap_purchase_enabled or not subject:
+        return False
+    percent = settings.app_store_iap_purchase_rollout_percent
+    if percent <= 0:
+        return False
+    if percent >= 100:
+        return True
+    message = f"purchase-rollout:app-store:{subject}".encode()
+    digest = new_hmac(settings.app_store_iap_subject_hmac_key.encode(), message, sha256).digest()
     return int.from_bytes(digest[:8], "big") % 100 < percent
 
 
@@ -199,3 +238,30 @@ def _validate_google_play_rtdn(settings: Settings) -> None:
     email = settings.google_play_rtdn_push_service_account_email
     if not re.fullmatch(r"[^@\s]+@[^@\s]+\.gserviceaccount\.com", email):
         raise ValueError("GOOGLE_PLAY_RTDN_PUSH_SERVICE_ACCOUNT_EMAIL must be a service account email")
+
+
+def _validate_app_store_rollout(settings: Settings) -> None:
+    percent = settings.app_store_iap_purchase_rollout_percent
+    if percent < 0 or percent > 100:
+        raise ValueError("APP_STORE_IAP_PURCHASE_ROLLOUT_PERCENT must be between 0 and 100")
+
+
+def _validate_app_store_credentials(settings: Settings) -> None:
+    if not settings.app_store_iap_bundle_id.strip():
+        raise ValueError("APP_STORE_IAP_BUNDLE_ID must be present")
+    if settings.app_store_iap_app_apple_id <= 0:
+        raise ValueError("APP_STORE_IAP_APP_APPLE_ID must be present")
+    paths = [Path(value.strip()) for value in settings.app_store_iap_root_certificate_paths.split(",") if value.strip()]
+    if not paths or any(not path.is_file() for path in paths):
+        raise ValueError("APP_STORE_IAP_ROOT_CERTIFICATE_PATHS must contain existing PEM files")
+    key = settings.app_store_iap_subject_hmac_key
+    if len(key.encode()) < 32 or key == settings.auth_secret_key:
+        raise ValueError("APP_STORE_IAP_SUBJECT_HMAC_KEY must be separate and contain at least 32 bytes")
+
+
+def _validate_app_store_product_ids(settings: Settings) -> None:
+    product_ids = list(app_store_product_ids(settings).values())
+    if any(not product_id.strip() or product_id != product_id.strip() for product_id in product_ids):
+        raise ValueError("All App Store credit product IDs must be present without surrounding whitespace")
+    if len(set(product_ids)) != len(product_ids):
+        raise ValueError("App Store credit product IDs must be unique")

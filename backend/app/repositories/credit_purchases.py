@@ -126,6 +126,12 @@ class CreditPurchaseRepository:
         await self.session.execute(statement)
         await self.session.commit()
 
+    async def record_provider_payment(self, provider: str, order_id: str, currency: str, storefront: str, price_milliunits: int) -> None:
+        values = {"provider_currency": currency[:3], "provider_storefront": storefront[:3], "provider_price_milliunits": max(0, price_milliunits)}
+        statement = update(CreditPurchase).where(CreditPurchase.provider == provider, CreditPurchase.provider_order_id == order_id).values(values)
+        await self.session.execute(statement)
+        await self.session.commit()
+
     async def retain_subject_link_for_deletion(self, user_id: UUID, now: datetime) -> None:
         legal_until = CreditPurchase.created_at + text("INTERVAL '5 years'")
         retained_until = func.greatest(legal_until, now)
@@ -215,6 +221,9 @@ class CreditPurchaseRepository:
         if order.status == "REFUNDED":
             await self._refund(purchase, order)
             return
+        if order.status == "REFUND_REVERSED":
+            await self._restore_refund(purchase, order)
+            return
         if await self._reconcile_processing(purchase, order):
             return
         purchase.provider_status = order.status
@@ -270,6 +279,24 @@ class CreditPurchaseRepository:
         purchase.status = "refunded"
         purchase.provider_status = order.status
         purchase.refunded_at = datetime.now(timezone.utc)
+        purchase.provider_checked_at = datetime.now(timezone.utc)
+        await self.session.commit()
+        return self._snapshot(purchase, account)
+
+    async def _restore_refund(self, purchase: CreditPurchase, order: PurchaseOrder) -> CreditPurchaseResult:
+        if purchase.status == "granted":
+            return await self._result(purchase)
+        if purchase.status != "refunded":
+            return await self._review(purchase, order, "Refund reversal requires a refunded purchase")
+        account = await self._locked_account(purchase.user_id) if purchase.user_id else None
+        restored = purchase.chargeback_credits
+        if account and restored:
+            self._apply_debt(account, restored)
+            self._add_refund_reversal_ledger(purchase, restored)
+        purchase.chargeback_credits = 0
+        purchase.status = "granted"
+        purchase.provider_status = order.status
+        purchase.refunded_at = None
         purchase.provider_checked_at = datetime.now(timezone.utc)
         await self.session.commit()
         return self._snapshot(purchase, account)
@@ -359,6 +386,12 @@ class CreditPurchaseRepository:
             return
         metadata = {"provider": purchase.provider, "order_id": purchase.provider_order_id, "sku": purchase.sku}
         self.session.add(CreditLedgerEntry(user_id=purchase.user_id, entry_type="chargeback", balance_type="purchased", amount=-amount, idempotency_key=self._ledger_key("chargeback", purchase), entry_metadata=metadata))
+
+    def _add_refund_reversal_ledger(self, purchase: CreditPurchase, amount: int) -> None:
+        if not purchase.user_id:
+            return
+        metadata = {"provider": purchase.provider, "order_id": purchase.provider_order_id, "sku": purchase.sku}
+        self.session.add(CreditLedgerEntry(user_id=purchase.user_id, entry_type="adjustment", balance_type="purchased", amount=amount, idempotency_key=self._ledger_key("refund-reversal", purchase), entry_metadata=metadata))
 
     def _ledger_reference(self, order: PurchaseOrder) -> str:
         if order.provider == TOSS_PURCHASE_PROVIDER:

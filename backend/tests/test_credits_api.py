@@ -134,6 +134,20 @@ def test_google_play_rtdn_forwards_only_pubsub_message_and_authorization(monkeyp
     assert received == [("Bearer signed-push", "event-1", "cHVibGlzaGVk")]
 
 
+def test_app_store_notifications_accept_apple_signed_payload_field(monkeypatch: pytest.MonkeyPatch) -> None:
+    received: list[str] = []
+    class StubNotificationService:
+        def __init__(self, settings: object, session: object) -> None:
+            return None
+        async def process(self, signed_payload: str) -> None:
+            received.append(signed_payload)
+    monkeypatch.setattr("app.api.v1.credits.AppStoreNotificationService", StubNotificationService)
+    with make_test_client() as client:
+        response = client.post("/api/credits/purchases/app-store/notifications", json={"signedPayload": "apple-jws"})
+    assert response.status_code == 204
+    assert received == ["apple-jws"]
+
+
 def test_credit_purchase_history_is_scoped_to_current_user(monkeypatch: pytest.MonkeyPatch) -> None:
     requested_users: list[object] = []
     created_at = datetime(2026, 8, 11, tzinfo=timezone.utc)
