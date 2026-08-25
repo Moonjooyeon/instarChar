@@ -11,7 +11,7 @@ from starlette.middleware.base import RequestResponseEndpoint
 
 from app.api.v1 import api_router
 from app.core.config import get_settings
-from app.core.credit_products import validate_google_play_iap_configuration, validate_toss_iap_configuration
+from app.core.credit_products import validate_app_store_iap_configuration, validate_google_play_iap_configuration, validate_toss_iap_configuration
 from app.core.errors import AppError
 from app.db.session import AsyncSessionLocal
 from app.services.auto_post_scheduler import AutoPostScheduler
@@ -37,6 +37,7 @@ SECURITY_HEADERS = {
 async def lifespan(application: FastAPI) -> AsyncIterator[None]:
     validate_toss_iap_configuration(settings)
     validate_google_play_iap_configuration(settings)
+    validate_app_store_iap_configuration(settings)
     tasks = _background_tasks()
     yield
     await _cancel_tasks(tasks)

@@ -4,6 +4,7 @@ export type CreditOffer = {
   id: string;
   sku: string;
   google_play_product_id: string;
+  app_store_product_id: string;
   price_krw: number;
   base_credits: number;
   product_bonus_credits: number;
@@ -13,6 +14,7 @@ export type CreditOffer = {
   label: string;
   payment_available: boolean;
   google_play_payment_available: boolean;
+  app_store_payment_available: boolean;
 };
 
 export type CreditFlow = {
@@ -106,6 +108,7 @@ export type CreditPurchase = {
 export type CreditPurchaseList = { items: CreditPurchase[] };
 export type TossIapEnvironment = "toss" | "sandbox";
 export type GooglePlayPurchaseContext = { available: boolean; obfuscated_account_id: string };
+export type AppStorePurchaseContext = { available: boolean; app_account_token: string };
 
 export function grantCreditPurchase(orderId: string, sku: string = "", environment: TossIapEnvironment = "toss"): Promise<CreditPurchaseGrant> {
   return apiJson<CreditPurchaseGrant>("/credits/purchases/grant", { method: "POST", body: JSON.stringify({ order_id: orderId, sku, environment }) });
@@ -117,6 +120,14 @@ export function getGooglePlayPurchaseContext(): Promise<GooglePlayPurchaseContex
 
 export function grantGooglePlayCreditPurchase(purchaseToken: string): Promise<CreditPurchaseGrant> {
   return apiJson<CreditPurchaseGrant>("/credits/purchases/google-play/grant", { method: "POST", body: JSON.stringify({ purchase_token: purchaseToken }) });
+}
+
+export function getAppStorePurchaseContext(): Promise<AppStorePurchaseContext> {
+  return apiJson<AppStorePurchaseContext>("/credits/purchases/app-store/context");
+}
+
+export function grantAppStoreCreditPurchase(signedTransaction: string): Promise<CreditPurchaseGrant> {
+  return apiJson<CreditPurchaseGrant>("/credits/purchases/app-store/grant", { method: "POST", body: JSON.stringify({ signed_transaction: signedTransaction }) });
 }
 
 export function getCreditPurchases(): Promise<CreditPurchaseList> {
