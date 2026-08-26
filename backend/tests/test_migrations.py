@@ -272,6 +272,15 @@ def test_ai_prompt_version_migration_follows_iap_retention(monkeypatch: pytest.M
     assert [(column.name, column.nullable, str(column.server_default.arg)) for column in columns] == [("prompt_version", False, "legacy")]
 
 
+def test_native_oauth_retention_migration_follows_app_store_iap(monkeypatch: pytest.MonkeyPatch) -> None:
+    migration = _load_migration("20260826_0034_native_oauth_code_retention.py")
+    indexes: list[tuple[str, str, list[str]]] = []
+    monkeypatch.setattr(migration.op, "create_index", lambda name, table, columns: indexes.append((name, table, columns)))
+    cast(Callable[[], None], migration.upgrade)()
+    assert migration.down_revision == "20260825_0033"
+    assert indexes == [("ix_native_oauth_codes_expires_at", "native_oauth_codes", ["expires_at"])]
+
+
 def test_schema_alignment_migration_follows_ai_prompt_version(monkeypatch: pytest.MonkeyPatch) -> None:
     migration = _load_migration("20260812_0025_schema_alignment.py")
     statements: list[str] = []

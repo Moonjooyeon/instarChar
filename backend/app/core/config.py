@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     account_deletion_batch_size: int = 20
     native_oauth_redirect_url: str = "com.ashwoodfriends.alive://oauth/callback"
     native_oauth_code_ttl_seconds: int = 120
+    native_oauth_code_cleanup_enabled: bool = False
+    native_oauth_code_cleanup_grace_seconds: int = 86400
+    native_oauth_code_cleanup_batch_size: int = 500
     google_client_id: str = ""
     google_client_secret: str = ""
     google_redirect_uri: str = "http://localhost:8000/api/auth/google/callback"

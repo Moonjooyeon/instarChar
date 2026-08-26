@@ -123,6 +123,7 @@ class AppleAccountEvent(Base):
 
 class NativeOAuthCode(Base):
     __tablename__ = "native_oauth_codes"
+    __table_args__ = (Index("ix_native_oauth_codes_expires_at", "expires_at"),)
     id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True, default=uuid4)
     code_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
     user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
