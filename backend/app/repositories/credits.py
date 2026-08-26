@@ -122,6 +122,7 @@ class CreditRepository:
             await self._grant_if_missing(user_id, "first_dm", FIRST_DM_BONUS_CREDITS, account, dm_flow)
             await self._commit()
             self._log_response("stored", usage, datetime.now(timezone.utc))
+            self._log_metadata_anomaly(usage)
 
     async def mark_provider_started(self, usage_id: UUID, user_id: UUID) -> None:
         usage = await self._usage_for_update(usage_id, user_id)
@@ -279,6 +280,15 @@ class CreditRepository:
         age_seconds = max(0, int((now - created_at).total_seconds()))
         body_bytes = len(json.dumps(usage.response_body, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
         logger.info("Credit usage response event=%s flow=%s prompt_version=%s status=%s body_bytes=%d age_seconds=%d", event, usage.flow, usage.prompt_version, usage.status, body_bytes, age_seconds)
+
+    def _log_metadata_anomaly(self, usage: CreditUsage) -> None:
+        if usage.prompt_version != AI_PROMPT_VERSION or usage.status != "committed":
+            return
+        metadata_incomplete = not usage.usage_metadata_complete
+        zero_provider_cost = usage.provider_cost_usd <= 0
+        if not metadata_incomplete and not zero_provider_cost:
+            return
+        logger.warning("AI usage metadata anomaly flow=%s model=%s prompt_version=%s status=%s metadata_complete=%s zero_provider_cost=%s", usage.flow, usage.model, usage.prompt_version, usage.status, usage.usage_metadata_complete, zero_provider_cost)
 
     async def _commit(self) -> None:
         await self.session.commit()
