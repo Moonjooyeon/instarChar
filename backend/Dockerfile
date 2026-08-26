@@ -14,6 +14,7 @@ RUN addgroup --system app && adduser --system --ingroup app app
 COPY --chown=app:app alembic.ini .
 COPY --chown=app:app migrations ./migrations
 COPY --chown=app:app app ./app
+COPY --chown=app:app scripts/observe_ai_metadata.py ./scripts/observe_ai_metadata.py
 COPY --chown=app:app scripts/observe_credit_responses.py ./scripts/observe_credit_responses.py
 
 USER app

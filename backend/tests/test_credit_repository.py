@@ -1,12 +1,14 @@
 import asyncio
 import logging
 from datetime import datetime, timezone
+from decimal import Decimal
 from uuid import uuid4
 
 import pytest
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.sql import Select
 
+from app.core.ai_prompt_policy import AI_PROMPT_VERSION
 from app.core.credit_policy import resolve_flow
 from app.models import CreditAccount, CreditUsage, EnergyAccount
 from app.repositories.credits import CreditRepository
@@ -249,6 +251,32 @@ def test_commit_logs_response_size_without_response_content(monkeypatch: pytest.
     assert "event=stored flow=feed_post prompt_version=prompt-v2" in caplog.text
     assert "body_bytes=" in caplog.text
     assert "private-response" not in caplog.text and "private-key" not in caplog.text
+
+
+def test_current_metadata_anomaly_log_excludes_identifiers(caplog: pytest.LogCaptureFixture) -> None:
+    repository = CreditRepository(StubSession())  # type: ignore[arg-type]
+    usage = CreditUsage(user_id=uuid4(), flow="feed_post", policy_version="v2", prompt_version=AI_PROMPT_VERSION, model="flash", status="committed", idempotency_key="private-key", usage_metadata_complete=False, provider_cost_usd=Decimal("0"))
+    with caplog.at_level(logging.WARNING, logger="app.repositories.credits"):
+        repository._log_metadata_anomaly(usage)
+    assert "AI usage metadata anomaly flow=feed_post model=flash" in caplog.text
+    assert "metadata_complete=False zero_provider_cost=True" in caplog.text
+    assert "private-key" not in caplog.text and str(usage.user_id) not in caplog.text
+
+
+def test_legacy_metadata_anomaly_does_not_log(caplog: pytest.LogCaptureFixture) -> None:
+    repository = CreditRepository(StubSession())  # type: ignore[arg-type]
+    usage = CreditUsage(user_id=uuid4(), flow="feed_post", policy_version="v2", prompt_version="legacy", model="flash", status="committed", idempotency_key="private-key")
+    with caplog.at_level(logging.WARNING, logger="app.repositories.credits"):
+        repository._log_metadata_anomaly(usage)
+    assert "AI usage metadata anomaly" not in caplog.text
+
+
+def test_complete_current_metadata_does_not_log(caplog: pytest.LogCaptureFixture) -> None:
+    repository = CreditRepository(StubSession())  # type: ignore[arg-type]
+    usage = CreditUsage(user_id=uuid4(), flow="feed_post", policy_version="v2", prompt_version=AI_PROMPT_VERSION, model="flash", status="committed", idempotency_key="private-key", usage_metadata_complete=True, provider_cost_usd=Decimal("0.01"))
+    with caplog.at_level(logging.WARNING, logger="app.repositories.credits"):
+        repository._log_metadata_anomaly(usage)
+    assert "AI usage metadata anomaly" not in caplog.text
 
 
 def test_pro_flow_requires_purchased_credits(monkeypatch: pytest.MonkeyPatch) -> None:
