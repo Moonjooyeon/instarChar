@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from datetime import datetime, timezone
 from uuid import uuid4
 
@@ -217,15 +218,37 @@ def test_reserve_reports_duplicate_reservation_in_progress(monkeypatch: pytest.M
     assert energy.energy_percent == 100
 
 
-def test_reserve_replays_committed_idempotent_response(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_reserve_logs_replay_age_without_response_content(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
     session = StubSession()
     repository = CreditRepository(session)  # type: ignore[arg-type]
     account = CreditAccount(user_id=uuid4(), purchased_credits=0, bonus_credits=0)
     energy = EnergyAccount(user_id=account.user_id, energy_percent=100, last_recovered_at=datetime.now(timezone.utc))
-    existing = CreditUsage(user_id=account.user_id, flow="direct_dm_basic", policy_version="v1", model="flash", status="committed", idempotency_key="same", response_body={"content": [{"type": "text", "text": "안녕"}]})
+    created_at = datetime(2026, 8, 26, tzinfo=timezone.utc)
+    existing = CreditUsage(user_id=account.user_id, flow="direct_dm_basic", policy_version="v1", prompt_version="prompt-v1", model="flash", status="committed", idempotency_key="same", response_body={"content": [{"type": "text", "text": "private-response"}]}, created_at=created_at)
     stub_repository(monkeypatch, repository, account, energy, existing)
-    result = asyncio.run(repository.reserve(account.user_id, "direct_dm_basic", "same"))
+    with caplog.at_level(logging.INFO, logger="app.repositories.credits"):
+        result = asyncio.run(repository.reserve(account.user_id, "direct_dm_basic", "same", created_at.replace(hour=5)))
     assert result.replay_body == existing.response_body
+    assert "event=replay flow=direct_dm_basic prompt_version=prompt-v1" in caplog.text
+    assert "age_seconds=18000" in caplog.text
+    assert "private-response" not in caplog.text and "same" not in caplog.text
+
+
+def test_commit_logs_response_size_without_response_content(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
+    repository = CreditRepository(StubSession())  # type: ignore[arg-type]
+    user_id = uuid4()
+    usage = CreditUsage(id=uuid4(), user_id=user_id, flow="feed_post", policy_version="v2", prompt_version="prompt-v2", model="flash", status="reserved", idempotency_key="private-key")
+    account = CreditAccount(user_id=user_id, purchased_credits=0, bonus_credits=0)
+    energy = EnergyAccount(user_id=user_id, energy_percent=100, last_recovered_at=datetime.now(timezone.utc))
+    stub_refund(monkeypatch, repository, usage, account, energy)
+    async def no_grant(*args: object, **kwargs: object) -> bool:
+        return False
+    monkeypatch.setattr(repository, "_grant_if_missing", no_grant)
+    with caplog.at_level(logging.INFO, logger="app.repositories.credits"):
+        asyncio.run(repository.commit_usage(usage.id, user_id, response_body={"text": "private-response"}))
+    assert "event=stored flow=feed_post prompt_version=prompt-v2" in caplog.text
+    assert "body_bytes=" in caplog.text
+    assert "private-response" not in caplog.text and "private-key" not in caplog.text
 
 
 def test_pro_flow_requires_purchased_credits(monkeypatch: pytest.MonkeyPatch) -> None:
