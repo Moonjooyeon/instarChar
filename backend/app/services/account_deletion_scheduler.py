@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config import Settings
 from app.services.account_deletion import AccountDeletionService
+from app.services.native_oauth import NativeOAuthService
 
 
 logger = logging.getLogger(__name__)
@@ -32,4 +33,6 @@ class AccountDeletionScheduler:
             purged_accounts = await service.purge_due_accounts(self.settings.account_deletion_batch_size)
             await service.purge_expired_identities()
             await service.purge_expired_detached_purchases()
+            if self.settings.native_oauth_code_cleanup_enabled:
+                await NativeOAuthService(self.settings, session).purge_expired()
             return purged_accounts
