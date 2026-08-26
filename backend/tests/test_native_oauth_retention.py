@@ -1,12 +1,14 @@
 import asyncio
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import cast
 
-from pytest import MonkeyPatch
+from pytest import LogCaptureFixture, MonkeyPatch
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.core.config import Settings
+from app.repositories.native_oauth_codes import NativeOAuthCleanupResult
 from app.services.account_deletion_scheduler import AccountDeletionScheduler
 from app.services.native_oauth import NativeOAuthService
 
@@ -20,13 +22,13 @@ class StubSession:
 
 
 class StubCodes:
-    def __init__(self, deleted: int) -> None:
-        self.deleted = deleted
+    def __init__(self, result: NativeOAuthCleanupResult) -> None:
+        self.result = result
         self.calls: list[tuple[datetime, int]] = []
 
-    async def delete_expired(self, cutoff: datetime, batch_size: int) -> int:
+    async def delete_expired(self, cutoff: datetime, batch_size: int) -> NativeOAuthCleanupResult:
         self.calls.append((cutoff, batch_size))
-        return self.deleted
+        return self.result
 
 
 class StubSessionContext:
@@ -67,28 +69,42 @@ class StubNativeOAuthCleanup:
         return 1
 
 
-def test_cleanup_deletes_only_codes_outside_grace_period() -> None:
+def test_cleanup_logs_non_identifying_aggregate(caplog: LogCaptureFixture) -> None:
     now = datetime(2026, 8, 26, 6, tzinfo=timezone.utc)
     settings = Settings(native_oauth_code_cleanup_grace_seconds=86400, native_oauth_code_cleanup_batch_size=500)
     session = StubSession()
-    codes = StubCodes(47)
+    result = NativeOAuthCleanupResult(47, 44, 3, now - timedelta(days=30))
+    codes = StubCodes(result)
     service = NativeOAuthService(settings, cast(AsyncSession, session))
     service.codes = codes
-    deleted = asyncio.run(service.purge_expired(now))
+    with caplog.at_level(logging.INFO, logger="app.services.native_oauth"):
+        deleted = asyncio.run(service.purge_expired(now))
     assert deleted == 47
     assert codes.calls == [(now - timedelta(hours=24), 500)]
     assert session.commits == 1
+    assert "total=47 used=44 unused=3" in caplog.text
+    assert "code_hash" not in caplog.text and "user_id" not in caplog.text
 
 
 def test_cleanup_preserves_batch_limit() -> None:
     now = datetime(2026, 8, 26, 6, tzinfo=timezone.utc)
     settings = Settings(native_oauth_code_cleanup_batch_size=2)
     session = StubSession()
-    codes = StubCodes(2)
+    codes = StubCodes(NativeOAuthCleanupResult(2, 1, 1, now - timedelta(days=2)))
     service = NativeOAuthService(settings, cast(AsyncSession, session))
     service.codes = codes
     assert asyncio.run(service.purge_expired(now)) == 2
     assert codes.calls[0][1] == 2
+
+
+def test_cleanup_logs_an_empty_result(caplog: LogCaptureFixture) -> None:
+    now = datetime(2026, 8, 26, 6, tzinfo=timezone.utc)
+    service = NativeOAuthService(Settings(), cast(AsyncSession, StubSession()))
+    service.codes = StubCodes(NativeOAuthCleanupResult(0, 0, 0, None))
+    with caplog.at_level(logging.INFO, logger="app.services.native_oauth"):
+        assert asyncio.run(service.purge_expired(now)) == 0
+    assert "total=0 used=0 unused=0" in caplog.text
+    assert "oldest_expired_at=none" in caplog.text
 
 
 def test_scheduler_runs_enabled_native_oauth_cleanup(monkeypatch: MonkeyPatch) -> None:
