@@ -13,7 +13,7 @@ from app.core.config import Settings
 from app.core.errors import BadRequestError
 from app.core.security import sign_session
 from app.models import NativeOAuthCode
-from app.repositories.native_oauth_codes import NativeOAuthCodeRepository
+from app.repositories.native_oauth_codes import NativeOAuthCleanupResult, NativeOAuthCodeRepository
 from app.repositories.users import UserRepository
 
 
@@ -47,11 +47,14 @@ class NativeOAuthService:
     async def purge_expired(self, now: datetime | None = None) -> int:
         current_time = now or self._now()
         grace = timedelta(seconds=self.settings.native_oauth_code_cleanup_grace_seconds)
-        deleted = await self.codes.delete_expired(current_time - grace, self.settings.native_oauth_code_cleanup_batch_size)
+        cutoff = current_time - grace
+        result = await self.codes.delete_expired(cutoff, self.settings.native_oauth_code_cleanup_batch_size)
         await self.session.commit()
-        if deleted:
-            logger.info("Native OAuth code cleanup deleted=%d", deleted)
-        return deleted
+        self._log_cleanup(result, cutoff)
+        return result.deleted_total
+
+    def _log_cleanup(self, result: NativeOAuthCleanupResult, cutoff: datetime) -> None:
+        logger.info("Native OAuth code cleanup total=%d used=%d unused=%d cutoff=%s oldest_expired_at=%s batch_size=%d", result.deleted_total, result.deleted_used, result.deleted_unused, cutoff.isoformat(), result.oldest_expired_at.isoformat() if result.oldest_expired_at else "none", self.settings.native_oauth_code_cleanup_batch_size)
 
     async def _locked_code(self, code: str) -> NativeOAuthCode | None:
         statement = select(NativeOAuthCode).where(NativeOAuthCode.code_hash == self._hash(code)).with_for_update()
