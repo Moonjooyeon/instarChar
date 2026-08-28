@@ -94,6 +94,14 @@ class Settings(BaseSettings):
     monogpt_gemini_fast_output_rate_usd: float = 7.5
     monogpt_gemini_good_input_rate_usd: float = 2.0
     monogpt_gemini_good_output_rate_usd: float = 12.0
+    cafe24_llm_api_key: str = ""
+    cafe24_llm_base_url: str = "https://llm-router.cafe24.com/api/v1"
+    cafe24_llm_model_fast: str = "google/gemini-3.5-flash"
+    cafe24_llm_model_good: str = "google/gemini-3.1-pro"
+    cafe24_llm_fast_input_rate_usd: float = 1.55
+    cafe24_llm_fast_output_rate_usd: float = 9.25
+    cafe24_llm_good_input_rate_usd: float = 2.0
+    cafe24_llm_good_output_rate_usd: float = 12.0
     moderation_api_key: str = ""
     moderation_actor: str = "operations"
     terms_version: str = "2026-07-24"
@@ -103,6 +111,7 @@ class Settings(BaseSettings):
     api_monthly_cost_limit_usd: float = 50.0
     api_estimated_call_cost_usd: float = 0.003
     monogpt_gemini_timeout_ms: int = 60000
+    cafe24_llm_timeout_ms: int = 60000
     auto_post_scheduler_enabled: bool = True
     auto_post_poll_seconds: int = 30
     auto_post_batch_size: int = 10

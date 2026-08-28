@@ -82,6 +82,7 @@ Defined in `.env.example`.
 | `APPLE_CLIENT_ID` | Apple OAuth client ID |
 | `APPLE_CLIENT_SECRET` | Apple OAuth client secret or generated client secret |
 | `MONOGPT_GEMINI_API_KEY` | Server-only MonoGPT Gemini API key |
+| `CAFE24_LLM_API_KEY` | Optional server-only Cafe24 LLM Router fallback key |
 | `API_DAILY_LIMIT` | Per-user daily AI call limit stored and checked in PostgreSQL |
 | `API_MONTHLY_COST_LIMIT_USD` | System monthly estimated AI cost limit |
 | `AUTO_POST_SCHEDULER_ENABLED` | Enables the backend lifespan scheduler; defaults to `false` |
@@ -97,7 +98,7 @@ Defined in `.env.example`.
 | Profile state | `backend/app/api/v1/profiles.py` | Implemented for profile backup, structured state, onboarding |
 | Shared characters and follows | `backend/app/api/v1/shared_characters.py` | Implemented for discovery, sharing, follows, follow-back |
 | DM threads | `backend/app/api/v1/dm_threads.py` | Implemented for owner/shared DM CRUD with participant checks |
-| AI generation | `backend/app/api/v1/ai.py` | Implemented with MonoGPT Gemini and PostgreSQL-backed usage limits |
+| AI generation | `backend/app/api/v1/ai.py` | Implemented with MonoGPT Gemini primary, Cafe24 LLM Router fallback, and PostgreSQL-backed usage limits |
 | Character posts | `backend/app/api/v1/characters.py` | Implemented with revision-based writes and backend generation |
 | Autonomous posts | `backend/app/services/auto_post_scheduler.py` | Implemented with PostgreSQL due-state and `SKIP LOCKED` claims |
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import random
 import re
 from dataclasses import dataclass, field
@@ -10,7 +11,7 @@ from uuid import UUID
 
 import httpx
 
-from app.core.ai_cost import ProviderUsage, gemini_usage
+from app.core.ai_cost import ProviderUsage, gemini_usage, openai_usage
 from app.core.ai_prompt_policy import compose_system_instruction, valid_character_analysis
 from app.core.config import Settings
 from app.core.credit_policy import FlowPolicy, maximum_provider_cost_usd, resolve_flow
@@ -21,6 +22,7 @@ from app.services.content_safety import is_safe_ai_content
 
 
 RETRYABLE_STATUS_CODES = {408, 500, 502, 503, 504, 599}
+FALLBACK_STATUS_CODES = {401, 402, 404, 408, 410, 429, 599}
 MAX_PROVIDER_RETRY_AFTER_SECONDS = 30.0
 NON_RETRYABLE_EMPTY_REASONS = {"CONTENT_FILTER", "ERROR", "SAFETY"}
 UNSAFE_EMPTY_REASONS = {"CONTENT_FILTER", "SAFETY"}
@@ -32,6 +34,7 @@ GEMINI_SAFETY_SETTINGS = (
     {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
     {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
 )
+logger = logging.getLogger(__name__)
 @dataclass(frozen=True)
 class GenerateApiResult:
     status_code: int
@@ -83,8 +86,8 @@ class MonoGptGeminiGenerateService:
         return await self._finalize_result(result, credit, owner_id, finalize_credit)
 
     def _request_error(self, payload: GenerateRequest) -> GenerateApiResult | None:
-        if not self.settings.monogpt_gemini_api_key:
-            return GenerateApiResult(500, {"error": "API_KEY_MISSING", "message": "서버에 MonoGPT Gemini API 키가 설정되지 않았습니다."})
+        if not self.settings.monogpt_gemini_api_key and not self.settings.cafe24_llm_api_key:
+            return GenerateApiResult(500, {"error": "API_KEY_MISSING", "message": "서버에 AI 공급자 API 키가 설정되지 않았습니다."})
         if not payload.messages:
             return GenerateApiResult(400, {"error": "BAD_REQUEST", "message": "messages 배열이 필요합니다."})
         if not is_safe_ai_content([message.content for message in payload.messages]):
@@ -151,11 +154,21 @@ class MonoGptGeminiGenerateService:
             response = await self._call_gemini_safe(self._retry_model(payload, model_name, response), self._retry_body(payload, request_body))
             usage = usage.merged(response.usage)
             text_result = self._text_result(response.body)
+        if self._should_fallback(response):
+            logger.warning("ai_provider_fallback primary_status=%s fallback=cafe24", response.status_code)
+            response = await self._call_cafe24_safe(payload, request_body)
+            usage = usage.merged(response.usage)
+            text_result = self._text_result(response.body)
+            if response.status_code >= 400:
+                logger.warning("ai_provider_fallback_failed fallback=cafe24 status=%s", response.status_code)
         if response.status_code >= 400:
             return self._provider_error(response, usage)
         return self._final_result(payload, text_result, usage)
 
     async def _call_gemini_safe(self, model_name: str, body: dict[str, object]) -> MonoGptGeminiResponse:
+        if not self.settings.monogpt_gemini_api_key:
+            usage = ProviderUsage(measured=True)
+            return MonoGptGeminiResponse(401, {"error": {"code": 401, "status": "API_KEY_MISSING"}}, usage=usage)
         try:
             return await self._call_gemini_once(model_name, body)
         except httpx.HTTPError:
@@ -168,6 +181,22 @@ class MonoGptGeminiGenerateService:
         usage = gemini_usage(data, model_name, *self._model_rates(model_name))
         return MonoGptGeminiResponse(self._response_status(response.status_code, data), data, self._retry_after(response), usage)
 
+    async def _call_cafe24_safe(self, payload: GenerateRequest, body: dict[str, object]) -> MonoGptGeminiResponse:
+        try:
+            return await self._call_cafe24_once(payload, body)
+        except httpx.HTTPError:
+            model = self._cafe24_model_name(payload.flow)
+            return MonoGptGeminiResponse(599, {"error": {"code": 599, "status": "NETWORK_ERROR"}}, usage=ProviderUsage(model=model, attempts=1))
+
+    async def _call_cafe24_once(self, payload: GenerateRequest, body: dict[str, object]) -> MonoGptGeminiResponse:
+        model = self._cafe24_model_name(payload.flow)
+        async with httpx.AsyncClient(timeout=self.settings.cafe24_llm_timeout_ms / 1000) as client:
+            response = await client.post(self._cafe24_url(), headers=self._cafe24_headers(), json=self._cafe24_body(model, body))
+        data = self._json_response(response, "Cafe24 LLM Router")
+        usage = openai_usage(data, model, *self._cafe24_model_rates(payload.flow))
+        normalized = self._cafe24_response(data) if response.status_code < 400 else data
+        return MonoGptGeminiResponse(self._response_status(response.status_code, data), normalized, self._retry_after(response), usage)
+
     def _model_rates(self, model_name: str) -> tuple[Decimal, Decimal]:
         if model_name == self.settings.monogpt_gemini_model_good:
             return Decimal(str(self.settings.monogpt_gemini_good_input_rate_usd)), Decimal(str(self.settings.monogpt_gemini_good_output_rate_usd))
@@ -176,7 +205,10 @@ class MonoGptGeminiGenerateService:
     def _maximum_provider_cost(self, policy: FlowPolicy) -> Decimal:
         rates = self._model_rates(self._model_name(policy.code))
         attempts = 2 if policy.model != "pro" or policy.code == "character_analysis" else 1
-        return maximum_provider_cost_usd(policy, attempts, *rates)
+        primary = maximum_provider_cost_usd(policy, attempts, *rates) if self.settings.monogpt_gemini_api_key else Decimal("0")
+        if not self.settings.cafe24_llm_api_key:
+            return primary
+        return primary + maximum_provider_cost_usd(policy, 1, *self._cafe24_model_rates(policy.code))
 
     def _gemini_body(self, payload: GenerateRequest) -> dict[str, object]:
         system = self._system_instruction(payload)
@@ -327,6 +359,69 @@ class MonoGptGeminiGenerateService:
     def _gemini_headers(self) -> dict[str, str]:
         return {"Content-Type": "application/json", "x-goog-api-key": self.settings.monogpt_gemini_api_key}
 
+    def _should_fallback(self, response: MonoGptGeminiResponse) -> bool:
+        unavailable = response.status_code in FALLBACK_STATUS_CODES or response.status_code >= 500
+        return bool(self.settings.cafe24_llm_api_key) and unavailable
+
+    def _cafe24_url(self) -> str:
+        return f"{self.settings.cafe24_llm_base_url.rstrip('/')}/chat/completions"
+
+    def _cafe24_headers(self) -> dict[str, str]:
+        return {"Authorization": f"Bearer {self.settings.cafe24_llm_api_key}", "Content-Type": "application/json"}
+
+    def _cafe24_model_name(self, flow: str) -> str:
+        return self.settings.cafe24_llm_model_good if resolve_flow(flow).model == "pro" else self.settings.cafe24_llm_model_fast
+
+    def _cafe24_model_rates(self, flow: str) -> tuple[Decimal, Decimal]:
+        if resolve_flow(flow).model == "pro":
+            return Decimal(str(self.settings.cafe24_llm_good_input_rate_usd)), Decimal(str(self.settings.cafe24_llm_good_output_rate_usd))
+        return Decimal(str(self.settings.cafe24_llm_fast_input_rate_usd)), Decimal(str(self.settings.cafe24_llm_fast_output_rate_usd))
+
+    def _cafe24_body(self, model: str, body: dict[str, object]) -> dict[str, object]:
+        config = self._record(body.get("generationConfig"))
+        result: dict[str, object] = {"model": model, "messages": self._cafe24_messages(body), "max_tokens": config.get("maxOutputTokens", 2048), "temperature": config.get("temperature", 0.9)}
+        if config.get("responseMimeType") == "application/json":
+            result["response_format"] = {"type": "json_object"}
+        return result
+
+    def _cafe24_messages(self, body: dict[str, object]) -> list[dict[str, object]]:
+        messages: list[dict[str, object]] = []
+        system = self._response_text(self._record(body.get("systemInstruction")).get("parts"))
+        if system:
+            messages.append({"role": "system", "content": system})
+        messages.extend(self._cafe24_message(item) for item in self._list_value(body.get("contents")))
+        return messages
+
+    def _cafe24_message(self, value: object) -> dict[str, object]:
+        content = self._record(value)
+        role = "assistant" if content.get("role") == "model" else "user"
+        parts = [part for value in self._list_value(content.get("parts")) if (part := self._cafe24_part(value))]
+        text = "".join(str(part.get("text") or "") for part in parts if part.get("type") == "text")
+        return {"role": role, "content": text if len(parts) == 1 and text else parts}
+
+    def _cafe24_part(self, value: object) -> dict[str, object] | None:
+        part = self._record(value)
+        if "text" in part:
+            return {"type": "text", "text": str(part.get("text") or "")}
+        inline = self._record(part.get("inlineData"))
+        if not inline:
+            return None
+        url = f"data:{inline.get('mimeType')};base64,{inline.get('data')}"
+        return {"type": "image_url", "image_url": {"url": url}}
+
+    def _cafe24_response(self, data: dict[str, object]) -> dict[str, object]:
+        choice = self._first_record(data.get("choices"))
+        message = self._record(choice.get("message"))
+        text = self._openai_text(message.get("content"))
+        usage = self._record(data.get("usage"))
+        metadata = {"promptTokenCount": usage.get("prompt_tokens"), "candidatesTokenCount": usage.get("completion_tokens"), "totalTokenCount": usage.get("total_tokens")}
+        return {"candidates": [{"content": {"parts": [{"text": text}]}, "finishReason": choice.get("finish_reason")}], "usageMetadata": metadata}
+
+    def _openai_text(self, content: object) -> str:
+        if isinstance(content, str):
+            return content
+        return "".join(str(self._record(part).get("text") or "") for part in self._list_value(content))
+
     def _model_name(self, flow: str) -> str:
         return self.settings.monogpt_gemini_model_good if resolve_flow(flow).model == "pro" else self.settings.monogpt_gemini_model_fast
 
@@ -359,14 +454,14 @@ class MonoGptGeminiGenerateService:
     def _wants_json(self, system: str) -> bool:
         return bool(JSON_SYSTEM_PATTERN.search(system or ""))
 
-    def _json_response(self, response: httpx.Response) -> dict[str, object]:
+    def _json_response(self, response: httpx.Response, provider: str = "MonoGPT Gemini") -> dict[str, object]:
         try:
             data = response.json()
         except ValueError:
-            return {"error": {"code": 502, "message": f"MonoGPT Gemini가 JSON이 아닌 응답을 보냈습니다. HTTP {response.status_code}"}}
+            return {"error": {"code": 502, "message": f"{provider}가 JSON이 아닌 응답을 보냈습니다. HTTP {response.status_code}"}}
         if isinstance(data, dict):
             return data
-        return {"error": {"code": 502, "message": "MonoGPT Gemini 응답 형식이 올바르지 않습니다."}}
+        return {"error": {"code": 502, "message": f"{provider} 응답 형식이 올바르지 않습니다."}}
 
     def _response_status(self, http_status: int, data: dict[str, object]) -> int:
         if http_status >= 400:

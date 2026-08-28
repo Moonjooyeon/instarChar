@@ -96,6 +96,11 @@ def gemini_response(text: str, finish_reason: str = "STOP", usage: dict[str, obj
     return {"candidates": [{"content": {"parts": [{"text": text}]}, "finishReason": finish_reason}], "usageMetadata": metadata}
 
 
+def cafe24_response(text: str) -> dict[str, object]:
+    usage = {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}
+    return {"choices": [{"message": {"content": text}, "finish_reason": "stop"}], "usage": usage}
+
+
 def test_generate_uses_gemini_native_contract(monkeypatch: pytest.MonkeyPatch) -> None:
     async def call_gemini_once(self: object, model_name: str, body: dict[str, object]) -> MonoGptGeminiResponse:
         assert model_name == "gemini-fast-test"
@@ -149,6 +154,59 @@ def test_gemini_request_parses_native_usage(monkeypatch: pytest.MonkeyPatch) -> 
     assert captured["headers"] == {"Content-Type": "application/json", "x-goog-api-key": "test-key"}
     assert captured["url"] == "https://router.test/api/monorouter/v1/gemini/v1beta/models/server-owned-model:generateContent"
     assert response.usage == ProviderUsage(model="server-owned-model", attempts=1, input_tokens=10, output_tokens=5, thought_tokens=2, total_tokens=15, cost_usd=Decimal("0.0000675"), measured=True)
+
+
+def test_cafe24_request_uses_openai_contract_and_parses_usage(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+    class StubClient:
+        def __init__(self, timeout: float) -> None:
+            captured["timeout"] = timeout
+        async def __aenter__(self) -> object:
+            return self
+        async def __aexit__(self, exc_type: object, exc_value: object, traceback: object) -> None:
+            return None
+        async def post(self, url: str, headers: dict[str, str], json: dict[str, object]) -> httpx.Response:
+            captured.update(url=url, headers=headers, body=json)
+            return httpx.Response(200, json=cafe24_response("fallback ok"))
+    monkeypatch.setattr(httpx, "AsyncClient", StubClient)
+    service = MonoGptGeminiGenerateService(make_settings(cafe24_llm_api_key="cafe-key"), StubCancellationUsage())  # type: ignore[arg-type]
+    payload = GenerateRequest(**generate_body())
+    response = asyncio.run(service._call_cafe24_once(payload, service._gemini_body(payload)))
+    assert captured["url"] == "https://llm-router.cafe24.com/api/v1/chat/completions"
+    assert captured["headers"] == {"Authorization": "Bearer cafe-key", "Content-Type": "application/json"}
+    assert captured["body"]["model"] == "google/gemini-3.5-flash"
+    assert [message["role"] for message in captured["body"]["messages"]] == ["system", "user"]
+    assert response.body["candidates"][0]["content"]["parts"][0]["text"] == "fallback ok"
+    assert response.usage == ProviderUsage(model="google/gemini-3.5-flash", attempts=1, input_tokens=10, output_tokens=5, total_tokens=15, cost_usd=Decimal("0.00006175"), measured=True)
+
+
+def test_cafe24_contract_preserves_inline_images() -> None:
+    service = MonoGptGeminiGenerateService(make_settings(cafe24_llm_api_key="cafe-key"), StubCancellationUsage())  # type: ignore[arg-type]
+    body = {"contents": [{"role": "user", "parts": [{"text": "봐줘"}, {"inlineData": {"mimeType": "image/png", "data": "aGVsbG8="}}]}], "generationConfig": {}}
+    request = service._cafe24_body("fallback-model", body)
+    content = request["messages"][0]["content"]
+    assert content == [{"type": "text", "text": "봐줘"}, {"type": "image_url", "image_url": {"url": "data:image/png;base64,aGVsbG8="}}]
+
+
+def test_fallback_policy_covers_router_retirement_without_masking_bad_requests() -> None:
+    enabled = MonoGptGeminiGenerateService(make_settings(cafe24_llm_api_key="cafe-key"), StubCancellationUsage())  # type: ignore[arg-type]
+    disabled = MonoGptGeminiGenerateService(make_settings(), StubCancellationUsage())  # type: ignore[arg-type]
+    assert all(enabled._should_fallback(MonoGptGeminiResponse(status, {})) for status in (401, 404, 410, 501, 599))
+    assert not enabled._should_fallback(MonoGptGeminiResponse(400, {}))
+    assert not enabled._should_fallback(MonoGptGeminiResponse(200, {}))
+    assert not disabled._should_fallback(MonoGptGeminiResponse(503, {}))
+
+
+def test_cafe24_key_alone_satisfies_provider_configuration() -> None:
+    cafe24_only = MonoGptGeminiGenerateService(make_settings(monogpt_gemini_api_key="", cafe24_llm_api_key="cafe-key"), StubCancellationUsage())  # type: ignore[arg-type]
+    both = MonoGptGeminiGenerateService(make_settings(cafe24_llm_api_key="cafe-key"), StubCancellationUsage())  # type: ignore[arg-type]
+    missing = MonoGptGeminiGenerateService(make_settings(monogpt_gemini_api_key=""), StubCancellationUsage())  # type: ignore[arg-type]
+    payload = GenerateRequest(**generate_body())
+    assert cafe24_only._request_error(payload) is None
+    assert missing._request_error(payload).body["error"] == "API_KEY_MISSING"  # type: ignore[union-attr]
+    assert cafe24_only._maximum_provider_cost(resolve_flow(payload.flow)) < both._maximum_provider_cost(resolve_flow(payload.flow))
+    response = asyncio.run(cafe24_only._call_gemini_safe("unused", {}))
+    assert response.usage == ProviderUsage(measured=True)
 
 
 def test_generation_config_uses_policy_thinking_budget() -> None:
@@ -301,6 +359,57 @@ def test_generate_retries_transient_failure_only_once(monkeypatch: pytest.Monkey
     assert calls == 2
 
 
+def test_generate_falls_back_after_primary_retries(monkeypatch: pytest.MonkeyPatch) -> None:
+    primary_calls = 0
+    fallback_calls = 0
+    async def no_sleep(delay: float) -> None:
+        return None
+    async def call_gemini_once(self: object, model_name: str, body: dict[str, object]) -> MonoGptGeminiResponse:
+        nonlocal primary_calls
+        primary_calls += 1
+        return MonoGptGeminiResponse(503, {"error": {"code": 503}}, usage=ProviderUsage(model=model_name, attempts=1))
+    async def call_cafe24_safe(self: object, payload: GenerateRequest, body: dict[str, object]) -> MonoGptGeminiResponse:
+        nonlocal fallback_calls
+        fallback_calls += 1
+        usage = ProviderUsage(model="google/gemini-3.5-flash", attempts=1, input_tokens=10, output_tokens=5, total_tokens=15, measured=True)
+        return MonoGptGeminiResponse(200, gemini_response("cafe24 응답"), usage=usage)
+    monkeypatch.setattr(asyncio, "sleep", no_sleep)
+    monkeypatch.setattr(MonoGptGeminiGenerateService, "_call_gemini_once", call_gemini_once)
+    monkeypatch.setattr(MonoGptGeminiGenerateService, "_call_cafe24_safe", call_cafe24_safe)
+    with make_test_client(monkeypatch, cafe24_llm_api_key="cafe-key") as client:
+        response = client.post("/api/ai/generate", json=generate_body())
+    assert response.status_code == 200
+    assert response.json()["content"][0]["text"] == "cafe24 응답"
+    assert (primary_calls, fallback_calls) == (2, 1)
+
+
+def test_generate_uses_cafe24_directly_when_primary_key_is_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def call_gemini_once(self: object, model_name: str, body: dict[str, object]) -> MonoGptGeminiResponse:
+        raise AssertionError("unconfigured primary provider was called")
+    async def call_cafe24_safe(self: object, payload: GenerateRequest, body: dict[str, object]) -> MonoGptGeminiResponse:
+        usage = ProviderUsage(model="google/gemini-3.5-flash", attempts=1, input_tokens=10, output_tokens=5, total_tokens=15, measured=True)
+        return MonoGptGeminiResponse(200, gemini_response("cafe24 direct"), usage=usage)
+    monkeypatch.setattr(MonoGptGeminiGenerateService, "_call_gemini_once", call_gemini_once)
+    monkeypatch.setattr(MonoGptGeminiGenerateService, "_call_cafe24_safe", call_cafe24_safe)
+    with make_test_client(monkeypatch, monogpt_gemini_api_key="", cafe24_llm_api_key="cafe-key") as client:
+        response = client.post("/api/ai/generate", json=generate_body())
+    assert response.status_code == 200
+    assert response.json()["content"][0]["text"] == "cafe24 direct"
+
+
+def test_generate_does_not_fallback_for_rejected_request(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def call_gemini_once(self: object, model_name: str, body: dict[str, object]) -> MonoGptGeminiResponse:
+        return MonoGptGeminiResponse(400, {"error": {"code": 400}})
+    async def call_cafe24_safe(self: object, payload: GenerateRequest, body: dict[str, object]) -> MonoGptGeminiResponse:
+        raise AssertionError("rejected request reached fallback")
+    monkeypatch.setattr(MonoGptGeminiGenerateService, "_call_gemini_once", call_gemini_once)
+    monkeypatch.setattr(MonoGptGeminiGenerateService, "_call_cafe24_safe", call_cafe24_safe)
+    with make_test_client(monkeypatch, cafe24_llm_api_key="cafe-key") as client:
+        response = client.post("/api/ai/generate", json=generate_body())
+    assert response.status_code == 400
+    assert response.json()["error"] == "AI_REQUEST_REJECTED"
+
+
 def test_pro_dm_does_not_double_bill_on_transient_failure(monkeypatch: pytest.MonkeyPatch) -> None:
     calls = 0
     async def call_gemini_once(self: object, model_name: str, body: dict[str, object]) -> MonoGptGeminiResponse:
@@ -384,7 +493,7 @@ def make_test_client(monkeypatch: pytest.MonkeyPatch, **overrides: object) -> Te
 
 
 def make_settings(**overrides: object) -> Settings:
-    defaults = {"monogpt_gemini_api_key": "test-key", "monogpt_gemini_base_url": "https://router.test/api/monorouter/v1/gemini", "monogpt_gemini_model_fast": "gemini-fast-test"}
+    defaults = {"monogpt_gemini_api_key": "test-key", "monogpt_gemini_base_url": "https://router.test/api/monorouter/v1/gemini", "monogpt_gemini_model_fast": "gemini-fast-test", "cafe24_llm_api_key": ""}
     return Settings(**(defaults | overrides))
 
 
