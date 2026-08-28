@@ -25,7 +25,7 @@ FRONTEND_WEB_ENV = $(if $(WEB_API_URL),VITE_API_BASE_URL=$(WEB_API_URL) )
 FRONTEND_BUILD_ENV = $(if $(CAP_API_URL),VITE_API_BASE_URL=$(CAP_API_URL) )
 FRONTEND_LOCAL_BUILD_ENV = VITE_API_BASE_URL=$(LOCAL_CAP_BASE_URL) VITE_LEGAL_BASE_URL=$(LOCAL_CAP_BASE_URL)
 
-.PHONY: help local-up local-down local-logs local-ps backend-dev backend-run backend-test backend-compile iap-release-check web-dev web-build web-preview toss-build toss-deploy android-java-home android-local-properties cap-doctor cap-build cap-build-local cap-sync cap-sync-local cap-open-ios cap-open-android cap-run-ios cap-run-android cap-checklist android-bundle-release ios-archive-release ios-export-release-local
+.PHONY: help local-up local-down local-logs local-ps backend-dev backend-run backend-schema-gate backend-test backend-compile iap-release-check web-dev web-build web-preview toss-build toss-deploy android-java-home android-local-properties cap-doctor cap-build cap-build-local cap-sync cap-sync-local cap-open-ios cap-open-android cap-run-ios cap-run-android cap-checklist android-bundle-release ios-archive-release ios-export-release-local
 
 help:
 	@printf '%s\n' \
@@ -36,6 +36,7 @@ help:
 		'  make local-ps                          Show local Docker service status.' \
 		'  make backend-dev                        Run FastAPI with reload on 0.0.0.0.' \
 		'  make backend-run                        Run FastAPI without reload.' \
+		'  make backend-schema-gate                Validate the Alembic revision graph.' \
 		'  make backend-test                       Run backend pytest suite.' \
 		'  make backend-compile                    Compile backend Python files.' \
 		'  make iap-release-check IAP_RELEASE_MANIFEST=path.json' \
@@ -91,7 +92,10 @@ backend-dev:
 backend-run:
 	PYTHONPATH=$(BACKEND_DIR) $(BACKEND_UVICORN) app.main:app --host $(BACKEND_HOST) --port $(BACKEND_PORT)
 
-backend-test:
+backend-schema-gate:
+	PYTHONPATH=$(BACKEND_DIR) $(BACKEND_PYTHON) $(BACKEND_DIR)/scripts/check_schema_migrations.py
+
+backend-test: backend-schema-gate
 	PYTHONPATH=$(BACKEND_DIR) $(BACKEND_PYTEST) $(BACKEND_DIR)/tests
 
 backend-compile:

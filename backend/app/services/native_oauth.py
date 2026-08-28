@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 from secrets import token_urlsafe
@@ -12,13 +13,18 @@ from app.core.config import Settings
 from app.core.errors import BadRequestError
 from app.core.security import sign_session
 from app.models import NativeOAuthCode
+from app.repositories.native_oauth_codes import NativeOAuthCleanupResult, NativeOAuthCodeRepository
 from app.repositories.users import UserRepository
+
+
+logger = logging.getLogger(__name__)
 
 
 class NativeOAuthService:
     def __init__(self, settings: Settings, session: AsyncSession) -> None:
         self.settings = settings
         self.session = session
+        self.codes = NativeOAuthCodeRepository(session)
 
     async def issue(self, user_id: UUID) -> str:
         code = token_urlsafe(32)
@@ -37,6 +43,18 @@ class NativeOAuthService:
         record.used_at = self._now()
         await self.session.commit()
         return sign_session(user.id, self.settings.auth_session_ttl_seconds, self.settings.auth_secret_key, user.session_version)
+
+    async def purge_expired(self, now: datetime | None = None) -> int:
+        current_time = now or self._now()
+        grace = timedelta(seconds=self.settings.native_oauth_code_cleanup_grace_seconds)
+        cutoff = current_time - grace
+        result = await self.codes.delete_expired(cutoff, self.settings.native_oauth_code_cleanup_batch_size)
+        await self.session.commit()
+        self._log_cleanup(result, cutoff)
+        return result.deleted_total
+
+    def _log_cleanup(self, result: NativeOAuthCleanupResult, cutoff: datetime) -> None:
+        logger.info("Native OAuth code cleanup total=%d used=%d unused=%d cutoff=%s oldest_expired_at=%s batch_size=%d", result.deleted_total, result.deleted_used, result.deleted_unused, cutoff.isoformat(), result.oldest_expired_at.isoformat() if result.oldest_expired_at else "none", self.settings.native_oauth_code_cleanup_batch_size)
 
     async def _locked_code(self, code: str) -> NativeOAuthCode | None:
         statement = select(NativeOAuthCode).where(NativeOAuthCode.code_hash == self._hash(code)).with_for_update()

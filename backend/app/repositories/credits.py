@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
@@ -16,6 +18,7 @@ from app.models import AiDailyUsage, AiMonthlyUsage, CreditAccount, CreditLedger
 
 
 RESERVATION_TTL = timedelta(minutes=10)
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -49,7 +52,7 @@ class CreditRepository:
         await self._reconcile_stale(user_id, account, energy, current)
         existing = await self._usage_by_key(user_id, key)
         if existing:
-            return await self._duplicate(existing, policy)
+            return await self._duplicate(existing, policy, current)
         await self._grant_if_missing(user_id, "signup", SIGNUP_BONUS_CREDITS, account)
         intro_free = await self._intro_free_available(user_id, policy)
         if await self._hard_flow_limit_reached(user_id, policy, current):
@@ -66,9 +69,10 @@ class CreditRepository:
         await self._commit()
         return CreditReservation(True, usage.id, policy)
 
-    async def _duplicate(self, usage: CreditUsage, policy: FlowPolicy) -> CreditReservation:
+    async def _duplicate(self, usage: CreditUsage, policy: FlowPolicy, now: datetime) -> CreditReservation:
         await self._commit()
         if usage.flow == policy.code and usage.status == "committed" and usage.response_body:
+            self._log_response("replay", usage, now)
             return CreditReservation(False, usage.id, policy, replay_body=dict(usage.response_body))
         if usage.flow == policy.code and usage.status == "reserved":
             return CreditReservation(False, usage.id, policy, "REQUEST_IN_PROGRESS", "같은 요청을 처리하고 있어.")
@@ -117,6 +121,8 @@ class CreditRepository:
             dm_flow = usage.flow.startswith("direct_dm")
             await self._grant_if_missing(user_id, "first_dm", FIRST_DM_BONUS_CREDITS, account, dm_flow)
             await self._commit()
+            self._log_response("stored", usage, datetime.now(timezone.utc))
+            self._log_metadata_anomaly(usage)
 
     async def mark_provider_started(self, usage_id: UUID, user_id: UUID) -> None:
         usage = await self._usage_for_update(usage_id, user_id)
@@ -268,6 +274,21 @@ class CreditRepository:
         usage.total_tokens = provider.total_tokens
         usage.usage_metadata_complete = provider.measured
         usage.provider_cost_usd = provider.cost_usd
+
+    def _log_response(self, event: str, usage: CreditUsage, now: datetime) -> None:
+        created_at = usage.created_at or now
+        age_seconds = max(0, int((now - created_at).total_seconds()))
+        body_bytes = len(json.dumps(usage.response_body, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
+        logger.info("Credit usage response event=%s flow=%s prompt_version=%s status=%s body_bytes=%d age_seconds=%d", event, usage.flow, usage.prompt_version, usage.status, body_bytes, age_seconds)
+
+    def _log_metadata_anomaly(self, usage: CreditUsage) -> None:
+        if usage.prompt_version != AI_PROMPT_VERSION or usage.status != "committed":
+            return
+        metadata_incomplete = not usage.usage_metadata_complete
+        zero_provider_cost = usage.provider_cost_usd <= 0
+        if not metadata_incomplete and not zero_provider_cost:
+            return
+        logger.warning("AI usage metadata anomaly flow=%s model=%s prompt_version=%s status=%s metadata_complete=%s zero_provider_cost=%s", usage.flow, usage.model, usage.prompt_version, usage.status, usage.usage_metadata_complete, zero_provider_cost)
 
     async def _commit(self) -> None:
         await self.session.commit()
