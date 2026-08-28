@@ -11,10 +11,12 @@ test("the app shell enforces a restrictive content security policy", () => {
   assert.doesNotMatch(html, /script-src[^;]*'unsafe-inline'/);
 });
 
-test("the legacy Apps in Toss packager preserves its runtime and API URL", () => {
-  const config = readFileSync(path.resolve(process.cwd(), "granite.config.ts"), "utf8");
+test("the Apps in Toss v3 packager preserves its runtime and API URL", () => {
+  const config = readFileSync(path.resolve(process.cwd(), "apps-in-toss.config.ts"), "utf8");
+  const packageJson = JSON.parse(readFileSync(path.resolve(process.cwd(), "package.json"), "utf8"));
   const environment = readFileSync(path.resolve(process.cwd(), "../../.env.toss"), "utf8");
-  assert.match(config, /vite build --mode toss/);
+  assert.match(config, /webBundleDir: "dist"/);
+  assert.equal(packageJson.scripts["build:toss"], "vite build --mode toss && ait build");
   assert.match(environment, /VITE_ALIVE_RUNTIME=apps-in-toss/);
   assert.match(environment, /VITE_API_BASE_URL=https:\/\/alive\.imagebgremover\.net\/api/);
 });

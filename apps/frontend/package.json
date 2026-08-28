@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "build:toss": "ait build",
+    "build:toss": "vite build --mode toss && ait build",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test:domain": "tsc -p tsconfig.domain-tests.json && node --test .tmp/domain-tests/tests/domain/*.test.js",
     "test:e2e": "playwright test",
@@ -14,12 +14,13 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@apps-in-toss/web-framework": "2.10.8",
+    "@apps-in-toss/web-framework": "3.1.1",
     "pretendard": "^1.3.9",
     "react": "18.3.1",
     "react-dom": "18.3.1"
   },
   "devDependencies": {
+    "@apps-in-toss/devtools": "3.1.1",
     "@capacitor/android": "^8.4.0",
     "@capacitor/cli": "^8.4.0",
     "@capacitor/core": "^8.4.0",
